@@ -14,8 +14,25 @@
 
 package writer
 
-import "github.com/mendersoftware/artifacts/metadata"
+import (
+	"encoding/json"
 
-func WriteInfo(metadata1 *metadata.MetadataInfo) error {
+	"github.com/mendersoftware/artifacts/metadata"
+	"github.com/pkg/errors"
+)
+
+func getInfoJSON(metadata *metadata.MetadataInfo) ([]byte, error) {
+	if metadata == nil {
+		return nil, nil
+	}
+	return json.Marshal(metadata)
+}
+
+func WriteInfo(metadata *metadata.MetadataInfo) error {
+	info, err := getInfoJSON(metadata)
+	// below should handle passing empty metadata
+	if err != nil || info == nil {
+		return errors.New("unable to convert metadata to JSON")
+	}
 	return nil
 }

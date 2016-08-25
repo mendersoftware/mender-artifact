@@ -15,11 +15,26 @@
 package writer
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/mendersoftware/artifacts/metadata"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestMarshallInfo(t *testing.T) {
+	info := metadata.MetadataInfo{
+		Format:  "test",
+		Version: "1",
+	}
+	metadata, err := getInfoJSON(&info)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"format":"test", "version":"1"}`, string(metadata))
+
+	metadata, err = getInfoJSON(nil)
+	assert.NoError(t, err)
+	assert.Empty(t, metadata)
+}
 
 func TestWriteInfo(t *testing.T) {
 	info := metadata.MetadataInfo{
@@ -28,4 +43,8 @@ func TestWriteInfo(t *testing.T) {
 	}
 	err := WriteInfo(&info)
 	assert.NoError(t, err)
+
+	err = WriteInfo(nil)
+	fmt.Printf("wer: %v", err)
+	assert.Error(t, err)
 }
