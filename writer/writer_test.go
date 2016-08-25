@@ -27,13 +27,20 @@ func TestMarshallInfo(t *testing.T) {
 		Format:  "test",
 		Version: "1",
 	}
-	metadata, err := getInfoJSON(&info)
+	infoJSON, err := getInfoJSON(&info)
 	assert.NoError(t, err)
-	assert.JSONEq(t, `{"format":"test", "version":"1"}`, string(metadata))
+	assert.JSONEq(t, `{"format":"test", "version":"1"}`, string(infoJSON))
 
-	metadata, err = getInfoJSON(nil)
+	info = metadata.MetadataInfo{
+		Format: "test",
+	}
+	infoJSON, err = getInfoJSON(&info)
 	assert.NoError(t, err)
-	assert.Empty(t, metadata)
+	assert.Empty(t, infoJSON)
+
+	infoJSON, err = getInfoJSON(nil)
+	assert.NoError(t, err)
+	assert.Empty(t, infoJSON)
 }
 
 func TestWriteInfo(t *testing.T) {

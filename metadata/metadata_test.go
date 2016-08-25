@@ -12,30 +12,25 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-package writer
+package metadata
 
-import (
-	"encoding/json"
+import "testing"
+import "github.com/stretchr/testify/assert"
 
-	"github.com/mendersoftware/artifacts/metadata"
-	"github.com/pkg/errors"
-)
-
-func getInfoJSON(info *metadata.MetadataInfo) ([]byte, error) {
-	if info == nil {
-		return nil, nil
+func TestValidateInfo(t *testing.T) {
+	var validateTests = []struct {
+		in  MetadataInfo
+		err error
+	}{
+		{MetadataInfo{Format: "", Version: ""}, ErrInvalidInfo},
+		{MetadataInfo{Format: "", Version: "1"}, ErrInvalidInfo},
+		{MetadataInfo{Format: "format", Version: ""}, ErrInvalidInfo},
+		{MetadataInfo{}, ErrInvalidInfo},
+		{MetadataInfo{Format: "format", Version: "1"}, nil},
 	}
-	if err := info.Validate(); err == metadata.ErrInvalidInfo {
-		return nil, nil
-	}
-	return json.Marshal(info)
-}
 
-func WriteInfo(info *metadata.MetadataInfo) error {
-	infoJSON, err := getInfoJSON(info)
-	// below should handle passing empty metadata
-	if err != nil || infoJSON == nil {
-		return errors.New("unable to convert metadata to JSON")
+	for _, tt := range validateTests {
+		e := tt.in.Validate()
+		assert.Equal(t, e, tt.err)
 	}
-	return nil
 }
