@@ -32,7 +32,11 @@ func (m MetadataInfo) Validate() error {
 	return nil
 }
 
-type MetadataUpdateType string
+var ErrInvalidHeaderInfo = errors.New("invalid artifacts info")
+
+type MetadataUpdateType struct {
+	Type string `json:"type"`
+}
 
 type MetadataHeaderInfo struct {
 	Updates []MetadataUpdateType `json:"updates"`

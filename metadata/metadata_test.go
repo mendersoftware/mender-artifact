@@ -40,7 +40,14 @@ func TestValidateHeaderInfo(t *testing.T) {
 		in  MetadataHeaderInfo
 		err error
 	}{
-		{MetadataHeaderInfo{}, nil},
+		{MetadataHeaderInfo{}, ErrInvalidHeaderInfo},
+		{MetadataHeaderInfo{Updates: []MetadataUpdateType{}}, ErrInvalidHeaderInfo},
+		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: ""}}}, ErrInvalidHeaderInfo},
+		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: "update"}, {}}}, ErrInvalidHeaderInfo},
+		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{}, {Type: "update"}}}, ErrInvalidHeaderInfo},
+		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: "update"}, {Type: ""}}}, ErrInvalidHeaderInfo},
+		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: "update"}}}, nil},
+		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: "update"}, {Type: "update"}}}, nil},
 	}
 	for _, tt := range validateTests {
 		e := tt.in.Validate()
