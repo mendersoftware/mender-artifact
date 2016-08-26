@@ -49,8 +49,8 @@ func TestValidateHeaderInfo(t *testing.T) {
 		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: "update"}}}, nil},
 		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: "update"}, {Type: "update"}}}, nil},
 	}
-	for _, tt := range validateTests {
+	for idx, tt := range validateTests {
 		e := tt.in.Validate()
-		assert.Equal(t, e, tt.err)
+		assert.Equal(t, e, tt.err, "failing test: %v (%v)", idx, tt)
 	}
 }

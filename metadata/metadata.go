@@ -43,5 +43,13 @@ type MetadataHeaderInfo struct {
 }
 
 func (m MetadataHeaderInfo) Validate() error {
+	if len(m.Updates) == 0 {
+		return ErrInvalidHeaderInfo
+	}
+	for _, update := range m.Updates {
+		if update == (MetadataUpdateType{}) {
+			return ErrInvalidHeaderInfo
+		}
+	}
 	return nil
 }
