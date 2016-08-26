@@ -14,19 +14,22 @@
 
 package metadata
 
-import "testing"
-import "github.com/stretchr/testify/assert"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestValidateInfo(t *testing.T) {
 	var validateTests = []struct {
 		in  MetadataInfo
 		err error
 	}{
-		{MetadataInfo{Format: "", Version: ""}, ErrInvalidInfo},
-		{MetadataInfo{Format: "", Version: "1"}, ErrInvalidInfo},
-		{MetadataInfo{Format: "format", Version: ""}, ErrInvalidInfo},
+		{MetadataInfo{Format: "", Version: 0}, ErrInvalidInfo},
+		{MetadataInfo{Format: "", Version: 1}, ErrInvalidInfo},
+		{MetadataInfo{Format: "format"}, ErrInvalidInfo},
 		{MetadataInfo{}, ErrInvalidInfo},
-		{MetadataInfo{Format: "format", Version: "1"}, nil},
+		{MetadataInfo{Format: "format", Version: 1}, nil},
 	}
 
 	for _, tt := range validateTests {
@@ -68,5 +71,28 @@ func TestValidateTypeInfo(t *testing.T) {
 	for _, tt := range validateTests {
 		e := tt.in.Validate()
 		assert.Equal(t, e, tt.err)
+	}
+}
+
+func TestValidateMetadata(t *testing.T) {
+	var validateTests = []struct {
+		in  Metadata
+		err error
+	}{
+		{Metadata{}, ErrInvalidMetadata},
+		{Metadata{make(map[string]interface{})}, ErrInvalidMetadata},
+		{Metadata{map[string]interface{}{}}, ErrInvalidMetadata},
+		{Metadata{map[string]interface{}{"": nil}}, ErrInvalidMetadata},
+		{Metadata{map[string]interface{}{"key": nil}}, ErrInvalidMetadata},
+		{Metadata{map[string]interface{}{"key": "val"}}, ErrInvalidMetadata},
+		{Metadata{map[string]interface{}{"DeviceType": "type"}}, ErrInvalidMetadata},
+		{Metadata{map[string]interface{}{"DeviceType": nil, "ImageID": "image"}}, ErrInvalidMetadata},
+		{Metadata{map[string]interface{}{"DeviceType": "device", "ImageID": "image"}}, nil},
+		{Metadata{map[string]interface{}{"DeviceType": "device", "ImageID": "image", "Data": "data"}}, nil},
+	}
+
+	for _, tt := range validateTests {
+		e := tt.in.Validate()
+		assert.Equal(t, e, tt.err, "failing test: %v", tt)
 	}
 }

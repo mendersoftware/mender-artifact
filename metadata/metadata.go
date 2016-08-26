@@ -14,19 +14,22 @@
 
 package metadata
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 var ErrInvalidInfo = errors.New("invalid artifacts info")
 
 type MetadataInfo struct {
 	Format  string `json:"format"`
-	Version string `json:"version"`
+	Version int    `json:"version"`
 }
 
 type MetadataInfoJSON string
 
 func (m MetadataInfo) Validate() error {
-	if len(m.Format) == 0 || len(m.Version) == 0 {
+	if len(m.Format) == 0 || m.Version == 0 {
 		return ErrInvalidInfo
 	}
 	return nil
@@ -63,6 +66,38 @@ type MetadataTypeInfo struct {
 func (m MetadataTypeInfo) Validate() error {
 	if len(m.Rootfs) == 0 {
 		return ErrInvalidTypeInfo
+	}
+	return nil
+}
+
+var ErrInvalidMetadata = errors.New("invalid metadata")
+
+type Metadata struct {
+	// we don't know exactly what tyoe of data we will have here
+	data map[string]interface{}
+}
+
+func (m Metadata) Validate() error {
+	if m.data == nil {
+		return ErrInvalidMetadata
+	}
+	// mandatory fields
+	var deviceType interface{}
+	var imageID interface{}
+
+	for k, v := range m.data {
+		if v == nil {
+			return ErrInvalidMetadata
+		}
+		if strings.Compare(k, "DeviceType") == 0 {
+			deviceType = v
+		}
+		if strings.Compare(k, "ImageID") == 0 {
+			imageID = v
+		}
+	}
+	if deviceType == nil || imageID == nil {
+		return ErrInvalidMetadata
 	}
 	return nil
 }
