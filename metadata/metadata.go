@@ -31,3 +31,13 @@ func (m MetadataInfo) Validate() error {
 	}
 	return nil
 }
+
+type MetadataUpdateType string
+
+type MetadataHeaderInfo struct {
+	Updates []MetadataUpdateType `json:"updates"`
+}
+
+func (m MetadataHeaderInfo) Validate() error {
+	return nil
+}

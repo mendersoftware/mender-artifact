@@ -34,3 +34,16 @@ func TestValidateInfo(t *testing.T) {
 		assert.Equal(t, e, tt.err)
 	}
 }
+
+func TestValidateHeaderInfo(t *testing.T) {
+	var validateTests = []struct {
+		in  MetadataHeaderInfo
+		err error
+	}{
+		{MetadataHeaderInfo{}, nil},
+	}
+	for _, tt := range validateTests {
+		e := tt.in.Validate()
+		assert.Equal(t, e, tt.err)
+	}
+}
