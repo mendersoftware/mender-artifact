@@ -14,7 +14,20 @@
 
 package metadata
 
+import "errors"
+
+var ErrInvalidInfo = errors.New("invalid artifacts info")
+
 type MetadataInfo struct {
-	Format  string
-	Version string
+	Format  string `json:"format"`
+	Version string `json:"version"`
+}
+
+type MetadataInfoJSON string
+
+func (m MetadataInfo) Validate() error {
+	if len(m.Format) == 0 || len(m.Version) == 0 {
+		return ErrInvalidInfo
+	}
+	return nil
 }
