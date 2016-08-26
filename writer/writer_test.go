@@ -25,7 +25,7 @@ import (
 func TestMarshallInfo(t *testing.T) {
 	info := metadata.MetadataInfo{
 		Format:  "test",
-		Version: "1",
+		Version: 1,
 	}
 	infoJSON, err := getInfoJSON(&info)
 	assert.NoError(t, err)
@@ -46,7 +46,7 @@ func TestMarshallInfo(t *testing.T) {
 func TestWriteInfo(t *testing.T) {
 	info := metadata.MetadataInfo{
 		Format:  "test",
-		Version: "1",
+		Version: 1,
 	}
 	err := WriteInfo(&info)
 	assert.NoError(t, err)
