@@ -101,3 +101,25 @@ func (m Metadata) Validate() error {
 	}
 	return nil
 }
+
+var ErrInvalidFilesInfo = errors.New("invalid files info")
+
+type MetadataFile struct {
+	File string `json:"type"`
+}
+
+type MetadataFiles struct {
+	Files []MetadataFile `json:"files"`
+}
+
+func (m MetadataFiles) Validate() error {
+	if len(m.Files) == 0 {
+		return ErrInvalidFilesInfo
+	}
+	for _, file := range m.Files {
+		if file == (MetadataFile{}) {
+			return ErrInvalidFilesInfo
+		}
+	}
+	return nil
+}

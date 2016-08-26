@@ -96,3 +96,21 @@ func TestValidateMetadata(t *testing.T) {
 		assert.Equal(t, e, tt.err, "failing test: %v", tt)
 	}
 }
+
+func TestValidateFiles(t *testing.T) {
+	var validateTests = []struct {
+		in  MetadataFiles
+		err error
+	}{
+		{MetadataFiles{}, ErrInvalidFilesInfo},
+		{MetadataFiles{Files: []MetadataFile{}}, ErrInvalidFilesInfo},
+		{MetadataFiles{Files: []MetadataFile{{File: ""}}}, ErrInvalidFilesInfo},
+		{MetadataFiles{Files: []MetadataFile{{File: "file"}}}, nil},
+		{MetadataFiles{Files: []MetadataFile{{File: "file"}, {}}}, ErrInvalidFilesInfo},
+		{MetadataFiles{Files: []MetadataFile{{File: "file"}, {File: "file_next"}}}, nil},
+	}
+	for idx, tt := range validateTests {
+		e := tt.in.Validate()
+		assert.Equal(t, e, tt.err, "failing test: %v (%v)", idx, tt)
+	}
+}
