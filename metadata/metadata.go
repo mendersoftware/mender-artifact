@@ -53,3 +53,16 @@ func (m MetadataHeaderInfo) Validate() error {
 	}
 	return nil
 }
+
+var ErrInvalidTypeInfo = errors.New("invalid type info")
+
+type MetadataTypeInfo struct {
+	Rootfs string `json:"rootfs"`
+}
+
+func (m MetadataTypeInfo) Validate() error {
+	if len(m.Rootfs) == 0 {
+		return ErrInvalidTypeInfo
+	}
+	return nil
+}

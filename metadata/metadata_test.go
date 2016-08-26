@@ -54,3 +54,19 @@ func TestValidateHeaderInfo(t *testing.T) {
 		assert.Equal(t, e, tt.err, "failing test: %v (%v)", idx, tt)
 	}
 }
+
+func TestValidateTypeInfo(t *testing.T) {
+	var validateTests = []struct {
+		in  MetadataTypeInfo
+		err error
+	}{
+		{MetadataTypeInfo{}, ErrInvalidTypeInfo},
+		{MetadataTypeInfo{Rootfs: ""}, ErrInvalidTypeInfo},
+		{MetadataTypeInfo{Rootfs: "image-type"}, nil},
+	}
+
+	for _, tt := range validateTests {
+		e := tt.in.Validate()
+		assert.Equal(t, e, tt.err)
+	}
+}
