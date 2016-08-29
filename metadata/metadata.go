@@ -16,7 +16,11 @@ package metadata
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/mendersoftware/log"
 )
 
 var ErrInvalidInfo = errors.New("invalid artifacts info")
@@ -121,5 +125,100 @@ func (m MetadataFiles) Validate() error {
 			return ErrInvalidFilesInfo
 		}
 	}
+	return nil
+}
+
+type MetadataDirEntry struct {
+	path     string
+	isDir    bool
+	required bool
+}
+
+type MetadataArtifactHeader struct {
+	Artifacts map[string]MetadataDirEntry
+}
+
+var MetadataHeaderFormat = map[string]MetadataDirEntry{
+	// while calling filepath.Walk() `.` (root) directory is included
+	// when iterating throug entries in the tree
+	".":               {path: ".", isDir: true, required: false},
+	"files":           {path: "files", isDir: false, required: false},
+	"meta-data":       {path: "meta-data", isDir: false, required: true},
+	"type-info":       {path: "type-info", isDir: false, required: true},
+	"checksums":       {path: "checksums", isDir: true, required: false},
+	"checksums/*":     {path: "checksums", isDir: false, required: false},
+	"signatures":      {path: "signatures", isDir: true, required: true},
+	"signatures/*":    {path: "signatures", isDir: false, required: true},
+	"scripts":         {path: "scripts", isDir: true, required: false},
+	"scripts/pre":     {path: "scripts/pre", isDir: true, required: false},
+	"scripts/pre/*":   {path: "scripts/pre", isDir: false, required: false},
+	"scripts/post":    {path: "scripts/post", isDir: true, required: false},
+	"scripts/post/*":  {path: "scripts/post", isDir: false, required: false},
+	"scripts/check":   {path: "scripts/check", isDir: true, required: false},
+	"scripts/check/*": {path: "scripts/check/*", isDir: false, required: false},
+}
+
+var (
+	ErrInvalidMetadataElemType = errors.New("Invalid atrifact type")
+	ErrMissingMetadataElem     = errors.New("Missing artifact")
+	ErrUnsupportedElement      = errors.New("Unsupported artifact")
+)
+
+func (mh MetadataArtifactHeader) processEntry(entry string, isDir bool, required map[string]bool) error {
+	elem, ok := mh.Artifacts[entry]
+	if !ok {
+		// for now we are only allowing file name to be user defined
+		// the directory structure is pre defined
+		if filepath.Base(entry) == "*" {
+			return ErrUnsupportedElement
+		}
+		newEntry := filepath.Dir(entry) + "/*"
+		return mh.processEntry(newEntry, isDir, required)
+	}
+
+	if isDir != elem.isDir {
+		return ErrInvalidMetadataElemType
+	}
+
+	if elem.required {
+		required[entry] = true
+	}
+	return nil
+}
+
+func (mh MetadataArtifactHeader) CheckHeaderStructure(headerDir string) error {
+	var required = make(map[string]bool)
+	for k, v := range mh.Artifacts {
+		if v.required {
+			required[k] = false
+		}
+	}
+	err := filepath.Walk(headerDir,
+		func(path string, f os.FileInfo, err error) error {
+			pth, err := filepath.Rel(headerDir, path)
+			if err != nil {
+				return err
+			}
+
+			err = mh.processEntry(pth, f.IsDir(), required)
+			if err != nil {
+				log.Errorf("unsupported element in update metadata header: %v (is dir: %v)", path, f.IsDir())
+				return err
+			}
+
+			return nil
+		})
+	if err != nil {
+		return err
+	}
+
+	// check if all required elements are in place
+	for k, v := range required {
+		if !v {
+			log.Errorf("missing element in update metadata header: %v", k)
+			return ErrMissingMetadataElem
+		}
+	}
+
 	return nil
 }
