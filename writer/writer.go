@@ -53,16 +53,17 @@ type MetadataDirEntry struct {
 	required bool
 }
 
-type MetadataDirStruct map[string]MetadataDirEntry
-
-var MetadataElements = MetadataDirStruct{
+var MetadataHeader = map[string]MetadataDirEntry{
 	// while calling filepath.Walk() `.` (root) directory is included
 	// when iterating throug entries in the tree
 	".":               {path: ".", isDir: true, required: false},
-	"data":            {path: "data", isDir: true, required: true},
-	"data/*":          {path: "data", isDir: false, required: true},
+	"files":           {path: "files", isDir: false, required: true},
 	"meta-data":       {path: "meta-data", isDir: false, required: true},
 	"type-info":       {path: "type-info", isDir: false, required: true},
+	"checksums":       {path: "checksums", isDir: true, required: true},
+	"checksums/*":     {path: "checksums", isDir: false, required: true},
+	"signatures":      {path: "signatures", isDir: true, required: true},
+	"signatures/*":    {path: "signatures", isDir: false, required: true},
 	"scripts":         {path: "scripts", isDir: true, required: false},
 	"scripts/pre":     {path: "scripts/pre", isDir: true, required: false},
 	"scripts/pre/*":   {path: "scripts/pre", isDir: false, required: false},
@@ -79,7 +80,7 @@ var (
 )
 
 func processEntry(entry string, isDir bool, required map[string]bool) error {
-	elem, ok := MetadataElements[entry]
+	elem, ok := MetadataHeader[entry]
 	if !ok {
 		// for now we are only allowing file name to be user defined
 		// the directory structure is pre defined
@@ -100,9 +101,9 @@ func processEntry(entry string, isDir bool, required map[string]bool) error {
 	return nil
 }
 
-func (mv MetadataWritter) checkDirStructure() error {
+func (mv MetadataWritter) checkHeaderStructure() error {
 	var required = make(map[string]bool)
-	for k, v := range MetadataElements {
+	for k, v := range MetadataHeader {
 		if v.required {
 			required[k] = false
 		}
@@ -116,7 +117,7 @@ func (mv MetadataWritter) checkDirStructure() error {
 
 			err = processEntry(pth, f.IsDir(), required)
 			if err != nil {
-				log.Errorf("unsupported element in update metadata directory: %v (is dir: %v)", path, f.IsDir())
+				log.Errorf("unsupported element in update metadata header: %v (is dir: %v)", path, f.IsDir())
 				return err
 			}
 
@@ -126,9 +127,10 @@ func (mv MetadataWritter) checkDirStructure() error {
 		return err
 	}
 
+	// check if all required elements are in place
 	for k, v := range required {
 		if !v {
-			log.Errorf("missing element in update metadata directory: %v", k)
+			log.Errorf("missing element in update metadata header: %v", k)
 			return ErrMissingMetadataElem
 		}
 	}
