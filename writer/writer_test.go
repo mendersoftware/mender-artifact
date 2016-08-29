@@ -15,7 +15,9 @@
 package writer
 
 import (
-	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
 	"testing"
 
 	"github.com/mendersoftware/artifacts/metadata"
@@ -29,7 +31,7 @@ func TestMarshallInfo(t *testing.T) {
 	}
 	infoJSON, err := getInfoJSON(&info)
 	assert.NoError(t, err)
-	assert.JSONEq(t, `{"format":"test", "version":"1"}`, string(infoJSON))
+	assert.JSONEq(t, `{"format":"test", "version":1}`, string(infoJSON))
 
 	info = metadata.MetadataInfo{
 		Format: "test",
@@ -52,6 +54,137 @@ func TestWriteInfo(t *testing.T) {
 	assert.NoError(t, err)
 
 	err = WriteInfo(nil)
-	fmt.Printf("wer: %v", err)
 	assert.Error(t, err)
+}
+
+func makeFakeUpdateDir(updateDir string, elements []MetadataDirEntry) error {
+	for _, elem := range elements {
+		if elem.isDir {
+			if err := os.MkdirAll(path.Join(updateDir, elem.path), os.ModeDir|os.ModePerm); err != nil {
+				return err
+			}
+		} else {
+			if _, err := os.Create(path.Join(updateDir, elem.path)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+var dirStructOK = []MetadataDirEntry{
+	{path: "data", isDir: true, required: true},
+	{path: "data/update.zip", isDir: false, required: true},
+	{path: "meta-data", isDir: false, required: true},
+	{path: "type-info", isDir: false, required: true},
+	{path: "scripts", isDir: true, required: false},
+	{path: "scripts/pre", isDir: true, required: false},
+	{path: "scripts/post", isDir: true, required: false},
+	{path: "scripts/check", isDir: true, required: false},
+}
+
+var dirStructMultipleUpdates = []MetadataDirEntry{
+	{path: "data", isDir: true, required: true},
+	{path: "data/update.zip", isDir: false, required: true},
+	{path: "data/update_next.zip", isDir: false, required: true},
+	{path: "meta-data", isDir: false, required: true},
+	{path: "type-info", isDir: false, required: true},
+	{path: "scripts", isDir: true, required: false},
+	{path: "scripts/pre", isDir: true, required: false},
+	{path: "scripts/post", isDir: true, required: false},
+	{path: "scripts/check", isDir: true, required: false},
+}
+
+var dirStructOKHaveScripts = []MetadataDirEntry{
+	{path: "data", isDir: true, required: true},
+	{path: "data/update.zip", isDir: false, required: true},
+	{path: "meta-data", isDir: false, required: true},
+	{path: "type-info", isDir: false, required: true},
+	{path: "scripts", isDir: true, required: false},
+	{path: "scripts/pre", isDir: true, required: false},
+	{path: "scripts/pre/0000_install.sh", isDir: false, required: false},
+	{path: "scripts/pre/0001_install.sh", isDir: false, required: false},
+	{path: "scripts/post", isDir: true, required: false},
+	{path: "scripts/check", isDir: true, required: false},
+}
+
+var dirStructTypeError = []MetadataDirEntry{
+	{path: "data", isDir: true, required: true},
+	{path: "data/update.zip", isDir: false, required: true},
+	{path: "meta-data", isDir: true, required: true},
+	{path: "type-info", isDir: false, required: true},
+	{path: "scripts", isDir: true, required: false},
+	{path: "scripts/pre", isDir: true, required: false},
+	{path: "scripts/post", isDir: true, required: false},
+	{path: "scripts/check", isDir: true, required: false},
+}
+
+var dirStructInvalidContent = []MetadataDirEntry{
+	{path: "not-supported", isDir: true, required: true},
+	{path: "meta-data", isDir: false, required: true},
+	{path: "type-info", isDir: false, required: true},
+	{path: "scripts", isDir: true, required: false},
+	{path: "scripts/pre", isDir: true, required: false},
+	{path: "scripts/post", isDir: true, required: false},
+	{path: "scripts/check", isDir: true, required: false},
+}
+
+var dirStructInvalidNestedDirs = []MetadataDirEntry{
+	{path: "data", isDir: true, required: true},
+	{path: "data/update.zip", isDir: false, required: true},
+	{path: "meta-data", isDir: false, required: true},
+	{path: "type-info", isDir: false, required: true},
+	{path: "scripts", isDir: true, required: false},
+	{path: "scripts/pre", isDir: true, required: false},
+	{path: "scripts/post", isDir: true, required: false},
+	{path: "scripts/check", isDir: true, required: false},
+	{path: "scripts/unsupported_dir", isDir: true, required: true},
+}
+
+var dirStructMissingRequired = []MetadataDirEntry{
+	{path: "data", isDir: true, required: true},
+	{path: "meta-data", isDir: false, required: true},
+	{path: "type-info", isDir: false, required: true},
+	{path: "scripts", isDir: true, required: false},
+	{path: "scripts/pre", isDir: true, required: false},
+	{path: "scripts/post", isDir: true, required: false},
+	{path: "scripts/check", isDir: true, required: false},
+}
+
+var dirStructMissingOptional = []MetadataDirEntry{
+	{path: "data", isDir: true, required: true},
+	{path: "data/update.zip", isDir: false, required: true},
+	{path: "meta-data", isDir: false, required: true},
+	{path: "type-info", isDir: false, required: true},
+	{path: "scripts", isDir: true, required: false},
+	{path: "scripts/pre", isDir: true, required: false},
+}
+
+func TestDirectoryStructure(t *testing.T) {
+	var validateTests = []struct {
+		dirContent []MetadataDirEntry
+		err        error
+	}{
+		{dirStructOK, nil},
+		{dirStructMultipleUpdates, nil},
+		{dirStructOKHaveScripts, nil},
+		{dirStructTypeError, ErrInvalidMetadataElemType},
+		{dirStructInvalidContent, ErrUnsupportedElement},
+		{dirStructInvalidNestedDirs, ErrUnsupportedElement},
+		{dirStructMissingRequired, ErrMissingMetadataElem},
+		{dirStructMissingOptional, nil},
+	}
+
+	for _, tt := range validateTests {
+		updateTestDir, _ := ioutil.TempDir("", "update")
+		defer os.RemoveAll(updateTestDir)
+		err := makeFakeUpdateDir(updateTestDir, tt.dirContent)
+		assert.NoError(t, err)
+
+		mw := MetadataWritter{
+			updateDir: updateTestDir,
+		}
+		err = mw.checkDirStructure()
+		assert.Equal(t, tt.err, err)
+	}
 }
