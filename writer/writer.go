@@ -57,11 +57,11 @@ var MetadataHeader = map[string]MetadataDirEntry{
 	// while calling filepath.Walk() `.` (root) directory is included
 	// when iterating throug entries in the tree
 	".":               {path: ".", isDir: true, required: false},
-	"files":           {path: "files", isDir: false, required: true},
+	"files":           {path: "files", isDir: false, required: false},
 	"meta-data":       {path: "meta-data", isDir: false, required: true},
 	"type-info":       {path: "type-info", isDir: false, required: true},
-	"checksums":       {path: "checksums", isDir: true, required: true},
-	"checksums/*":     {path: "checksums", isDir: false, required: true},
+	"checksums":       {path: "checksums", isDir: true, required: false},
+	"checksums/*":     {path: "checksums", isDir: false, required: false},
 	"signatures":      {path: "signatures", isDir: true, required: true},
 	"signatures/*":    {path: "signatures", isDir: false, required: true},
 	"scripts":         {path: "scripts", isDir: true, required: false},
