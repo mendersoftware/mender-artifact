@@ -34,3 +34,23 @@ func TestValidateInfo(t *testing.T) {
 		assert.Equal(t, e, tt.err)
 	}
 }
+
+func TestValidateHeaderInfo(t *testing.T) {
+	var validateTests = []struct {
+		in  MetadataHeaderInfo
+		err error
+	}{
+		{MetadataHeaderInfo{}, ErrInvalidHeaderInfo},
+		{MetadataHeaderInfo{Updates: []MetadataUpdateType{}}, ErrInvalidHeaderInfo},
+		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: ""}}}, ErrInvalidHeaderInfo},
+		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: "update"}, {}}}, ErrInvalidHeaderInfo},
+		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{}, {Type: "update"}}}, ErrInvalidHeaderInfo},
+		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: "update"}, {Type: ""}}}, ErrInvalidHeaderInfo},
+		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: "update"}}}, nil},
+		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: "update"}, {Type: "update"}}}, nil},
+	}
+	for idx, tt := range validateTests {
+		e := tt.in.Validate()
+		assert.Equal(t, e, tt.err, "failing test: %v (%v)", idx, tt)
+	}
+}
