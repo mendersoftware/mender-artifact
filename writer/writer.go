@@ -16,16 +16,42 @@ package writer
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"path/filepath"
 
 	"github.com/mendersoftware/artifacts/metadata"
 	"github.com/pkg/errors"
 )
 
-type MetadataWritter struct {
-	updateLocation string
-	format         string
-	version        string
+type MetadataWriter struct {
+	updateLocation  string
+	headerStructure metadata.MetadataArtifactHeader
+	format          string
+	version         string
+}
+
+var MetadataWriterHeaderFormat = map[string]metadata.MetadataDirEntry{
+	// while calling filepath.Walk() `.` (root) directory is included
+	// when iterating throug entries in the tree
+	".":               {Path: ".", IsDir: true, Required: false},
+	"files":           {Path: "files", IsDir: false, Required: false},
+	"meta-data":       {Path: "meta-data", IsDir: false, Required: true},
+	"type-info":       {Path: "type-info", IsDir: false, Required: true},
+	"checksums":       {Path: "checksums", IsDir: true, Required: false},
+	"checksums/*":     {Path: "checksums", IsDir: false, Required: false},
+	"signatures":      {Path: "signatures", IsDir: true, Required: true},
+	"signatures/*":    {Path: "signatures", IsDir: false, Required: true},
+	"scripts":         {Path: "scripts", IsDir: true, Required: false},
+	"scripts/pre":     {Path: "scripts/pre", IsDir: true, Required: false},
+	"scripts/pre/*":   {Path: "scripts/pre", IsDir: false, Required: false},
+	"scripts/post":    {Path: "scripts/post", IsDir: true, Required: false},
+	"scripts/post/*":  {Path: "scripts/post", IsDir: false, Required: false},
+	"scripts/check":   {Path: "scripts/check", IsDir: true, Required: false},
+	"scripts/check/*": {Path: "scripts/check/*", IsDir: false, Required: false},
+	// we must have data directory containing update
+	"data":   {Path: "data", IsDir: true, Required: true},
+	"data/*": {Path: "data/*", IsDir: false, Required: true},
 }
 
 func getInfoJSON(info *metadata.MetadataInfo) ([]byte, error) {
@@ -47,7 +73,7 @@ func WriteInfo(info *metadata.MetadataInfo) error {
 	return nil
 }
 
-func (mv MetadataWritter) Write() error {
+func (mv MetadataWriter) Write() error {
 
 	// get directories list containing updates
 	entries, err := ioutil.ReadDir(mv.updateLocation)
@@ -59,9 +85,13 @@ func (mv MetadataWritter) Write() error {
 
 	// iterate through all directories containing updates
 	for _, location := range entries {
+		fmt.Printf("file: %v\n", filepath.Join(mv.updateLocation, location.Name()))
 		// check files and directories consistency
-		header := metadata.MetadataArtifactHeader{Artifacts: metadata.MetadataHeaderFormat}
-		header.CheckHeaderStructure(location.Name())
+
+		err := mv.headerStructure.CheckHeaderStructure(filepath.Join(mv.updateLocation, location.Name()))
+		if err != nil {
+			return err
+		}
 
 		// get list of update files
 
