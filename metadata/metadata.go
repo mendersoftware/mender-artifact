@@ -30,8 +30,6 @@ type MetadataInfo struct {
 	Version int    `json:"version"`
 }
 
-type MetadataInfoJSON string
-
 func (m MetadataInfo) Validate() error {
 	if len(m.Format) == 0 || m.Version == 0 {
 		return ErrInvalidInfo
@@ -109,7 +107,7 @@ func (m Metadata) Validate() error {
 var ErrInvalidFilesInfo = errors.New("invalid files info")
 
 type MetadataFile struct {
-	File string `json:"type"`
+	File string `json:"file"`
 }
 
 type MetadataFiles struct {
