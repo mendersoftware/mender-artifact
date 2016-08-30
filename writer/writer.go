@@ -42,8 +42,10 @@ type update struct {
 type updates []update
 
 type updateBacket struct {
-	updates updates
-	files   metadata.MetadataFiles
+	location string
+	path     string
+	updates  updates
+	files    metadata.MetadataFiles
 }
 
 type MetadataWriter struct {
@@ -133,9 +135,9 @@ func (mv MetadataWriter) generateChecksum(upd *update) error {
 	return nil
 }
 
-func (mv MetadataWriter) writeChecksums(updateDir string, updates updates) error {
+func (mv MetadataWriter) writeChecksums(updates updateBacket) error {
 	// first check if `checksums` directory exists
-	checksumsDir := filepath.Join(updateDir, "checksums")
+	checksumsDir := filepath.Join(updates.path, "checksums")
 	if _, err := os.Stat(checksumsDir); os.IsNotExist(err) {
 		// do nothing here; create directlry later
 	} else {
@@ -148,7 +150,7 @@ func (mv MetadataWriter) writeChecksums(updateDir string, updates updates) error
 		return err
 	}
 
-	for _, update := range updates {
+	for _, update := range updates.updates {
 		fileName := strings.TrimSuffix(update.name, filepath.Ext(update.name)) + ".sha256sum"
 		if len(update.checksum) == 0 {
 			log.Errorf("blah: %v\n", update)
@@ -163,31 +165,31 @@ func (mv MetadataWriter) writeChecksums(updateDir string, updates updates) error
 	return nil
 }
 
-func (mv MetadataWriter) writeFiles(updateDir string, files metadata.MetadataFiles) error {
-	if err := files.Validate(); err != nil {
+func (mv MetadataWriter) writeFiles(updates updateBacket) error {
+	if err := updates.files.Validate(); err != nil {
 		return err
 	}
 
-	data, err := getJSON(files)
+	data, err := getJSON(updates.files)
 	if err != nil {
 		return err
 	}
 
 	if err :=
-		ioutil.WriteFile(filepath.Join(updateDir, "files"), data, os.ModePerm); err != nil {
+		ioutil.WriteFile(filepath.Join(updates.path, "files"), data, os.ModePerm); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (mv MetadataWriter) moveAndCompressData(bucket string, updates updates) error {
+func (mv MetadataWriter) moveAndCompressData(updates updateBacket) error {
 	destination := filepath.Join(mv.updateLocation, "data")
 
 	if err := os.MkdirAll(destination, os.ModeDir|os.ModePerm); err != nil {
 		return err
 	}
 
-	archive, err := os.Create(filepath.Join(destination, bucket+".tar.gz"))
+	archive, err := os.Create(filepath.Join(destination, updates.location+".tar.gz"))
 	if err != nil {
 		return err
 	}
@@ -199,7 +201,7 @@ func (mv MetadataWriter) moveAndCompressData(bucket string, updates updates) err
 
 	tw := tar.NewWriter(gw)
 
-	for _, update := range updates {
+	for _, update := range updates.updates {
 		// we are happy with relative hdr.Name below
 		hdr, err := tar.FileInfoHeader(update.info, update.info.Name())
 		if err != nil {
@@ -229,7 +231,7 @@ func (mv MetadataWriter) moveAndCompressData(bucket string, updates updates) err
 	}
 
 	// remove original files
-	if err := os.RemoveAll(filepath.Join(mv.updateLocation, bucket, "data")); err != nil {
+	if err := os.RemoveAll(filepath.Join(mv.updateLocation, updates.location, "data")); err != nil {
 		return err
 	}
 
@@ -325,24 +327,25 @@ func (mv *MetadataWriter) processUpdateBucket(bucket string) error {
 
 		// generate signatures
 
-		// generate file info
+		// generate `file` data
 		updBucket.files.Files =
 			append(updBucket.files.Files, metadata.MetadataFile{File: upd.name})
-
 		updBucket.updates = append(updBucket.updates, upd)
+		updBucket.location = bucket
+		updBucket.path = bucketLocation
 	}
 
 	// generate `files` file
-	if err = mv.writeFiles(bucketLocation, updBucket.files); err != nil {
+	if err = mv.writeFiles(updBucket); err != nil {
 		return err
 	}
 
-	if err = mv.writeChecksums(bucketLocation, updBucket.updates); err != nil {
+	if err = mv.writeChecksums(updBucket); err != nil {
 		return err
 	}
 
-	// move (and compress) updates from `data` to `../data/location.zip`
-	if err = mv.moveAndCompressData(bucket, updBucket.updates); err != nil {
+	// move (and compress) updates from `data` to `../data/location.tar.gz`
+	if err = mv.moveAndCompressData(updBucket); err != nil {
 		return err
 	}
 
