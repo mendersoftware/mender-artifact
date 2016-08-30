@@ -118,14 +118,14 @@ func TestValidateFiles(t *testing.T) {
 	}
 }
 
-func makeFakeUpdateDir(updateDir string, elements []MetadataDirEntry) error {
+func MakeFakeUpdateDir(updateDir string, elements []MetadataDirEntry) error {
 	for _, elem := range elements {
-		if elem.isDir {
-			if err := os.MkdirAll(path.Join(updateDir, elem.path), os.ModeDir|os.ModePerm); err != nil {
+		if elem.IsDir {
+			if err := os.MkdirAll(path.Join(updateDir, elem.Path), os.ModeDir|os.ModePerm); err != nil {
 				return err
 			}
 		} else {
-			if _, err := os.Create(path.Join(updateDir, elem.path)); err != nil {
+			if _, err := os.Create(path.Join(updateDir, elem.Path)); err != nil {
 				return err
 			}
 		}
@@ -134,120 +134,140 @@ func makeFakeUpdateDir(updateDir string, elements []MetadataDirEntry) error {
 }
 
 var dirStructOK = []MetadataDirEntry{
-	{path: "files", isDir: false},
-	{path: "type-info", isDir: false},
-	{path: "meta-data", isDir: false},
-	{path: "checksums", isDir: true},
-	{path: "checksums/image.sha", isDir: false},
-	{path: "signatures", isDir: true},
-	{path: "signatures/iamge.sig", isDir: false},
-	{path: "scripts", isDir: true},
-	{path: "scripts/pre", isDir: true},
-	{path: "scripts/post", isDir: true},
-	{path: "scripts/check", isDir: true},
+	{Path: "files", IsDir: false},
+	{Path: "type-info", IsDir: false},
+	{Path: "meta-data", IsDir: false},
+	{Path: "checksums", IsDir: true},
+	{Path: "checksums/image.sha", IsDir: false},
+	{Path: "signatures", IsDir: true},
+	{Path: "signatures/iamge.sig", IsDir: false},
+	{Path: "scripts", IsDir: true},
+	{Path: "scripts/pre", IsDir: true},
+	{Path: "scripts/post", IsDir: true},
+	{Path: "scripts/check", IsDir: true},
 }
 
 var dirStructMultipleUpdates = []MetadataDirEntry{
-	{path: "files", isDir: false},
-	{path: "type-info", isDir: false},
-	{path: "meta-data", isDir: false},
-	{path: "checksums", isDir: true},
-	{path: "checksums/image.sha", isDir: false},
-	{path: "checksums/image_next.sha", isDir: false},
-	{path: "signatures", isDir: true},
-	{path: "signatures/iamge.sig", isDir: false},
-	{path: "signatures/iamge_next.sig", isDir: false},
-	{path: "scripts", isDir: true, required: false},
-	{path: "scripts/pre", isDir: true, required: false},
-	{path: "scripts/post", isDir: true, required: false},
-	{path: "scripts/check", isDir: true, required: false},
+	{Path: "files", IsDir: false},
+	{Path: "type-info", IsDir: false},
+	{Path: "meta-data", IsDir: false},
+	{Path: "checksums", IsDir: true},
+	{Path: "checksums/image.sha", IsDir: false},
+	{Path: "checksums/image_next.sha", IsDir: false},
+	{Path: "signatures", IsDir: true},
+	{Path: "signatures/iamge.sig", IsDir: false},
+	{Path: "signatures/iamge_next.sig", IsDir: false},
+	{Path: "scripts", IsDir: true, Required: false},
+	{Path: "scripts/pre", IsDir: true, Required: false},
+	{Path: "scripts/post", IsDir: true, Required: false},
+	{Path: "scripts/check", IsDir: true, Required: false},
 }
 
 var dirStructOKHaveScripts = []MetadataDirEntry{
-	{path: "files", isDir: false},
-	{path: "type-info", isDir: false},
-	{path: "meta-data", isDir: false},
-	{path: "checksums", isDir: true},
-	{path: "checksums/image.sha", isDir: false},
-	{path: "signatures", isDir: true},
-	{path: "signatures/iamge.sig", isDir: false},
-	{path: "scripts", isDir: true, required: false},
-	{path: "scripts/pre", isDir: true, required: false},
-	{path: "scripts/pre/0000_install.sh", isDir: false, required: false},
-	{path: "scripts/pre/0001_install.sh", isDir: false, required: false},
-	{path: "scripts/post", isDir: true, required: false},
-	{path: "scripts/check", isDir: true, required: false},
+	{Path: "files", IsDir: false},
+	{Path: "type-info", IsDir: false},
+	{Path: "meta-data", IsDir: false},
+	{Path: "checksums", IsDir: true},
+	{Path: "checksums/image.sha", IsDir: false},
+	{Path: "signatures", IsDir: true},
+	{Path: "signatures/iamge.sig", IsDir: false},
+	{Path: "scripts", IsDir: true, Required: false},
+	{Path: "scripts/pre", IsDir: true, Required: false},
+	{Path: "scripts/pre/0000_install.sh", IsDir: false, Required: false},
+	{Path: "scripts/pre/0001_install.sh", IsDir: false, Required: false},
+	{Path: "scripts/post", IsDir: true, Required: false},
+	{Path: "scripts/check", IsDir: true, Required: false},
 }
 
 var dirStructTypeError = []MetadataDirEntry{
-	{path: "files", isDir: false},
+	{Path: "files", IsDir: false},
 	// type-info should be a file
-	{path: "type-info", isDir: true},
-	{path: "meta-data", isDir: false},
-	{path: "checksums", isDir: true},
-	{path: "checksums/image.sha", isDir: false},
-	{path: "signatures", isDir: true},
-	{path: "signatures/iamge.sig", isDir: false},
-	{path: "scripts", isDir: true, required: false},
-	{path: "scripts/pre", isDir: true, required: false},
-	{path: "scripts/post", isDir: true, required: false},
-	{path: "scripts/check", isDir: true, required: false},
+	{Path: "type-info", IsDir: true},
+	{Path: "meta-data", IsDir: false},
+	{Path: "checksums", IsDir: true},
+	{Path: "checksums/image.sha", IsDir: false},
+	{Path: "signatures", IsDir: true},
+	{Path: "signatures/iamge.sig", IsDir: false},
+	{Path: "scripts", IsDir: true, Required: false},
+	{Path: "scripts/pre", IsDir: true, Required: false},
+	{Path: "scripts/post", IsDir: true, Required: false},
+	{Path: "scripts/check", IsDir: true, Required: false},
 }
 
 var dirStructInvalidContent = []MetadataDirEntry{
 	// can not contain unsupported elements
-	{path: "not-supported", isDir: true, required: true},
-	{path: "files", isDir: false},
-	{path: "type-info", isDir: false},
-	{path: "meta-data", isDir: false},
-	{path: "checksums", isDir: true},
-	{path: "checksums/image.sha", isDir: false},
-	{path: "signatures", isDir: true},
-	{path: "signatures/iamge.sig", isDir: false},
-	{path: "scripts", isDir: true, required: false},
-	{path: "scripts/pre", isDir: true, required: false},
-	{path: "scripts/post", isDir: true, required: false},
-	{path: "scripts/check", isDir: true, required: false},
+	{Path: "not-supported", IsDir: true, Required: true},
+	{Path: "files", IsDir: false},
+	{Path: "type-info", IsDir: false},
+	{Path: "meta-data", IsDir: false},
+	{Path: "checksums", IsDir: true},
+	{Path: "checksums/image.sha", IsDir: false},
+	{Path: "signatures", IsDir: true},
+	{Path: "signatures/iamge.sig", IsDir: false},
+	{Path: "scripts", IsDir: true, Required: false},
+	{Path: "scripts/pre", IsDir: true, Required: false},
+	{Path: "scripts/post", IsDir: true, Required: false},
+	{Path: "scripts/check", IsDir: true, Required: false},
 }
 
 var dirStructInvalidNestedDirs = []MetadataDirEntry{
-	{path: "files", isDir: false},
-	{path: "type-info", isDir: false},
-	{path: "meta-data", isDir: false},
-	{path: "checksums", isDir: true},
-	{path: "checksums/image.sha", isDir: false},
-	{path: "signatures", isDir: true},
-	{path: "signatures/iamge.sig", isDir: false},
-	{path: "scripts", isDir: true, required: false},
-	{path: "scripts/pre", isDir: true, required: false},
-	{path: "scripts/post", isDir: true, required: false},
-	{path: "scripts/check", isDir: true, required: false},
-	{path: "scripts/unsupported_dir", isDir: true, required: true},
+	{Path: "files", IsDir: false},
+	{Path: "type-info", IsDir: false},
+	{Path: "meta-data", IsDir: false},
+	{Path: "checksums", IsDir: true},
+	{Path: "checksums/image.sha", IsDir: false},
+	{Path: "signatures", IsDir: true},
+	{Path: "signatures/iamge.sig", IsDir: false},
+	{Path: "scripts", IsDir: true, Required: false},
+	{Path: "scripts/pre", IsDir: true, Required: false},
+	{Path: "scripts/post", IsDir: true, Required: false},
+	{Path: "scripts/check", IsDir: true, Required: false},
+	{Path: "scripts/unsupported_dir", IsDir: true, Required: true},
 }
 
 var dirStructMissingRequired = []MetadataDirEntry{
-	{path: "files", isDir: false},
+	{Path: "files", IsDir: false},
 	// does not contain meta-data and type-info
-	{path: "checksums", isDir: true},
-	{path: "checksums/image.sha", isDir: false},
-	{path: "signatures", isDir: true},
-	{path: "signatures/iamge.sig", isDir: false},
-	{path: "scripts", isDir: true, required: false},
-	{path: "scripts/pre", isDir: true, required: false},
-	{path: "scripts/post", isDir: true, required: false},
-	{path: "scripts/check", isDir: true, required: false},
+	{Path: "checksums", IsDir: true},
+	{Path: "checksums/image.sha", IsDir: false},
+	{Path: "signatures", IsDir: true},
+	{Path: "signatures/iamge.sig", IsDir: false},
+	{Path: "scripts", IsDir: true, Required: false},
+	{Path: "scripts/pre", IsDir: true, Required: false},
+	{Path: "scripts/post", IsDir: true, Required: false},
+	{Path: "scripts/check", IsDir: true, Required: false},
 }
 
 var dirStructMissingOptional = []MetadataDirEntry{
-	{path: "files", isDir: false},
-	{path: "type-info", isDir: false},
-	{path: "meta-data", isDir: false},
-	{path: "checksums", isDir: true},
-	{path: "checksums/image.sha", isDir: false},
-	{path: "signatures", isDir: true},
-	{path: "signatures/iamge.sig", isDir: false},
-	{path: "scripts", isDir: true, required: false},
-	{path: "scripts/pre", isDir: true, required: false},
+	{Path: "files", IsDir: false},
+	{Path: "type-info", IsDir: false},
+	{Path: "meta-data", IsDir: false},
+	{Path: "checksums", IsDir: true},
+	{Path: "checksums/image.sha", IsDir: false},
+	{Path: "signatures", IsDir: true},
+	{Path: "signatures/iamge.sig", IsDir: false},
+	{Path: "scripts", IsDir: true, Required: false},
+	{Path: "scripts/pre", IsDir: true, Required: false},
+}
+
+var testMetadataHeaderFormat = map[string]MetadataDirEntry{
+	// while calling filepath.Walk() `.` (root) directory is included
+	// when iterating throug entries in the tree
+	".":               {Path: ".", IsDir: true, Required: false},
+	"files":           {Path: "files", IsDir: false, Required: false},
+	"meta-data":       {Path: "meta-data", IsDir: false, Required: true},
+	"type-info":       {Path: "type-info", IsDir: false, Required: true},
+	"checksums":       {Path: "checksums", IsDir: true, Required: false},
+	"checksums/*":     {Path: "checksums", IsDir: false, Required: false},
+	"signatures":      {Path: "signatures", IsDir: true, Required: true},
+	"signatures/*":    {Path: "signatures", IsDir: false, Required: true},
+	"scripts":         {Path: "scripts", IsDir: true, Required: false},
+	"scripts/pre":     {Path: "scripts/pre", IsDir: true, Required: false},
+	"scripts/pre/*":   {Path: "scripts/pre", IsDir: false, Required: false},
+	"scripts/post":    {Path: "scripts/post", IsDir: true, Required: false},
+	"scripts/post/*":  {Path: "scripts/post", IsDir: false, Required: false},
+	"scripts/check":   {Path: "scripts/check", IsDir: true, Required: false},
+	"scripts/check/*": {Path: "scripts/check/*", IsDir: false, Required: false},
 }
 
 func TestDirectoryStructure(t *testing.T) {
@@ -268,12 +288,18 @@ func TestDirectoryStructure(t *testing.T) {
 	for _, tt := range validateTests {
 		updateTestDir, _ := ioutil.TempDir("", "update")
 		defer os.RemoveAll(updateTestDir)
-		err := makeFakeUpdateDir(updateTestDir, tt.dirContent)
+		err := MakeFakeUpdateDir(updateTestDir, tt.dirContent)
 		assert.NoError(t, err)
 
-		header := MetadataArtifactHeader{Artifacts: MetadataHeaderFormat}
+		header := MetadataArtifactHeader{Artifacts: testMetadataHeaderFormat}
 
 		err = header.CheckHeaderStructure(updateTestDir)
 		assert.Equal(t, tt.err, err)
 	}
+}
+
+func TestDirectoryStructureNotExist(t *testing.T) {
+	header := MetadataArtifactHeader{Artifacts: testMetadataHeaderFormat}
+	err := header.CheckHeaderStructure("non-existing-directory")
+	assert.Equal(t, os.ErrNotExist, err)
 }

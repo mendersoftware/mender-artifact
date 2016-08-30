@@ -129,33 +129,13 @@ func (m MetadataFiles) Validate() error {
 }
 
 type MetadataDirEntry struct {
-	path     string
-	isDir    bool
-	required bool
+	Path     string
+	IsDir    bool
+	Required bool
 }
 
 type MetadataArtifactHeader struct {
 	Artifacts map[string]MetadataDirEntry
-}
-
-var MetadataHeaderFormat = map[string]MetadataDirEntry{
-	// while calling filepath.Walk() `.` (root) directory is included
-	// when iterating throug entries in the tree
-	".":               {path: ".", isDir: true, required: false},
-	"files":           {path: "files", isDir: false, required: false},
-	"meta-data":       {path: "meta-data", isDir: false, required: true},
-	"type-info":       {path: "type-info", isDir: false, required: true},
-	"checksums":       {path: "checksums", isDir: true, required: false},
-	"checksums/*":     {path: "checksums", isDir: false, required: false},
-	"signatures":      {path: "signatures", isDir: true, required: true},
-	"signatures/*":    {path: "signatures", isDir: false, required: true},
-	"scripts":         {path: "scripts", isDir: true, required: false},
-	"scripts/pre":     {path: "scripts/pre", isDir: true, required: false},
-	"scripts/pre/*":   {path: "scripts/pre", isDir: false, required: false},
-	"scripts/post":    {path: "scripts/post", isDir: true, required: false},
-	"scripts/post/*":  {path: "scripts/post", isDir: false, required: false},
-	"scripts/check":   {path: "scripts/check", isDir: true, required: false},
-	"scripts/check/*": {path: "scripts/check/*", isDir: false, required: false},
 }
 
 var (
@@ -176,20 +156,23 @@ func (mh MetadataArtifactHeader) processEntry(entry string, isDir bool, required
 		return mh.processEntry(newEntry, isDir, required)
 	}
 
-	if isDir != elem.isDir {
+	if isDir != elem.IsDir {
 		return ErrInvalidMetadataElemType
 	}
 
-	if elem.required {
+	if elem.Required {
 		required[entry] = true
 	}
 	return nil
 }
 
 func (mh MetadataArtifactHeader) CheckHeaderStructure(headerDir string) error {
+	if _, err := os.Stat(headerDir); os.IsNotExist(err) {
+		return os.ErrNotExist
+	}
 	var required = make(map[string]bool)
 	for k, v := range mh.Artifacts {
-		if v.required {
+		if v.Required {
 			required[k] = false
 		}
 	}
