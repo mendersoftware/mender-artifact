@@ -161,7 +161,7 @@ var dirStructOKAfterWriting = map[string]metadata.MetadataDirEntry{
 
 func TestWriteArtifactFile(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
+	//defer os.RemoveAll(updateTestDir)
 	err := MakeFakeUpdateDir(updateTestDir, dirStructOK)
 	assert.NoError(t, err)
 
@@ -170,6 +170,7 @@ func TestWriteArtifactFile(t *testing.T) {
 		headerStructure: metadata.MetadataArtifactHeader{Artifacts: MetadataWriterHeaderFormat},
 		format:          "mender",
 		version:         1,
+		updates:         make(map[string]updateBacket),
 	}
 	err = artifactWriter.Write()
 	assert.NoError(t, err)
