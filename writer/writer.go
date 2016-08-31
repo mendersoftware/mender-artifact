@@ -356,24 +356,6 @@ func (mv MetadataWriter) moveAndCompressHeaders(updates []os.FileInfo) error {
 	return nil
 }
 
-func (mv MetadataWriter) writeInfo() error {
-	info := metadata.MetadataInfo{
-		Format:  mv.format,
-		Version: mv.version,
-	}
-
-	data, err := getJSON(info)
-	if err != nil {
-		return err
-	}
-
-	if err :=
-		ioutil.WriteFile(filepath.Join(mv.updateLocation, "info"), data, os.ModePerm); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (mv *MetadataWriter) getScripts(bucket string) error {
 	return nil
 }
@@ -428,7 +410,84 @@ func (mv *MetadataWriter) processUpdateBucket(bucket string) error {
 	return nil
 }
 
-func (mv *MetadataWriter) createArtifact() error {
+func (mv *MetadataWriter) createArtifact(files []os.FileInfo) error {
+	artifact, err := os.Create(filepath.Join(mv.updateLocation, "artifact.mender"))
+	if err != nil {
+		return err
+	}
+	defer artifact.Close()
+
+	// start with something simple for now
+	tw := tar.NewWriter(artifact)
+
+	// we need to ensure correct ordering of files
+	var artifactContent []TarReader
+
+	info := metadata.MetadataInfo{
+		Format:  mv.format,
+		Version: mv.version,
+	}
+	sr := NewStreamTarReader(info, "info")
+	artifactContent = append(artifactContent, sr)
+
+	for _, artifact := range files {
+		_, ok := mv.updates[artifact.Name()]
+
+		if !ok {
+			return errors.New("artifacts writer: ")
+		}
+	}
+	// 	updateTarLocation := filepath.Join("headers", update.Name())
+	// 	tarContent = append(tarContent, NewStreamTarReader(bucket.files,
+	// 		filepath.Join(updateTarLocation, "files")))
+	// 	tarContent = append(tarContent, NewPlainFile(filepath.Join(bucket.path, "type-info"),
+	// 		filepath.Join(updateTarLocation, "type-info")))
+	// 	tarContent = append(tarContent, NewPlainFile(filepath.Join(bucket.path, "meta-data"),
+	// 		filepath.Join(updateTarLocation, "meta-data")))
+	//
+	// 	for _, upd := range bucket.updates {
+	// 		fileName := strings.TrimSuffix(upd.name, filepath.Ext(upd.name)) + ".sha256sum"
+	// 		tarContent = append(tarContent, NewStreamTarReader(upd.checksum,
+	// 			filepath.Join(updateTarLocation, "checksums", fileName)))
+	// 	}
+	// 	for _, upd := range bucket.updates {
+	// 		fileName := strings.TrimSuffix(upd.name, filepath.Ext(upd.name)) + ".sig"
+	// 		fr := NewPlainFile(filepath.Join(bucket.path, "signatures", fileName),
+	// 			filepath.Join(updateTarLocation, "signatures", fileName))
+	// 		fmt.Printf("should be empty: %v\n", fr)
+	// 		tarContent = append(tarContent, fr)
+	// 	}
+	// 	// TODO: scripts
+	// 	//tarContent = append(tarContent, NewPlainFile(filepath.Join(bucket.path, "scripts"), filepath.Join("headers", update.Name(), "scripts")))
+	//
+	// }
+	for _, file := range artifactContent {
+		v := reflect.ValueOf(file)
+		if v.IsNil() {
+			log.Errorf("artifacts writer: broken entry %v", v)
+			return err
+		}
+		defer file.Close()
+		hdr, err := file.GetHeader()
+		if err != nil {
+			return err
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+
+		// on the fly copy
+		if _, err := io.Copy(tw, file); err != nil {
+			return err
+		}
+	}
+
+	// Make sure to check the error on Close.
+	if err := tw.Close(); err != nil {
+		log.Fatalln(err)
+		return err
+	}
+
 	return nil
 }
 
@@ -459,13 +518,8 @@ func (mv *MetadataWriter) Write() error {
 		return err
 	}
 
-	// generate `info`
-	if err = mv.writeInfo(); err != nil {
-		return err
-	}
-
 	// (compress all)
-	if err = mv.createArtifact(); err != nil {
+	if err = mv.createArtifact(entries); err != nil {
 		return err
 	}
 
