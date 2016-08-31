@@ -15,6 +15,8 @@
 package writer
 
 import (
+	"archive/tar"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path"
@@ -109,14 +111,22 @@ func TestGenerateHash(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, updates)
 
-	//artifactWriter := MetadataWriter{}
+	artifactWriter := ArtifactsWriter{}
 
-	// hashes, err := artifactWriter.generateChecksums(tempDir, updates)
-	// assert.NoError(t, err)
-	// assert.NotEmpty(t, hashes)
-	// assert.Len(t, hashes, 2)
-	// assert.Equal(t, "e0ac3601005dfa1864f5392aabaf7d898b1b5bab854f1acb4491bcd806b76b0c", hashes["update.ext4"])
-	// assert.Equal(t, "90094b71a0bf15ee00e087a3be28579483fb759a718fa4ca97be215b42021121", hashes["next_update.ext3"])
+	upd := updateArtifact{path: filepath.Join(tempDir, "update.ext4")}
+	err = artifactWriter.calculateChecksum(&upd)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("e0ac3601005dfa1864f5392aabaf7d898b1b5bab854f1acb4491bcd806b76b0c"), upd.checksum)
+
+	upd = updateArtifact{path: filepath.Join(tempDir, "next_update.ext3")}
+	err = artifactWriter.calculateChecksum(&upd)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("90094b71a0bf15ee00e087a3be28579483fb759a718fa4ca97be215b42021121"), upd.checksum)
+
+	upd = updateArtifact{path: filepath.Join(tempDir, "non_existing")}
+	err = artifactWriter.calculateChecksum(&upd)
+	assert.Error(t, err)
+	assert.Empty(t, upd.checksum)
 }
 
 var dirStructOK = []metadata.MetadataDirEntry{
@@ -161,13 +171,7 @@ func TestWriteArtifactFile(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructOK)
 	assert.NoError(t, err)
 
-	artifactWriter := ArtifactsWriter{
-		updateLocation:  updateTestDir,
-		headerStructure: metadata.MetadataArtifactHeader{Artifacts: ArtifactsHeaderFormat},
-		format:          "mender",
-		version:         1,
-		updates:         make(map[string]updateBucket),
-	}
+	artifactWriter := NewArtifactsWriter(updateTestDir, "mender", 1)
 	err = artifactWriter.Write()
 	assert.NoError(t, err)
 
@@ -175,4 +179,68 @@ func TestWriteArtifactFile(t *testing.T) {
 	headerAfterWrite := metadata.MetadataArtifactHeader{Artifacts: dirStructOKAfterWriting}
 	err = headerAfterWrite.CheckHeaderStructure(updateTestDir)
 	assert.NoError(t, err)
+}
+
+var dirStructBroken = []metadata.MetadataDirEntry{
+	{Path: "0000", IsDir: true},
+	{Path: "0000/data", IsDir: true},
+	{Path: "0000/data/update.ext4", IsDir: false},
+	{Path: "0000/data/update_next.ext3", IsDir: false},
+	{Path: "0000/type-info", IsDir: false},
+	{Path: "0000/meta-data", IsDir: false},
+	{Path: "0000/signatures", IsDir: true},
+	{Path: "0000/signatures/update.sig", IsDir: false},
+	// signature for one file is missing
+	// {Path: "0000/signatures/update_next.sig", IsDir: false},
+	{Path: "0000/scripts", IsDir: true},
+	{Path: "0000/scripts/pre", IsDir: true},
+	{Path: "0000/scripts/post", IsDir: true},
+	{Path: "0000/scripts/check", IsDir: true},
+}
+
+func TestWriteBrokenArtifact(t *testing.T) {
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+	err := MakeFakeUpdateDir(updateTestDir, dirStructBroken)
+	assert.NoError(t, err)
+
+	artifactWriter := NewArtifactsWriter(updateTestDir, "mender", 1)
+	err = artifactWriter.Write()
+	assert.Error(t, err)
+}
+
+type fakeArchiver struct {
+	readRet   int
+	readErr   error
+	closeErr  error
+	header    *tar.Header
+	headerErr error
+}
+
+func (f fakeArchiver) Read(p []byte) (n int, err error) {
+	return f.readRet, f.readErr
+}
+
+func (f fakeArchiver) Close() error {
+	return f.closeErr
+}
+
+func (f fakeArchiver) GetHeader() (*tar.Header, error) {
+	return f.header, f.headerErr
+}
+
+func TestWriteBrokenArchive(t *testing.T) {
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+	artifactWriter := NewArtifactsWriter(updateTestDir, "mender", 1)
+
+	arch, err := os.Create(filepath.Join(updateTestDir, "my_archive"))
+	assert.NoError(t, err)
+	err = artifactWriter.writeArchive(arch, nil, false)
+	assert.Error(t, err)
+
+	var content []ReadArchiver
+	content = append(content, &fakeArchiver{readRet: 0, readErr: errors.New("")})
+	err = artifactWriter.writeArchive(arch, content, false)
+	assert.Error(t, err)
 }

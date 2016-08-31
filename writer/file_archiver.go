@@ -19,30 +19,37 @@ import (
 	"os"
 )
 
-// implements ReadArchiver interface
-type fileArchiver struct {
+// FileArchiver implements ReadArchiver interface
+type FileArchiver struct {
 	path string
 	name string
 	file *os.File
 }
 
-func NewFileArchiver(path, name string) *fileArchiver {
+// NewFileArchiver creates fileArchiver used for storing plain files
+// inside tar archive.
+// path is the absolute path to the file that will be archived and
+// name is the relatve path inside the archive (see tar.Header.Name)
+func NewFileArchiver(path, name string) *FileArchiver {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil
 	}
-	return &fileArchiver{file: f, name: name, path: path}
+	return &FileArchiver{file: f, name: name, path: path}
 }
 
-func (f fileArchiver) Read(p []byte) (n int, err error) {
+func (f FileArchiver) Read(p []byte) (n int, err error) {
 	return f.file.Read(p)
 }
 
-func (f fileArchiver) Close() error {
+// Close is a path of ReadArchiver interface
+func (f FileArchiver) Close() error {
 	return f.file.Close()
 }
 
-func (f fileArchiver) GetHeader() (*tar.Header, error) {
+// GetHeader is a path of ReadArchiver interface. It returns tar.Header which
+// is then writtem as a part of archive header.
+func (f FileArchiver) GetHeader() (*tar.Header, error) {
 	info, err := os.Stat(f.path)
 	if err != nil {
 		return nil, err

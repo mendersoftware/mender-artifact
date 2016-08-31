@@ -22,32 +22,52 @@ import (
 	"github.com/mendersoftware/artifacts/metadata"
 )
 
-// implements ReadArchiver interface
-type streamArchiver struct {
+// StreamArchiver implements ReadArchiver interface
+type StreamArchiver struct {
 	name   string
 	data   []byte
 	buffer *bytes.Buffer
 }
 
-func NewStreamArchiver(data metadata.Validater, name string) *streamArchiver {
+// NewStreamArchiver creates streamArchiver used for storing plain text files
+// inside tar archive.
+// data is the plain data that will be stored in archive file
+// name is the relatve path inside the archive (see tar.Header.Name)
+func NewStreamArchiver(data []byte, name string) *StreamArchiver {
+	return &StreamArchiver{
+		name:   name,
+		data:   data,
+		buffer: bytes.NewBuffer(data),
+	}
+}
+
+// NewJSONStreamArchiver creates streamArchiver used for storing JSON files
+// inside tar archive.
+// data is the data structure implementing Validater interface and must be
+// a struct that can be converted to JSON (see getJSON below)
+// name is the relatve path inside the archive (see tar.Header.Name)
+func NewJSONStreamArchiver(data metadata.Validater, name string) *StreamArchiver {
 	j, err := getJSON(data)
 	if err != nil {
 		return nil
 	}
-	return &streamArchiver{
+	return &StreamArchiver{
 		name:   name,
 		data:   j,
 		buffer: bytes.NewBuffer(j),
 	}
 }
 
-func (str streamArchiver) Read(p []byte) (n int, err error) {
+func (str StreamArchiver) Read(p []byte) (n int, err error) {
 	return str.buffer.Read(p)
 }
 
-func (str streamArchiver) Close() error { return nil }
+// Close is a path of ReadArchiver interface
+func (str StreamArchiver) Close() error { return nil }
 
-func (str streamArchiver) GetHeader() (*tar.Header, error) {
+// GetHeader is a path of ReadArchiver interface. It returns tar.Header which
+// is then writtem as a part of archive header.
+func (str StreamArchiver) GetHeader() (*tar.Header, error) {
 	hdr := &tar.Header{
 		Name: str.name,
 		Mode: 0600,

@@ -69,9 +69,9 @@ var ArtifactsHeaderFormat = map[string]metadata.MetadataDirEntry{
 	"data/*": {Path: "data/*", IsDir: false, Required: true},
 }
 
-// NewArtifactWritter creates a new ArtifactsWriter providing a location
+// NewArtifactsWriter creates a new ArtifactsWriter providing a location
 // of Mender metadata artifacts, format of the update and version.
-func NewArtifactWritter(path string, format string, version int) *ArtifactsWriter {
+func NewArtifactsWriter(path string, format string, version int) *ArtifactsWriter {
 	return &ArtifactsWriter{
 		updateLocation:  path,
 		headerStructure: metadata.MetadataArtifactHeader{Artifacts: ArtifactsHeaderFormat},
@@ -86,13 +86,8 @@ type updateArtifact struct {
 	path         string
 	updateBucket string
 	info         os.FileInfo
-	checksum     updateChecksum
+	checksum     []byte
 }
-
-// We need special type to implement metadata.Validater interface
-type updateChecksum string
-
-func (uc updateChecksum) Validate() error { return nil }
 
 type updateBucket struct {
 	location        string
@@ -121,7 +116,9 @@ func (av ArtifactsWriter) calculateChecksum(upd *updateArtifact) error {
 		return err
 	}
 
-	upd.checksum = updateChecksum(hex.EncodeToString(h.Sum(nil)))
+	checksum := h.Sum(nil)
+	upd.checksum = make([]byte, hex.EncodedLen(len(checksum)))
+	hex.Encode(upd.checksum, h.Sum(nil))
 	log.Debugf("hash of file: %v (%x)\n", upd.path, upd.checksum)
 	return nil
 }
@@ -144,7 +141,53 @@ func (av ArtifactsWriter) getInfo() metadata.MetadataInfo {
 	}
 }
 
-func (av ArtifactsWriter) archiveData(updates *updateBucket) error {
+func (av *ArtifactsWriter) writeArchive(destination io.WriteCloser, content []ReadArchiver, compressed bool) error {
+	if len(content) == 0 {
+		return errors.New("artifacts writer: empty content")
+	}
+
+	var tw *tar.Writer
+	if compressed {
+		// start with something simple for now
+		gz := gzip.NewWriter(destination)
+		//defer gz.Close()
+		tw = tar.NewWriter(gz)
+	} else {
+		tw = tar.NewWriter(destination)
+	}
+
+	for _, arch := range content {
+		// TODO:
+		v := reflect.ValueOf(arch)
+		if v.IsNil() {
+			log.Errorf("artifacts writer: broken entry %v", v)
+			return errors.New("artifacts writer: invalid archiver entry")
+		}
+		defer arch.Close()
+		hdr, err := arch.GetHeader()
+		if err != nil || hdr == nil {
+			tw.Close()
+			return errors.New("artifacts writer: broken or empty header")
+		}
+
+		if err := tw.WriteHeader(hdr); err != nil {
+			tw.Close()
+			return err
+		}
+		// on the fly copy
+		if _, err := io.Copy(tw, arch); err != nil {
+			tw.Close()
+			return err
+		}
+	}
+	// make sure to check the error on Close
+	if err := tw.Close(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (av *ArtifactsWriter) archiveData(updates *updateBucket) error {
 	destination := filepath.Join(av.updateLocation, "data")
 
 	// create directory and file for archiving data
@@ -157,240 +200,64 @@ func (av ArtifactsWriter) archiveData(updates *updateBucket) error {
 	}
 	defer dataArchive.Close()
 
-	// TODO: start with something simple for now (gzip)
-	gw := gzip.NewWriter(dataArchive)
-	defer gw.Close()
-
-	tw := tar.NewWriter(gw)
-	// don't defer close here as we need to make sure closing was successful
+	// we need to ensure correct ordering of files
+	var dataContent []ReadArchiver
 
 	for _, update := range updates.updateArtifacts {
-		// usually it is a good idea to change hdr.Name, but
-		// we are happy with relative hdr.Name below
-		hdr, err := tar.FileInfoHeader(update.info, update.info.Name())
-		if err != nil {
-			tw.Close()
-			return err
-		}
-
-		if err = tw.WriteHeader(hdr); err != nil {
-			log.Fatalln(err)
-			return err
-		}
-		f, err := os.Open(update.path)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-
-		// on the fly copy
-		if _, err := io.Copy(tw, f); err != nil {
-			return err
-		}
-
+		dataContent = append(dataContent,
+			NewFileArchiver(update.path, update.info.Name()))
 	}
-	// Make sure to check the error on Close.
-	if err := tw.Close(); err != nil {
-		log.Fatalln(err)
-		return err
-	}
-
 	updates.archivedPath = dataArchive.Name()
-
-	return nil
+	return av.writeArchive(dataArchive, dataContent, true)
 }
 
-func (mv ArtifactsWriter) createCompressedHeader(updates []os.FileInfo) error {
-
-	archive, err := os.Create(filepath.Join(mv.updateLocation, "header.tar.gz"))
+func (av ArtifactsWriter) archiveHeader(updates []os.FileInfo) error {
+	archive, err := os.Create(filepath.Join(av.updateLocation, "header.tar.gz"))
 	if err != nil {
 		return err
 	}
 	defer archive.Close()
 
-	// start with something simple for now
-	gw := gzip.NewWriter(archive)
-	defer gw.Close()
-
-	tw := tar.NewWriter(gw)
-
 	// we need to ensure correct ordering of files
-	var tarContent []ReadArchiver
-	sr := NewStreamArchiver(mv.getHeaderInfo(updates), "header-info")
-	tarContent = append(tarContent, sr)
+	var hCnt []ReadArchiver
+	// header-info
+	sr := NewJSONStreamArchiver(av.getHeaderInfo(updates), "header-info")
+	hCnt = append(hCnt, sr)
 
 	for _, update := range updates {
-		bucket, ok := mv.updates[update.Name()]
+		bucket, ok := av.updates[update.Name()]
 
 		if !ok {
-			return errors.New("artifacts writer: ")
+			return errors.New("artifacts writer: invalid update bucket")
 		}
 		updateTarLocation := filepath.Join("headers", update.Name())
-		tarContent = append(tarContent, NewStreamArchiver(bucket.files,
-			filepath.Join(updateTarLocation, "files")))
-		tarContent = append(tarContent, NewFileArchiver(filepath.Join(bucket.path, "type-info"),
-			filepath.Join(updateTarLocation, "type-info")))
-		tarContent = append(tarContent, NewFileArchiver(filepath.Join(bucket.path, "meta-data"),
-			filepath.Join(updateTarLocation, "meta-data")))
 
+		// files
+		hCnt = append(hCnt, NewJSONStreamArchiver(bucket.files,
+			filepath.Join(updateTarLocation, "files")))
+		// type-info
+		hCnt = append(hCnt, NewFileArchiver(filepath.Join(bucket.path, "type-info"),
+			filepath.Join(updateTarLocation, "type-info")))
+		// meta-data
+		hCnt = append(hCnt, NewFileArchiver(filepath.Join(bucket.path, "meta-data"),
+			filepath.Join(updateTarLocation, "meta-data")))
+		// checksums
 		for _, upd := range bucket.updateArtifacts {
 			fileName := strings.TrimSuffix(upd.name, filepath.Ext(upd.name)) + ".sha256sum"
-			tarContent = append(tarContent, NewStreamArchiver(upd.checksum,
+			hCnt = append(hCnt, NewStreamArchiver(upd.checksum,
 				filepath.Join(updateTarLocation, "checksums", fileName)))
 		}
+		// signatures
 		for _, upd := range bucket.updateArtifacts {
 			fileName := strings.TrimSuffix(upd.name, filepath.Ext(upd.name)) + ".sig"
 			fr := NewFileArchiver(filepath.Join(bucket.path, "signatures", fileName),
 				filepath.Join(updateTarLocation, "signatures", fileName))
-			tarContent = append(tarContent, fr)
+			hCnt = append(hCnt, fr)
 		}
 		// TODO: scripts
 		//tarContent = append(tarContent, NewPlainFile(filepath.Join(bucket.path, "scripts"), filepath.Join("headers", update.Name(), "scripts")))
-
 	}
-	for _, file := range tarContent {
-		v := reflect.ValueOf(file)
-		if v.IsNil() {
-			log.Errorf("artifacts writer: broken entry %v", v)
-			return err
-		}
-		defer file.Close()
-		hdr, err := file.GetHeader()
-		if err != nil {
-			return err
-		}
-		if err := tw.WriteHeader(hdr); err != nil {
-			return err
-		}
-
-		// on the fly copy
-		if _, err := io.Copy(tw, file); err != nil {
-			return err
-		}
-	}
-	// Make sure to check the error on Close.
-	if err := tw.Close(); err != nil {
-		log.Fatalln(err)
-		return err
-	}
-	return nil
-}
-
-func (mv *ArtifactsWriter) getScripts(bucket string) error {
-	// TODO:
-	return nil
-}
-
-func (mv *ArtifactsWriter) processUpdateBucket(bucket string) error {
-
-	// get list of update files
-	// at this point we know that `data` exists and contains update(s)
-	bucketLocation := filepath.Join(mv.updateLocation, bucket)
-	dataLocation := filepath.Join(mv.updateLocation, bucket, "data")
-
-	updateFiles, err := ioutil.ReadDir(dataLocation)
-	if err != nil {
-		return err
-	}
-	updBucket := updateBucket{}
-	for _, file := range updateFiles {
-		upd := updateArtifact{
-			name:         file.Name(),
-			path:         filepath.Join(dataLocation, file.Name()),
-			updateBucket: bucket,
-			info:         file,
-		}
-		// generate needed checksums
-		err = mv.calculateChecksum(&upd)
-		if err != nil {
-			return err
-		}
-
-		// generate signatures
-
-		// generate `file` data
-		updBucket.files.Files =
-			append(updBucket.files.Files, metadata.MetadataFile{File: upd.name})
-
-		updBucket.updateArtifacts = append(updBucket.updateArtifacts, upd)
-		updBucket.location = bucket
-		updBucket.path = bucketLocation
-	}
-
-	if err = updBucket.files.Validate(); err != nil {
-		return err
-	}
-
-	// move (and compress) updates from `data` to `../data/location.tar.gz`
-	if err = mv.archiveData(&updBucket); err != nil {
-		return err
-	}
-
-	mv.updates[bucket] = updBucket
-
-	return nil
-}
-
-func (mv *ArtifactsWriter) writeArchive(compressed bool) error {
-	return nil
-}
-
-func (mv *ArtifactsWriter) createArtifact(files []os.FileInfo) error {
-	artifact, err := os.Create(filepath.Join(mv.updateLocation, "artifact.mender"))
-	if err != nil {
-		return err
-	}
-	defer artifact.Close()
-
-	// start with something simple for now
-	tw := tar.NewWriter(artifact)
-
-	// we need to ensure correct ordering of files
-	var artifactContent []ReadArchiver
-
-	aInfo := NewStreamArchiver(mv.getInfo(), "info")
-	artifactContent = append(artifactContent, aInfo)
-	aHdr := NewFileArchiver(filepath.Join(mv.updateLocation, "header.tar.gz"), "header.tar.gz")
-	artifactContent = append(artifactContent, aHdr)
-
-	for _, artifact := range files {
-		bucket, ok := mv.updates[artifact.Name()]
-
-		if !ok {
-			return errors.New("artifacts writer: ")
-		}
-		aData := NewFileArchiver(bucket.archivedPath, "data/0000.tar.gz")
-		artifactContent = append(artifactContent, aData)
-	}
-
-	for _, file := range artifactContent {
-		v := reflect.ValueOf(file)
-		if v.IsNil() {
-			log.Errorf("artifacts writer: broken entry %v", v)
-			return err
-		}
-		defer file.Close()
-		hdr, err := file.GetHeader()
-		if err != nil {
-			return err
-		}
-		if err := tw.WriteHeader(hdr); err != nil {
-			return err
-		}
-
-		// on the fly copy
-		if _, err := io.Copy(tw, file); err != nil {
-			return err
-		}
-	}
-
-	// Make sure to check the error on Close.
-	if err := tw.Close(); err != nil {
-		log.Fatalln(err)
-		return err
-	}
-
-	return nil
+	return av.writeArchive(archive, hCnt, true)
 }
 
 func (av *ArtifactsWriter) removeCompressedHeader() error {
@@ -398,13 +265,91 @@ func (av *ArtifactsWriter) removeCompressedHeader() error {
 	return os.Remove(filepath.Join(av.updateLocation, "header.tar.gz"))
 }
 
+func (av *ArtifactsWriter) createArtifact(files []os.FileInfo) error {
+	artifact, err := os.Create(filepath.Join(av.updateLocation, "artifact.mender"))
+	if err != nil {
+		return err
+	}
+	defer artifact.Close()
+
+	// we need to ensure correct ordering of files
+	var artifactContent []ReadArchiver
+
+	aInfo := NewJSONStreamArchiver(av.getInfo(), "info")
+	artifactContent = append(artifactContent, aInfo)
+	aHdr := NewFileArchiver(filepath.Join(av.updateLocation, "header.tar.gz"), "header.tar.gz")
+	artifactContent = append(artifactContent, aHdr)
+
+	for _, artifact := range files {
+		bucket, ok := av.updates[artifact.Name()]
+
+		if !ok {
+			return errors.New("artifacts writer: can not find data file")
+		}
+		aData := NewFileArchiver(bucket.archivedPath, "data/0000.tar.gz")
+		artifactContent = append(artifactContent, aData)
+	}
+	return av.writeArchive(artifact, artifactContent, false)
+}
+
+func (av *ArtifactsWriter) storeFile(bucket *updateBucket, upd updateArtifact) error {
+	bucket.files.Files =
+		append(bucket.files.Files, metadata.MetadataFile{File: upd.name})
+	return nil
+}
+
+func (av *ArtifactsWriter) processUpdateBucket(bucket string) error {
+	// get list of update files
+	// at this point we know that `data` exists and contains update(s)
+	bucketLocation := filepath.Join(av.updateLocation, bucket)
+	dataLocation := filepath.Join(av.updateLocation, bucket, "data")
+
+	updateFiles, err := ioutil.ReadDir(dataLocation)
+	if err != nil {
+		return err
+	}
+
+	updBucket := updateBucket{}
+	// iterate through all data files
+	for _, file := range updateFiles {
+		upd := updateArtifact{
+			name:         file.Name(),
+			path:         filepath.Join(dataLocation, file.Name()),
+			updateBucket: bucket,
+			info:         file,
+		}
+		// generate checksums
+		err = av.calculateChecksum(&upd)
+		if err != nil {
+			return err
+		}
+		// TODO: generate signatures
+
+		// store `file` data
+		if err = av.storeFile(&updBucket, upd); err != nil {
+			return err
+		}
+		updBucket.updateArtifacts = append(updBucket.updateArtifacts, upd)
+		updBucket.location = bucket
+		updBucket.path = bucketLocation
+	}
+
+	// move (and compress) updates from `data` to `../data/location.tar.gz`
+	if err = av.archiveData(&updBucket); err != nil {
+		return err
+	}
+
+	av.updates[bucket] = updBucket
+	return nil
+}
+
+// Write writes Mender artifacts metadata compressed archive
 func (av *ArtifactsWriter) Write() error {
 	// get directories list containing updates
 	entries, err := ioutil.ReadDir(av.updateLocation)
 	if err != nil {
 		return err
 	}
-
 	// iterate through all directories containing updates
 	for _, location := range entries {
 		// check files and directories consistency
@@ -413,26 +358,22 @@ func (av *ArtifactsWriter) Write() error {
 		if err != nil {
 			return err
 		}
-
 		if err = av.processUpdateBucket(location.Name()); err != nil {
 			return err
 		}
 	}
-
 	// create compressed header; the intermediate step is needed as we
 	// can not create tar archive containing files compressed on the fly
-	if err = av.createCompressedHeader(entries); err != nil {
+	if err = av.archiveHeader(entries); err != nil {
 		return err
 	}
-
+	// crate whole artifacts file
 	if err = av.createArtifact(entries); err != nil {
 		return err
 	}
-
 	// remove header which copy is now part of artifact
 	if err = av.removeCompressedHeader(); err != nil {
 		return err
 	}
-
 	return nil
 }
