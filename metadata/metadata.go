@@ -23,6 +23,10 @@ import (
 	"github.com/mendersoftware/log"
 )
 
+type Validater interface {
+	Validate() error
+}
+
 var ErrInvalidInfo = errors.New("invalid artifacts info")
 
 type MetadataInfo struct {

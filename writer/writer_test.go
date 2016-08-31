@@ -79,9 +79,9 @@ func TestWriteArtifactBrokenDirStruct(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructInvalid)
 	assert.NoError(t, err)
 
-	artifactWriter := MetadataWriter{
+	artifactWriter := ArtifactsWriter{
 		updateLocation:  updateTestDir,
-		headerStructure: metadata.MetadataArtifactHeader{Artifacts: MetadataWriterHeaderFormat},
+		headerStructure: metadata.MetadataArtifactHeader{Artifacts: ArtifactsHeaderFormat},
 	}
 	err = artifactWriter.Write()
 	assert.Error(t, err)
@@ -136,41 +136,37 @@ var dirStructOK = []metadata.MetadataDirEntry{
 }
 
 var dirStructOKAfterWriting = map[string]metadata.MetadataDirEntry{
-	".":                                                   {Path: ".", IsDir: true, Required: true},
-	"data":                                                {Path: "data", IsDir: true, Required: true},
-	"data/0000.tar.gz":                                    {Path: "data", IsDir: false, Required: true},
-	"header":                                              {Path: "header", IsDir: true, Required: true},
-	"header/headers":                                      {Path: "header/headers", IsDir: true, Required: true},
-	"header/headers/0000":                                 {Path: "header/headers/0000", IsDir: true, Required: true},
-	"header/headers/0000/files":                           {Path: "header/headers/0000/files", IsDir: false, Required: true},
-	"header/headers/0000/type-info":                       {Path: "header/headers/0000/type-info", IsDir: false, Required: true},
-	"header/headers/0000/meta-data":                       {Path: "header/headers/0000/meta-data", IsDir: false, Required: true},
-	"header/headers/0000/signatures":                      {Path: "header/headers/0000/signatures", IsDir: true, Required: true},
-	"header/headers/0000/signatures/update.sig":           {Path: "header/headers/0000/signatures/update.sig", IsDir: false, Required: true},
-	"header/headers/0000/signatures/update_next.sig":      {Path: "header/headers/0000/signatures/update_next.sig", IsDir: false, Required: true},
-	"header/headers/0000/checksums":                       {Path: "header/headers/0000/checksums", IsDir: true, Required: true},
-	"header/headers/0000/checksums/update.sha256sum":      {Path: "header/headers/0000/checksums/update.sha256sum", IsDir: false, Required: true},
-	"header/headers/0000/checksums/update_next.sha256sum": {Path: "header/headers/0000/checksums/update_next.sha256sum", IsDir: false, Required: true},
-	"header/headers/0000/scripts":                         {Path: "header/headers/0000/scripts", IsDir: true, Required: true},
-	"header/headers/0000/scripts/pre":                     {Path: "header/headers/0000/scripts/pre", IsDir: true, Required: true},
-	"header/headers/0000/scripts/post":                    {Path: "header/headers/0000/scripts/post", IsDir: true, Required: true},
-	"header/headers/0000/scripts/check":                   {Path: "header/headers/0000/scripts/check", IsDir: true, Required: true},
-	"header/header-info":                                  {Path: "header/header-info", IsDir: false, Required: true},
-	"info":                                                {Path: "info", IsDir: false, Required: true},
+	".":                               {Path: ".", IsDir: true, Required: true},
+	"data":                            {Path: "data", IsDir: true, Required: true},
+	"data/0000.tar.gz":                {Path: "data", IsDir: false, Required: true},
+	"0000/data":                       {Path: "0000/data", IsDir: true, Required: true},
+	"0000/data/update.ext4":           {Path: "0000/data/update.ext4", IsDir: false, Required: true},
+	"0000/data/update_next.ext3":      {Path: "0000/data/update_next.ext3", IsDir: false, Required: true},
+	"artifact.mender":                 {Path: "artifact.mender", IsDir: false, Required: true},
+	"0000":                            {Path: "0000", IsDir: true, Required: true},
+	"0000/type-info":                  {Path: "0000/type-info", IsDir: false, Required: true},
+	"0000/meta-data":                  {Path: "0000/meta-data", IsDir: false, Required: true},
+	"0000/signatures":                 {Path: "0000/signatures", IsDir: true, Required: true},
+	"0000/signatures/update.sig":      {Path: "0000/signatures/update.sig", IsDir: false, Required: true},
+	"0000/signatures/update_next.sig": {Path: "0000/signatures/update_next.sig", IsDir: false, Required: true},
+	"0000/scripts":                    {Path: "0000/scripts", IsDir: true, Required: true},
+	"0000/scripts/pre":                {Path: "0000/scripts/pre", IsDir: true, Required: true},
+	"0000/scripts/post":               {Path: "0000/scripts/post", IsDir: true, Required: true},
+	"0000/scripts/check":              {Path: "0000/scripts/check", IsDir: true, Required: true},
 }
 
 func TestWriteArtifactFile(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	//defer os.RemoveAll(updateTestDir)
+	defer os.RemoveAll(updateTestDir)
 	err := MakeFakeUpdateDir(updateTestDir, dirStructOK)
 	assert.NoError(t, err)
 
-	artifactWriter := MetadataWriter{
+	artifactWriter := ArtifactsWriter{
 		updateLocation:  updateTestDir,
-		headerStructure: metadata.MetadataArtifactHeader{Artifacts: MetadataWriterHeaderFormat},
+		headerStructure: metadata.MetadataArtifactHeader{Artifacts: ArtifactsHeaderFormat},
 		format:          "mender",
 		version:         1,
-		updates:         make(map[string]updateBacket),
+		updates:         make(map[string]updateBucket),
 	}
 	err = artifactWriter.Write()
 	assert.NoError(t, err)

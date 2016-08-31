@@ -16,13 +16,10 @@ package writer
 
 import (
 	"archive/tar"
-	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -34,11 +31,57 @@ import (
 	"github.com/mendersoftware/log"
 )
 
-type updateChecksum string
+// ArtifactsWriter provides on the fly writing of artifacts metadata file used by
+// Mender client and server.
+// Call Write to start writing artifacts file.
+type ArtifactsWriter struct {
+	updateLocation  string
+	headerStructure metadata.MetadataArtifactHeader
+	format          string
+	version         int
+	updates         map[string]updateBucket
+}
 
-func (uc updateChecksum) Validate() error { return nil }
+// ArtifactsHeaderFormat provides the structure of the files and
+// directories required for creating artifacts file.
+// Some of the files are optional and will be created while creating
+// artifacts archive.
+var ArtifactsHeaderFormat = map[string]metadata.MetadataDirEntry{
+	// while calling filepath.Walk() `.` (root) directory is included
+	// when iterating throug entries in the tree
+	".":               {Path: ".", IsDir: true, Required: false},
+	"files":           {Path: "files", IsDir: false, Required: false},
+	"meta-data":       {Path: "meta-data", IsDir: false, Required: true},
+	"type-info":       {Path: "type-info", IsDir: false, Required: true},
+	"checksums":       {Path: "checksums", IsDir: true, Required: false},
+	"checksums/*":     {Path: "checksums", IsDir: false, Required: false},
+	"signatures":      {Path: "signatures", IsDir: true, Required: true},
+	"signatures/*":    {Path: "signatures", IsDir: false, Required: true},
+	"scripts":         {Path: "scripts", IsDir: true, Required: false},
+	"scripts/pre":     {Path: "scripts/pre", IsDir: true, Required: false},
+	"scripts/pre/*":   {Path: "scripts/pre", IsDir: false, Required: false},
+	"scripts/post":    {Path: "scripts/post", IsDir: true, Required: false},
+	"scripts/post/*":  {Path: "scripts/post", IsDir: false, Required: false},
+	"scripts/check":   {Path: "scripts/check", IsDir: true, Required: false},
+	"scripts/check/*": {Path: "scripts/check/*", IsDir: false, Required: false},
+	// we must have data directory containing update
+	"data":   {Path: "data", IsDir: true, Required: true},
+	"data/*": {Path: "data/*", IsDir: false, Required: true},
+}
 
-type update struct {
+// NewArtifactWritter creates a new ArtifactsWriter providing a location
+// of Mender metadata artifacts, format of the update and version.
+func NewArtifactWritter(path string, format string, version int) *ArtifactsWriter {
+	return &ArtifactsWriter{
+		updateLocation:  path,
+		headerStructure: metadata.MetadataArtifactHeader{Artifacts: ArtifactsHeaderFormat},
+		format:          format,
+		version:         version,
+		updates:         make(map[string]updateBucket),
+	}
+}
+
+type updateArtifact struct {
 	name         string
 	path         string
 	updateBucket string
@@ -46,85 +89,28 @@ type update struct {
 	checksum     updateChecksum
 }
 
-type updates []update
+// We need special type to implement metadata.Validater interface
+type updateChecksum string
 
-type updateBacket struct {
-	location string
-	path     string
-	updates  updates
-	info     os.FileInfo
-	files    metadata.MetadataFiles
+func (uc updateChecksum) Validate() error { return nil }
+
+type updateBucket struct {
+	location        string
+	path            string
+	archivedPath    string
+	updateArtifacts []updateArtifact
+	files           metadata.MetadataFiles
 }
 
-type MetadataWriter struct {
-	updateLocation  string
-	headerStructure metadata.MetadataArtifactHeader
-	format          string
-	version         int
-	updates         map[string]updateBacket
+// ReadArchiver provides interface for reading files or streams and preparing
+// those to be written to tar archive.
+// GetHeader returns Header to be written to the crrent entry it the tar archive.
+type ReadArchiver interface {
+	io.ReadCloser
+	GetHeader() (*tar.Header, error)
 }
 
-var MetadataWriterHeaderFormat = map[string]metadata.MetadataDirEntry{
-	// while calling filepath.Walk() `.` (root) directory is included
-	// when iterating throug entries in the tree
-	".":               {Path: ".", IsDir: true, Required: false},
-	"files":           {Path: "files", IsDir: false, Required: false},
-	"meta-data":       {Path: "meta-data", IsDir: false, Required: true},
-	"type-info":       {Path: "type-info", IsDir: false, Required: true},
-	"checksums":       {Path: "checksums", IsDir: true, Required: false},
-	"checksums/*":     {Path: "checksums", IsDir: false, Required: false},
-	"signatures":      {Path: "signatures", IsDir: true, Required: true},
-	"signatures/*":    {Path: "signatures", IsDir: false, Required: true},
-	"scripts":         {Path: "scripts", IsDir: true, Required: false},
-	"scripts/pre":     {Path: "scripts/pre", IsDir: true, Required: false},
-	"scripts/pre/*":   {Path: "scripts/pre", IsDir: false, Required: false},
-	"scripts/post":    {Path: "scripts/post", IsDir: true, Required: false},
-	"scripts/post/*":  {Path: "scripts/post", IsDir: false, Required: false},
-	"scripts/check":   {Path: "scripts/check", IsDir: true, Required: false},
-	"scripts/check/*": {Path: "scripts/check/*", IsDir: false, Required: false},
-	// we must have data directory containing update
-	"data":   {Path: "data", IsDir: true, Required: true},
-	"data/*": {Path: "data/*", IsDir: false, Required: true},
-}
-
-var MetadataWriterHeaderFormatAfter = map[string]metadata.MetadataDirEntry{
-	// while calling filepath.Walk() `.` (root) directory is included
-	// when iterating throug entries in the tree
-	".":               {Path: ".", IsDir: true, Required: false},
-	"files":           {Path: "files", IsDir: false, Required: false},
-	"meta-data":       {Path: "meta-data", IsDir: false, Required: true},
-	"type-info":       {Path: "type-info", IsDir: false, Required: true},
-	"checksums":       {Path: "checksums", IsDir: true, Required: false},
-	"checksums/*":     {Path: "checksums", IsDir: false, Required: false},
-	"signatures":      {Path: "signatures", IsDir: true, Required: true},
-	"signatures/*":    {Path: "signatures", IsDir: false, Required: true},
-	"scripts":         {Path: "scripts", IsDir: true, Required: false},
-	"scripts/pre":     {Path: "scripts/pre", IsDir: true, Required: false},
-	"scripts/pre/*":   {Path: "scripts/pre", IsDir: false, Required: false},
-	"scripts/post":    {Path: "scripts/post", IsDir: true, Required: false},
-	"scripts/post/*":  {Path: "scripts/post", IsDir: false, Required: false},
-	"scripts/check":   {Path: "scripts/check", IsDir: true, Required: false},
-	"scripts/check/*": {Path: "scripts/check/*", IsDir: false, Required: false},
-	// we must have data directory containing update
-	"data":   {Path: "data", IsDir: true, Required: true},
-	"data/*": {Path: "data/*", IsDir: false, Required: true},
-}
-
-type Validator interface {
-	Validate() error
-}
-
-func getJSON(data Validator) ([]byte, error) {
-	if data == nil {
-		return nil, nil
-	}
-	if err := data.Validate(); err != nil {
-		return nil, err
-	}
-	return json.Marshal(data)
-}
-
-func (mv MetadataWriter) generateChecksum(upd *update) error {
+func (av ArtifactsWriter) calculateChecksum(upd *updateArtifact) error {
 	f, err := os.Open(upd.path)
 	if err != nil {
 		return err
@@ -134,67 +120,56 @@ func (mv MetadataWriter) generateChecksum(upd *update) error {
 	if _, err := io.Copy(h, f); err != nil {
 		return err
 	}
-	log.Debugf("hash of file: %v (%x)\n", upd.path, h.Sum(nil))
+
 	upd.checksum = updateChecksum(hex.EncodeToString(h.Sum(nil)))
+	log.Debugf("hash of file: %v (%x)\n", upd.path, upd.checksum)
 	return nil
 }
 
-type streamTarReader struct {
-	name   string
-	data   []byte
-	buffer *bytes.Buffer
-}
+func (av ArtifactsWriter) getHeaderInfo(updates []os.FileInfo) metadata.MetadataHeaderInfo {
+	// for now we have ONLY one type of update - rootfs-image
+	headerInfo := metadata.MetadataHeaderInfo{}
 
-func NewStreamTarReader(data Validator, name string) *streamTarReader {
-	j, err := getJSON(data)
-	if err != nil {
-		return nil
+	// TODO: should we store update name as well?
+	for _ = range updates {
+		headerInfo.Updates = append(headerInfo.Updates, metadata.MetadataUpdateType{Type: "rootfs-image"})
 	}
-	return &streamTarReader{
-		name:   name,
-		data:   j,
-		buffer: bytes.NewBuffer(j),
+	return headerInfo
+}
+
+func (av ArtifactsWriter) getInfo() metadata.MetadataInfo {
+	return metadata.MetadataInfo{
+		Format:  av.format,
+		Version: av.version,
 	}
 }
 
-func (str streamTarReader) Read(p []byte) (n int, err error) {
-	return str.buffer.Read(p)
-}
+func (av ArtifactsWriter) archiveData(updates *updateBucket) error {
+	destination := filepath.Join(av.updateLocation, "data")
 
-func (str streamTarReader) Close() error { return nil }
-
-func (str streamTarReader) GetHeader() (*tar.Header, error) {
-	hdr := &tar.Header{
-		Name: str.name,
-		Mode: 0600,
-		Size: int64(len(str.data)),
-	}
-	return hdr, nil
-}
-
-func (mv MetadataWriter) moveAndCompressData(updates updateBacket) error {
-	destination := filepath.Join(mv.updateLocation, "data")
-
+	// create directory and file for archiving data
 	if err := os.MkdirAll(destination, os.ModeDir|os.ModePerm); err != nil {
 		return err
 	}
-
-	archive, err := os.Create(filepath.Join(destination, updates.location+".tar.gz"))
+	dataArchive, err := os.Create(filepath.Join(destination, updates.location+".tar.gz"))
 	if err != nil {
 		return err
 	}
-	defer archive.Close()
+	defer dataArchive.Close()
 
-	// start with something simple for now
-	gw := gzip.NewWriter(archive)
+	// TODO: start with something simple for now (gzip)
+	gw := gzip.NewWriter(dataArchive)
 	defer gw.Close()
 
 	tw := tar.NewWriter(gw)
+	// don't defer close here as we need to make sure closing was successful
 
-	for _, update := range updates.updates {
+	for _, update := range updates.updateArtifacts {
+		// usually it is a good idea to change hdr.Name, but
 		// we are happy with relative hdr.Name below
 		hdr, err := tar.FileInfoHeader(update.info, update.info.Name())
 		if err != nil {
+			tw.Close()
 			return err
 		}
 
@@ -220,66 +195,12 @@ func (mv MetadataWriter) moveAndCompressData(updates updateBacket) error {
 		return err
 	}
 
-	// remove original files
-	if err := os.RemoveAll(filepath.Join(mv.updateLocation, updates.location, "data")); err != nil {
-		return err
-	}
+	updates.archivedPath = dataArchive.Name()
 
 	return nil
 }
 
-func (mv MetadataWriter) writeHeaderInfo(updates []os.FileInfo) metadata.MetadataHeaderInfo {
-	// for now we have ONLY one type of update - rootfs-image
-	headerInfo := metadata.MetadataHeaderInfo{}
-
-	// TODO: should we store update name as well?
-	for _ = range updates {
-		headerInfo.Updates = append(headerInfo.Updates, metadata.MetadataUpdateType{Type: "rootfs-image"})
-	}
-	return headerInfo
-}
-
-type TarReader interface {
-	io.ReadCloser
-	GetHeader() (*tar.Header, error)
-}
-
-type plainFile struct {
-	path string
-	name string
-	file *os.File
-}
-
-func NewPlainFile(path, name string) *plainFile {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil
-	}
-	return &plainFile{file: f, name: name, path: path}
-}
-
-func (pf plainFile) Read(p []byte) (n int, err error) {
-	return pf.file.Read(p)
-}
-
-func (pf plainFile) Close() error {
-	return pf.file.Close()
-}
-
-func (pf plainFile) GetHeader() (*tar.Header, error) {
-	info, err := os.Stat(pf.path)
-	if err != nil {
-		return nil, err
-	}
-	hdr, err := tar.FileInfoHeader(info, "")
-	if err != nil {
-		return nil, err
-	}
-	hdr.Name = pf.name
-	return hdr, nil
-}
-
-func (mv MetadataWriter) moveAndCompressHeaders(updates []os.FileInfo) error {
+func (mv ArtifactsWriter) createCompressedHeader(updates []os.FileInfo) error {
 
 	archive, err := os.Create(filepath.Join(mv.updateLocation, "header.tar.gz"))
 	if err != nil {
@@ -294,8 +215,8 @@ func (mv MetadataWriter) moveAndCompressHeaders(updates []os.FileInfo) error {
 	tw := tar.NewWriter(gw)
 
 	// we need to ensure correct ordering of files
-	var tarContent []TarReader
-	sr := NewStreamTarReader(mv.writeHeaderInfo(updates), "header-info")
+	var tarContent []ReadArchiver
+	sr := NewStreamArchiver(mv.getHeaderInfo(updates), "header-info")
 	tarContent = append(tarContent, sr)
 
 	for _, update := range updates {
@@ -305,23 +226,22 @@ func (mv MetadataWriter) moveAndCompressHeaders(updates []os.FileInfo) error {
 			return errors.New("artifacts writer: ")
 		}
 		updateTarLocation := filepath.Join("headers", update.Name())
-		tarContent = append(tarContent, NewStreamTarReader(bucket.files,
+		tarContent = append(tarContent, NewStreamArchiver(bucket.files,
 			filepath.Join(updateTarLocation, "files")))
-		tarContent = append(tarContent, NewPlainFile(filepath.Join(bucket.path, "type-info"),
+		tarContent = append(tarContent, NewFileArchiver(filepath.Join(bucket.path, "type-info"),
 			filepath.Join(updateTarLocation, "type-info")))
-		tarContent = append(tarContent, NewPlainFile(filepath.Join(bucket.path, "meta-data"),
+		tarContent = append(tarContent, NewFileArchiver(filepath.Join(bucket.path, "meta-data"),
 			filepath.Join(updateTarLocation, "meta-data")))
 
-		for _, upd := range bucket.updates {
+		for _, upd := range bucket.updateArtifacts {
 			fileName := strings.TrimSuffix(upd.name, filepath.Ext(upd.name)) + ".sha256sum"
-			tarContent = append(tarContent, NewStreamTarReader(upd.checksum,
+			tarContent = append(tarContent, NewStreamArchiver(upd.checksum,
 				filepath.Join(updateTarLocation, "checksums", fileName)))
 		}
-		for _, upd := range bucket.updates {
+		for _, upd := range bucket.updateArtifacts {
 			fileName := strings.TrimSuffix(upd.name, filepath.Ext(upd.name)) + ".sig"
-			fr := NewPlainFile(filepath.Join(bucket.path, "signatures", fileName),
+			fr := NewFileArchiver(filepath.Join(bucket.path, "signatures", fileName),
 				filepath.Join(updateTarLocation, "signatures", fileName))
-			fmt.Printf("should be empty: %v\n", fr)
 			tarContent = append(tarContent, fr)
 		}
 		// TODO: scripts
@@ -356,11 +276,12 @@ func (mv MetadataWriter) moveAndCompressHeaders(updates []os.FileInfo) error {
 	return nil
 }
 
-func (mv *MetadataWriter) getScripts(bucket string) error {
+func (mv *ArtifactsWriter) getScripts(bucket string) error {
+	// TODO:
 	return nil
 }
 
-func (mv *MetadataWriter) processUpdateBucket(bucket string) error {
+func (mv *ArtifactsWriter) processUpdateBucket(bucket string) error {
 
 	// get list of update files
 	// at this point we know that `data` exists and contains update(s)
@@ -371,16 +292,16 @@ func (mv *MetadataWriter) processUpdateBucket(bucket string) error {
 	if err != nil {
 		return err
 	}
-	updBucket := updateBacket{}
+	updBucket := updateBucket{}
 	for _, file := range updateFiles {
-		upd := update{
+		upd := updateArtifact{
 			name:         file.Name(),
 			path:         filepath.Join(dataLocation, file.Name()),
 			updateBucket: bucket,
 			info:         file,
 		}
 		// generate needed checksums
-		err = mv.generateChecksum(&upd)
+		err = mv.calculateChecksum(&upd)
 		if err != nil {
 			return err
 		}
@@ -391,7 +312,7 @@ func (mv *MetadataWriter) processUpdateBucket(bucket string) error {
 		updBucket.files.Files =
 			append(updBucket.files.Files, metadata.MetadataFile{File: upd.name})
 
-		updBucket.updates = append(updBucket.updates, upd)
+		updBucket.updateArtifacts = append(updBucket.updateArtifacts, upd)
 		updBucket.location = bucket
 		updBucket.path = bucketLocation
 	}
@@ -401,7 +322,7 @@ func (mv *MetadataWriter) processUpdateBucket(bucket string) error {
 	}
 
 	// move (and compress) updates from `data` to `../data/location.tar.gz`
-	if err = mv.moveAndCompressData(updBucket); err != nil {
+	if err = mv.archiveData(&updBucket); err != nil {
 		return err
 	}
 
@@ -410,7 +331,11 @@ func (mv *MetadataWriter) processUpdateBucket(bucket string) error {
 	return nil
 }
 
-func (mv *MetadataWriter) createArtifact(files []os.FileInfo) error {
+func (mv *ArtifactsWriter) writeArchive(compressed bool) error {
+	return nil
+}
+
+func (mv *ArtifactsWriter) createArtifact(files []os.FileInfo) error {
 	artifact, err := os.Create(filepath.Join(mv.updateLocation, "artifact.mender"))
 	if err != nil {
 		return err
@@ -421,46 +346,23 @@ func (mv *MetadataWriter) createArtifact(files []os.FileInfo) error {
 	tw := tar.NewWriter(artifact)
 
 	// we need to ensure correct ordering of files
-	var artifactContent []TarReader
+	var artifactContent []ReadArchiver
 
-	info := metadata.MetadataInfo{
-		Format:  mv.format,
-		Version: mv.version,
-	}
-	sr := NewStreamTarReader(info, "info")
-	artifactContent = append(artifactContent, sr)
+	aInfo := NewStreamArchiver(mv.getInfo(), "info")
+	artifactContent = append(artifactContent, aInfo)
+	aHdr := NewFileArchiver(filepath.Join(mv.updateLocation, "header.tar.gz"), "header.tar.gz")
+	artifactContent = append(artifactContent, aHdr)
 
 	for _, artifact := range files {
-		_, ok := mv.updates[artifact.Name()]
+		bucket, ok := mv.updates[artifact.Name()]
 
 		if !ok {
 			return errors.New("artifacts writer: ")
 		}
+		aData := NewFileArchiver(bucket.archivedPath, "data/0000.tar.gz")
+		artifactContent = append(artifactContent, aData)
 	}
-	// 	updateTarLocation := filepath.Join("headers", update.Name())
-	// 	tarContent = append(tarContent, NewStreamTarReader(bucket.files,
-	// 		filepath.Join(updateTarLocation, "files")))
-	// 	tarContent = append(tarContent, NewPlainFile(filepath.Join(bucket.path, "type-info"),
-	// 		filepath.Join(updateTarLocation, "type-info")))
-	// 	tarContent = append(tarContent, NewPlainFile(filepath.Join(bucket.path, "meta-data"),
-	// 		filepath.Join(updateTarLocation, "meta-data")))
-	//
-	// 	for _, upd := range bucket.updates {
-	// 		fileName := strings.TrimSuffix(upd.name, filepath.Ext(upd.name)) + ".sha256sum"
-	// 		tarContent = append(tarContent, NewStreamTarReader(upd.checksum,
-	// 			filepath.Join(updateTarLocation, "checksums", fileName)))
-	// 	}
-	// 	for _, upd := range bucket.updates {
-	// 		fileName := strings.TrimSuffix(upd.name, filepath.Ext(upd.name)) + ".sig"
-	// 		fr := NewPlainFile(filepath.Join(bucket.path, "signatures", fileName),
-	// 			filepath.Join(updateTarLocation, "signatures", fileName))
-	// 		fmt.Printf("should be empty: %v\n", fr)
-	// 		tarContent = append(tarContent, fr)
-	// 	}
-	// 	// TODO: scripts
-	// 	//tarContent = append(tarContent, NewPlainFile(filepath.Join(bucket.path, "scripts"), filepath.Join("headers", update.Name(), "scripts")))
-	//
-	// }
+
 	for _, file := range artifactContent {
 		v := reflect.ValueOf(file)
 		if v.IsNil() {
@@ -491,10 +393,14 @@ func (mv *MetadataWriter) createArtifact(files []os.FileInfo) error {
 	return nil
 }
 
-func (mv *MetadataWriter) Write() error {
+func (av *ArtifactsWriter) removeCompressedHeader() error {
+	// remove temporary header file
+	return os.Remove(filepath.Join(av.updateLocation, "header.tar.gz"))
+}
 
+func (av *ArtifactsWriter) Write() error {
 	// get directories list containing updates
-	entries, err := ioutil.ReadDir(mv.updateLocation)
+	entries, err := ioutil.ReadDir(av.updateLocation)
 	if err != nil {
 		return err
 	}
@@ -502,24 +408,29 @@ func (mv *MetadataWriter) Write() error {
 	// iterate through all directories containing updates
 	for _, location := range entries {
 		// check files and directories consistency
-		err = mv.headerStructure.CheckHeaderStructure(
-			filepath.Join(mv.updateLocation, location.Name()))
+		err = av.headerStructure.CheckHeaderStructure(
+			filepath.Join(av.updateLocation, location.Name()))
 		if err != nil {
 			return err
 		}
 
-		if err = mv.processUpdateBucket(location.Name()); err != nil {
+		if err = av.processUpdateBucket(location.Name()); err != nil {
 			return err
 		}
 	}
 
-	// move (and compress) header
-	if err = mv.moveAndCompressHeaders(entries); err != nil {
+	// create compressed header; the intermediate step is needed as we
+	// can not create tar archive containing files compressed on the fly
+	if err = av.createCompressedHeader(entries); err != nil {
 		return err
 	}
 
-	// (compress all)
-	if err = mv.createArtifact(entries); err != nil {
+	if err = av.createArtifact(entries); err != nil {
+		return err
+	}
+
+	// remove header which copy is now part of artifact
+	if err = av.removeCompressedHeader(); err != nil {
 		return err
 	}
 
