@@ -16,7 +16,6 @@ package writer
 
 import (
 	"archive/tar"
-	"errors"
 	"os"
 )
 
@@ -24,7 +23,7 @@ import (
 type FileArchiver struct {
 	path string
 	name string
-	file *os.File
+	*os.File
 }
 
 // NewFileArchiver creates fileArchiver used for storing plain files
@@ -43,23 +42,8 @@ func (f *FileArchiver) Open() error {
 	if err != nil {
 		return err
 	}
-	f.file = fd
+	f.File = fd
 	return nil
-}
-
-func (f *FileArchiver) Read(p []byte) (n int, err error) {
-	if f.file == nil {
-		return 0, errors.New("attempt to read from closed file")
-	}
-	return f.file.Read(p)
-}
-
-// Close is a path of ReadArchiver interface
-func (f *FileArchiver) Close() error {
-	if f.file != nil {
-		return f.file.Close()
-	}
-	return errors.New("file already closed")
 }
 
 // GetHeader is a path of ReadArchiver interface. It returns tar.Header which
