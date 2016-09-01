@@ -19,7 +19,6 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"io"
 	"io/ioutil"
 	"os"
@@ -29,6 +28,7 @@ import (
 
 	"github.com/mendersoftware/artifacts/metadata"
 	"github.com/mendersoftware/log"
+	"github.com/pkg/errors"
 )
 
 // ArtifactsWriter provides on the fly writing of artifacts metadata file used by
@@ -102,18 +102,19 @@ type updateBucket struct {
 // GetHeader returns Header to be written to the crrent entry it the tar archive.
 type ReadArchiver interface {
 	io.ReadCloser
+	Open() error
 	GetHeader() (*tar.Header, error)
 }
 
 func (av ArtifactsWriter) calculateChecksum(upd *updateArtifact) error {
 	f, err := os.Open(upd.path)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "can not open file for calculating checksum")
 	}
 	defer f.Close()
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
-		return err
+		return errors.Wrapf(err, "error calculating checksum")
 	}
 
 	checksum := h.Sum(nil)
@@ -150,39 +151,53 @@ func (av *ArtifactsWriter) writeArchive(destination io.WriteCloser, content []Re
 	if compressed {
 		// start with something simple for now
 		gz := gzip.NewWriter(destination)
-		//defer gz.Close()
+		defer gz.Close()
 		tw = tar.NewWriter(gz)
 	} else {
 		tw = tar.NewWriter(destination)
 	}
+	defer func() {
+		// make sure to check the error on Close
+		if err := tw.Close(); err != nil {
+			log.Errorf("artifacts writer: error closing archive writer")
+			panic(err)
+		}
+	}()
+
+	// use extra function to make sure we will not end up with exhausting
+	// open file descriptors (in case of huge archive)
+	extractAndWrite := func(archiver ReadArchiver) error {
+		defer archiver.Close()
+
+		hdr, err := archiver.GetHeader()
+		if err != nil || hdr == nil {
+			return errors.New("artifacts writer: broken or empty header")
+		}
+
+		if err := tw.WriteHeader(hdr); err != nil {
+			return errors.Wrapf(err, "error writing archive header")
+		}
+
+		if err := archiver.Open(); err != nil {
+			return errors.Wrapf(err, "error opening file to be stored in archive")
+		}
+		// on the fly copy
+		if _, err := io.Copy(tw, archiver); err != nil {
+			return errors.Wrapf(err, "error copying file to archive")
+		}
+		return nil
+	}
 
 	for _, arch := range content {
-		// TODO:
+		// TODO: is there a better way
 		v := reflect.ValueOf(arch)
 		if v.IsNil() {
 			log.Errorf("artifacts writer: broken entry %v", v)
 			return errors.New("artifacts writer: invalid archiver entry")
 		}
-		defer arch.Close()
-		hdr, err := arch.GetHeader()
-		if err != nil || hdr == nil {
-			tw.Close()
-			return errors.New("artifacts writer: broken or empty header")
-		}
-
-		if err := tw.WriteHeader(hdr); err != nil {
-			tw.Close()
+		if err := extractAndWrite(arch); err != nil {
 			return err
 		}
-		// on the fly copy
-		if _, err := io.Copy(tw, arch); err != nil {
-			tw.Close()
-			return err
-		}
-	}
-	// make sure to check the error on Close
-	if err := tw.Close(); err != nil {
-		return err
 	}
 	return nil
 }

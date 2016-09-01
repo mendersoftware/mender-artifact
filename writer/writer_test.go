@@ -217,17 +217,10 @@ type fakeArchiver struct {
 	headerErr error
 }
 
-func (f fakeArchiver) Read(p []byte) (n int, err error) {
-	return f.readRet, f.readErr
-}
-
-func (f fakeArchiver) Close() error {
-	return f.closeErr
-}
-
-func (f fakeArchiver) GetHeader() (*tar.Header, error) {
-	return f.header, f.headerErr
-}
+func (f fakeArchiver) Open() error                      { return nil }
+func (f fakeArchiver) Read(p []byte) (n int, err error) { return f.readRet, f.readErr }
+func (f fakeArchiver) Close() error                     { return f.closeErr }
+func (f fakeArchiver) GetHeader() (*tar.Header, error)  { return f.header, f.headerErr }
 
 func TestWriteBrokenArchive(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")

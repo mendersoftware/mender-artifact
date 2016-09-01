@@ -31,25 +31,30 @@ type FileArchiver struct {
 // path is the absolute path to the file that will be archived and
 // name is the relatve path inside the archive (see tar.Header.Name)
 func NewFileArchiver(path, name string) *FileArchiver {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil
-	}
-	return &FileArchiver{file: f, name: name, path: path}
+	return &FileArchiver{name: name, path: path}
 }
 
-func (f FileArchiver) Read(p []byte) (n int, err error) {
+func (f *FileArchiver) Open() error {
+	fd, err := os.Open(f.path)
+	if err != nil {
+		return err
+	}
+	f.file = fd
+	return nil
+}
+
+func (f *FileArchiver) Read(p []byte) (n int, err error) {
 	return f.file.Read(p)
 }
 
 // Close is a path of ReadArchiver interface
-func (f FileArchiver) Close() error {
+func (f *FileArchiver) Close() error {
 	return f.file.Close()
 }
 
 // GetHeader is a path of ReadArchiver interface. It returns tar.Header which
 // is then writtem as a part of archive header.
-func (f FileArchiver) GetHeader() (*tar.Header, error) {
+func (f *FileArchiver) GetHeader() (*tar.Header, error) {
 	info, err := os.Stat(f.path)
 	if err != nil {
 		return nil, err

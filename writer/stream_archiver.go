@@ -58,6 +58,8 @@ func NewJSONStreamArchiver(data metadata.Validater, name string) *StreamArchiver
 	}
 }
 
+func (str StreamArchiver) Open() error { return nil }
+
 func (str StreamArchiver) Read(p []byte) (n int, err error) {
 	return str.buffer.Read(p)
 }
