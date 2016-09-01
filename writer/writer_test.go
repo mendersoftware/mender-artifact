@@ -171,7 +171,7 @@ func TestWriteArtifactFile(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructOK)
 	assert.NoError(t, err)
 
-	artifactWriter := NewArtifactsWriter(updateTestDir, "mender", 1)
+	artifactWriter := NewArtifactsWriter("artifact", updateTestDir, "mender", 1)
 	err = artifactWriter.Write()
 	assert.NoError(t, err)
 
@@ -204,7 +204,7 @@ func TestWriteBrokenArtifact(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructBroken)
 	assert.NoError(t, err)
 
-	artifactWriter := NewArtifactsWriter(updateTestDir, "mender", 1)
+	artifactWriter := NewArtifactsWriter("artifact", updateTestDir, "mender", 1)
 	err = artifactWriter.Write()
 	assert.Error(t, err)
 }
@@ -225,7 +225,7 @@ func (f fakeArchiver) GetHeader() (*tar.Header, error)  { return f.header, f.hea
 func TestWriteBrokenArchive(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
-	artifactWriter := NewArtifactsWriter(updateTestDir, "mender", 1)
+	artifactWriter := NewArtifactsWriter("artifact", updateTestDir, "mender", 1)
 
 	arch, err := os.Create(filepath.Join(updateTestDir, "my_archive"))
 	assert.NoError(t, err)

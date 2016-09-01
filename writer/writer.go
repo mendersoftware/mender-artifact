@@ -34,6 +34,7 @@ import (
 // Mender client and server.
 // Call Write to start writing artifacts file.
 type ArtifactsWriter struct {
+	artifactName    string
 	updateLocation  string
 	headerStructure metadata.MetadataArtifactHeader
 	format          string
@@ -70,8 +71,9 @@ var ArtifactsHeaderFormat = map[string]metadata.MetadataDirEntry{
 
 // NewArtifactsWriter creates a new ArtifactsWriter providing a location
 // of Mender metadata artifacts, format of the update and version.
-func NewArtifactsWriter(path string, format string, version int) *ArtifactsWriter {
+func NewArtifactsWriter(name, path, format string, version int) *ArtifactsWriter {
 	return &ArtifactsWriter{
+		artifactName:    name,
 		updateLocation:  path,
 		headerStructure: metadata.MetadataArtifactHeader{Artifacts: ArtifactsHeaderFormat},
 		format:          format,
@@ -155,13 +157,6 @@ func (av *ArtifactsWriter) writeArchive(destination io.WriteCloser, content []Re
 	} else {
 		tw = tar.NewWriter(destination)
 	}
-	defer func() {
-		// make sure to check the error on Close
-		if err := tw.Close(); err != nil {
-			log.Errorf("artifacts writer: error closing archive writer")
-			panic(err)
-		}
-	}()
 
 	// use extra function to make sure we will not end up with exhausting
 	// open file descriptors (in case of huge archive)
@@ -189,12 +184,20 @@ func (av *ArtifactsWriter) writeArchive(destination io.WriteCloser, content []Re
 
 	for _, arch := range content {
 		if arch == nil {
+			tw.Close()
 			return errors.New("artifacts writer: invalid archiver entry")
 		}
 		if err := extractAndWrite(arch); err != nil {
+			tw.Close()
 			return err
 		}
 	}
+
+	// make sure to check the error on Close
+	if err := tw.Close(); err != nil {
+		log.Errorf("artifacts writer: error closing archive writer")
+	}
+
 	return nil
 }
 
@@ -277,7 +280,7 @@ func (av *ArtifactsWriter) removeCompressedHeader() error {
 }
 
 func (av *ArtifactsWriter) createArtifact(files []os.FileInfo) error {
-	artifact, err := os.Create(filepath.Join(av.updateLocation, "artifact.mender"))
+	artifact, err := os.Create(filepath.Join(av.updateLocation, av.artifactName+".mender"))
 	if err != nil {
 		return err
 	}

@@ -79,7 +79,7 @@ func (m MetadataTypeInfo) Validate() error {
 var ErrInvalidMetadata = errors.New("invalid metadata")
 
 type Metadata struct {
-	// we don't know exactly what tyoe of data we will have here
+	// we don't know exactly what type of data we will have here
 	data map[string]interface{}
 }
 
