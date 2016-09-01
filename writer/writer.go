@@ -23,7 +23,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 
 	"github.com/mendersoftware/artifacts/metadata"
@@ -189,10 +188,7 @@ func (av *ArtifactsWriter) writeArchive(destination io.WriteCloser, content []Re
 	}
 
 	for _, arch := range content {
-		// TODO: is there a better way
-		v := reflect.ValueOf(arch)
-		if v.IsNil() {
-			log.Errorf("artifacts writer: broken entry %v", v)
+		if arch == nil {
 			return errors.New("artifacts writer: invalid archiver entry")
 		}
 		if err := extractAndWrite(arch); err != nil {

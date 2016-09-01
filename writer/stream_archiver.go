@@ -58,18 +58,18 @@ func NewJSONStreamArchiver(data metadata.Validater, name string) *StreamArchiver
 	}
 }
 
-func (str StreamArchiver) Open() error { return nil }
+func (str *StreamArchiver) Open() error { return nil }
 
-func (str StreamArchiver) Read(p []byte) (n int, err error) {
+func (str *StreamArchiver) Read(p []byte) (n int, err error) {
 	return str.buffer.Read(p)
 }
 
 // Close is a path of ReadArchiver interface
-func (str StreamArchiver) Close() error { return nil }
+func (str *StreamArchiver) Close() error { return nil }
 
 // GetHeader is a path of ReadArchiver interface. It returns tar.Header which
 // is then writtem as a part of archive header.
-func (str StreamArchiver) GetHeader() (*tar.Header, error) {
+func (str *StreamArchiver) GetHeader() (*tar.Header, error) {
 	hdr := &tar.Header{
 		Name: str.name,
 		Mode: 0600,
