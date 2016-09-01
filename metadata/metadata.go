@@ -164,9 +164,16 @@ type ArtifactHeader struct {
 }
 
 var (
-	ErrInvalidMetadataElemType = errors.New("Invalid atrifact type")
-	ErrMissingMetadataElem     = errors.New("Missing artifact")
-	ErrUnsupportedElement      = errors.New("Unsupported artifact")
+	// ErrInvalidMetadataElemType indicates that element type is not supported.
+	// The common case is when we are expecting a file with a given name, but
+	// we have directory instead (and vice versa).
+	ErrInvalidMetadataElemType = errors.New("Invalid artifact type")
+	// ErrMissingMetadataElem is returned after scanning archive and detecting
+	// that some element is missing (there are few which are required).
+	ErrMissingMetadataElem = errors.New("Missing artifact")
+	// ErrUnsupportedElement is returned after detecting file or directory,
+	// which should not belong to artifact.
+	ErrUnsupportedElement = errors.New("Unsupported artifact")
 )
 
 func (mh ArtifactHeader) processEntry(entry string, isDir bool, required map[string]bool) error {
