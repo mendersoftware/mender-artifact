@@ -53,8 +53,23 @@ func (ar ArtifactsReader) readStream(stream io.Reader) error {
 
 		case "header.tar.gz":
 			log.Info("Processing header")
-			buf := new(bytes.Buffer)
-			gz := gzip.NewReader(buf)
+
+			gz, _ := gzip.NewReader(tr)
+			tar := tar.NewReader(gz)
+			for {
+				hdr, err := tar.Next()
+				if err == io.EOF {
+					// we have reached end of archive
+					break
+				}
+				log.Infof("Contents of sub-archive: %v", hdr.Name)
+				buf := new(bytes.Buffer)
+				//sr := writer.NewStreamArchiver("", )
+				if _, err = io.Copy(buf, tar); err != nil {
+					return err
+				}
+				log.Infof("Contents of sub-archive file: %v", string(buf.Bytes()))
+			}
 
 		default:
 			log.Info("Procesing data file")
