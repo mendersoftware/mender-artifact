@@ -24,9 +24,9 @@ import (
 
 // StreamArchiver implements ReadArchiver interface
 type StreamArchiver struct {
-	name   string
-	data   []byte
-	buffer *bytes.Buffer
+	name string
+	data []byte
+	*bytes.Buffer
 }
 
 // NewStreamArchiver creates streamArchiver used for storing plain text files
@@ -34,11 +34,7 @@ type StreamArchiver struct {
 // data is the plain data that will be stored in archive file
 // name is the relatve path inside the archive (see tar.Header.Name)
 func NewStreamArchiver(data []byte, name string) *StreamArchiver {
-	return &StreamArchiver{
-		name:   name,
-		data:   data,
-		buffer: bytes.NewBuffer(data),
-	}
+	return &StreamArchiver{name, data, bytes.NewBuffer(data)}
 }
 
 // NewJSONStreamArchiver creates streamArchiver used for storing JSON files
@@ -51,19 +47,11 @@ func NewJSONStreamArchiver(data metadata.Validater, name string) *StreamArchiver
 	if err != nil {
 		return nil
 	}
-	return &StreamArchiver{
-		name:   name,
-		data:   j,
-		buffer: bytes.NewBuffer(j),
-	}
+	return &StreamArchiver{name, j, bytes.NewBuffer(j)}
 }
 
 // Open is implemented as a path of ReadArchiver interface
 func (str *StreamArchiver) Open() error { return nil }
-
-func (str *StreamArchiver) Read(p []byte) (n int, err error) {
-	return str.buffer.Read(p)
-}
 
 // Close is implemented as a path of ReadArchiver interface
 func (str *StreamArchiver) Close() error { return nil }
