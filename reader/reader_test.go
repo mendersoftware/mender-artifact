@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var dirStructOK = []metadata.MetadataDirEntry{
+var dirStructOK = []metadata.DirEntry{
 	{Path: "0000", IsDir: true},
 	{Path: "0000/data", IsDir: true},
 	{Path: "0000/data/update.ext4", IsDir: false},
@@ -42,7 +42,7 @@ var dirStructOK = []metadata.MetadataDirEntry{
 	{Path: "0000/scripts/check", IsDir: true},
 }
 
-func MakeFakeUpdateDir(updateDir string, elements []metadata.MetadataDirEntry) error {
+func MakeFakeUpdateDir(updateDir string, elements []metadata.DirEntry) error {
 	for _, elem := range elements {
 		if elem.IsDir {
 			if err := os.MkdirAll(path.Join(updateDir, elem.Path), os.ModeDir|os.ModePerm); err != nil {
@@ -83,6 +83,7 @@ func TestReadArchive(t *testing.T) {
 
 	// open archive file
 	f, err := os.Open(archive)
+	defer f.Close()
 	assert.NoError(t, err)
 	assert.NotNil(t, f)
 

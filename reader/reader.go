@@ -14,15 +14,54 @@
 
 package reader
 
-import "io"
+import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
+	"io"
+
+	"github.com/mendersoftware/log"
+)
+
+type StreamArchiver struct {
+	name   string
+	data   []byte
+	buffer *bytes.Buffer
+}
 
 type ArtifactsReader struct {
 	artifact io.ReadCloser
 }
 
 func (ar ArtifactsReader) readStream(stream io.Reader) error {
-	return nil
+	tr := tar.NewReader(stream)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			// we have reached end of archive
+			break
+		}
+		log.Infof("Contents of archive: %s", hdr.Name)
+		switch hdr.Name {
+		case "info":
+			log.Info("Processing info file")
+			buf := new(bytes.Buffer)
+			if _, err = io.Copy(buf, tr); err != nil {
+				return err
+			}
+			log.Infof("Received info: %s", string(buf.Bytes()))
 
+		case "header.tar.gz":
+			log.Info("Processing header")
+			buf := new(bytes.Buffer)
+			gz := gzip.NewReader(buf)
+
+		default:
+			log.Info("Procesing data file")
+		}
+
+	}
+	return nil
 }
 
 func (ar ArtifactsReader) Read() error {
