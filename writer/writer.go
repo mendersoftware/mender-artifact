@@ -130,7 +130,7 @@ func (av ArtifactsWriter) getHeaderInfo(updates []os.FileInfo) metadata.HeaderIn
 	headerInfo := metadata.HeaderInfo{}
 
 	// TODO: should we store update name as well?
-	for _ = range updates {
+	for range updates {
 		headerInfo.Updates = append(headerInfo.Updates, metadata.UpdateType{Type: "rootfs-image"})
 	}
 	return headerInfo
