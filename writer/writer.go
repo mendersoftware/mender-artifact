@@ -36,7 +36,7 @@ import (
 type ArtifactsWriter struct {
 	artifactName    string
 	updateLocation  string
-	headerStructure metadata.MetadataArtifactHeader
+	headerStructure metadata.ArtifactHeader
 	format          string
 	version         int
 	updates         map[string]updateBucket
@@ -46,7 +46,7 @@ type ArtifactsWriter struct {
 // directories required for creating artifacts file.
 // Some of the files are optional and will be created while creating
 // artifacts archive.
-var ArtifactsHeaderFormat = map[string]metadata.MetadataDirEntry{
+var ArtifactsHeaderFormat = map[string]metadata.DirEntry{
 	// while calling filepath.Walk() `.` (root) directory is included
 	// when iterating throug entries in the tree
 	".":               {Path: ".", IsDir: true, Required: false},
@@ -75,7 +75,7 @@ func NewArtifactsWriter(name, path, format string, version int) *ArtifactsWriter
 	return &ArtifactsWriter{
 		artifactName:    name,
 		updateLocation:  path,
-		headerStructure: metadata.MetadataArtifactHeader{Artifacts: ArtifactsHeaderFormat},
+		headerStructure: metadata.ArtifactHeader{Artifacts: ArtifactsHeaderFormat},
 		format:          format,
 		version:         version,
 		updates:         make(map[string]updateBucket),
@@ -95,7 +95,7 @@ type updateBucket struct {
 	path            string
 	archivedPath    string
 	updateArtifacts []updateArtifact
-	files           metadata.MetadataFiles
+	files           metadata.Files
 }
 
 // ReadArchiver provides interface for reading files or streams and preparing
@@ -125,19 +125,19 @@ func (av ArtifactsWriter) calculateChecksum(upd *updateArtifact) error {
 	return nil
 }
 
-func (av ArtifactsWriter) getHeaderInfo(updates []os.FileInfo) metadata.MetadataHeaderInfo {
+func (av ArtifactsWriter) getHeaderInfo(updates []os.FileInfo) metadata.HeaderInfo {
 	// for now we have ONLY one type of update - rootfs-image
-	headerInfo := metadata.MetadataHeaderInfo{}
+	headerInfo := metadata.HeaderInfo{}
 
 	// TODO: should we store update name as well?
 	for _ = range updates {
-		headerInfo.Updates = append(headerInfo.Updates, metadata.MetadataUpdateType{Type: "rootfs-image"})
+		headerInfo.Updates = append(headerInfo.Updates, metadata.UpdateType{Type: "rootfs-image"})
 	}
 	return headerInfo
 }
 
-func (av ArtifactsWriter) getInfo() metadata.MetadataInfo {
-	return metadata.MetadataInfo{
+func (av ArtifactsWriter) getInfo() metadata.Info {
+	return metadata.Info{
 		Format:  av.format,
 		Version: av.version,
 	}
@@ -308,7 +308,7 @@ func (av *ArtifactsWriter) createArtifact(files []os.FileInfo) error {
 
 func (av *ArtifactsWriter) storeFile(bucket *updateBucket, upd updateArtifact) error {
 	bucket.files.Files =
-		append(bucket.files.Files, metadata.MetadataFile{File: upd.name})
+		append(bucket.files.Files, metadata.File{File: upd.name})
 	return nil
 }
 

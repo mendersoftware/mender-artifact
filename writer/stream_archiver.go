@@ -58,13 +58,14 @@ func NewJSONStreamArchiver(data metadata.Validater, name string) *StreamArchiver
 	}
 }
 
+// Open is implemented as a path of ReadArchiver interface
 func (str *StreamArchiver) Open() error { return nil }
 
 func (str *StreamArchiver) Read(p []byte) (n int, err error) {
 	return str.buffer.Read(p)
 }
 
-// Close is a path of ReadArchiver interface
+// Close is implemented as a path of ReadArchiver interface
 func (str *StreamArchiver) Close() error { return nil }
 
 // GetHeader is a path of ReadArchiver interface. It returns tar.Header which

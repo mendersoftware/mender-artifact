@@ -25,14 +25,14 @@ import (
 
 func TestValidateInfo(t *testing.T) {
 	var validateTests = []struct {
-		in  MetadataInfo
+		in  Info
 		err error
 	}{
-		{MetadataInfo{Format: "", Version: 0}, ErrInvalidInfo},
-		{MetadataInfo{Format: "", Version: 1}, ErrInvalidInfo},
-		{MetadataInfo{Format: "format"}, ErrInvalidInfo},
-		{MetadataInfo{}, ErrInvalidInfo},
-		{MetadataInfo{Format: "format", Version: 1}, nil},
+		{Info{Format: "", Version: 0}, ErrValidatingData},
+		{Info{Format: "", Version: 1}, ErrValidatingData},
+		{Info{Format: "format"}, ErrValidatingData},
+		{Info{}, ErrValidatingData},
+		{Info{Format: "format", Version: 1}, nil},
 	}
 
 	for _, tt := range validateTests {
@@ -43,17 +43,17 @@ func TestValidateInfo(t *testing.T) {
 
 func TestValidateHeaderInfo(t *testing.T) {
 	var validateTests = []struct {
-		in  MetadataHeaderInfo
+		in  HeaderInfo
 		err error
 	}{
-		{MetadataHeaderInfo{}, ErrInvalidHeaderInfo},
-		{MetadataHeaderInfo{Updates: []MetadataUpdateType{}}, ErrInvalidHeaderInfo},
-		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: ""}}}, ErrInvalidHeaderInfo},
-		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: "update"}, {}}}, ErrInvalidHeaderInfo},
-		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{}, {Type: "update"}}}, ErrInvalidHeaderInfo},
-		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: "update"}, {Type: ""}}}, ErrInvalidHeaderInfo},
-		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: "update"}}}, nil},
-		{MetadataHeaderInfo{Updates: []MetadataUpdateType{{Type: "update"}, {Type: "update"}}}, nil},
+		{HeaderInfo{}, ErrValidatingData},
+		{HeaderInfo{Updates: []UpdateType{}}, ErrValidatingData},
+		{HeaderInfo{Updates: []UpdateType{{Type: ""}}}, ErrValidatingData},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {}}}, ErrValidatingData},
+		{HeaderInfo{Updates: []UpdateType{{}, {Type: "update"}}}, ErrValidatingData},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: ""}}}, ErrValidatingData},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}}, nil},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: "update"}}}, nil},
 	}
 	for idx, tt := range validateTests {
 		e := tt.in.Validate()
@@ -63,12 +63,12 @@ func TestValidateHeaderInfo(t *testing.T) {
 
 func TestValidateTypeInfo(t *testing.T) {
 	var validateTests = []struct {
-		in  MetadataTypeInfo
+		in  TypeInfo
 		err error
 	}{
-		{MetadataTypeInfo{}, ErrInvalidTypeInfo},
-		{MetadataTypeInfo{Rootfs: ""}, ErrInvalidTypeInfo},
-		{MetadataTypeInfo{Rootfs: "image-type"}, nil},
+		{TypeInfo{}, ErrValidatingData},
+		{TypeInfo{Rootfs: ""}, ErrValidatingData},
+		{TypeInfo{Rootfs: "image-type"}, nil},
 	}
 
 	for _, tt := range validateTests {
@@ -82,14 +82,14 @@ func TestValidateMetadata(t *testing.T) {
 		in  Metadata
 		err error
 	}{
-		{Metadata{}, ErrInvalidMetadata},
-		{Metadata{make(map[string]interface{})}, ErrInvalidMetadata},
-		{Metadata{map[string]interface{}{}}, ErrInvalidMetadata},
-		{Metadata{map[string]interface{}{"": nil}}, ErrInvalidMetadata},
-		{Metadata{map[string]interface{}{"key": nil}}, ErrInvalidMetadata},
-		{Metadata{map[string]interface{}{"key": "val"}}, ErrInvalidMetadata},
-		{Metadata{map[string]interface{}{"DeviceType": "type"}}, ErrInvalidMetadata},
-		{Metadata{map[string]interface{}{"DeviceType": nil, "ImageID": "image"}}, ErrInvalidMetadata},
+		{Metadata{}, ErrValidatingData},
+		{Metadata{make(map[string]interface{})}, ErrValidatingData},
+		{Metadata{map[string]interface{}{}}, ErrValidatingData},
+		{Metadata{map[string]interface{}{"": nil}}, ErrValidatingData},
+		{Metadata{map[string]interface{}{"key": nil}}, ErrValidatingData},
+		{Metadata{map[string]interface{}{"key": "val"}}, ErrValidatingData},
+		{Metadata{map[string]interface{}{"DeviceType": "type"}}, ErrValidatingData},
+		{Metadata{map[string]interface{}{"DeviceType": nil, "ImageID": "image"}}, ErrValidatingData},
 		{Metadata{map[string]interface{}{"DeviceType": "device", "ImageID": "image"}}, nil},
 		{Metadata{map[string]interface{}{"DeviceType": "device", "ImageID": "image", "Data": "data"}}, nil},
 	}
@@ -102,15 +102,15 @@ func TestValidateMetadata(t *testing.T) {
 
 func TestValidateFiles(t *testing.T) {
 	var validateTests = []struct {
-		in  MetadataFiles
+		in  Files
 		err error
 	}{
-		{MetadataFiles{}, ErrInvalidFilesInfo},
-		{MetadataFiles{Files: []MetadataFile{}}, ErrInvalidFilesInfo},
-		{MetadataFiles{Files: []MetadataFile{{File: ""}}}, ErrInvalidFilesInfo},
-		{MetadataFiles{Files: []MetadataFile{{File: "file"}}}, nil},
-		{MetadataFiles{Files: []MetadataFile{{File: "file"}, {}}}, ErrInvalidFilesInfo},
-		{MetadataFiles{Files: []MetadataFile{{File: "file"}, {File: "file_next"}}}, nil},
+		{Files{}, ErrValidatingData},
+		{Files{Files: []File{}}, ErrValidatingData},
+		{Files{Files: []File{{File: ""}}}, ErrValidatingData},
+		{Files{Files: []File{{File: "file"}}}, nil},
+		{Files{Files: []File{{File: "file"}, {}}}, ErrValidatingData},
+		{Files{Files: []File{{File: "file"}, {File: "file_next"}}}, nil},
 	}
 	for idx, tt := range validateTests {
 		e := tt.in.Validate()
@@ -118,7 +118,7 @@ func TestValidateFiles(t *testing.T) {
 	}
 }
 
-func MakeFakeUpdateDir(updateDir string, elements []MetadataDirEntry) error {
+func MakeFakeUpdateDir(updateDir string, elements []DirEntry) error {
 	for _, elem := range elements {
 		if elem.IsDir {
 			if err := os.MkdirAll(path.Join(updateDir, elem.Path), os.ModeDir|os.ModePerm); err != nil {
@@ -133,7 +133,7 @@ func MakeFakeUpdateDir(updateDir string, elements []MetadataDirEntry) error {
 	return nil
 }
 
-var dirStructOK = []MetadataDirEntry{
+var dirStructOK = []DirEntry{
 	{Path: "files", IsDir: false},
 	{Path: "type-info", IsDir: false},
 	{Path: "meta-data", IsDir: false},
@@ -147,7 +147,7 @@ var dirStructOK = []MetadataDirEntry{
 	{Path: "scripts/check", IsDir: true},
 }
 
-var dirStructMultipleUpdates = []MetadataDirEntry{
+var dirStructMultipleUpdates = []DirEntry{
 	{Path: "files", IsDir: false},
 	{Path: "type-info", IsDir: false},
 	{Path: "meta-data", IsDir: false},
@@ -163,7 +163,7 @@ var dirStructMultipleUpdates = []MetadataDirEntry{
 	{Path: "scripts/check", IsDir: true, Required: false},
 }
 
-var dirStructOKHaveScripts = []MetadataDirEntry{
+var dirStructOKHaveScripts = []DirEntry{
 	{Path: "files", IsDir: false},
 	{Path: "type-info", IsDir: false},
 	{Path: "meta-data", IsDir: false},
@@ -179,7 +179,7 @@ var dirStructOKHaveScripts = []MetadataDirEntry{
 	{Path: "scripts/check", IsDir: true, Required: false},
 }
 
-var dirStructTypeError = []MetadataDirEntry{
+var dirStructTypeError = []DirEntry{
 	{Path: "files", IsDir: false},
 	// type-info should be a file
 	{Path: "type-info", IsDir: true},
@@ -194,7 +194,7 @@ var dirStructTypeError = []MetadataDirEntry{
 	{Path: "scripts/check", IsDir: true, Required: false},
 }
 
-var dirStructInvalidContent = []MetadataDirEntry{
+var dirStructInvalidContent = []DirEntry{
 	// can not contain unsupported elements
 	{Path: "not-supported", IsDir: true, Required: true},
 	{Path: "files", IsDir: false},
@@ -210,7 +210,7 @@ var dirStructInvalidContent = []MetadataDirEntry{
 	{Path: "scripts/check", IsDir: true, Required: false},
 }
 
-var dirStructInvalidNestedDirs = []MetadataDirEntry{
+var dirStructInvalidNestedDirs = []DirEntry{
 	{Path: "files", IsDir: false},
 	{Path: "type-info", IsDir: false},
 	{Path: "meta-data", IsDir: false},
@@ -225,7 +225,7 @@ var dirStructInvalidNestedDirs = []MetadataDirEntry{
 	{Path: "scripts/unsupported_dir", IsDir: true, Required: true},
 }
 
-var dirStructMissingRequired = []MetadataDirEntry{
+var dirStructMissingRequired = []DirEntry{
 	{Path: "files", IsDir: false},
 	// does not contain meta-data and type-info
 	{Path: "checksums", IsDir: true},
@@ -238,7 +238,7 @@ var dirStructMissingRequired = []MetadataDirEntry{
 	{Path: "scripts/check", IsDir: true, Required: false},
 }
 
-var dirStructMissingOptional = []MetadataDirEntry{
+var dirStructMissingOptional = []DirEntry{
 	{Path: "files", IsDir: false},
 	{Path: "type-info", IsDir: false},
 	{Path: "meta-data", IsDir: false},
@@ -250,7 +250,7 @@ var dirStructMissingOptional = []MetadataDirEntry{
 	{Path: "scripts/pre", IsDir: true, Required: false},
 }
 
-var testMetadataHeaderFormat = map[string]MetadataDirEntry{
+var testMetadataHeaderFormat = map[string]DirEntry{
 	// while calling filepath.Walk() `.` (root) directory is included
 	// when iterating throug entries in the tree
 	".":               {Path: ".", IsDir: true, Required: false},
@@ -272,7 +272,7 @@ var testMetadataHeaderFormat = map[string]MetadataDirEntry{
 
 func TestDirectoryStructure(t *testing.T) {
 	var validateTests = []struct {
-		dirContent []MetadataDirEntry
+		dirContent []DirEntry
 		err        error
 	}{
 		{dirStructOK, nil},
@@ -291,7 +291,7 @@ func TestDirectoryStructure(t *testing.T) {
 		err := MakeFakeUpdateDir(updateTestDir, tt.dirContent)
 		assert.NoError(t, err)
 
-		header := MetadataArtifactHeader{Artifacts: testMetadataHeaderFormat}
+		header := ArtifactHeader{Artifacts: testMetadataHeaderFormat}
 
 		err = header.CheckHeaderStructure(updateTestDir)
 		assert.Equal(t, tt.err, err)
@@ -299,7 +299,7 @@ func TestDirectoryStructure(t *testing.T) {
 }
 
 func TestDirectoryStructureNotExist(t *testing.T) {
-	header := MetadataArtifactHeader{Artifacts: testMetadataHeaderFormat}
+	header := ArtifactHeader{Artifacts: testMetadataHeaderFormat}
 	err := header.CheckHeaderStructure("non-existing-directory")
 	assert.Equal(t, os.ErrNotExist, err)
 }

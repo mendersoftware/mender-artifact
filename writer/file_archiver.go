@@ -16,6 +16,7 @@ package writer
 
 import (
 	"archive/tar"
+	"errors"
 	"os"
 )
 
@@ -34,6 +35,9 @@ func NewFileArchiver(path, name string) *FileArchiver {
 	return &FileArchiver{name: name, path: path}
 }
 
+// Open is opening file for reading before storing it into archive.
+// It is not returning open file descriptor, but rather it is setting
+// FileArchiver file field to be an open descriptor.
 func (f *FileArchiver) Open() error {
 	fd, err := os.Open(f.path)
 	if err != nil {
@@ -44,12 +48,18 @@ func (f *FileArchiver) Open() error {
 }
 
 func (f *FileArchiver) Read(p []byte) (n int, err error) {
+	if f.file == nil {
+		return 0, errors.New("attempt to read from closed file")
+	}
 	return f.file.Read(p)
 }
 
 // Close is a path of ReadArchiver interface
 func (f *FileArchiver) Close() error {
-	return f.file.Close()
+	if f.file != nil {
+		return f.file.Close()
+	}
+	return errors.New("file already closed")
 }
 
 // GetHeader is a path of ReadArchiver interface. It returns tar.Header which
