@@ -28,7 +28,7 @@ import (
 )
 
 func TestMarshallInfo(t *testing.T) {
-	info := metadata.MetadataInfo{
+	info := metadata.Info{
 		Format:  "test",
 		Version: 1,
 	}
@@ -36,11 +36,11 @@ func TestMarshallInfo(t *testing.T) {
 	assert.NoError(t, err)
 	assert.JSONEq(t, `{"format":"test", "version":1}`, string(infoJSON))
 
-	info = metadata.MetadataInfo{
+	info = metadata.Info{
 		Format: "test",
 	}
 	infoJSON, err = getJSON(&info)
-	assert.Equal(t, err, metadata.ErrInvalidInfo)
+	assert.Equal(t, err, metadata.ErrValidatingData)
 	assert.Empty(t, infoJSON)
 
 	infoJSON, err = getJSON(nil)
@@ -48,7 +48,7 @@ func TestMarshallInfo(t *testing.T) {
 	assert.Empty(t, infoJSON)
 }
 
-var dirStructInvalid = []metadata.MetadataDirEntry{
+var dirStructInvalid = []metadata.DirEntry{
 	{Path: "0000", IsDir: true},
 	{Path: "0000/data", IsDir: true},
 	{Path: "0000/type-info", IsDir: false},
@@ -60,7 +60,7 @@ var dirStructInvalid = []metadata.MetadataDirEntry{
 	{Path: "0000/scripts/check", IsDir: true},
 }
 
-func MakeFakeUpdateDir(updateDir string, elements []metadata.MetadataDirEntry) error {
+func MakeFakeUpdateDir(updateDir string, elements []metadata.DirEntry) error {
 	for _, elem := range elements {
 		if elem.IsDir {
 			if err := os.MkdirAll(path.Join(updateDir, elem.Path), os.ModeDir|os.ModePerm); err != nil {
@@ -83,7 +83,7 @@ func TestWriteArtifactBrokenDirStruct(t *testing.T) {
 
 	artifactWriter := ArtifactsWriter{
 		updateLocation:  updateTestDir,
-		headerStructure: metadata.MetadataArtifactHeader{Artifacts: ArtifactsHeaderFormat},
+		headerStructure: metadata.ArtifactHeader{Artifacts: ArtifactsHeaderFormat},
 	}
 	err = artifactWriter.Write()
 	assert.Error(t, err)
@@ -94,7 +94,7 @@ func TestGenerateHash(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	err := MakeFakeUpdateDir(tempDir,
-		[]metadata.MetadataDirEntry{
+		[]metadata.DirEntry{
 			{Path: "update.ext4", IsDir: false},
 			{Path: "next_update.ext3", IsDir: false},
 		})
@@ -129,7 +129,7 @@ func TestGenerateHash(t *testing.T) {
 	assert.Empty(t, upd.checksum)
 }
 
-var dirStructOK = []metadata.MetadataDirEntry{
+var dirStructOK = []metadata.DirEntry{
 	{Path: "0000", IsDir: true},
 	{Path: "0000/data", IsDir: true},
 	{Path: "0000/data/update.ext4", IsDir: false},
@@ -145,7 +145,7 @@ var dirStructOK = []metadata.MetadataDirEntry{
 	{Path: "0000/scripts/check", IsDir: true},
 }
 
-var dirStructOKAfterWriting = map[string]metadata.MetadataDirEntry{
+var dirStructOKAfterWriting = map[string]metadata.DirEntry{
 	".":                               {Path: ".", IsDir: true, Required: true},
 	"data":                            {Path: "data", IsDir: true, Required: true},
 	"data/0000.tar.gz":                {Path: "data", IsDir: false, Required: true},
@@ -176,12 +176,12 @@ func TestWriteArtifactFile(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check is dir structure is correct
-	headerAfterWrite := metadata.MetadataArtifactHeader{Artifacts: dirStructOKAfterWriting}
+	headerAfterWrite := metadata.ArtifactHeader{Artifacts: dirStructOKAfterWriting}
 	err = headerAfterWrite.CheckHeaderStructure(updateTestDir)
 	assert.NoError(t, err)
 }
 
-var dirStructBroken = []metadata.MetadataDirEntry{
+var dirStructBroken = []metadata.DirEntry{
 	{Path: "0000", IsDir: true},
 	{Path: "0000/data", IsDir: true},
 	{Path: "0000/data/update.ext4", IsDir: false},
