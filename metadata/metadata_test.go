@@ -125,7 +125,11 @@ func MakeFakeUpdateDir(updateDir string, elements []DirEntry) error {
 				return err
 			}
 		} else {
-			if _, err := os.Create(path.Join(updateDir, elem.Path)); err != nil {
+			f, err := os.Create(path.Join(updateDir, elem.Path))
+			if err != nil {
+				return err
+			}
+			if err = f.Close(); err != nil {
 				return err
 			}
 		}
