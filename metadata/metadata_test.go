@@ -83,15 +83,15 @@ func TestValidateMetadata(t *testing.T) {
 		err error
 	}{
 		{Metadata{}, ErrValidatingData},
-		{Metadata{make(map[string]interface{})}, ErrValidatingData},
-		{Metadata{map[string]interface{}{}}, ErrValidatingData},
-		{Metadata{map[string]interface{}{"": nil}}, ErrValidatingData},
-		{Metadata{map[string]interface{}{"key": nil}}, ErrValidatingData},
-		{Metadata{map[string]interface{}{"key": "val"}}, ErrValidatingData},
-		{Metadata{map[string]interface{}{"DeviceType": "type"}}, ErrValidatingData},
-		{Metadata{map[string]interface{}{"DeviceType": nil, "ImageID": "image"}}, ErrValidatingData},
-		{Metadata{map[string]interface{}{"DeviceType": "device", "ImageID": "image"}}, nil},
-		{Metadata{map[string]interface{}{"DeviceType": "device", "ImageID": "image", "Data": "data"}}, nil},
+		{make(map[string]interface{}), ErrValidatingData},
+		{map[string]interface{}{}, ErrValidatingData},
+		{map[string]interface{}{"": nil}, ErrValidatingData},
+		{map[string]interface{}{"key": nil}, ErrValidatingData},
+		{map[string]interface{}{"key": "val"}, ErrValidatingData},
+		{map[string]interface{}{"DeviceType": "type"}, ErrValidatingData},
+		{map[string]interface{}{"DeviceType": nil, "ImageID": "image"}, ErrValidatingData},
+		{map[string]interface{}{"DeviceType": "device", "ImageID": "image"}, nil},
+		{map[string]interface{}{"DeviceType": "device", "ImageID": "image", "Data": "data"}, nil},
 	}
 
 	for _, tt := range validateTests {
