@@ -21,18 +21,27 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mendersoftware/artifacts/metadata"
 	"github.com/mendersoftware/artifacts/writer"
 	"github.com/stretchr/testify/assert"
 )
 
-var dirStructOK = []metadata.DirEntry{
+type testDirEntry struct {
+	Path    string
+	Content []byte
+	IsDir   bool
+}
+
+var dirStructOK = []testDirEntry{
 	{Path: "0000", IsDir: true},
 	{Path: "0000/data", IsDir: true},
 	{Path: "0000/data/update.ext4", IsDir: false},
 	{Path: "0000/data/update_next.ext3", IsDir: false},
-	{Path: "0000/type-info", IsDir: false},
-	{Path: "0000/meta-data", IsDir: false},
+	{Path: "0000/type-info",
+		Content: []byte(`{"rootfs": "core-image-minimal-201608110900.ext4"}`),
+		IsDir:   false},
+	{Path: "0000/meta-data",
+		Content: []byte(`{"DeviceType": "vexpress-qemu", "ImageID": "core-image-minimal-201608110900"}`),
+		IsDir:   false},
 	{Path: "0000/signatures", IsDir: true},
 	{Path: "0000/signatures/update.sig", IsDir: false},
 	{Path: "0000/signatures/update_next.sig", IsDir: false},
@@ -42,15 +51,22 @@ var dirStructOK = []metadata.DirEntry{
 	{Path: "0000/scripts/check", IsDir: true},
 }
 
-func MakeFakeUpdateDir(updateDir string, elements []metadata.DirEntry) error {
+func MakeFakeUpdateDir(updateDir string, elements []testDirEntry) error {
 	for _, elem := range elements {
 		if elem.IsDir {
 			if err := os.MkdirAll(path.Join(updateDir, elem.Path), os.ModeDir|os.ModePerm); err != nil {
 				return err
 			}
 		} else {
-			if _, err := os.Create(path.Join(updateDir, elem.Path)); err != nil {
+			f, err := os.Create(path.Join(updateDir, elem.Path))
+			if err != nil {
 				return err
+			}
+			defer f.Close()
+			if len(elem.Content) > 0 {
+				if _, err = f.Write(elem.Content); err != nil {
+					return err
+				}
 			}
 		}
 	}
