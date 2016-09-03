@@ -87,7 +87,7 @@ func TestWriteArtifactBrokenDirStruct(t *testing.T) {
 
 	artifactWriter := ArtifactsWriter{
 		updateLocation:  updateTestDir,
-		headerStructure: metadata.ArtifactHeader{Artifacts: ArtifactsHeaderFormat},
+		headerStructure: metadata.ArtifactHeader{Artifacts: hFormatPreWrite},
 	}
 	err = artifactWriter.Write()
 	assert.Error(t, err)

@@ -107,3 +107,25 @@ func TestReadArchive(t *testing.T) {
 	err = aReader.Read()
 	assert.NoError(t, err)
 }
+
+func TestReadSequence(t *testing.T) {
+	// first create archive, that we will be able to read
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	archive, err := writeArchive(updateTestDir)
+	assert.NoError(t, err)
+	assert.NotEqual(t, "", archive)
+
+	// open archive file
+	f, err := os.Open(archive)
+	defer f.Close()
+	assert.NoError(t, err)
+	assert.NotNil(t, f)
+
+	aReader := ArtifactsReader{artifact: f}
+	info, err := aReader.ReadInfo()
+	assert.NoError(t, err)
+	assert.Equal(t, "mender", info.Format)
+	assert.Equal(t, 1, info.Version)
+}

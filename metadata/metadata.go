@@ -156,6 +156,8 @@ type DirEntry struct {
 	IsDir bool
 	// some files are optional thus ew want to check if given entry is needed
 	Required bool
+	// data type representing artifacts entry
+	Type interface{}
 }
 
 // ArtifactHeader is a filesystem structure containing information about
