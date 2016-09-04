@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -35,14 +36,6 @@ type ArtifactsReader struct {
 
 	info  metadata.Info
 	hInfo metadata.HeaderInfo
-}
-
-type rawReader struct {
-	data []byte
-}
-
-type jsonReader struct {
-	data metadata.Validater
 }
 
 // func (ar ArtifactsReader) readUpdateBucket(update metadata.UpdateType, tar *tar.Reader, uBucket int) error {
@@ -68,21 +61,21 @@ type jsonReader struct {
 // 			if !strings.Compare(relPath, "files") != 0 {
 // 				return errors.New("artifacts reader: element out of order; expecting files")
 // 			}
-// 			if err = ar.getAndValidateJSONData(&files, tar); err != nil {
+// 			if err = ar.getMetadata(&files, tar); err != nil {
 // 				return err
 // 			}
 // 			log.Infof("Contents of files: %v", files)
 //
 // 		case 1:
 // 			//strings.Contains(hdr.Name, "type-info"):
-// 			if err = ar.getAndValidateJSONData(&tInfo, tar); err != nil {
+// 			if err = ar.getMetadata(&tInfo, tar); err != nil {
 // 				return err
 // 			}
 // 			log.Infof("Contents of type-info: %v", tInfo.Rootfs)
 //
 // 		case 2:
 // 			//strings.Contains(hdr.Name, "meta-data"):
-// 			if err = ar.getAndValidateJSONData(&meta, tar); err != nil {
+// 			if err = ar.getMetadata(&meta, tar); err != nil {
 // 				return err
 // 			}
 // 			log.Infof("Contents of meta-data: %v", meta["ImageID"])
@@ -112,89 +105,102 @@ func (ar *ArtifactsReader) readHeader(stream io.Reader) error {
 	if strings.Compare(hdr.Name, "header-info") != 0 {
 		return errors.New("artifacts reader: element out of order")
 	}
-	if err = ar.getAndValidateJSONData(&ar.hInfo, tar); err != nil {
+	if err = ar.getMetadata(&ar.hInfo, tar); err != nil {
 		return err
 	}
 	log.Infof("Contents of header-info: %v", ar.hInfo.Updates)
 
-	for cnt := range ar.hInfo.Updates {
-		if err := ar.readTarHeaderEntry(tar, hStreamFormat, cnt); err != nil {
-			return errors.Wrapf(err, "error reading update bucket")
+	for cnt, uType := range ar.hInfo.Updates {
+		switch uType.Type {
+		// for now we are supporting only "rootfs-image"
+		case "rootfs-image":
+			if err := ar.readUpdateHeaderBucket(tar, hStreamFormat,
+				fmt.Sprintf("%04d", cnt)); err != nil {
+				return errors.Wrapf(err, "error reading update bucket")
+			}
+		default:
+			return errors.New("artifacts reader: unsupported update type")
 		}
 	}
 	return nil
 }
 
+type rawReader struct {
+	data []byte
+}
+
+type jsonReader struct {
+	data metadata.Validater
+}
+
 type raw []byte
 
 var hStreamFormat = map[string]metadata.DirEntry{
-	"files":        {Path: "files", IsDir: false, Required: false, Type: &metadata.Files{}},
-	"meta-data":    {Path: "meta-data", IsDir: false, Required: true, Type: &metadata.Metadata{}},
-	"type-info":    {Path: "type-info", IsDir: false, Required: true, Type: &metadata.TypeInfo{}},
-	"checksums/*":  {Path: "checksums", IsDir: false, Required: false, Type: make(map[string]raw, 1)},
-	"signatures/*": {Path: "signatures", IsDir: false, Required: true, Type: make(map[string]raw, 1)},
-	// "scripts/pre/*":   {Path: "scripts", IsDir: false, Required: false, Type: rawReader{}},
-	// "scripts/post/*":  {Path: "scripts", IsDir: false, Required: false, Type: rawReader{}},
-	// "scripts/check/*": {Path: "scripts", IsDir: false, Required: false, Type: rawReader{}},
+	"files":        {Type: &metadata.Files{}},
+	"meta-data":    {Type: &metadata.Metadata{}},
+	"type-info":    {Type: &metadata.TypeInfo{}},
+	"checksums/*":  {Type: map[string]raw{}},
+	"signatures/*": {Type: map[string]raw{}},
+	// "scripts/pre/*":   {Type: rawReader{}},
+	// "scripts/post/*":  {Type: rawReader{}},
+	// "scripts/check/*": {Type: rawReader{}},
 }
 
-func (ar ArtifactsReader) readTarHeaderEntry(tar *tar.Reader,
-	header map[string]metadata.DirEntry, uBucket int) error {
+func (ar ArtifactsReader) getElementFromHeader(header map[string]metadata.DirEntry, path string) (*metadata.DirEntry, error) {
+	// Iterare over header all header elements to find one maching path.
+	// Header is constructed so that `filepath.Match()` pattern is the
+	// same format as header key.
+	for k, v := range header {
+		match, err := filepath.Match(k, path)
+		if err != nil {
+			return nil, err
+		}
+		if match {
+			return &v, nil
+		}
+	}
+	return nil, os.ErrNotExist
+}
 
+func (ar ArtifactsReader) readUpdateHeaderBucket(tar *tar.Reader,
+	header map[string]metadata.DirEntry, uBucket string) error {
+
+	// iterate through tar archive untill some error occurs or we will
+	// reach end of archive
 	for {
 		hdr, err := tar.Next()
 		if err == io.EOF {
 			// we have reached end of archive
 			log.Debug("artifacts reader: reached end of archive")
-			log.Errorf("have data struct at end of parsing: %v", header)
+			log.Errorf("have data struct at end of parsing: %v -> %v", header, header["files"].Type)
 			return nil
 		}
-		log.Infof("have header element: %v (%v)", hdr.Name, uBucket)
 
-		relPath, err := filepath.Rel(filepath.Join("headers", fmt.Sprintf("%04d", uBucket)), hdr.Name)
+		// get path relative to current update bucket: [headers/0001/]xxx
+		relPath, err := filepath.Rel(filepath.Join("headers", uBucket), hdr.Name)
 		if err != nil {
 			return err
 		}
 
-		// check for allowed archive entries
-		for path, data := range header {
-			match, err := filepath.Match(path, relPath)
-			if err != nil {
-				return err
-			}
-			if match {
-				log.Infof("have match: %v", data)
+		// check if given archive file is allowed in header and read it if so
+		hElem, err := ar.getElementFromHeader(header, relPath)
+		if err != nil {
+			return err
+		}
 
-				switch data.Type.(type) {
-				case metadata.Validater:
-					d := data.Type
-					ar.getAndValidateJSONData(d.(metadata.Validater), tar)
-					log.Errorf("have data sss: %v", d)
-					header[path] = data
+		switch hElem.Type.(type) {
+		case metadata.Validater:
+			ar.getMetadata(hElem.Type.(metadata.Validater), tar)
 
-				case map[string]raw:
-					buf, _ := ar.getRawData(tar)
-					log.Infof("have raw data: %v", string(buf))
-					adder := func(data []byte, entry metadata.DirEntry, s string) metadata.DirEntry {
-						t := entry.Type.(map[string]raw)
-						t[s] = data
-						return entry
-					}
-					e := adder(buf, header[path], filepath.Base(hdr.Name))
-					log.Errorf("have e: %v", e)
-					header[path] = e
+		case map[string]raw:
+			buf, _ := ar.getRawData(tar)
+			hElem.Type.(map[string]raw)[filepath.Base(hdr.Name)] = buf
 
-				}
-				break
-
-			}
+		default:
+			return errors.New("unsupported element type")
 
 		}
-		// log.Errorf("have invalid header entry: %v", hdr.Name)
-		// return errors.New("invalid entry in artifacts archive")
-
 	}
-
 }
 
 func (ar ArtifactsReader) getRawData(stream io.Reader) ([]byte, error) {
@@ -206,7 +212,7 @@ func (ar ArtifactsReader) getRawData(stream io.Reader) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (ar ArtifactsReader) getAndValidateJSONData(data metadata.Validater, stream io.Reader) error {
+func (ar ArtifactsReader) getMetadata(data metadata.Validater, stream io.Reader) error {
 	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, stream); err != nil {
 		return err
@@ -244,7 +250,7 @@ func (ar *ArtifactsReader) readStream(tr *tar.Reader, dType dataType) error {
 			if dType == info {
 				log.Info("Processing info file")
 
-				if err = ar.getAndValidateJSONData(&ar.info, tr); err != nil {
+				if err = ar.getMetadata(&ar.info, tr); err != nil {
 					return err
 				}
 				log.Infof("Contents of header info: %v", ar.info)
@@ -309,8 +315,12 @@ func (ar *ArtifactsReader) ReadInfo() (*metadata.Info, error) {
 }
 
 func (ar *ArtifactsReader) Read() error {
-	if _, err := ar.ReadInfo(); err != nil {
+	info, err := ar.ReadInfo()
+	if err != nil {
 		return err
+	}
+	if strings.Compare(info.Format, "mender") != 0 || info.Version != 1 {
+		return errors.New("artifacts reader: unsupported artifact format or version")
 	}
 	if _, err := ar.ReadHeader(); err != nil {
 		return err
