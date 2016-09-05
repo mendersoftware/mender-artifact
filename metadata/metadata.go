@@ -15,7 +15,10 @@
 package metadata
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,6 +50,18 @@ func (i Info) Validate() error {
 	return nil
 }
 
+func (i *Info) Write(p []byte) (n int, err error) {
+	dec := json.NewDecoder(bytes.NewReader(p))
+	for {
+		if err := dec.Decode(&i); err != io.EOF {
+			break
+		} else if err != nil {
+			return 0, err
+		}
+	}
+	return len(p), nil
+}
+
 // UpdateType provides information about the type of update.
 // At the moment we are supporting only "rootfs-image" type.
 type UpdateType struct {
@@ -72,6 +87,18 @@ func (hi HeaderInfo) Validate() error {
 	return nil
 }
 
+func (hi *HeaderInfo) Write(p []byte) (n int, err error) {
+	dec := json.NewDecoder(bytes.NewReader(p))
+	for {
+		if err := dec.Decode(&hi); err != io.EOF {
+			break
+		} else if err != nil {
+			return 0, err
+		}
+	}
+	return len(p), nil
+}
+
 // TypeInfo provides information of type of individual updates
 // archived in artifacts archive.
 type TypeInfo struct {
@@ -84,6 +111,18 @@ func (ti TypeInfo) Validate() error {
 		return ErrValidatingData
 	}
 	return nil
+}
+
+func (ti *TypeInfo) Write(p []byte) (n int, err error) {
+	dec := json.NewDecoder(bytes.NewReader(p))
+	for {
+		if err := dec.Decode(&ti); err != io.EOF {
+			break
+		} else if err != nil {
+			return 0, err
+		}
+	}
+	return len(p), nil
 }
 
 // Metadata contains artifacts metadata information. The exact metadata fields
@@ -124,6 +163,18 @@ func (m Metadata) Validate() error {
 	return nil
 }
 
+func (m *Metadata) Write(p []byte) (n int, err error) {
+	dec := json.NewDecoder(bytes.NewReader(p))
+	for {
+		if err := dec.Decode(&m); err != io.EOF {
+			break
+		} else if err != nil {
+			return 0, err
+		}
+	}
+	return len(p), nil
+}
+
 // File is a single file being a part of Files struct.
 type File struct {
 	File string `json:"file"`
@@ -146,6 +197,18 @@ func (f Files) Validate() error {
 		}
 	}
 	return nil
+}
+
+func (f *Files) Write(p []byte) (n int, err error) {
+	dec := json.NewDecoder(bytes.NewReader(p))
+	for {
+		if err := dec.Decode(&f); err != io.EOF {
+			break
+		} else if err != nil {
+			return 0, err
+		}
+	}
+	return len(p), nil
 }
 
 // DirEntry contains information about single enttry of artifact archive.

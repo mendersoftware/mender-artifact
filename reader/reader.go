@@ -20,7 +20,6 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -32,11 +31,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-type ArtifactHeader struct {
-	hInfo   metadata.HeaderInfo
-	updates []updateBucket
-}
-
 type ArtifactsReader struct {
 	artifact io.ReadCloser
 	tar      *tar.Reader
@@ -47,20 +41,23 @@ type ArtifactsReader struct {
 	info metadata.Info
 }
 
-func (ar *ArtifactsReader) readHeader(stream io.Reader) error {
+func (ar *ArtifactsReader) readHeader(r io.Reader) error {
 	log.Info("Processing header")
 
-	gz, _ := gzip.NewReader(stream)
+	gz, _ := gzip.NewReader(r)
 	defer gz.Close()
 	tar := tar.NewReader(gz)
 
 	// first we need to have `header-info`
 	hdr, err := tar.Next()
+	if err != nil {
+		return errors.New("artifacts reader: can not read tar header")
+	}
 	if strings.Compare(hdr.Name, "header-info") != 0 {
 		return errors.New("artifacts reader: element out of order")
 	}
-	r := NewArchiveMetadataReader(tar)
-	if err = r.ReadArchive(&ar.hInfo); err != nil {
+
+	if _, err := io.Copy(&ar.hInfo, tar); err != nil {
 		return err
 	}
 	log.Infof("Contents of header-info: %v", ar.hInfo.Updates)
@@ -79,6 +76,11 @@ func (ar *ArtifactsReader) readHeader(stream io.Reader) error {
 		}
 	}
 	return nil
+}
+
+type ArtifactHeader struct {
+	hInfo   metadata.HeaderInfo
+	updates []updateBucket
 }
 
 type updateBucket struct {
@@ -120,7 +122,17 @@ func (ub *updateBucket) addUpdateSignature(s []byte, name string) error {
 	return nil
 }
 
+type rootfsEntry struct {
+	order   int
+	matcher string
+	writer  io.Writer
+}
+
+type rootfsImage map[string]rootfsEntry
+
 func (ar *ArtifactsReader) processRootfsImage(tr *tar.Reader, bucket string) error {
+
+	//	rootfsImage
 
 	updB := updateBucket{updateArtifacts: map[string]updateArtifact{}}
 	// iterate through tar archive untill some error occurs or we will
@@ -143,40 +155,36 @@ func (ar *ArtifactsReader) processRootfsImage(tr *tar.Reader, bucket string) err
 		switch {
 		case i == 0 && strings.Compare(relPath, "files") == 0:
 			files := metadata.Files{}
-			r := NewArchiveMetadataReader(tr)
-			if err = r.ReadArchive(&files); err != nil {
+			if _, err = io.Copy(&files, tr); err != nil {
 				return err
 			}
+
 			for _, file := range files.Files {
 				updB.addUpdateArtifact(file.File, bucket)
 			}
 
 		case i == 1 && strings.Compare(relPath, "type-info") == 0:
 			tInfo := metadata.TypeInfo{}
-			r := NewArchiveMetadataReader(tr)
-			if err = r.ReadArchive(&tInfo); err != nil {
+			if _, err = io.Copy(&tInfo, tr); err != nil {
 				return err
 			}
 		case i == 2 && strings.Compare(relPath, "meta-data") == 0:
 			mData := metadata.Metadata{}
-			r := NewArchiveMetadataReader(tr)
-			if err = r.ReadArchive(&mData); err != nil {
+			if _, err = io.Copy(&mData, tr); err != nil {
 				return err
 			}
 			updB.meta = mData
 		case strings.HasPrefix(relPath, "checksums"):
-			r := NewArchiveRawReader(tr)
 			buf := bytes.NewBuffer(nil)
-			if err = r.ReadArchive(buf); err != nil {
+			if _, err = io.Copy(buf, tr); err != nil {
 				return err
 			}
 			if err = updB.addUpdateChecksum(buf.Bytes(), filepath.Base(relPath)); err != nil {
 				return err
 			}
 		case strings.HasPrefix(relPath, "signatures"):
-			r := NewArchiveRawReader(tr)
 			buf := bytes.NewBuffer(nil)
-			if err = r.ReadArchive(buf); err != nil {
+			if _, err = io.Copy(buf, tr); err != nil {
 				return err
 			}
 			if err = updB.addUpdateSignature(buf.Bytes(), filepath.Base(relPath)); err != nil {
@@ -188,46 +196,6 @@ func (ar *ArtifactsReader) processRootfsImage(tr *tar.Reader, bucket string) err
 			return errors.New("artifacts reader: element not supported")
 		}
 	}
-}
-
-type ArchiveMetadataReader struct {
-	io.Reader
-}
-
-func NewArchiveMetadataReader(r io.Reader) *ArchiveMetadataReader {
-	return &ArchiveMetadataReader{r}
-}
-
-func (ar ArchiveMetadataReader) ReadArchive(v interface{}) error {
-	dec := json.NewDecoder(ar)
-	for {
-		if err := dec.Decode(v); err != io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-	}
-
-	data := v.(metadata.Validater)
-	if err := data.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-type ArchiveRawReader struct {
-	io.Reader
-}
-
-func NewArchiveRawReader(r io.Reader) *ArchiveRawReader {
-	return &ArchiveRawReader{r}
-}
-
-func (ar *ArchiveRawReader) ReadArchive(v interface{}) error {
-	if _, err := io.Copy(v.(*bytes.Buffer), ar); err != nil {
-		return err
-	}
-	return nil
 }
 
 type dataType int
@@ -250,10 +218,8 @@ func (ar *ArtifactsReader) readStream(tr *tar.Reader, dType dataType) error {
 			if dType == info {
 				log.Info("Processing info file")
 
-				r := NewArchiveMetadataReader(tr)
-				if err = r.ReadArchive(&ar.info); err != nil {
-					return err
-				}
+				io.Copy(&ar.info, tr)
+
 				log.Infof("Contents of header info: %v", ar.info)
 				return nil
 			}
