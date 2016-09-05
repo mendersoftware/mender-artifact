@@ -35,10 +35,20 @@ type ArtifactsReader struct {
 	artifact io.ReadCloser
 	tar      *tar.Reader
 	dStore   io.Writer
-	sStore   io.Writer
+	sStore   string
 
-	ArtifactHeader
+	Header
 	info metadata.Info
+}
+
+// func NewArtifactReader(r io.ReadCloser) *ArtifactsReader {
+// 	h := map[string]interface{}{}
+//
+// }
+
+type Header struct {
+	hInfo   metadata.HeaderInfo
+	updates map[string]interface{}
 }
 
 func (ar *ArtifactsReader) readHeader(r io.Reader) error {
@@ -68,57 +78,16 @@ func (ar *ArtifactsReader) readHeader(r io.Reader) error {
 		case "rootfs-image":
 			// set what data we need to read (maybe for different type we will need
 			// different files to read)
-			if err := ar.processRootfsImage(tar, fmt.Sprintf("%04d", cnt)); err != nil {
+			b := fmt.Sprintf("%04d", cnt)
+			rImage, err := ar.processRootfsImageHdr(tar, b)
+			if err != nil {
 				return errors.Wrapf(err, "error processing rootfs-image type files")
 			}
+			ar.Header.updates[b+".tar.gz"] = rImage
 		default:
 			return errors.New("artifacts reader: unsupported update type")
 		}
 	}
-	return nil
-}
-
-type ArtifactHeader struct {
-	hInfo   metadata.HeaderInfo
-	updates []updateBucket
-}
-
-type updateBucket struct {
-	location        string
-	meta            metadata.Metadata
-	updateArtifacts map[string]updateArtifact
-}
-
-type updateArtifact struct {
-	name      string
-	bucket    string
-	checksum  []byte
-	signature []byte
-}
-
-func (ub *updateBucket) addUpdateArtifact(name, bucket string) {
-	ub.updateArtifacts[strings.TrimSuffix(name, filepath.Ext(name))] =
-		updateArtifact{name: name, bucket: bucket}
-}
-
-func (ub *updateBucket) addUpdateChecksum(ch []byte, name string) error {
-	upd, ok := ub.updateArtifacts[strings.TrimSuffix(name, filepath.Ext(name))]
-	if !ok {
-		return os.ErrNotExist
-	}
-	log.Errorf("have data: %v", ch)
-	upd.checksum = ch
-	ub.updateArtifacts[strings.TrimSuffix(name, filepath.Ext(name))] = upd
-	return nil
-}
-
-func (ub *updateBucket) addUpdateSignature(s []byte, name string) error {
-	upd, ok := ub.updateArtifacts[strings.TrimSuffix(name, filepath.Ext(name))]
-	if !ok {
-		return os.ErrNotExist
-	}
-	upd.signature = s
-	ub.updateArtifacts[strings.TrimSuffix(name, filepath.Ext(name))] = upd
 	return nil
 }
 
@@ -130,11 +99,70 @@ type rootfsEntry struct {
 
 type rootfsImage map[string]rootfsEntry
 
-func (ar *ArtifactsReader) processRootfsImage(tr *tar.Reader, bucket string) error {
+func (ri rootfsImage) getFiles() *metadata.Files {
+	if data, ok := ri["files"].writer.(*metadata.Files); ok {
+		return data
+	}
+	return nil
+}
 
-	//	rootfsImage
+func (ri rootfsImage) getTypeInfo() *metadata.TypeInfo {
+	if data, ok := ri["type-info"].writer.(*metadata.TypeInfo); ok {
+		return data
+	}
+	return nil
+}
 
-	updB := updateBucket{updateArtifacts: map[string]updateArtifact{}}
+func (ri rootfsImage) getMetaData() *metadata.Metadata {
+	if data, ok := ri["metadata"].writer.(*metadata.Metadata); ok {
+		return data
+	}
+	return nil
+}
+
+func (ri rootfsImage) getChecksum() []byte {
+	if data, ok := ri["checksums/*"].writer.(*bytes.Buffer); ok {
+		return data.Bytes()
+	}
+	return nil
+}
+
+func (ri rootfsImage) getSignatures() []byte {
+	if data, ok := ri["signatures/*"].writer.(*bytes.Buffer); ok {
+		return data.Bytes()
+	}
+	return nil
+}
+
+const orderDoNotMatter = 736334
+
+func (ar ArtifactsReader) getElementFromHeader(header rootfsImage, path string) (*rootfsEntry, error) {
+	// Iterare over header all header elements to find one maching path.
+	// Header is constructed so that `filepath.Match()` pattern is the
+	// same format as header key.
+	for k, v := range header {
+		match, err := filepath.Match(k, path)
+		if err != nil {
+			return nil, err
+		}
+		if match {
+			return &v, nil
+		}
+	}
+	return nil, os.ErrNotExist
+}
+
+func (ar *ArtifactsReader) processRootfsImageHdr(tr *tar.Reader, bucket string) (rootfsImage, error) {
+
+	iContent := rootfsImage{
+		"files":         rootfsEntry{0, "files", &metadata.Files{}},
+		"type-info":     rootfsEntry{1, "type-info", &metadata.TypeInfo{}},
+		"meta-data":     rootfsEntry{2, "meta-data", &metadata.Metadata{}},
+		"checksums/*":   rootfsEntry{orderDoNotMatter, "checksums", bytes.NewBuffer(nil)},
+		"signatures/*":  rootfsEntry{orderDoNotMatter, "signatures", bytes.NewBuffer(nil)},
+		"scripts/pre/*": rootfsEntry{orderDoNotMatter, "scripts", nil},
+	}
+
 	// iterate through tar archive untill some error occurs or we will
 	// reach end of archive
 	for i := 0; ; i++ {
@@ -142,58 +170,51 @@ func (ar *ArtifactsReader) processRootfsImage(tr *tar.Reader, bucket string) err
 		if err == io.EOF {
 			// we have reached end of archive
 			log.Debug("artifacts reader: reached end of archive")
-			ar.updates = append(ar.updates, updB)
-			log.Errorf("artifacts reader: %v", updB.updateArtifacts)
-			return nil
+			return iContent, nil
 		}
+
 		// get path relative to current update bucket: [headers/0001/]xxx
 		relPath, err := filepath.Rel(filepath.Join("headers", bucket), hdr.Name)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		switch {
-		case i == 0 && strings.Compare(relPath, "files") == 0:
-			files := metadata.Files{}
-			if _, err = io.Copy(&files, tr); err != nil {
-				return err
-			}
+		elem, err := ar.getElementFromHeader(iContent, relPath)
+		if err != nil {
+			return nil, err
+		}
 
-			for _, file := range files.Files {
-				updB.addUpdateArtifact(file.File, bucket)
+		if elem.order != orderDoNotMatter {
+			if elem.order != i {
+				return nil, errors.New("artifacts reader: element out of order")
 			}
+		}
 
-		case i == 1 && strings.Compare(relPath, "type-info") == 0:
-			tInfo := metadata.TypeInfo{}
-			if _, err = io.Copy(&tInfo, tr); err != nil {
-				return err
+		switch elem.matcher {
+		case "scripts":
+			f, er := os.Create(filepath.Join(ar.sStore, relPath))
+			if er != nil {
+				return nil, er
 			}
-		case i == 2 && strings.Compare(relPath, "meta-data") == 0:
-			mData := metadata.Metadata{}
-			if _, err = io.Copy(&mData, tr); err != nil {
-				return err
+			new := rootfsEntry{orderDoNotMatter, "scripts", f}
+			iContent[relPath] = new
+			if _, err = io.Copy(new.writer, tr); err != nil {
+				return nil, err
 			}
-			updB.meta = mData
-		case strings.HasPrefix(relPath, "checksums"):
-			buf := bytes.NewBuffer(nil)
-			if _, err = io.Copy(buf, tr); err != nil {
-				return err
-			}
-			if err = updB.addUpdateChecksum(buf.Bytes(), filepath.Base(relPath)); err != nil {
-				return err
-			}
-		case strings.HasPrefix(relPath, "signatures"):
-			buf := bytes.NewBuffer(nil)
-			if _, err = io.Copy(buf, tr); err != nil {
-				return err
-			}
-			if err = updB.addUpdateSignature(buf.Bytes(), filepath.Base(relPath)); err != nil {
-				return err
-			}
-		case strings.HasPrefix(relPath, "scripts"):
-			// TODO:
-		default:
-			return errors.New("artifacts reader: element not supported")
+			break
+
+			// if we ever will need multiple files
+			// case "checksums":
+			// 	new := rootfsEntry{orderDoNotMatter, "signatures", bytes.NewBuffer(nil)}
+			// 	iContent[relPath] = new
+			// 	if _, err = io.Copy(new.writer, tr); err != nil {
+			// 		return nil, err
+			// 	}
+			// 	break
+		}
+
+		if _, err = io.Copy(elem.writer, tr); err != nil {
+			return nil, err
 		}
 	}
 }
@@ -218,7 +239,9 @@ func (ar *ArtifactsReader) readStream(tr *tar.Reader, dType dataType) error {
 			if dType == info {
 				log.Info("Processing info file")
 
-				io.Copy(&ar.info, tr)
+				if _, err = io.Copy(&ar.info, tr); err != nil {
+					return err
+				}
 
 				log.Infof("Contents of header info: %v", ar.info)
 				return nil
@@ -234,7 +257,15 @@ func (ar *ArtifactsReader) readStream(tr *tar.Reader, dType dataType) error {
 
 		case strings.HasPrefix(hdr.Name, "data"):
 			if dType == data {
-				log.Info("Procesing data file")
+				log.Infof("Procesing data file(s): %v %v", hdr.Name, ar.Header.updates[filepath.Base(hdr.Name)])
+				ah, ok := ar.Header.updates[filepath.Base(hdr.Name)]
+				if !ok {
+					return errors.New("artifacts reader: invalid data file")
+				}
+				rfs, ok := ah.(rootfsImage)
+				if !ok {
+					return errors.New("artifacts reader: invalid update type")
+				}
 
 				// for calculating hash
 				h := sha256.New()
@@ -245,18 +276,22 @@ func (ar *ArtifactsReader) readStream(tr *tar.Reader, dType dataType) error {
 
 				tar := tar.NewReader(gz)
 				for {
-					_, err := tar.Next()
+					hdr, err = tar.Next()
 					if err == io.EOF {
 						break
 					}
+					log.Errorf("name: %v %v", hdr.Name, rfs.getFiles())
 					w := io.MultiWriter(h, ar.dStore)
 					if _, err := io.Copy(w, tar); err != nil {
 						return err
 					}
-					chksum := h.Sum(nil)
-					checksum := make([]byte, hex.EncodedLen(len(chksum)))
-					hex.Encode(checksum, h.Sum(nil))
-					log.Infof("hash of file: %v\n", string(checksum))
+					chck := h.Sum(nil)
+					chH := make([]byte, hex.EncodedLen(len(chck)))
+					hex.Encode(chH, h.Sum(nil))
+					log.Infof("hash of file: %v:%v\n", string(chH), string(rfs.getChecksum()))
+					if bytes.Compare(chH, rfs.getChecksum()) != 0 {
+						return errors.New("artifacts reader: invalid checksum")
+					}
 				}
 
 				return nil
@@ -277,8 +312,9 @@ func (ar *ArtifactsReader) initTarReader() *tar.Reader {
 	return ar.tar
 }
 
-func (ar *ArtifactsReader) StoreData(writer *io.Writer) error {
+func (ar *ArtifactsReader) StoreData(w io.Writer) error {
 	ar.initTarReader()
+	ar.dStore = w
 
 	if err := ar.readStream(ar.tar, data); err != nil {
 		return err
@@ -286,13 +322,13 @@ func (ar *ArtifactsReader) StoreData(writer *io.Writer) error {
 	return nil
 }
 
-func (ar *ArtifactsReader) ReadHeader() (*ArtifactHeader, error) {
+func (ar *ArtifactsReader) ReadHeader() (*Header, error) {
 	ar.initTarReader()
 
 	if err := ar.readStream(ar.tar, header); err != nil {
 		return nil, err
 	}
-	return &ar.ArtifactHeader, nil
+	return &ar.Header, nil
 }
 
 func (ar *ArtifactsReader) ReadInfo() (*metadata.Info, error) {
@@ -315,7 +351,7 @@ func (ar *ArtifactsReader) Read() error {
 	if _, err := ar.ReadHeader(); err != nil {
 		return err
 	}
-	if err := ar.StoreData(nil); err != nil {
+	if err := ar.StoreData(ar.dStore); err != nil {
 		return err
 	}
 

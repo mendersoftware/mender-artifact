@@ -35,7 +35,6 @@ var dirStructOK = []testDirEntry{
 	{Path: "0000", IsDir: true},
 	{Path: "0000/data", IsDir: true},
 	{Path: "0000/data/update.ext4", Content: []byte("my first update"), IsDir: false},
-	//	{Path: "0000/data/update_next.ext3", IsDir: false},
 	{Path: "0000/type-info",
 		Content: []byte(`{"rootfs": "core-image-minimal-201608110900.ext4"}`),
 		IsDir:   false},
@@ -44,7 +43,6 @@ var dirStructOK = []testDirEntry{
 		IsDir:   false},
 	{Path: "0000/signatures", IsDir: true},
 	{Path: "0000/signatures/update.sig", IsDir: false},
-	//	{Path: "0000/signatures/update_next.sig", IsDir: false},
 	{Path: "0000/scripts", IsDir: true},
 	{Path: "0000/scripts/pre", IsDir: true},
 	{Path: "0000/scripts/pre/my_script", IsDir: false},
@@ -106,7 +104,7 @@ func TestReadArchive(t *testing.T) {
 
 	df, err := os.Create(path.Join(updateTestDir, "my_update"))
 
-	aReader := ArtifactsReader{artifact: f, dStore: df}
+	aReader := ArtifactsReader{artifact: f, dStore: df, Header: Header{updates: map[string]interface{}{}}}
 	err = aReader.Read()
 	assert.NoError(t, err)
 	assert.NotNil(t, df)
@@ -132,14 +130,14 @@ func TestReadSequence(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, f)
 
-	aReader := ArtifactsReader{artifact: f}
+	aReader := ArtifactsReader{artifact: f, Header: Header{updates: map[string]interface{}{}}}
 	info, err := aReader.ReadInfo()
 	assert.NoError(t, err)
 	assert.Equal(t, "mender", info.Format)
 	assert.Equal(t, 1, info.Version)
 
-	hdr, err := aReader.ReadHeader()
+	_, err = aReader.ReadHeader()
 	assert.NoError(t, err)
-	assert.NotNil(t, hdr.updates)
+	//assert.NotNil(t, hdr.updates)
 
 }
