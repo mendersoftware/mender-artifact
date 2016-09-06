@@ -104,7 +104,10 @@ func TestReadArchive(t *testing.T) {
 
 	df, err := os.Create(path.Join(updateTestDir, "my_update"))
 
-	aReader := ArtifactsReader{artifact: f, dStore: df, Header: Header{updates: map[string]interface{}{}}}
+	au := Parsers{map[string]ArtifactParser{}}
+	au.Register(&RootfsParser{updates: map[string]rootfsFile{}, dStore: df}, "rootfs-image")
+
+	aReader := ArtifactsReader{artifact: f, Header: &Header{updates: map[string]ArtifactParser{}}, parsers: au}
 	err = aReader.Read()
 	assert.NoError(t, err)
 	assert.NotNil(t, df)
@@ -130,14 +133,17 @@ func TestReadSequence(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, f)
 
-	aReader := ArtifactsReader{artifact: f, Header: Header{updates: map[string]interface{}{}}}
+	au := Parsers{map[string]ArtifactParser{}}
+	au.Register(&RootfsParser{updates: map[string]rootfsFile{}}, "rootfs-image")
+
+	aReader := ArtifactsReader{artifact: f, Header: &Header{updates: map[string]ArtifactParser{}}, parsers: au}
 	info, err := aReader.ReadInfo()
 	assert.NoError(t, err)
 	assert.Equal(t, "mender", info.Format)
 	assert.Equal(t, 1, info.Version)
 
-	_, err = aReader.ReadHeader()
+	hdr, err := aReader.ReadHeader()
 	assert.NoError(t, err)
-	//assert.NotNil(t, hdr.updates)
+	assert.NotNil(t, hdr)
 
 }
