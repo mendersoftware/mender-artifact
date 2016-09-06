@@ -31,16 +31,19 @@ import (
 type ArtifactsReader struct {
 	artifact io.ReadCloser
 	tar      *tar.Reader
-	parsers  Parsers
+	parsers  *Parsers
 
 	info metadata.Info
 	*Header
 }
 
-// func NewArtifactReader(r io.ReadCloser) *ArtifactsReader {
-// 	h := map[string]interface{}{}
-//
-// }
+func NewArtifactsReader(r io.ReadCloser, p *Parsers) *ArtifactsReader {
+	return &ArtifactsReader{
+		artifact: r,
+		parsers:  p,
+		Header:   &Header{updates: map[string]ArtifactParser{}},
+	}
+}
 
 type Header struct {
 	hInfo   metadata.HeaderInfo
@@ -189,7 +192,7 @@ func (ar *ArtifactsReader) initTarReader() *tar.Reader {
 	return ar.tar
 }
 
-func (ar *ArtifactsReader) StoreData(w io.Writer) error {
+func (ar *ArtifactsReader) StoreData() error {
 	ar.initTarReader()
 
 	if err := ar.readStream(ar.tar, data); err != nil {
@@ -225,9 +228,8 @@ func (ar *ArtifactsReader) Read() error {
 		return err
 	}
 
-	if err := ar.StoreData(nil); err != nil {
+	if err := ar.StoreData(); err != nil {
 		return err
 	}
-
 	return nil
 }

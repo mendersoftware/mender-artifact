@@ -104,10 +104,11 @@ func TestReadArchive(t *testing.T) {
 
 	df, err := os.Create(path.Join(updateTestDir, "my_update"))
 
-	au := Parsers{map[string]ArtifactParser{}}
-	au.Register(&RootfsParser{updates: map[string]rootfsFile{}, dStore: df}, "rootfs-image")
+	pf := NewParserFactory()
+	rp := NewRootfsParser("", df)
+	pf.Register(&rp, "rootfs-image")
 
-	aReader := ArtifactsReader{artifact: f, Header: &Header{updates: map[string]ArtifactParser{}}, parsers: au}
+	aReader := NewArtifactsReader(f, pf)
 	err = aReader.Read()
 	assert.NoError(t, err)
 	assert.NotNil(t, df)
@@ -133,10 +134,11 @@ func TestReadSequence(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, f)
 
-	au := Parsers{map[string]ArtifactParser{}}
-	au.Register(&RootfsParser{updates: map[string]rootfsFile{}}, "rootfs-image")
+	pf := NewParserFactory()
+	rp := NewRootfsParser("", nil)
+	pf.Register(&rp, "rootfs-image")
 
-	aReader := ArtifactsReader{artifact: f, Header: &Header{updates: map[string]ArtifactParser{}}, parsers: au}
+	aReader := NewArtifactsReader(f, pf)
 	info, err := aReader.ReadInfo()
 	assert.NoError(t, err)
 	assert.Equal(t, "mender", info.Format)

@@ -31,6 +31,10 @@ type Parsers struct {
 	par ParserFactory
 }
 
+func NewParserFactory() *Parsers {
+	return &Parsers{map[string]ArtifactParser{}}
+}
+
 func (p *Parsers) Register(updater ArtifactParser, name string) error {
 	if _, ok := p.par[name]; ok {
 		return errors.New("artifact updater: already registered")

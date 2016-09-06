@@ -48,6 +48,13 @@ type RootfsParser struct {
 	dStore io.Writer
 }
 
+func NewRootfsParser(sStoreDir string, w io.Writer) RootfsParser {
+	return RootfsParser{
+		sStore:  sStoreDir,
+		dStore:  w,
+		updates: map[string]rootfsFile{}}
+}
+
 func withoutExt(name string) string {
 	bName := filepath.Base(name)
 	return strings.TrimSuffix(bName, filepath.Ext(bName))
