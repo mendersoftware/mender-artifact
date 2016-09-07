@@ -67,7 +67,11 @@ func MakeFakeUpdateDir(updateDir string, elements []metadata.DirEntry) error {
 				return err
 			}
 		} else {
-			if _, err := os.Create(path.Join(updateDir, elem.Path)); err != nil {
+			f, err := os.Create(path.Join(updateDir, elem.Path))
+			if err != nil {
+				return err
+			}
+			if err = f.Close(); err != nil {
 				return err
 			}
 		}
@@ -83,7 +87,7 @@ func TestWriteArtifactBrokenDirStruct(t *testing.T) {
 
 	artifactWriter := ArtifactsWriter{
 		updateLocation:  updateTestDir,
-		headerStructure: metadata.ArtifactHeader{Artifacts: ArtifactsHeaderFormat},
+		headerStructure: metadata.ArtifactHeader{Artifacts: hFormatPreWrite},
 	}
 	err = artifactWriter.Write()
 	assert.Error(t, err)

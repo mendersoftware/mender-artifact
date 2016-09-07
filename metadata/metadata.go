@@ -15,7 +15,10 @@
 package metadata
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,6 +50,18 @@ func (i Info) Validate() error {
 	return nil
 }
 
+func (i *Info) Write(p []byte) (n int, err error) {
+	dec := json.NewDecoder(bytes.NewReader(p))
+	for {
+		if err := dec.Decode(&i); err != io.EOF {
+			break
+		} else if err != nil {
+			return 0, err
+		}
+	}
+	return len(p), nil
+}
+
 // UpdateType provides information about the type of update.
 // At the moment we are supporting only "rootfs-image" type.
 type UpdateType struct {
@@ -72,6 +87,18 @@ func (hi HeaderInfo) Validate() error {
 	return nil
 }
 
+func (hi *HeaderInfo) Write(p []byte) (n int, err error) {
+	dec := json.NewDecoder(bytes.NewReader(p))
+	for {
+		if err := dec.Decode(&hi); err != io.EOF {
+			break
+		} else if err != nil {
+			return 0, err
+		}
+	}
+	return len(p), nil
+}
+
 // TypeInfo provides information of type of individual updates
 // archived in artifacts archive.
 type TypeInfo struct {
@@ -86,28 +113,39 @@ func (ti TypeInfo) Validate() error {
 	return nil
 }
 
+func (ti *TypeInfo) Write(p []byte) (n int, err error) {
+	dec := json.NewDecoder(bytes.NewReader(p))
+	for {
+		if err := dec.Decode(&ti); err != io.EOF {
+			break
+		} else if err != nil {
+			return 0, err
+		}
+	}
+	return len(p), nil
+}
+
 // Metadata contains artifacts metadata information. The exact metadata fields
 // are user-defined and are not specified. The only requirement is that those
 // must be stored in a for of JSON.
 // The only fields which must exist are 'DeviceType' and 'ImageId'.
-type Metadata struct {
-	// we don't know exactly what type of data we will have here
-	data map[string]interface{}
-}
+type Metadata map[string]interface{}
 
 // Validate check corecness of artifacts metadata. Since the exact format is
 // nost specified we are only checking if those could be converted to JSON.
 // The only fields which must exist are 'DeviceType' and 'ImageId'.
 func (m Metadata) Validate() error {
-	if m.data == nil {
+	log.Debugf("validating metadata: %v", m)
+	if m == nil {
 		return ErrValidatingData
 	}
 	// mandatory fields
 	var deviceType interface{}
 	var imageID interface{}
 
-	for k, v := range m.data {
+	for k, v := range m {
 		if v == nil {
+			log.Error("empty element while validating metedata")
 			return ErrValidatingData
 		}
 		if strings.Compare(k, "DeviceType") == 0 {
@@ -117,10 +155,24 @@ func (m Metadata) Validate() error {
 			imageID = v
 		}
 	}
+	log.Debugf("device type: %v, image id: %v", deviceType, imageID)
 	if deviceType == nil || imageID == nil {
+		log.Error("empty device type or device id")
 		return ErrValidatingData
 	}
 	return nil
+}
+
+func (m *Metadata) Write(p []byte) (n int, err error) {
+	dec := json.NewDecoder(bytes.NewReader(p))
+	for {
+		if err := dec.Decode(&m); err != io.EOF {
+			break
+		} else if err != nil {
+			return 0, err
+		}
+	}
+	return len(p), nil
 }
 
 // File is a single file being a part of Files struct.
@@ -145,6 +197,18 @@ func (f Files) Validate() error {
 		}
 	}
 	return nil
+}
+
+func (f *Files) Write(p []byte) (n int, err error) {
+	dec := json.NewDecoder(bytes.NewReader(p))
+	for {
+		if err := dec.Decode(&f); err != io.EOF {
+			break
+		} else if err != nil {
+			return 0, err
+		}
+	}
+	return len(p), nil
 }
 
 // DirEntry contains information about single enttry of artifact archive.

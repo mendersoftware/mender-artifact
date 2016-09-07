@@ -42,11 +42,7 @@ type ArtifactsWriter struct {
 	updates         map[string]updateBucket
 }
 
-// ArtifactsHeaderFormat provides the structure of the files and
-// directories required for creating artifacts file.
-// Some of the files are optional and will be created while creating
-// artifacts archive.
-var ArtifactsHeaderFormat = map[string]metadata.DirEntry{
+var hFormatPreWrite = map[string]metadata.DirEntry{
 	// while calling filepath.Walk() `.` (root) directory is included
 	// when iterating throug entries in the tree
 	".":               {Path: ".", IsDir: true, Required: false},
@@ -75,7 +71,7 @@ func NewArtifactsWriter(name, path, format string, version int) *ArtifactsWriter
 	return &ArtifactsWriter{
 		artifactName:    name,
 		updateLocation:  path,
-		headerStructure: metadata.ArtifactHeader{Artifacts: ArtifactsHeaderFormat},
+		headerStructure: metadata.ArtifactHeader{Artifacts: hFormatPreWrite},
 		format:          format,
 		version:         version,
 		updates:         make(map[string]updateBucket),
