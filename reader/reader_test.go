@@ -133,15 +133,18 @@ func TestReadSequence(t *testing.T) {
 	assert.NotNil(t, f)
 
 	aReader := NewArtifactsReader(f)
+	defer aReader.Close()
 	rp := NewRootfsParser("", nil)
 	aReader.Register(&rp, "rootfs-image")
-	info, err := aReader.ReadInfo()
-	assert.NoError(t, err)
-	assert.Equal(t, "mender", info.Format)
-	assert.Equal(t, 1, info.Version)
 
-	hdr, err := aReader.ReadHeader()
+	upd, err := aReader.GetUpdates()
 	assert.NoError(t, err)
-	assert.NotNil(t, hdr)
+	assert.Len(t, upd, 1)
 
+	upd, err = aReader.ReadHeader()
+	assert.NoError(t, err)
+	assert.Len(t, upd, 1)
+
+	err = aReader.ProcessUpdateFiles()
+	assert.NoError(t, err)
 }

@@ -43,6 +43,7 @@ type RootfsParser struct {
 	tInfo    metadata.TypeInfo
 	metadata metadata.Metadata
 	updates  map[string]rootfsFile
+	order    string
 
 	sStore string
 	dStore io.Writer
@@ -55,6 +56,19 @@ func NewRootfsParser(sStoreDir string, w io.Writer) RootfsParser {
 		updates: map[string]rootfsFile{}}
 }
 
+func (rp *RootfsParser) GetOrder() string {
+	return rp.order
+}
+
+func (rp *RootfsParser) SetOrder(ord string) error {
+	rp.order = ord
+	return nil
+}
+
+func (rp RootfsParser) NeedsDataFile() bool {
+	return true
+}
+
 func withoutExt(name string) string {
 	bName := filepath.Base(name)
 	return strings.TrimSuffix(bName, filepath.Ext(bName))
@@ -63,6 +77,10 @@ func withoutExt(name string) string {
 func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hPath string) error {
 	// iterate through tar archive untill some error occurs or we will
 	log.Info("processing rootfs image header")
+
+	if tr == nil {
+		return errors.New("rootfs updater: uninitialized tar reader")
+	}
 	// reach end of archive
 	for i := 0; ; i++ {
 		hdr, err := tr.Next()
@@ -118,6 +136,9 @@ func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hPath string) error {
 
 // data files are stored in tar.gz format
 func (rp *RootfsParser) ParseData(r io.Reader) error {
+	if r == nil {
+		return errors.New("rootfs updater: uninitialized tar reader")
+	}
 	//[data.tar].gz
 	gz, err := gzip.NewReader(r)
 	if err != nil {

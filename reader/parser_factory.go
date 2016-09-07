@@ -23,6 +23,9 @@ import (
 type ArtifactParser interface {
 	ParseHeader(tr *tar.Reader, hPath string) error
 	ParseData(r io.Reader) error
+	GetOrder() string
+	SetOrder(string) error
+	NeedsDataFile() bool
 }
 
 type ParserFactory map[string]ArtifactParser
