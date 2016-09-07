@@ -31,16 +31,16 @@ import (
 type ArtifactsReader struct {
 	artifact io.ReadCloser
 	tar      *tar.Reader
-	parsers  *Parsers
+	*Parsers
 
 	info metadata.Info
 	*Header
 }
 
-func NewArtifactsReader(r io.ReadCloser, p *Parsers) *ArtifactsReader {
+func NewArtifactsReader(r io.ReadCloser) *ArtifactsReader {
 	return &ArtifactsReader{
 		artifact: r,
-		parsers:  p,
+		Parsers:  NewParserFactory(),
 		Header:   &Header{updates: map[string]ArtifactParser{}},
 	}
 }
@@ -102,7 +102,7 @@ func (ar *ArtifactsReader) readHeader(r io.Reader) error {
 	ar.Header.addInfo(hInfo)
 
 	for cnt, uType := range hInfo.Updates {
-		p, err := ar.parsers.GetParser(uType.Type)
+		p, err := ar.GetParser(uType.Type)
 		if err != nil {
 			return errors.Wrapf(err,
 				"artifacts reader: can not find updater for update type: [%v]", uType.Type)

@@ -104,11 +104,9 @@ func TestReadArchive(t *testing.T) {
 
 	df, err := os.Create(path.Join(updateTestDir, "my_update"))
 
-	pf := NewParserFactory()
+	aReader := NewArtifactsReader(f)
 	rp := NewRootfsParser("", df)
-	pf.Register(&rp, "rootfs-image")
-
-	aReader := NewArtifactsReader(f, pf)
+	aReader.Register(&rp, "rootfs-image")
 	err = aReader.Read()
 	assert.NoError(t, err)
 	assert.NotNil(t, df)
@@ -134,11 +132,9 @@ func TestReadSequence(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, f)
 
-	pf := NewParserFactory()
+	aReader := NewArtifactsReader(f)
 	rp := NewRootfsParser("", nil)
-	pf.Register(&rp, "rootfs-image")
-
-	aReader := NewArtifactsReader(f, pf)
+	aReader.Register(&rp, "rootfs-image")
 	info, err := aReader.ReadInfo()
 	assert.NoError(t, err)
 	assert.Equal(t, "mender", info.Format)
