@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/mendersoftware/artifacts/metadata"
+	"github.com/mendersoftware/artifacts/parsers"
 	"github.com/mendersoftware/log"
 	"github.com/pkg/errors"
 )
@@ -31,7 +32,7 @@ import (
 type ArtifactsReader struct {
 	artifact io.ReadCloser
 	tReader  *tar.Reader
-	*Parsers
+	*parsers.Parsers
 
 	info metadata.Info
 	*header
@@ -39,7 +40,7 @@ type ArtifactsReader struct {
 
 type header struct {
 	hInfo  metadata.HeaderInfo
-	pStack []ArtifactParser
+	pStack []parsers.ArtifactParser
 
 	hReader     *tar.Reader
 	hGzipReader *gzip.Reader
@@ -48,7 +49,7 @@ type header struct {
 func NewArtifactsReader(r io.ReadCloser) *ArtifactsReader {
 	return &ArtifactsReader{
 		artifact: r,
-		Parsers:  NewParserFactory(),
+		Parsers:  parsers.NewParserFactory(),
 		header:   &header{},
 	}
 }
@@ -124,12 +125,12 @@ func (ar *ArtifactsReader) readInfo() (*metadata.Info, error) {
 	return info, nil
 }
 
-func (ar *ArtifactsReader) pushParser(p ArtifactParser, num string) {
+func (ar *ArtifactsReader) pushParser(p parsers.ArtifactParser, num string) {
 	p.SetOrder(num)
 	ar.pStack = append(ar.pStack, p)
 }
 
-func (ar *ArtifactsReader) GetUpdates() ([]ArtifactParser, error) {
+func (ar *ArtifactsReader) GetUpdates() ([]parsers.ArtifactParser, error) {
 	info, err := ar.readInfo()
 	if err != nil {
 		return nil, err
@@ -157,9 +158,12 @@ func (ar *ArtifactsReader) GetUpdates() ([]ArtifactParser, error) {
 	}
 }
 
-func (ar *ArtifactsReader) ReadHeader() ([]ArtifactParser, error) {
+// func (ar *ArtifactsReader) ReadNextHeader() error {}
+
+func (ar *ArtifactsReader) ReadHeader() ([]parsers.ArtifactParser, error) {
 	for cnt, p := range ar.pStack {
-		if err := p.ParseHeader(ar.hReader, filepath.Join("headers", fmt.Sprintf("%04d", cnt))); err != nil {
+		if err := p.ParseHeader(ar.hReader,
+			filepath.Join("headers", fmt.Sprintf("%04d", cnt))); err != nil {
 			return nil, err
 		}
 	}
@@ -169,6 +173,8 @@ func (ar *ArtifactsReader) ReadHeader() ([]ArtifactParser, error) {
 	return ar.pStack, nil
 }
 
+//func (ar *ArtifactsReader) ProcessNextUpdateFile() error {}
+
 func (ar *ArtifactsReader) ProcessUpdateFiles() error {
 	for _, p := range ar.pStack {
 		// some updates won't contain data files
@@ -177,13 +183,12 @@ func (ar *ArtifactsReader) ProcessUpdateFiles() error {
 			if err != nil {
 				return err
 			}
-			log.Infof("processing data file: %v, %v", hdr.Name, withoutExt(hdr.Name))
+			log.Infof("processing data file: %v", hdr.Name)
 
 			if strings.Compare(filepath.Dir(hdr.Name), "data") != 0 ||
 				!strings.HasPrefix(filepath.Base(hdr.Name), p.GetOrder()) {
 				return errors.New("reader: invalid data file name or elemet out of order")
 			}
-
 			p.ParseData(r)
 		} else {
 			p.ParseData(nil)

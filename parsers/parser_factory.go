@@ -12,7 +12,7 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-package reader
+package parsers
 
 import (
 	"archive/tar"
@@ -26,6 +26,8 @@ type ArtifactParser interface {
 	GetOrder() string
 	SetOrder(string) error
 	NeedsDataFile() bool
+	ArchiveHeader(tw *tar.Writer, srcDir, dstDir string) error
+	ArchiveData(tw *tar.Writer, srcDir, dst string) error
 }
 
 type ParserFactory map[string]ArtifactParser

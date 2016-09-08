@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/mendersoftware/artifacts/parsers"
 	"github.com/mendersoftware/artifacts/writer"
 	"github.com/stretchr/testify/assert"
 )
@@ -36,7 +37,7 @@ var dirStructOK = []testDirEntry{
 	{Path: "0000/data", IsDir: true},
 	{Path: "0000/data/update.ext4", Content: []byte("my first update"), IsDir: false},
 	{Path: "0000/type-info",
-		Content: []byte(`{"rootfs": "core-image-minimal-201608110900.ext4"}`),
+		Content: []byte(`{"type": "rootfs-image"}`),
 		IsDir:   false},
 	{Path: "0000/meta-data",
 		Content: []byte(`{"DeviceType": "vexpress-qemu", "ImageID": "core-image-minimal-201608110900"}`),
@@ -79,12 +80,14 @@ func writeArchive(dir string) (string, error) {
 		return "", err
 	}
 
-	artifactWriter := writer.NewArtifactsWriter("artifact", dir, "mender", 1)
-	err = artifactWriter.Write()
+	aw := writer.NewArtifactsWriter("artifact", dir, "mender", 1)
+	rp := parsers.NewRootfsParser("", nil)
+	aw.Register(&rp, "rootfs-image")
+	err = aw.Write()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "artifact.mender"), nil
+	return filepath.Join(dir, "artifact"), nil
 }
 
 func TestReadArchive(t *testing.T) {
@@ -105,7 +108,7 @@ func TestReadArchive(t *testing.T) {
 	df, err := os.Create(path.Join(updateTestDir, "my_update"))
 
 	aReader := NewArtifactsReader(f)
-	rp := NewRootfsParser("", df)
+	rp := parsers.NewRootfsParser("", df)
 	aReader.Register(&rp, "rootfs-image")
 	err = aReader.Read()
 	assert.NoError(t, err)
@@ -134,7 +137,7 @@ func TestReadSequence(t *testing.T) {
 
 	aReader := NewArtifactsReader(f)
 	defer aReader.Close()
-	rp := NewRootfsParser("", nil)
+	rp := parsers.NewRootfsParser("", nil)
 	aReader.Register(&rp, "rootfs-image")
 
 	upd, err := aReader.GetUpdates()

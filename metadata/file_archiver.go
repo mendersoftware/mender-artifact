@@ -12,11 +12,14 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-package writer
+package metadata
 
 import (
 	"archive/tar"
+	"io"
 	"os"
+
+	"github.com/pkg/errors"
 )
 
 // FileArchiver implements ReadArchiver interface
@@ -34,29 +37,28 @@ func NewFileArchiver(path, name string) *FileArchiver {
 	return &FileArchiver{name: name, path: path}
 }
 
-// Open is opening file for reading before storing it into archive.
-// It is not returning open file descriptor, but rather it is setting
-// FileArchiver file field to be an open descriptor.
-func (f *FileArchiver) Open() error {
-	fd, err := os.Open(f.path)
+func (f *FileArchiver) Archive(tw *tar.Writer) error {
+
+	info, err := os.Stat(f.path)
 	if err != nil {
 		return err
 	}
-	f.File = fd
-	return nil
-}
-
-// GetHeader is a path of ReadArchiver interface. It returns tar.Header which
-// is then writtem as a part of archive header.
-func (f *FileArchiver) GetHeader() (*tar.Header, error) {
-	info, err := os.Stat(f.path)
-	if err != nil {
-		return nil, err
-	}
 	hdr, err := tar.FileInfoHeader(info, "")
 	if err != nil {
-		return nil, err
+		return errors.Wrapf(err, "arch: invalid file info header")
 	}
+
+	fd, err := os.Open(f.path)
+	if err != nil {
+		return errors.Wrapf(err, "arch: can not open file")
+	}
+	defer fd.Close()
+
 	hdr.Name = f.name
-	return hdr, nil
+	if err = tw.WriteHeader(hdr); err != nil {
+		return errors.Wrapf(err, "arch: error writing header")
+	}
+
+	_, err = io.Copy(tw, fd)
+	return err
 }

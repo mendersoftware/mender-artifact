@@ -102,12 +102,12 @@ func (hi *HeaderInfo) Write(p []byte) (n int, err error) {
 // TypeInfo provides information of type of individual updates
 // archived in artifacts archive.
 type TypeInfo struct {
-	Rootfs string `json:"rootfs"`
+	Type string `json:"type"`
 }
 
 // Validate validates corectness of TypeInfo.
 func (ti TypeInfo) Validate() error {
-	if len(ti.Rootfs) == 0 {
+	if len(ti.Type) == 0 {
 		return ErrValidatingData
 	}
 	return nil
@@ -175,24 +175,19 @@ func (m *Metadata) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// File is a single file being a part of Files struct.
-type File struct {
-	File string `json:"file"`
-}
-
 // Files represents the list of file names that make up the payload for given
 // update.
 type Files struct {
-	Files []File `json:"files"`
+	File []string `json:"file"`
 }
 
 // Validate checks format of Files.
 func (f Files) Validate() error {
-	if len(f.Files) == 0 {
+	if len(f.File) == 0 {
 		return ErrValidatingData
 	}
-	for _, file := range f.Files {
-		if file == (File{}) {
+	for _, f := range f.File {
+		if len(f) == 0 {
 			return ErrValidatingData
 		}
 	}
@@ -223,9 +218,7 @@ type DirEntry struct {
 
 // ArtifactHeader is a filesystem structure containing information about
 // all required elements of given Mender artifact.
-type ArtifactHeader struct {
-	Artifacts map[string]DirEntry
-}
+type ArtifactHeader map[string]DirEntry
 
 var (
 	// ErrInvalidMetadataElemType indicates that element type is not supported.
@@ -241,7 +234,7 @@ var (
 )
 
 func (mh ArtifactHeader) processEntry(entry string, isDir bool, required map[string]bool) error {
-	elem, ok := mh.Artifacts[entry]
+	elem, ok := mh[entry]
 	if !ok {
 		// for now we are only allowing file name to be user defined
 		// the directory structure is pre defined
@@ -269,7 +262,7 @@ func (mh ArtifactHeader) CheckHeaderStructure(headerDir string) error {
 		return os.ErrNotExist
 	}
 	var required = make(map[string]bool)
-	for k, v := range mh.Artifacts {
+	for k, v := range mh {
 		if v.Required {
 			required[k] = false
 		}

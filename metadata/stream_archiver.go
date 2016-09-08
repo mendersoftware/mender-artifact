@@ -12,14 +12,16 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-package writer
+package metadata
 
 import (
 	"archive/tar"
 	"bytes"
 	"encoding/json"
+	"io"
 
-	"github.com/mendersoftware/artifacts/metadata"
+	"github.com/mendersoftware/log"
+	"github.com/pkg/errors"
 )
 
 // StreamArchiver implements ReadArchiver interface
@@ -42,7 +44,7 @@ func NewStreamArchiver(data []byte, name string) *StreamArchiver {
 // data is the data structure implementing Validater interface and must be
 // a struct that can be converted to JSON (see getJSON below)
 // name is the relatve path inside the archive (see tar.Header.Name)
-func NewJSONStreamArchiver(data metadata.Validater, name string) *StreamArchiver {
+func NewJSONStreamArchiver(data Validater, name string) *StreamArchiver {
 	j, err := getJSON(data)
 	if err != nil {
 		return nil
@@ -50,25 +52,28 @@ func NewJSONStreamArchiver(data metadata.Validater, name string) *StreamArchiver
 	return &StreamArchiver{name, j, bytes.NewReader(j)}
 }
 
-// Open is implemented as a path of ReadArchiver interface
-func (str *StreamArchiver) Open() error { return nil }
+func (str *StreamArchiver) Archive(tw *tar.Writer) error {
 
-// Close is implemented as a path of ReadArchiver interface
-func (str *StreamArchiver) Close() error { return nil }
-
-// GetHeader is a path of ReadArchiver interface. It returns tar.Header which
-// is then writtem as a part of archive header.
-func (str *StreamArchiver) GetHeader() (*tar.Header, error) {
 	hdr := &tar.Header{
 		Name: str.name,
 		Mode: 0600,
 		Size: int64(len(str.data)),
 	}
-	return hdr, nil
+	log.Debugf("arch: have header: %v", hdr)
+	if err := tw.WriteHeader(hdr); err != nil {
+		return errors.Wrapf(err, "arch: can not write header")
+	}
+
+	_, err := io.Copy(tw, str.Reader)
+	if err != nil {
+		return errors.Wrapf(err, "arch: can not write bocy")
+	}
+	return nil
 }
 
+//TODO:
 // gets data which is Validated before converting to JSON
-func getJSON(data metadata.Validater) ([]byte, error) {
+func getJSON(data Validater) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
