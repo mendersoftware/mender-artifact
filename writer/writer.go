@@ -51,19 +51,73 @@ type aHeader struct {
 	hTmpFilePath string
 	hArchiver    *tar.Writer
 	hCompressor  *gzip.Writer
+	isClosed     bool
+}
+
+func makeHeader() *aHeader {
+	hFile, err := initHeaderFile()
+	if err != nil {
+		return nil
+	}
+
+	hComp := gzip.NewWriter(hFile)
+	hArch := tar.NewWriter(hComp)
+
+	return &aHeader{
+		hCompressor:  hComp,
+		hArchiver:    hArch,
+		hTmpFile:     hFile,
+		hTmpFilePath: hFile.Name(),
+	}
 }
 
 // NewArtifactsWriter creates a new ArtifactsWriter providing a location
 // of Mender metadata artifacts, format of the update and version.
 func NewArtifactsWriter(name, path, format string, version int) *ArtifactsWriter {
-	return &ArtifactsWriter{
-		aName:   name,
-		updDir:  path,
-		format:  format,
-		version: version,
+	aFile, err := createArtFile(path, name)
+	if err != nil {
+		return nil
+	}
+	arch := tar.NewWriter(aFile)
 
+	hdr := makeHeader()
+	if hdr == nil {
+		return nil
+	}
+
+	return &ArtifactsWriter{
+		aName:     name,
+		updDir:    path,
+		format:    format,
+		version:   version,
+		aFile:     aFile,
+		aArchiver: arch,
+
+		aHeader: *hdr,
 		Parsers: parser.NewParserFactory(),
 	}
+}
+
+func createArtFile(dir, name string) (*os.File, error) {
+	// here we should have header stored in temporary location
+	fPath := filepath.Join(dir, name)
+	f, err := os.Create(fPath)
+	if err != nil {
+		log.Errorf("writer: error creating artifact file: %v", fPath)
+		return nil, errors.Wrapf(err, "reader: can not create artifact file")
+	}
+	return f, nil
+}
+
+func initHeaderFile() (*os.File, error) {
+	// we need to create a file for storing header
+	f, err := ioutil.TempFile("", "header")
+	if err != nil {
+		return nil, errors.Wrapf(err,
+			"reader: error creating temp file for storing header")
+	}
+
+	return f, nil
 }
 
 func (av *ArtifactsWriter) Write() error {
@@ -72,6 +126,14 @@ func (av *ArtifactsWriter) Write() error {
 	if err := av.InitWriting(); err != nil {
 		return err
 	}
+
+	// archive info
+	info := av.getInfo()
+	ia := archiver.NewMetadataArchiver(&info, "info")
+	if err := ia.Archive(av.aArchiver); err != nil {
+		return errors.Wrapf(err, "reader: error archiving info")
+	}
+
 	// scan header
 	if err := av.ProcessHeader(); err != nil {
 		return err
@@ -110,34 +172,27 @@ func getTypeInfo(dir string) (*metadata.TypeInfo, error) {
 	return info, nil
 }
 
-func (av *ArtifactsWriter) createTmpHdrFile() error {
-	f, err := ioutil.TempFile("", "header")
-	if err != nil {
-		return err
-	}
-	av.hTmpFile = f
-	av.hTmpFilePath = f.Name()
-	return nil
-}
+func (av *ArtifactsWriter) Close() (err error) {
+	//finalize header
+	av.closeHeader()
 
-func (av *ArtifactsWriter) Close() error {
-	if err := av.CloseHeader(); err != nil {
-		return err
+	if av.hTmpFilePath != "" {
+		os.Remove(av.hTmpFilePath)
 	}
-	// remove header file
-	os.Remove(av.hTmpFilePath)
 
 	if av.aArchiver != nil {
-		if err := av.aArchiver.Close(); err != nil {
-			return err
+		err = av.aArchiver.Close()
+		if err != nil {
+			log.Errorf("reader: errro closing archive: %v", err)
 		}
 	}
 	if av.aFile != nil {
-		if err := av.aFile.Close(); err != nil {
-			return err
+		err = av.aFile.Close()
+		if err != nil {
+			log.Errorf("reader: errro closing artifact file: %v", err)
 		}
 	}
-	return nil
+	return err
 }
 
 func (av *ArtifactsWriter) setParsers() error {
@@ -147,99 +202,73 @@ func (av *ArtifactsWriter) setParsers() error {
 	}
 
 	for _, uDir := range dirs {
-		log.Infof("reader: scanning dir: %v", uDir.Name())
-		tInfo, err := getTypeInfo(filepath.Join(av.updDir, uDir.Name()))
-		if err != nil {
-			return err
+		if uDir.IsDir() {
+			log.Infof("reader: scanning dir: %v", uDir.Name())
+			tInfo, err := getTypeInfo(filepath.Join(av.updDir, uDir.Name()))
+			if err != nil {
+				return err
+			}
+			p, err := av.GetParser(tInfo.Type)
+			if err != nil {
+				return errors.Wrapf(err, "writer: error finding parser for [%v]", tInfo.Type)
+			}
+			av.Parsers.PushParser(p, uDir.Name())
+			av.hInfo.Updates =
+				append(av.hInfo.Updates, metadata.UpdateType{Type: tInfo.Type})
 		}
-		p, err := av.GetParser(tInfo.Type)
-		if err != nil {
-			return errors.Wrapf(err, "writer: error finding parser for [%v]", tInfo.Type)
-		}
-		av.Parsers.PushParser(p, uDir.Name())
-		av.hInfo.Updates =
-			append(av.hInfo.Updates, metadata.UpdateType{Type: tInfo.Type})
-	}
-
-	return nil
-}
-
-func (av *ArtifactsWriter) initWritingArtifact() error {
-	// here we should have header stored in temporary location
-	f, err := os.Create(filepath.Join(av.updDir, av.aName))
-	if err != nil {
-		return errors.Wrapf(err, "reader: can not create artifact file")
-	}
-	av.aFile = f
-	av.aArchiver = tar.NewWriter(f)
-
-	// archive info
-	info := av.getInfo()
-	if err := info.Validate(); err != nil {
-		return errors.New("reader: invalid info")
-	}
-	ia := archiver.NewMetadataArchiver(&info, "info")
-	if err := ia.Archive(av.aArchiver); err != nil {
-		return errors.Wrapf(err, "reader: error archiving info")
-	}
-	return nil
-}
-
-func (av *ArtifactsWriter) initWritingHeader() error {
-	// we need to create a file for storing header
-	if err := av.createTmpHdrFile(); err != nil {
-		return errors.Wrapf(err,
-			"reader: error creating temp file for storing header")
-	}
-	log.Infof("temp file for storing header: %v", av.hTmpFile.Name())
-
-	av.hCompressor = gzip.NewWriter(av.hTmpFile)
-	av.hArchiver = tar.NewWriter(av.hCompressor)
-
-	hi := archiver.NewMetadataArchiver(av.hInfo, "header-info")
-	if err := hi.Archive(av.hArchiver); err != nil {
-		return errors.Wrapf(err, "writer: can not store header-info")
 	}
 	return nil
 }
 
 func (av *ArtifactsWriter) InitWriting() error {
+
 	if err := av.setParsers(); err != nil {
 		return err
 	}
-	if err := av.initWritingHeader(); err != nil {
-		return err
-	}
-	if err := av.initWritingArtifact(); err != nil {
-		return err
-	}
 	return nil
 }
 
-func (av *ArtifactsWriter) CloseHeader() error {
-	if av.hArchiver != nil {
-		if err := av.hArchiver.Close(); err != nil {
-			return errors.Wrapf(err, "reader: error closing header archiver")
+func (h *aHeader) closeHeader() (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("error closing: %v", r)
+			err = errors.New("error closing header")
 		}
-		av.hArchiver = nil
-	}
-	if av.hCompressor != nil {
-		if err := av.hCompressor.Close(); err != nil {
-			return errors.Wrapf(err, "reader: error closing header compression")
+		if err == nil {
+			h.isClosed = true
 		}
-		av.hCompressor = nil
-	}
-	if av.hTmpFile != nil {
-		if err := av.hTmpFile.Close(); err != nil {
-			return errors.Wrapf(err, "reader: error closing header file: %v", av.hTmpFile.Name())
+	}()
+
+	if !h.isClosed {
+		errArch := h.hArchiver.Close()
+		if errArch != nil {
+			log.Error("reader: error clossing header archive")
 		}
-		av.hTmpFile = nil
+		errComp := h.hCompressor.Close()
+		if errComp != nil {
+			log.Error("reader: error clossing header compressor")
+		}
+		errFile := h.hTmpFile.Close()
+		if errFile != nil {
+			log.Error("reader: error clossing header temp file")
+		}
+
+		if errArch != nil || errComp != nil || errFile != nil {
+			err = errors.New("reader: error closing header")
+		}
 	}
-	return nil
+
+	return err
 }
 
 func (av *ArtifactsWriter) ProcessHeader() error {
-	// first make sure we are iterating form the beginning
+	// store header info
+	hi := archiver.NewMetadataArchiver(&av.hInfo, "header-info")
+	if err := hi.Archive(av.hArchiver); err != nil {
+		return errors.Wrapf(err, "writer: can not store header-info")
+	}
+
+	// make sure we are iterating form the beginning
 	av.Parsers.Reset()
 
 	for {
@@ -250,13 +279,16 @@ func (av *ArtifactsWriter) ProcessHeader() error {
 			return errors.Wrapf(err, "reader: error processing update directory")
 		}
 	}
-	return av.CloseHeader()
+	return nil
 }
 
 func (av *ArtifactsWriter) ProcessNextHeaderDir() error {
 	p, upd, err := av.Parsers.Next()
 	if err == io.EOF {
 		log.Infof("reader: reached header EOF")
+		if err = av.closeHeader(); err != nil {
+			return errors.Wrapf(err, "error closing header")
+		}
 		return io.EOF
 	}
 	log.Infof("processing update dir: %v [%+v]", upd, p)

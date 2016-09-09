@@ -26,8 +26,8 @@ import (
 	"github.com/mendersoftware/log"
 )
 
-// Validater interface is providing a method of validating data.
 type Validater interface {
+	io.Writer
 	Validate() error
 }
 
@@ -50,14 +50,21 @@ func (i Info) Validate() error {
 	return nil
 }
 
-func (i *Info) Write(p []byte) (n int, err error) {
+func decode(p []byte, data Validater) error {
 	dec := json.NewDecoder(bytes.NewReader(p))
 	for {
-		if err := dec.Decode(&i); err != io.EOF {
+		if err := dec.Decode(data); err != io.EOF {
 			break
 		} else if err != nil {
-			return 0, err
+			return err
 		}
+	}
+	return nil
+}
+
+func (i *Info) Write(p []byte) (n int, err error) {
+	if err := decode(p, i); err != nil {
+		return 0, err
 	}
 	return len(p), nil
 }
@@ -88,13 +95,8 @@ func (hi HeaderInfo) Validate() error {
 }
 
 func (hi *HeaderInfo) Write(p []byte) (n int, err error) {
-	dec := json.NewDecoder(bytes.NewReader(p))
-	for {
-		if err := dec.Decode(&hi); err != io.EOF {
-			break
-		} else if err != nil {
-			return 0, err
-		}
+	if err := decode(p, hi); err != nil {
+		return 0, err
 	}
 	return len(p), nil
 }
@@ -114,13 +116,8 @@ func (ti TypeInfo) Validate() error {
 }
 
 func (ti *TypeInfo) Write(p []byte) (n int, err error) {
-	dec := json.NewDecoder(bytes.NewReader(p))
-	for {
-		if err := dec.Decode(&ti); err != io.EOF {
-			break
-		} else if err != nil {
-			return 0, err
-		}
+	if err := decode(p, ti); err != nil {
+		return 0, err
 	}
 	return len(p), nil
 }
@@ -164,13 +161,8 @@ func (m Metadata) Validate() error {
 }
 
 func (m *Metadata) Write(p []byte) (n int, err error) {
-	dec := json.NewDecoder(bytes.NewReader(p))
-	for {
-		if err := dec.Decode(&m); err != io.EOF {
-			break
-		} else if err != nil {
-			return 0, err
-		}
+	if err := decode(p, m); err != nil {
+		return 0, err
 	}
 	return len(p), nil
 }
@@ -195,13 +187,8 @@ func (f Files) Validate() error {
 }
 
 func (f *Files) Write(p []byte) (n int, err error) {
-	dec := json.NewDecoder(bytes.NewReader(p))
-	for {
-		if err := dec.Decode(&f); err != io.EOF {
-			break
-		} else if err != nil {
-			return 0, err
-		}
+	if err := decode(p, f); err != nil {
+		return 0, err
 	}
 	return len(p), nil
 }

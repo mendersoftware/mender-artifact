@@ -95,6 +95,9 @@ func (ar *ArtifactsReader) getNext() (io.Reader, *tar.Header, error) {
 // header-info must be the first file in the tar archive
 func (ar *ArtifactsReader) initHeaderForReading() error {
 	r, hdr, err := ar.getNext()
+	if err != nil {
+		return errors.New("reader: error initializing header")
+	}
 	if !strings.HasPrefix(hdr.Name, "header.tar.") {
 		return errors.New("reader: invalid header name or elemet out of order")
 	}
@@ -170,8 +173,10 @@ func (ar *ArtifactsReader) ReadHeader() (*parser.Parsers, error) {
 		}
 	}
 	// at the end close gzip
-	if err := ar.hGzipReader.Close(); err != nil {
-		return nil, errors.Wrapf(err, "reader: error closing gzip reader")
+	if ar.hGzipReader != nil {
+		if err := ar.hGzipReader.Close(); err != nil {
+			return nil, errors.Wrapf(err, "reader: error closing gzip reader")
+		}
 	}
 	return ar.Parsers, nil
 }
@@ -207,13 +212,19 @@ func (ar *ArtifactsReader) ProcessUpdateFiles() error {
 }
 
 func readNext(tr *tar.Reader, w io.Writer, elem string) error {
+	if tr == nil {
+		return errors.New("reader: red next called on invalid stream")
+	}
 	r, hdr, err := getNext(tr)
 	if err != nil {
 		return err
 	}
 	if strings.HasPrefix(hdr.Name, elem) {
 		_, err = io.Copy(w, r)
-		return err
+		if err != nil {
+			return errors.Wrapf(err, "reader: read next error")
+		}
+		return nil
 	}
 	return os.ErrInvalid
 }
@@ -224,6 +235,8 @@ func getNext(tr *tar.Reader) (io.Reader, *tar.Header, error) {
 		if err == io.EOF {
 			// we've reached end of archive
 			return nil, hdr, err
+		} else if err != nil {
+			return nil, nil, errors.New("reader: error reading archive")
 		}
 		log.Infof("reader: processing file: %v", hdr.Name)
 		return tr, hdr, nil

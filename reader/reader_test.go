@@ -24,15 +24,11 @@ import (
 	"github.com/mendersoftware/artifacts/parser"
 	"github.com/mendersoftware/artifacts/writer"
 	"github.com/stretchr/testify/assert"
+
+	. "github.com/mendersoftware/artifacts/test_utils"
 )
 
-type testDirEntry struct {
-	Path    string
-	Content []byte
-	IsDir   bool
-}
-
-var dirStructOK = []testDirEntry{
+var dirStructOK = []TestDirEntry{
 	{Path: "0000", IsDir: true},
 	{Path: "0000/data", IsDir: true},
 	{Path: "0000/data/update.ext4", Content: []byte("my first update"), IsDir: false},
@@ -49,28 +45,6 @@ var dirStructOK = []testDirEntry{
 	{Path: "0000/scripts/pre/my_script", IsDir: false},
 	{Path: "0000/scripts/post", IsDir: true},
 	{Path: "0000/scripts/check", IsDir: true},
-}
-
-func MakeFakeUpdateDir(updateDir string, elements []testDirEntry) error {
-	for _, elem := range elements {
-		if elem.IsDir {
-			if err := os.MkdirAll(path.Join(updateDir, elem.Path), os.ModeDir|os.ModePerm); err != nil {
-				return err
-			}
-		} else {
-			f, err := os.Create(path.Join(updateDir, elem.Path))
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-			if len(elem.Content) > 0 {
-				if _, err = f.Write(elem.Content); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
 }
 
 func writeArchive(dir string) (string, error) {

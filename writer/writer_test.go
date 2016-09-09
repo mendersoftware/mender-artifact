@@ -17,43 +17,16 @@ package writer
 import (
 	"io/ioutil"
 	"os"
-	"path"
 	"testing"
 
 	"github.com/mendersoftware/artifacts/metadata"
 	"github.com/mendersoftware/artifacts/parser"
 	"github.com/stretchr/testify/assert"
+
+	. "github.com/mendersoftware/artifacts/test_utils"
 )
 
-type testDirEntry struct {
-	Path    string
-	Content []byte
-	IsDir   bool
-}
-
-func MakeFakeUpdateDir(updateDir string, elements []testDirEntry) error {
-	for _, elem := range elements {
-		if elem.IsDir {
-			if err := os.MkdirAll(path.Join(updateDir, elem.Path), os.ModeDir|os.ModePerm); err != nil {
-				return err
-			}
-		} else {
-			f, err := os.Create(path.Join(updateDir, elem.Path))
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-			if len(elem.Content) > 0 {
-				if _, err = f.Write(elem.Content); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
-}
-
-var dirStructInvalid = []testDirEntry{
+var dirStructInvalid = []TestDirEntry{
 	{Path: "0000", IsDir: true},
 	{Path: "0000/data", IsDir: true},
 	{Path: "0000/type-info", IsDir: false},
@@ -82,7 +55,7 @@ func TestWriteArtifactBrokenDirStruct(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-var dirStructOK = []testDirEntry{
+var dirStructOK = []TestDirEntry{
 	{Path: "0000", IsDir: true},
 	{Path: "0000/data", IsDir: true},
 	{Path: "0000/data/update.ext4", Content: []byte("first update"), IsDir: false},
@@ -137,7 +110,7 @@ func TestWriteArtifactFile(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-var dirStructBroken = []testDirEntry{
+var dirStructBroken = []TestDirEntry{
 	{Path: "0000", IsDir: true},
 	{Path: "0000/data", IsDir: true},
 	{Path: "0000/data/update.ext4", IsDir: false},
