@@ -67,8 +67,8 @@ func TestValidateTypeInfo(t *testing.T) {
 		err error
 	}{
 		{TypeInfo{}, ErrValidatingData},
-		{TypeInfo{Rootfs: ""}, ErrValidatingData},
-		{TypeInfo{Rootfs: "image-type"}, nil},
+		{TypeInfo{Type: ""}, ErrValidatingData},
+		{TypeInfo{Type: "rootfs-image"}, nil},
 	}
 
 	for _, tt := range validateTests {
@@ -83,15 +83,15 @@ func TestValidateMetadata(t *testing.T) {
 		err error
 	}{
 		{Metadata{}, ErrValidatingData},
-		{Metadata{make(map[string]interface{})}, ErrValidatingData},
-		{Metadata{map[string]interface{}{}}, ErrValidatingData},
-		{Metadata{map[string]interface{}{"": nil}}, ErrValidatingData},
-		{Metadata{map[string]interface{}{"key": nil}}, ErrValidatingData},
-		{Metadata{map[string]interface{}{"key": "val"}}, ErrValidatingData},
-		{Metadata{map[string]interface{}{"DeviceType": "type"}}, ErrValidatingData},
-		{Metadata{map[string]interface{}{"DeviceType": nil, "ImageID": "image"}}, ErrValidatingData},
-		{Metadata{map[string]interface{}{"DeviceType": "device", "ImageID": "image"}}, nil},
-		{Metadata{map[string]interface{}{"DeviceType": "device", "ImageID": "image", "Data": "data"}}, nil},
+		{make(map[string]interface{}), ErrValidatingData},
+		{map[string]interface{}{}, ErrValidatingData},
+		{map[string]interface{}{"": nil}, ErrValidatingData},
+		{map[string]interface{}{"key": nil}, ErrValidatingData},
+		{map[string]interface{}{"key": "val"}, ErrValidatingData},
+		{map[string]interface{}{"DeviceType": "type"}, ErrValidatingData},
+		{map[string]interface{}{"DeviceType": nil, "ImageID": "image"}, ErrValidatingData},
+		{map[string]interface{}{"DeviceType": "device", "ImageID": "image"}, nil},
+		{map[string]interface{}{"DeviceType": "device", "ImageID": "image", "Data": "data"}, nil},
 	}
 
 	for _, tt := range validateTests {
@@ -106,11 +106,11 @@ func TestValidateFiles(t *testing.T) {
 		err error
 	}{
 		{Files{}, ErrValidatingData},
-		{Files{Files: []File{}}, ErrValidatingData},
-		{Files{Files: []File{{File: ""}}}, ErrValidatingData},
-		{Files{Files: []File{{File: "file"}}}, nil},
-		{Files{Files: []File{{File: "file"}, {}}}, ErrValidatingData},
-		{Files{Files: []File{{File: "file"}, {File: "file_next"}}}, nil},
+		{Files{[]string{""}}, ErrValidatingData},
+		{Files{[]string{}}, ErrValidatingData},
+		{Files{[]string{"file"}}, nil},
+		{Files{[]string{"file", ""}}, ErrValidatingData},
+		{Files{[]string{"file", "file_next"}}, nil},
 	}
 	for idx, tt := range validateTests {
 		e := tt.in.Validate()
@@ -125,7 +125,11 @@ func MakeFakeUpdateDir(updateDir string, elements []DirEntry) error {
 				return err
 			}
 		} else {
-			if _, err := os.Create(path.Join(updateDir, elem.Path)); err != nil {
+			f, err := os.Create(path.Join(updateDir, elem.Path))
+			if err != nil {
+				return err
+			}
+			if err = f.Close(); err != nil {
 				return err
 			}
 		}
@@ -250,7 +254,7 @@ var dirStructMissingOptional = []DirEntry{
 	{Path: "scripts/pre", IsDir: true, Required: false},
 }
 
-var testMetadataHeaderFormat = map[string]DirEntry{
+var testMetadataHeaderFormat = ArtifactHeader{
 	// while calling filepath.Walk() `.` (root) directory is included
 	// when iterating throug entries in the tree
 	".":               {Path: ".", IsDir: true, Required: false},
@@ -291,7 +295,7 @@ func TestDirectoryStructure(t *testing.T) {
 		err := MakeFakeUpdateDir(updateTestDir, tt.dirContent)
 		assert.NoError(t, err)
 
-		header := ArtifactHeader{Artifacts: testMetadataHeaderFormat}
+		header := testMetadataHeaderFormat
 
 		err = header.CheckHeaderStructure(updateTestDir)
 		assert.Equal(t, tt.err, err)
@@ -299,7 +303,7 @@ func TestDirectoryStructure(t *testing.T) {
 }
 
 func TestDirectoryStructureNotExist(t *testing.T) {
-	header := ArtifactHeader{Artifacts: testMetadataHeaderFormat}
+	header := testMetadataHeaderFormat
 	err := header.CheckHeaderStructure("non-existing-directory")
 	assert.Equal(t, os.ErrNotExist, err)
 }
