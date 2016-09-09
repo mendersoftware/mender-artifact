@@ -12,7 +12,7 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-package parsers
+package parser
 
 import (
 	"archive/tar"
@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mendersoftware/artifacts/archiver"
 	"github.com/mendersoftware/artifacts/metadata"
 	"github.com/mendersoftware/log"
 	"github.com/pkg/errors"
@@ -46,7 +47,6 @@ type RootfsParser struct {
 	tInfo    metadata.TypeInfo
 	metadata metadata.Metadata
 	updates  map[string]rootfsFile
-	order    string
 
 	sStore string
 	dStore io.Writer
@@ -59,22 +59,8 @@ func NewRootfsParser(sStoreDir string, w io.Writer) RootfsParser {
 		updates: map[string]rootfsFile{}}
 }
 
-func (rp *RootfsParser) GetOrder() string {
-	return rp.order
-}
-
-func (rp *RootfsParser) SetOrder(ord string) error {
-	rp.order = ord
-	return nil
-}
-
 func (rp RootfsParser) NeedsDataFile() bool {
 	return true
-}
-
-func withoutExt(name string) string {
-	bName := filepath.Base(name)
-	return strings.TrimSuffix(bName, filepath.Ext(bName))
 }
 
 func (rp *RootfsParser) ArchiveData(tw *tar.Writer, srcDir, dst string) error {
@@ -90,7 +76,7 @@ func (rp *RootfsParser) ArchiveData(tw *tar.Writer, srcDir, dst string) error {
 
 	for _, data := range rp.updates {
 		log.Infof("processing data file: %v [%v]", data.path, data.name)
-		a := metadata.NewFileArchiver(data.path, data.name)
+		a := archiver.NewFileArchiver(data.path, data.name)
 		if err := a.Archive(dtw); err != nil {
 			return err
 		}
@@ -100,7 +86,7 @@ func (rp *RootfsParser) ArchiveData(tw *tar.Writer, srcDir, dst string) error {
 	gz.Close()
 	f.Close()
 
-	a := metadata.NewFileArchiver(f.Name(), dst)
+	a := archiver.NewFileArchiver(f.Name(), dst)
 	if err := a.Archive(tw); err != nil {
 		return err
 	}
@@ -113,7 +99,7 @@ func archiveFiles(tw *tar.Writer, upd []os.FileInfo, dir string) error {
 	for _, u := range upd {
 		files.File = append(files.File, filepath.Base(u.Name()))
 	}
-	a := metadata.NewJSONStreamArchiver(files, filepath.Join(dir, "files"))
+	a := archiver.NewMetadataArchiver(files, filepath.Join(dir, "files"))
 	return a.Archive(tw)
 }
 
@@ -144,7 +130,7 @@ func archiveChecksums(tw *tar.Writer, upd []os.FileInfo, src, dir string) error 
 			return err
 		}
 		log.Infof("checksum for: %v [%v]", u.Name(), string(sum))
-		a := metadata.NewStreamArchiver(sum, filepath.Join(dir, withoutExt(u.Name())+".sha256sum"))
+		a := archiver.NewStreamArchiver(sum, filepath.Join(dir, withoutExt(u.Name())+".sha256sum"))
 		if err := a.Archive(tw); err != nil {
 			return errors.Wrapf(err, "reader: error storing checksum")
 		}
@@ -181,13 +167,13 @@ func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, srcDir, dstDir string) err
 		return errors.Wrapf(err, "parser: can not store files")
 	}
 
-	a := metadata.NewFileArchiver(filepath.Join(srcDir, "type-info"),
+	a := archiver.NewFileArchiver(filepath.Join(srcDir, "type-info"),
 		filepath.Join(dstDir, "type-info"))
 	if err := a.Archive(tw); err != nil {
 		return errors.Wrapf(err, "parser: can not store type-info")
 	}
 
-	a = metadata.NewFileArchiver(filepath.Join(srcDir, "meta-data"),
+	a = archiver.NewFileArchiver(filepath.Join(srcDir, "meta-data"),
 		filepath.Join(dstDir, "meta-data"))
 	if err := a.Archive(tw); err != nil {
 		return errors.Wrapf(err, "parser: can not store meta-data")
@@ -201,7 +187,7 @@ func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, srcDir, dstDir string) err
 
 	//TODO: get rid of bad Joins
 	for _, u := range updFiles {
-		a = metadata.NewFileArchiver(filepath.Join(srcDir, "signatures", withoutExt(u.Name())+".sig"),
+		a = archiver.NewFileArchiver(filepath.Join(srcDir, "signatures", withoutExt(u.Name())+".sig"),
 			filepath.Join(dstDir, "signatures", withoutExt(u.Name())+".sig"))
 		if err := a.Archive(tw); err != nil {
 			return errors.Wrapf(err, "parser: can not store signatures")
@@ -352,4 +338,9 @@ var hFormatPreWrite = metadata.ArtifactHeader{
 	// we must have data directory containing update
 	"data":   {Path: "data", IsDir: true, Required: true},
 	"data/*": {Path: "data/*", IsDir: false, Required: true},
+}
+
+func withoutExt(name string) string {
+	bName := filepath.Base(name)
+	return strings.TrimSuffix(bName, filepath.Ext(bName))
 }

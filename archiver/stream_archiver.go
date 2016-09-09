@@ -12,12 +12,11 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-package metadata
+package archiver
 
 import (
 	"archive/tar"
 	"bytes"
-	"encoding/json"
 	"io"
 
 	"github.com/mendersoftware/log"
@@ -39,19 +38,6 @@ func NewStreamArchiver(data []byte, name string) *StreamArchiver {
 	return &StreamArchiver{name, data, bytes.NewReader(data)}
 }
 
-// NewJSONStreamArchiver creates streamArchiver used for storing JSON files
-// inside tar archive.
-// data is the data structure implementing Validater interface and must be
-// a struct that can be converted to JSON (see getJSON below)
-// name is the relatve path inside the archive (see tar.Header.Name)
-func NewJSONStreamArchiver(data Validater, name string) *StreamArchiver {
-	j, err := getJSON(data)
-	if err != nil {
-		return nil
-	}
-	return &StreamArchiver{name, j, bytes.NewReader(j)}
-}
-
 func (str *StreamArchiver) Archive(tw *tar.Writer) error {
 
 	hdr := &tar.Header{
@@ -69,16 +55,4 @@ func (str *StreamArchiver) Archive(tw *tar.Writer) error {
 		return errors.Wrapf(err, "arch: can not write bocy")
 	}
 	return nil
-}
-
-//TODO:
-// gets data which is Validated before converting to JSON
-func getJSON(data Validater) ([]byte, error) {
-	if data == nil {
-		return nil, nil
-	}
-	if err := data.Validate(); err != nil {
-		return nil, err
-	}
-	return json.Marshal(data)
 }

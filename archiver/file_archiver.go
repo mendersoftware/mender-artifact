@@ -12,7 +12,7 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-package metadata
+package archiver
 
 import (
 	"archive/tar"
@@ -22,7 +22,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// FileArchiver implements ReadArchiver interface
 type FileArchiver struct {
 	path string
 	name string
@@ -38,7 +37,6 @@ func NewFileArchiver(path, name string) *FileArchiver {
 }
 
 func (f *FileArchiver) Archive(tw *tar.Writer) error {
-
 	info, err := os.Stat(f.path)
 	if err != nil {
 		return err

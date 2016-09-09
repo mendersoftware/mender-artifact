@@ -15,14 +15,13 @@
 package writer
 
 import (
-	"archive/tar"
 	"io/ioutil"
 	"os"
 	"path"
 	"testing"
 
 	"github.com/mendersoftware/artifacts/metadata"
-	"github.com/mendersoftware/artifacts/parsers"
+	"github.com/mendersoftware/artifacts/parser"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -72,45 +71,16 @@ func TestWriteArtifactBrokenDirStruct(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructInvalid)
 	assert.NoError(t, err)
 
-	artifactWriter := ArtifactsWriter{
+	aw := ArtifactsWriter{
 		updDir: updateTestDir,
 	}
-	err = artifactWriter.Write()
-	assert.Error(t, err)
-}
 
-// func TestGenerateHash(t *testing.T) {
-// 	tempDir, _ := ioutil.TempDir("", "update")
-// 	defer os.RemoveAll(tempDir)
-//
-// 	err := MakeFakeUpdateDir(tempDir,
-// 		[]testDirEntry{
-// 			{Path: "update.ext4", Content: []byte("file content"), IsDir: false},
-// 			{Path: "next_update.ext3", Content: []byte("different file content"), IsDir: false},
-// 		})
-// 	assert.NoError(t, err)
-//
-// 	updates, err := ioutil.ReadDir(tempDir)
-// 	assert.NoError(t, err)
-// 	assert.NotNil(t, updates)
-//
-// 	artifactWriter := ArtifactsWriter{}
-//
-// 	upd := updateArtifact{path: filepath.Join(tempDir, "update.ext4")}
-// 	err = artifactWriter.calculateChecksum(&upd)
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, []byte("e0ac3601005dfa1864f5392aabaf7d898b1b5bab854f1acb4491bcd806b76b0c"), upd.checksum)
-//
-// 	upd = updateArtifact{path: filepath.Join(tempDir, "next_update.ext3")}
-// 	err = artifactWriter.calculateChecksum(&upd)
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, []byte("90094b71a0bf15ee00e087a3be28579483fb759a718fa4ca97be215b42021121"), upd.checksum)
-//
-// 	upd = updateArtifact{path: filepath.Join(tempDir, "non_existing")}
-// 	err = artifactWriter.calculateChecksum(&upd)
-// 	assert.Error(t, err)
-// 	assert.Empty(t, upd.checksum)
-// }
+	err = aw.Write()
+	assert.Error(t, err)
+
+	err = aw.Close()
+	assert.NoError(t, err)
+}
 
 var dirStructOK = []testDirEntry{
 	{Path: "0000", IsDir: true},
@@ -130,12 +100,10 @@ var dirStructOK = []testDirEntry{
 
 var dirStructOKAfterWriting = metadata.ArtifactHeader{
 	".":                               {Path: ".", IsDir: true, Required: true},
-	"data":                            {Path: "data", IsDir: true, Required: true},
-	"data/0000.tar.gz":                {Path: "data", IsDir: false, Required: true},
 	"0000/data":                       {Path: "0000/data", IsDir: true, Required: true},
 	"0000/data/update.ext4":           {Path: "0000/data/update.ext4", IsDir: false, Required: true},
 	"0000/data/update_next.ext3":      {Path: "0000/data/update_next.ext3", IsDir: false, Required: true},
-	"artifact.mender":                 {Path: "artifact.mender", IsDir: false, Required: true},
+	"artifact.tar.gz":                 {Path: "artifact.tar.gz", IsDir: false, Required: true},
 	"0000":                            {Path: "0000", IsDir: true, Required: true},
 	"0000/type-info":                  {Path: "0000/type-info", IsDir: false, Required: true},
 	"0000/meta-data":                  {Path: "0000/meta-data", IsDir: false, Required: true},
@@ -150,21 +118,23 @@ var dirStructOKAfterWriting = metadata.ArtifactHeader{
 
 func TestWriteArtifactFile(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	//defer os.RemoveAll(updateTestDir)
+	defer os.RemoveAll(updateTestDir)
 	err := MakeFakeUpdateDir(updateTestDir, dirStructOK)
 	assert.NoError(t, err)
 
-	artifactWriter := NewArtifactsWriter("artifact.tar.gz", updateTestDir, "mender", 1)
-	defer artifactWriter.Close()
+	aw := NewArtifactsWriter("artifact.tar.gz", updateTestDir, "mender", 1)
 
-	rp := parsers.NewRootfsParser("", nil)
-	artifactWriter.Register(&rp, "rootfs-image")
-	err = artifactWriter.write()
+	rp := parser.NewRootfsParser("", nil)
+	aw.Register(&rp, "rootfs-image")
+	err = aw.Write()
+	assert.NoError(t, err)
+
+	err = aw.Close()
 	assert.NoError(t, err)
 
 	// check is dir structure is correct
-	// err = dirStructOKAfterWriting.CheckHeaderStructure(updateTestDir)
-	// assert.NoError(t, err)
+	err = dirStructOKAfterWriting.CheckHeaderStructure(updateTestDir)
+	assert.NoError(t, err)
 }
 
 var dirStructBroken = []testDirEntry{
@@ -194,32 +164,3 @@ func TestWriteBrokenArtifact(t *testing.T) {
 	err = artifactWriter.Write()
 	assert.Error(t, err)
 }
-
-type fakeArchiver struct {
-	readRet   int
-	readErr   error
-	closeErr  error
-	header    *tar.Header
-	headerErr error
-}
-
-func (f fakeArchiver) Open() error                      { return nil }
-func (f fakeArchiver) Read(p []byte) (n int, err error) { return f.readRet, f.readErr }
-func (f fakeArchiver) Close() error                     { return f.closeErr }
-func (f fakeArchiver) GetHeader() (*tar.Header, error)  { return f.header, f.headerErr }
-
-// func TestWriteBrokenArchive(t *testing.T) {
-// 	updateTestDir, _ := ioutil.TempDir("", "update")
-// 	defer os.RemoveAll(updateTestDir)
-// 	artifactWriter := NewArtifactsWriter("artifact", updateTestDir, "mender", 1)
-//
-// 	arch, err := os.Create(filepath.Join(updateTestDir, "my_archive"))
-// 	assert.NoError(t, err)
-// 	err = artifactWriter.writeArchive(arch, nil, false)
-// 	assert.Error(t, err)
-//
-// 	var content []ReadArchiver
-// 	content = append(content, &fakeArchiver{readRet: 0, readErr: errors.New("")})
-// 	err = artifactWriter.writeArchive(arch, content, false)
-// 	assert.Error(t, err)
-// }

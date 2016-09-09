@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mendersoftware/artifacts/parsers"
+	"github.com/mendersoftware/artifacts/parser"
 	"github.com/mendersoftware/artifacts/writer"
 	"github.com/stretchr/testify/assert"
 )
@@ -81,7 +81,7 @@ func writeArchive(dir string) (string, error) {
 	}
 
 	aw := writer.NewArtifactsWriter("artifact", dir, "mender", 1)
-	rp := parsers.NewRootfsParser("", nil)
+	rp := parser.NewRootfsParser("", nil)
 	aw.Register(&rp, "rootfs-image")
 	err = aw.Write()
 	if err != nil {
@@ -93,7 +93,7 @@ func writeArchive(dir string) (string, error) {
 func TestReadArchive(t *testing.T) {
 	// first create archive, that we will be able to read
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
+	//defer os.RemoveAll(updateTestDir)
 
 	archive, err := writeArchive(updateTestDir)
 	assert.NoError(t, err)
@@ -108,7 +108,7 @@ func TestReadArchive(t *testing.T) {
 	df, err := os.Create(path.Join(updateTestDir, "my_update"))
 
 	aReader := NewArtifactsReader(f)
-	rp := parsers.NewRootfsParser("", df)
+	rp := parser.NewRootfsParser("", df)
 	aReader.Register(&rp, "rootfs-image")
 	err = aReader.Read()
 	assert.NoError(t, err)
@@ -137,16 +137,16 @@ func TestReadSequence(t *testing.T) {
 
 	aReader := NewArtifactsReader(f)
 	defer aReader.Close()
-	rp := parsers.NewRootfsParser("", nil)
+	rp := parser.NewRootfsParser("", nil)
 	aReader.Register(&rp, "rootfs-image")
 
 	upd, err := aReader.GetUpdates()
 	assert.NoError(t, err)
-	assert.Len(t, upd, 1)
+	assert.NotNil(t, upd)
 
 	upd, err = aReader.ReadHeader()
 	assert.NoError(t, err)
-	assert.Len(t, upd, 1)
+	assert.NotNil(t, upd)
 
 	err = aReader.ProcessUpdateFiles()
 	assert.NoError(t, err)
