@@ -50,9 +50,6 @@ func TestWriteArtifactBrokenDirStruct(t *testing.T) {
 
 	err = aw.Write()
 	assert.Error(t, err)
-
-	err = aw.Close()
-	assert.NoError(t, err)
 }
 
 var dirStructOK = []TestDirEntry{
@@ -67,26 +64,28 @@ var dirStructOK = []TestDirEntry{
 	{Path: "0000/signatures/update_next.sig", IsDir: false},
 	{Path: "0000/scripts", IsDir: true},
 	{Path: "0000/scripts/pre", IsDir: true},
+	{Path: "0000/scripts/pre/0000_install.sh", Content: []byte("run me!"), IsDir: false},
 	{Path: "0000/scripts/post", IsDir: true},
 	{Path: "0000/scripts/check", IsDir: true},
 }
 
 var dirStructOKAfterWriting = metadata.ArtifactHeader{
-	".":                               {Path: ".", IsDir: true, Required: true},
-	"0000/data":                       {Path: "0000/data", IsDir: true, Required: true},
-	"0000/data/update.ext4":           {Path: "0000/data/update.ext4", IsDir: false, Required: true},
-	"0000/data/update_next.ext3":      {Path: "0000/data/update_next.ext3", IsDir: false, Required: true},
-	"artifact.tar.gz":                 {Path: "artifact.tar.gz", IsDir: false, Required: true},
-	"0000":                            {Path: "0000", IsDir: true, Required: true},
-	"0000/type-info":                  {Path: "0000/type-info", IsDir: false, Required: true},
-	"0000/meta-data":                  {Path: "0000/meta-data", IsDir: false, Required: true},
-	"0000/signatures":                 {Path: "0000/signatures", IsDir: true, Required: true},
-	"0000/signatures/update.sig":      {Path: "0000/signatures/update.sig", IsDir: false, Required: true},
-	"0000/signatures/update_next.sig": {Path: "0000/signatures/update_next.sig", IsDir: false, Required: true},
-	"0000/scripts":                    {Path: "0000/scripts", IsDir: true, Required: true},
-	"0000/scripts/pre":                {Path: "0000/scripts/pre", IsDir: true, Required: true},
-	"0000/scripts/post":               {Path: "0000/scripts/post", IsDir: true, Required: true},
-	"0000/scripts/check":              {Path: "0000/scripts/check", IsDir: true, Required: true},
+	".":                                {Path: ".", IsDir: true, Required: true},
+	"0000/data":                        {Path: "0000/data", IsDir: true, Required: true},
+	"0000/data/update.ext4":            {Path: "0000/data/update.ext4", IsDir: false, Required: true},
+	"0000/data/update_next.ext3":       {Path: "0000/data/update_next.ext3", IsDir: false, Required: true},
+	"artifact.tar.gz":                  {Path: "artifact.tar.gz", IsDir: false, Required: true},
+	"0000":                             {Path: "0000", IsDir: true, Required: true},
+	"0000/type-info":                   {Path: "0000/type-info", IsDir: false, Required: true},
+	"0000/meta-data":                   {Path: "0000/meta-data", IsDir: false, Required: true},
+	"0000/signatures":                  {Path: "0000/signatures", IsDir: true, Required: true},
+	"0000/signatures/update.sig":       {Path: "0000/signatures/update.sig", IsDir: false, Required: true},
+	"0000/signatures/update_next.sig":  {Path: "0000/signatures/update_next.sig", IsDir: false, Required: true},
+	"0000/scripts":                     {Path: "0000/scripts", IsDir: true, Required: true},
+	"0000/scripts/pre":                 {Path: "0000/scripts/pre", IsDir: true, Required: true},
+	"0000/scripts/pre/0000_install.sh": {Path: "0000/scripts/pre/0000_install.sh", IsDir: false, Required: true},
+	"0000/scripts/post":                {Path: "0000/scripts/post", IsDir: true, Required: true},
+	"0000/scripts/check":               {Path: "0000/scripts/check", IsDir: true, Required: true},
 }
 
 func TestWriteArtifactFile(t *testing.T) {
@@ -100,9 +99,6 @@ func TestWriteArtifactFile(t *testing.T) {
 	rp := parser.NewRootfsParser("", nil)
 	aw.Register(&rp, "rootfs-image")
 	err = aw.Write()
-	assert.NoError(t, err)
-
-	err = aw.Close()
 	assert.NoError(t, err)
 
 	// check is dir structure is correct
@@ -133,7 +129,7 @@ func TestWriteBrokenArtifact(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructBroken)
 	assert.NoError(t, err)
 
-	artifactWriter := NewArtifactsWriter("artifact", updateTestDir, "mender", 1)
-	err = artifactWriter.Write()
+	aw := NewArtifactsWriter("artifact", updateTestDir, "mender", 1)
+	err = aw.Write()
 	assert.Error(t, err)
 }

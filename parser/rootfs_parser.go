@@ -48,6 +48,10 @@ type RootfsParser struct {
 	metadata metadata.Metadata
 	updates  map[string]rootfsFile
 
+	tw     *tar.Writer
+	updDir string
+	dstDir string
+
 	sStore string
 	dStore io.Writer
 }
@@ -63,28 +67,32 @@ func (rp RootfsParser) NeedsDataFile() bool {
 	return true
 }
 
-func (rp *RootfsParser) ArchiveData(tw *tar.Writer, srcDir, dst string) error {
-	f, err := os.Create("/tmp/my_data.tar.gz")
-	if err != nil {
-		return errors.Wrapf(err, "parser: can not create tmp data file")
-	}
-	//defer os.Remove("/tmp/my_data.tar.gz")
+func (rp *RootfsParser) archiveToTmp(tw *tar.Writer, f *os.File) (err error) {
 	gz := gzip.NewWriter(f)
-	defer gz.Close()
+	defer func() { err = gz.Close() }()
 	dtw := tar.NewWriter(gz)
-	defer tw.Close()
+	defer func() { err = dtw.Close() }()
 
 	for _, data := range rp.updates {
 		log.Infof("processing data file: %v [%v]", data.path, data.name)
 		a := archiver.NewFileArchiver(data.path, data.name)
-		if err := a.Archive(dtw); err != nil {
+		if err = a.Archive(dtw); err != nil {
 			return err
 		}
 	}
-	//TODO
-	dtw.Close()
-	gz.Close()
-	f.Close()
+	return err
+}
+
+func (rp *RootfsParser) ArchiveData(tw *tar.Writer, srcDir, dst string) error {
+	f, err := ioutil.TempFile("", "data")
+	if err != nil {
+		return errors.Wrapf(err, "parser: can not create tmp data file")
+	}
+	defer os.Remove(f.Name())
+
+	if err := rp.archiveToTmp(tw, f); err != nil {
+		return errors.Wrapf(err, "parser: error archiving data to tmp file")
+	}
 
 	a := archiver.NewFileArchiver(f.Name(), dst)
 	if err := a.Archive(tw); err != nil {
@@ -132,10 +140,25 @@ func archiveChecksums(tw *tar.Writer, upd []os.FileInfo, src, dir string) error 
 		log.Infof("checksum for: %v [%v]", u.Name(), string(sum))
 		a := archiver.NewStreamArchiver(sum, filepath.Join(dir, withoutExt(u.Name())+".sha256sum"))
 		if err := a.Archive(tw); err != nil {
-			return errors.Wrapf(err, "reader: error storing checksum")
+			return errors.Wrapf(err, "parser: error storing checksum")
 		}
 	}
 	return nil
+}
+
+func (rp *RootfsParser) archiveScrpt(path string, info os.FileInfo, err error) error {
+	log.Infof("archiving script: %v", path)
+	if info.IsDir() {
+		log.Infof("skipping directory")
+		return nil
+	}
+	sPath, err := filepath.Rel(rp.updDir, path)
+	if err != nil {
+		return errors.Wrapf(err, "parser: error getting path for storing scripts")
+	}
+
+	a := archiver.NewFileArchiver(path, filepath.Join(rp.dstDir, sPath))
+	return a.Archive(rp.tw)
 }
 
 func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, srcDir, dstDir string) error {
@@ -143,6 +166,10 @@ func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, srcDir, dstDir string) err
 	if err := hFormatPreWrite.CheckHeaderStructure(srcDir); err != nil {
 		return err
 	}
+
+	rp.tw = tw
+	rp.updDir = srcDir
+	rp.dstDir = dstDir
 
 	// here we should get list of all update files which are
 	// part of current update
@@ -162,7 +189,6 @@ func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, srcDir, dstDir string) err
 
 	log.Infof("update files: %+v", updFiles)
 
-	//TODO: use stored data
 	if err = archiveFiles(tw, updFiles, dstDir); err != nil {
 		return errors.Wrapf(err, "parser: can not store files")
 	}
@@ -185,16 +211,21 @@ func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, srcDir, dstDir string) err
 		return err
 	}
 
-	//TODO: get rid of bad Joins
+	// copy signatures
 	for _, u := range updFiles {
-		a = archiver.NewFileArchiver(filepath.Join(srcDir, "signatures", withoutExt(u.Name())+".sig"),
+		a = archiver.NewFileArchiver(
+			filepath.Join(srcDir, "signatures", withoutExt(u.Name())+".sig"),
 			filepath.Join(dstDir, "signatures", withoutExt(u.Name())+".sig"))
 		if err := a.Archive(tw); err != nil {
 			return errors.Wrapf(err, "parser: can not store signatures")
 		}
 	}
 
-	//TODO: scripts
+	// scripts
+	if err := filepath.Walk(filepath.Join(srcDir, "scripts"),
+		rp.archiveScrpt); err != nil {
+		return errors.Wrapf(err, "parser: can not store scripts")
+	}
 
 	return nil
 }
@@ -204,14 +235,14 @@ func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hPath string) error {
 	log.Info("processing rootfs image header")
 
 	if tr == nil {
-		return errors.New("rootfs updater: uninitialized tar reader")
+		return errors.New("parser: uninitialized tar reader")
 	}
 	// reach end of archive
 	for i := 0; ; i++ {
 		hdr, err := tr.Next()
 		if err == io.EOF {
 			// we have reached end of archive
-			log.Debug("rootfs updater: reached end of archive")
+			log.Debug("parser: reached end of archive")
 			return nil
 		}
 
@@ -226,7 +257,7 @@ func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hPath string) error {
 		case i == 0 && strings.Compare(relPath, "files") == 0:
 
 			if _, err = io.Copy(&rp.files, tr); err != nil {
-				return errors.Wrapf(err, "rootfs updater: error reading files")
+				return errors.Wrapf(err, "parser: error reading files")
 			}
 			for _, file := range rp.files.File {
 				rp.updates[withoutExt(file)] = rootfsFile{name: file}
@@ -235,16 +266,16 @@ func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hPath string) error {
 			// we can skip this one for now
 		case i == 2 && strings.Compare(relPath, "meta-data") == 0:
 			if _, err = io.Copy(&rp.metadata, tr); err != nil {
-				return errors.Wrapf(err, "rootfs updater: error reading metadata")
+				return errors.Wrapf(err, "parser: error reading metadata")
 			}
 		case strings.HasPrefix(relPath, "checksums"):
 			update, ok := rp.updates[withoutExt(hdr.Name)]
 			if !ok {
-				return errors.New("rootfs updater: found signature for non existing update file")
+				return errors.New("parser: found signature for non existing update file")
 			}
 			buf := bytes.NewBuffer(nil)
 			if _, err = io.Copy(buf, tr); err != nil {
-				return errors.Wrapf(err, "rootfs updater: error reading checksum")
+				return errors.Wrapf(err, "rparser: error reading checksum")
 			}
 			update.checksum = buf.Bytes()
 			rp.updates[withoutExt(hdr.Name)] = update
@@ -252,9 +283,10 @@ func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hPath string) error {
 			//TODO:
 		case strings.HasPrefix(relPath, "scripts"):
 			//TODO
+
 		default:
-			log.Errorf("rootfs updater: found unsupported element: %v", relPath)
-			return errors.New("rootfs updater: unsupported element")
+			log.Errorf("parser: found unsupported element: %v", relPath)
+			return errors.New("parser: unsupported element in header")
 		}
 	}
 }
@@ -279,6 +311,8 @@ func (rp *RootfsParser) ParseData(r io.Reader) error {
 		if err == io.EOF {
 			// once we reach end of archive break the loop
 			break
+		} else if err != nil {
+			return errors.Wrapf(err, "rootfs updater: error reading archive")
 		}
 		log.Infof("processing data file: %v", hdr.Name)
 		fh, ok := rp.updates[withoutExt(hdr.Name)]

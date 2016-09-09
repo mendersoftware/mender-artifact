@@ -104,7 +104,7 @@ func createArtFile(dir, name string) (*os.File, error) {
 	f, err := os.Create(fPath)
 	if err != nil {
 		log.Errorf("writer: error creating artifact file: %v", fPath)
-		return nil, errors.Wrapf(err, "reader: can not create artifact file")
+		return nil, errors.Wrapf(err, "writer: can not create artifact file")
 	}
 	return f, nil
 }
@@ -114,7 +114,7 @@ func initHeaderFile() (*os.File, error) {
 	f, err := ioutil.TempFile("", "header")
 	if err != nil {
 		return nil, errors.Wrapf(err,
-			"reader: error creating temp file for storing header")
+			"writer: error creating temp file for storing header")
 	}
 
 	return f, nil
@@ -122,6 +122,8 @@ func initHeaderFile() (*os.File, error) {
 
 func (av *ArtifactsWriter) Write() error {
 	log.Infof("reading update files from: %v", av.updDir)
+
+	defer av.close()
 
 	if err := av.ScanUpdateDirs(); err != nil {
 		return err
@@ -136,18 +138,17 @@ func (av *ArtifactsWriter) Write() error {
 	info := av.getInfo()
 	ia := archiver.NewMetadataArchiver(&info, "info")
 	if err := ia.Archive(av.aArchiver); err != nil {
-		return errors.Wrapf(err, "reader: error archiving info")
+		return errors.Wrapf(err, "writer: error archiving info")
 	}
 	// archive header
 	ha := archiver.NewFileArchiver(av.hTmpFilePath, "header.tar.gz")
 	if err := ha.Archive(av.aArchiver); err != nil {
-		return errors.Wrapf(err, "reader: error archiving header")
+		return errors.Wrapf(err, "writer: error archiving header")
 	}
 	// archive data
 	if err := av.ProcessData(); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -172,7 +173,7 @@ func getTypeInfo(dir string) (*metadata.TypeInfo, error) {
 	return info, nil
 }
 
-func (av *ArtifactsWriter) Close() (err error) {
+func (av *ArtifactsWriter) close() (err error) {
 	//finalize header
 	av.closeHeader()
 
@@ -183,13 +184,13 @@ func (av *ArtifactsWriter) Close() (err error) {
 	if av.aArchiver != nil {
 		err = av.aArchiver.Close()
 		if err != nil {
-			log.Errorf("reader: errro closing archive: %v", err)
+			log.Errorf("writer: errro closing archive: %v", err)
 		}
 	}
 	if av.aFile != nil {
 		err = av.aFile.Close()
 		if err != nil {
-			log.Errorf("reader: errro closing artifact file: %v", err)
+			log.Errorf("writer: errro closing artifact file: %v", err)
 		}
 	}
 	return err
@@ -203,7 +204,7 @@ func (av *ArtifactsWriter) ScanUpdateDirs() error {
 
 	for _, uDir := range dirs {
 		if uDir.IsDir() {
-			log.Infof("reader: scanning dir: %v", uDir.Name())
+			log.Infof("writer: scanning dir: %v", uDir.Name())
 			tInfo, err := getTypeInfo(filepath.Join(av.updDir, uDir.Name()))
 			if err != nil {
 				return err
@@ -237,19 +238,19 @@ func (h *aHeader) closeHeader() (err error) {
 	if !h.isClosed {
 		errArch := h.hArchiver.Close()
 		if errArch != nil {
-			log.Error("reader: error clossing header archive")
+			log.Error("writer: error clossing header archive")
 		}
 		errComp := h.hCompressor.Close()
 		if errComp != nil {
-			log.Error("reader: error clossing header compressor")
+			log.Error("writer: error clossing header compressor")
 		}
 		errFile := h.hTmpFile.Close()
 		if errFile != nil {
-			log.Error("reader: error clossing header temp file")
+			log.Error("writer: error clossing header temp file")
 		}
 
 		if errArch != nil || errComp != nil || errFile != nil {
-			err = errors.New("reader: error closing header")
+			err = errors.New("writer: error closing header")
 		}
 	}
 
@@ -271,7 +272,7 @@ func (av *ArtifactsWriter) ProcessHeader() error {
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return errors.Wrapf(err, "reader: error processing update directory")
+			return errors.Wrapf(err, "writer: error processing update directory")
 		}
 	}
 	return nil
@@ -280,7 +281,7 @@ func (av *ArtifactsWriter) ProcessHeader() error {
 func (av *ArtifactsWriter) ProcessNextHeaderDir() error {
 	p, upd, err := av.Parsers.Next()
 	if err == io.EOF {
-		log.Infof("reader: reached header EOF")
+		log.Infof("writer: reached header EOF")
 		// finalize header
 		if err = av.closeHeader(); err != nil {
 			return errors.Wrapf(err, "error closing header")
@@ -305,7 +306,7 @@ func (av *ArtifactsWriter) ProcessData() error {
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return errors.Wrapf(err, "reader: error processing data files")
+			return errors.Wrapf(err, "writer: error processing data files")
 		}
 	}
 	return nil
@@ -314,8 +315,13 @@ func (av *ArtifactsWriter) ProcessData() error {
 func (av *ArtifactsWriter) ProcessNextDataDir() error {
 	p, upd, err := av.Parsers.Next()
 	if err == io.EOF {
-		log.Infof("reader: reached data EOF")
+		log.Infof("writer: reached data EOF")
+		if err := av.close(); err != nil {
+			return errors.Wrapf(err, "witer: error closing archive")
+		}
 		return io.EOF
+	} else if err != nil {
+		return errors.Wrapf(err, "writer: error iterating over data")
 	}
 
 	log.Infof("processing data: %v [%+v]", upd, p)

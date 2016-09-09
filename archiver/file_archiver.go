@@ -58,5 +58,8 @@ func (f *FileArchiver) Archive(tw *tar.Writer) error {
 	}
 
 	_, err = io.Copy(tw, fd)
-	return err
+	if err != nil {
+		return errors.Wrapf(err, "arch: error writing archive data")
+	}
+	return nil
 }

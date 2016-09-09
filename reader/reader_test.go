@@ -54,20 +54,20 @@ func writeArchive(dir string) (string, error) {
 		return "", err
 	}
 
-	aw := writer.NewArtifactsWriter("artifact", dir, "mender", 1)
+	aw := writer.NewArtifactsWriter("artifact.tar.gz", dir, "mender", 1)
 	rp := parser.NewRootfsParser("", nil)
 	aw.Register(&rp, "rootfs-image")
 	err = aw.Write()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "artifact"), nil
+	return filepath.Join(dir, "artifact.tar.gz"), nil
 }
 
 func TestReadArchive(t *testing.T) {
 	// first create archive, that we will be able to read
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	//defer os.RemoveAll(updateTestDir)
+	defer os.RemoveAll(updateTestDir)
 
 	archive, err := writeArchive(updateTestDir)
 	assert.NoError(t, err)
