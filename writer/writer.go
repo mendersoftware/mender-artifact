@@ -123,7 +123,12 @@ func initHeaderFile() (*os.File, error) {
 func (av *ArtifactsWriter) Write() error {
 	log.Infof("reading update files from: %v", av.updDir)
 
-	if err := av.InitWriting(); err != nil {
+	if err := av.ScanUpdateDirs(); err != nil {
+		return err
+	}
+
+	// scan header
+	if err := av.ProcessHeader(); err != nil {
 		return err
 	}
 
@@ -132,11 +137,6 @@ func (av *ArtifactsWriter) Write() error {
 	ia := archiver.NewMetadataArchiver(&info, "info")
 	if err := ia.Archive(av.aArchiver); err != nil {
 		return errors.Wrapf(err, "reader: error archiving info")
-	}
-
-	// scan header
-	if err := av.ProcessHeader(); err != nil {
-		return err
 	}
 	// archive header
 	ha := archiver.NewFileArchiver(av.hTmpFilePath, "header.tar.gz")
@@ -195,7 +195,7 @@ func (av *ArtifactsWriter) Close() (err error) {
 	return err
 }
 
-func (av *ArtifactsWriter) setParsers() error {
+func (av *ArtifactsWriter) ScanUpdateDirs() error {
 	dirs, err := ioutil.ReadDir(av.updDir)
 	if err != nil {
 		return err
@@ -220,15 +220,10 @@ func (av *ArtifactsWriter) setParsers() error {
 	return nil
 }
 
-func (av *ArtifactsWriter) InitWriting() error {
-
-	if err := av.setParsers(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (h *aHeader) closeHeader() (err error) {
+	// We have seen some of header components to cause crash while
+	// closing. That's why we are trying to close and clean up as much
+	// as possible here and recover() if crash happens.
 	defer func() {
 		if r := recover(); r != nil {
 			log.Errorf("error closing: %v", r)
@@ -286,6 +281,7 @@ func (av *ArtifactsWriter) ProcessNextHeaderDir() error {
 	p, upd, err := av.Parsers.Next()
 	if err == io.EOF {
 		log.Infof("reader: reached header EOF")
+		// finalize header
 		if err = av.closeHeader(); err != nil {
 			return errors.Wrapf(err, "error closing header")
 		}
