@@ -56,7 +56,7 @@ func writeArchive(dir string) (string, error) {
 
 	aw := writer.NewArtifactsWriter("artifact.tar.gz", dir, "mender", 1)
 	rp := parser.NewRootfsParser("", nil)
-	aw.Register(&rp, "rootfs-image")
+	aw.Register(rp, "rootfs-image")
 	err = aw.Write()
 	if err != nil {
 		return "", err
@@ -83,7 +83,7 @@ func TestReadArchive(t *testing.T) {
 
 	aReader := NewArtifactsReader(f)
 	rp := parser.NewRootfsParser("", df)
-	aReader.Register(&rp, "rootfs-image")
+	aReader.Register(rp, "rootfs-image")
 	err = aReader.Read()
 	assert.NoError(t, err)
 	assert.NotNil(t, df)
@@ -112,7 +112,7 @@ func TestReadSequence(t *testing.T) {
 	aReader := NewArtifactsReader(f)
 	defer aReader.Close()
 	rp := parser.NewRootfsParser("", nil)
-	aReader.Register(&rp, "rootfs-image")
+	aReader.Register(rp, "rootfs-image")
 
 	upd, err := aReader.GetUpdates()
 	assert.NoError(t, err)

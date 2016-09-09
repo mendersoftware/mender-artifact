@@ -56,8 +56,8 @@ type RootfsParser struct {
 	dStore io.Writer
 }
 
-func NewRootfsParser(sStoreDir string, w io.Writer) RootfsParser {
-	return RootfsParser{
+func NewRootfsParser(sStoreDir string, w io.Writer) *RootfsParser {
+	return &RootfsParser{
 		sStore:  sStoreDir,
 		dStore:  w,
 		updates: map[string]rootfsFile{}}
