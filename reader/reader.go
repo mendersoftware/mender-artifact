@@ -12,7 +12,7 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-package reader
+package areader
 
 import (
 	"archive/tar"
@@ -25,75 +25,76 @@ import (
 
 	"github.com/mendersoftware/artifacts/metadata"
 	"github.com/mendersoftware/artifacts/parser"
-	"github.com/mendersoftware/log"
 	"github.com/pkg/errors"
 )
 
-type ArtifactsReader struct {
-	artifact io.ReadCloser
-	tReader  *tar.Reader
-	*parser.Parsers
+type Reader struct {
+	r io.Reader
+	*parser.ParseManager
 
-	info metadata.Info
-	*header
+	info    metadata.Info
+	tReader *tar.Reader
+	*headerReader
 }
 
-type header struct {
+type headerReader struct {
 	hInfo metadata.HeaderInfo
 
 	hReader     *tar.Reader
 	hGzipReader *gzip.Reader
 }
 
-func NewArtifactsReader(r io.ReadCloser) *ArtifactsReader {
-	return &ArtifactsReader{
-		artifact: r,
-		Parsers:  parser.NewParserFactory(),
-		header:   &header{},
+func NewReader(r io.Reader) *Reader {
+	ar := Reader{
+		r:            r,
+		ParseManager: parser.NewParseManager(),
+		headerReader: &headerReader{},
 	}
+	//TODO:
+	//ar.Register(parser, parsingType)
+	return &ar
 }
 
-func (ar *ArtifactsReader) Read() error {
+func (ar *Reader) Read() error {
 	if _, err := ar.GetUpdates(); err != nil {
 		return err
 	}
 	if _, err := ar.ReadHeader(); err != nil {
 		return err
 	}
-	if err := ar.ProcessUpdateFiles(); err != nil {
+	if err := ar.ReadUpdates(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (ar *ArtifactsReader) Close() error {
+func (ar *Reader) Close() error {
 	if ar.hGzipReader != nil {
-		ar.hGzipReader.Close()
+		return ar.hGzipReader.Close()
 	}
 	return nil
 }
 
-func (ar *ArtifactsReader) getReader() *tar.Reader {
+func (ar *Reader) getTarReader() *tar.Reader {
 	if ar.tReader == nil {
-		ar.tReader = tar.NewReader(ar.artifact)
+		ar.tReader = tar.NewReader(ar.r)
 	}
 	return ar.tReader
 }
 
 // This reads next element in main artifact tar structure.
 // In v1 there are only info, header and data files available.
-func (ar *ArtifactsReader) readNext(w io.Writer, elem string) error {
-	tr := ar.getReader()
+func (ar *Reader) readNext(w io.Writer, elem string) error {
+	tr := ar.getTarReader()
 	return readNext(tr, w, elem)
 }
 
-func (ar *ArtifactsReader) getNext() (io.Reader, *tar.Header, error) {
-	tr := ar.getReader()
+func (ar *Reader) getNext() (io.Reader, *tar.Header, error) {
+	tr := ar.getTarReader()
 	return getNext(tr)
 }
 
-// header-info must be the first file in the tar archive
-func (ar *ArtifactsReader) initHeaderForReading() error {
+func (ar *Reader) initHeaderReading() error {
 	r, hdr, err := ar.getNext()
 	if err != nil {
 		return errors.New("reader: error initializing header")
@@ -118,7 +119,7 @@ func (ar *ArtifactsReader) initHeaderForReading() error {
 	return nil
 }
 
-func (ar *ArtifactsReader) readInfo() (*metadata.Info, error) {
+func (ar *Reader) readInfo() (*metadata.Info, error) {
 	info := new(metadata.Info)
 	err := ar.readNext(info, "info")
 	if err != nil {
@@ -127,9 +128,7 @@ func (ar *ArtifactsReader) readInfo() (*metadata.Info, error) {
 	return info, nil
 }
 
-func (ar *ArtifactsReader) GetUpdates() (*parser.Parsers, error) {
-	ar.Parsers.Reset()
-
+func (ar *Reader) GetUpdates() (parser.Workers, error) {
 	info, err := ar.readInfo()
 	if err != nil {
 		return nil, err
@@ -138,82 +137,89 @@ func (ar *ArtifactsReader) GetUpdates() (*parser.Parsers, error) {
 	switch info.Version {
 	case 1:
 		// we know that in v1 header goes just after info
-		err := ar.initHeaderForReading()
+		err := ar.initHeaderReading()
 		if err != nil {
 			return nil, err
 		}
-		log.Infof("parsed header info: %v", ar.hInfo)
 		for cnt, update := range ar.hInfo.Updates {
-			p, err := ar.GetParser(update.Type)
+			p, err := ar.ParseManager.GetRegistered(update.Type)
 			if err != nil {
-				return nil, errors.Wrapf(err,
-					"reader: can not find parser for update type: [%v]", update.Type)
+				p = ar.ParseManager.GetGeneric()
+				if p == nil {
+					return nil, errors.Wrapf(err,
+						"reader: can not find parser for update type: [%v]", update.Type)
+				}
 			}
-			ar.PushParser(p, fmt.Sprintf("%04d", cnt))
+			ar.ParseManager.PushWorker(p, fmt.Sprintf("%04d", cnt))
 		}
-		return ar.Parsers, nil
+		return ar.ParseManager.GetWorkers(), nil
 	default:
 		return nil, errors.New("reader: unsupported artifact version")
 	}
 }
 
-func (ar *ArtifactsReader) ReadHeader() (*parser.Parsers, error) {
-	ar.Parsers.Reset()
+//TODO
+//func getUpdateFromHeaderName()
 
-	for cnt := 0; ; cnt++ {
-		p, _, err := ar.Parsers.Next()
+func (ar *Reader) ReadHeader() (parser.Workers, error) {
+	r := ar.hReader
+	for {
+		// TODO: make sure we are reading first header file
+		p, err := ar.ParseManager.GetWorker("0000")
+		if err != nil {
+			return nil, errors.Wrapf(err, "reader: can not find parser for update: %v", "0000")
+		}
+		if err = p.ParseHeader(r,
+			filepath.Join("headers", fmt.Sprintf("%04d", 0))); err != nil {
+			return nil, err
+		}
+
+		r, _, err = getNext(ar.hReader)
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			return nil, err
 		}
-		if err := p.ParseHeader(ar.hReader,
-			filepath.Join("headers", fmt.Sprintf("%04d", cnt))); err != nil {
-			return nil, err
-		}
 	}
+
 	// at the end close gzip
 	if ar.hGzipReader != nil {
 		if err := ar.hGzipReader.Close(); err != nil {
 			return nil, errors.Wrapf(err, "reader: error closing gzip reader")
 		}
 	}
-	return ar.Parsers, nil
+	return ar.ParseManager.GetWorkers(), nil
 }
 
-func (ar *ArtifactsReader) ProcessUpdateFiles() error {
-	ar.Parsers.Reset()
+func getDataFileUpdate(path string) string {
+	return strings.TrimSuffix(filepath.Base(path), ".tar.gz")
+}
 
-	for cnt := 0; ; cnt++ {
-		p, upd, err := ar.Parsers.Next()
-		log.Debug("parsing update: %d [%+v] %v", cnt, p, upd)
+func (ar *Reader) ReadUpdates() error {
+	for {
+		r, hdr, err := ar.getNext()
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return err
+			return errors.Wrapf(err, "reader: error reading update file: "+hdr.Name)
 		}
-		if p.NeedsDataFile() {
-			r, hdr, err := ar.getNext()
-			log.Infof("parsing update file: %v [%+v] %v", r, hdr, err)
-			if err != nil {
-				return errors.Wrapf(err, "reader: no data file to parse")
-			}
+		if strings.Compare(filepath.Dir(hdr.Name), "data") != 0 {
+			return errors.New("reader: invalid data file name: " + hdr.Name)
+		}
+		p, err := ar.ParseManager.GetWorker(getDataFileUpdate(hdr.Name))
+		if err != nil {
+			return errors.Wrapf(err,
+				"reader: can not find parser for parsing data file [%v]", hdr.Name)
+		}
+		p.ParseData(r)
 
-			if strings.Compare(filepath.Dir(hdr.Name), "data") != 0 ||
-				!strings.HasPrefix(filepath.Base(hdr.Name), upd) {
-				return errors.New("reader: invalid data file name or elemet out of order")
-			}
-			p.ParseData(r)
-		} else {
-			p.ParseData(nil)
-		}
 	}
 	return nil
 }
 
 func readNext(tr *tar.Reader, w io.Writer, elem string) error {
 	if tr == nil {
-		return errors.New("reader: red next called on invalid stream")
+		return errors.New("reader: read next called on invalid stream")
 	}
 	r, hdr, err := getNext(tr)
 	if err != nil {
@@ -222,14 +228,14 @@ func readNext(tr *tar.Reader, w io.Writer, elem string) error {
 	if strings.HasPrefix(hdr.Name, elem) {
 		_, err = io.Copy(w, r)
 		if err != nil {
-			return errors.Wrapf(err, "reader: read next error")
+			return errors.Wrapf(err, "reader: error reading")
 		}
 		return nil
 	}
 	return os.ErrInvalid
 }
 
-func getNext(tr *tar.Reader) (io.Reader, *tar.Header, error) {
+func getNext(tr *tar.Reader) (*tar.Reader, *tar.Header, error) {
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
@@ -238,7 +244,6 @@ func getNext(tr *tar.Reader) (io.Reader, *tar.Header, error) {
 		} else if err != nil {
 			return nil, nil, errors.New("reader: error reading archive")
 		}
-		log.Infof("reader: processing file: %v", hdr.Name)
 		return tr, hdr, nil
 	}
 }

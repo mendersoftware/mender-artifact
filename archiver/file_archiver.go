@@ -23,17 +23,17 @@ import (
 )
 
 type FileArchiver struct {
-	path string
-	name string
+	path        string
+	archivePath string
 	*os.File
 }
 
 // NewFileArchiver creates fileArchiver used for storing plain files
 // inside tar archive.
 // path is the absolute path to the file that will be archived and
-// name is the relatve path inside the archive (see tar.Header.Name)
-func NewFileArchiver(path, name string) *FileArchiver {
-	return &FileArchiver{name: name, path: path}
+// archivePath is the relatve path inside the archive (see tar.Header.Name)
+func NewFileArchiver(path, archivePath string) *FileArchiver {
+	return &FileArchiver{path, archivePath, nil}
 }
 
 func (f *FileArchiver) Archive(tw *tar.Writer) error {
@@ -52,7 +52,7 @@ func (f *FileArchiver) Archive(tw *tar.Writer) error {
 	}
 	defer fd.Close()
 
-	hdr.Name = f.name
+	hdr.Name = f.archivePath
 	if err = tw.WriteHeader(hdr); err != nil {
 		return errors.Wrapf(err, "arch: error writing header")
 	}

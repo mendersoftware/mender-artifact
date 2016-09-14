@@ -25,13 +25,13 @@ import (
 // inside tar archive.
 // data is the data structure implementing Validater interface and must be
 // a struct that can be converted to JSON (see getJSON below)
-// name is the relatve path inside the archive (see tar.Header.Name)
-func NewMetadataArchiver(data metadata.Validater, name string) *StreamArchiver {
+// archivePath is the relatve path inside the archive (see tar.Header.Name)
+func NewMetadataArchiver(data metadata.Validater, archivePath string) *StreamArchiver {
 	j, err := convertToJSON(data)
 	if err != nil {
 		return nil
 	}
-	return &StreamArchiver{name, j, bytes.NewReader(j)}
+	return &StreamArchiver{archivePath, bytes.NewReader(j)}
 }
 
 // gets data which is Validated before converting to JSON

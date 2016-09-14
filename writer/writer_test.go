@@ -12,7 +12,7 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-package writer
+package awriter
 
 import (
 	"io/ioutil"
@@ -44,7 +44,7 @@ func TestWriteArtifactBrokenDirStruct(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructInvalid)
 	assert.NoError(t, err)
 
-	aw := ArtifactsWriter{
+	aw := Writer{
 		updDir: updateTestDir,
 	}
 
@@ -94,10 +94,11 @@ func TestWriteArtifactFile(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructOK)
 	assert.NoError(t, err)
 
-	aw := NewArtifactsWriter("artifact.tar.gz", updateTestDir, "mender", 1)
+	aw := NewWriter("artifact.tar.gz", updateTestDir, "mender", 1)
 
 	rp := parser.NewRootfsParser("", nil)
 	aw.Register(rp, "rootfs-image")
+
 	err = aw.Write()
 	assert.NoError(t, err)
 
@@ -129,7 +130,7 @@ func TestWriteBrokenArtifact(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructBroken)
 	assert.NoError(t, err)
 
-	aw := NewArtifactsWriter("artifact", updateTestDir, "mender", 1)
+	aw := NewWriter("artifact", updateTestDir, "mender", 1)
 	err = aw.Write()
 	assert.Error(t, err)
 }

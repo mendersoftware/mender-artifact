@@ -22,8 +22,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/mendersoftware/log"
 )
 
 type Validater interface {
@@ -132,7 +130,6 @@ type Metadata map[string]interface{}
 // nost specified we are only checking if those could be converted to JSON.
 // The only fields which must exist are 'DeviceType' and 'ImageId'.
 func (m Metadata) Validate() error {
-	log.Debugf("validating metadata: %v", m)
 	if m == nil {
 		return ErrValidatingData
 	}
@@ -142,7 +139,6 @@ func (m Metadata) Validate() error {
 
 	for k, v := range m {
 		if v == nil {
-			log.Error("empty element while validating metedata")
 			return ErrValidatingData
 		}
 		if strings.Compare(k, "DeviceType") == 0 {
@@ -152,9 +148,7 @@ func (m Metadata) Validate() error {
 			imageID = v
 		}
 	}
-	log.Debugf("device type: %v, image id: %v", deviceType, imageID)
 	if deviceType == nil || imageID == nil {
-		log.Error("empty device type or device id")
 		return ErrValidatingData
 	}
 	return nil
@@ -220,8 +214,8 @@ var (
 	ErrUnsupportedElement = errors.New("Unsupported artifact")
 )
 
-func (mh ArtifactHeader) processEntry(entry string, isDir bool, required map[string]bool) error {
-	elem, ok := mh[entry]
+func (ah ArtifactHeader) processEntry(entry string, isDir bool, required map[string]bool) error {
+	elem, ok := ah[entry]
 	if !ok {
 		// for now we are only allowing file name to be user defined
 		// the directory structure is pre defined
@@ -229,7 +223,7 @@ func (mh ArtifactHeader) processEntry(entry string, isDir bool, required map[str
 			return ErrUnsupportedElement
 		}
 		newEntry := filepath.Dir(entry) + "/*"
-		return mh.processEntry(newEntry, isDir, required)
+		return ah.processEntry(newEntry, isDir, required)
 	}
 
 	if isDir != elem.IsDir {
@@ -244,12 +238,12 @@ func (mh ArtifactHeader) processEntry(entry string, isDir bool, required map[str
 
 // CheckHeaderStructure checks if headerDir directory contains all needed
 // files and sub-directories for creating Mender artifact.
-func (mh ArtifactHeader) CheckHeaderStructure(headerDir string) error {
+func (ah ArtifactHeader) CheckHeaderStructure(headerDir string) error {
 	if _, err := os.Stat(headerDir); os.IsNotExist(err) {
 		return os.ErrNotExist
 	}
 	var required = make(map[string]bool)
-	for k, v := range mh {
+	for k, v := range ah {
 		if v.Required {
 			required[k] = false
 		}
@@ -261,9 +255,8 @@ func (mh ArtifactHeader) CheckHeaderStructure(headerDir string) error {
 				return err
 			}
 
-			err = mh.processEntry(pth, f.IsDir(), required)
+			err = ah.processEntry(pth, f.IsDir(), required)
 			if err != nil {
-				log.Errorf("unsupported element in update metadata header: %v (is dir: %v)", path, f.IsDir())
 				return err
 			}
 
@@ -274,9 +267,8 @@ func (mh ArtifactHeader) CheckHeaderStructure(headerDir string) error {
 	}
 
 	// check if all required elements are in place
-	for k, v := range required {
+	for _, v := range required {
 		if !v {
-			log.Errorf("missing element in update metadata header: %v", k)
 			return ErrMissingMetadataElem
 		}
 	}

@@ -19,40 +19,36 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/mendersoftware/log"
 	"github.com/pkg/errors"
 )
 
-// StreamArchiver implements ReadArchiver interface
 type StreamArchiver struct {
-	name string
-	data []byte
+	archPath string
 	*bytes.Reader
 }
 
 // NewStreamArchiver creates streamArchiver used for storing plain text files
 // inside tar archive.
 // data is the plain data that will be stored in archive file
-// name is the relatve path inside the archive (see tar.Header.Name)
-func NewStreamArchiver(data []byte, name string) *StreamArchiver {
-	return &StreamArchiver{name, data, bytes.NewReader(data)}
+// archivePath is the relatve path inside the archive (see tar.Header.Name)
+func NewStreamArchiver(data []byte, archivePath string) *StreamArchiver {
+	return &StreamArchiver{archivePath, bytes.NewReader(data)}
 }
 
 func (str *StreamArchiver) Archive(tw *tar.Writer) error {
 
 	hdr := &tar.Header{
-		Name: str.name,
+		Name: str.archPath,
 		Mode: 0600,
-		Size: int64(len(str.data)),
+		Size: int64(str.Len()),
 	}
-	log.Debugf("arch: have header: %v", hdr)
 	if err := tw.WriteHeader(hdr); err != nil {
 		return errors.Wrapf(err, "arch: can not write header")
 	}
 
 	_, err := io.Copy(tw, str.Reader)
 	if err != nil {
-		return errors.Wrapf(err, "arch: can not write bocy")
+		return errors.Wrapf(err, "arch: can not write body")
 	}
 	return nil
 }

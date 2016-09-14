@@ -18,53 +18,70 @@ import (
 	"archive/tar"
 	"errors"
 	"io"
+
+	"github.com/mendersoftware/artifacts/metadata"
 )
 
-type ArtifactParser interface {
+type ContentReader interface {
+	ReadUpdateType() (*metadata.UpdateType, error)
+	ReadUpdateFiles() error
+	ReadDeviceType() (string, error)
+	ReadMetadata() (*metadata.Metadata, error)
+}
+
+type Reader interface {
 	ParseHeader(tr *tar.Reader, hPath string) error
 	ParseData(r io.Reader) error
-	NeedsDataFile() bool
+
+	ContentReader
+}
+
+type Writer interface {
 	ArchiveHeader(tw *tar.Writer, srcDir, dstDir string) error
 	ArchiveData(tw *tar.Writer, srcDir, dst string) error
 }
 
-type Parsers struct {
-	pFactory ParserFactory
-	ParserIterator
+type Parser interface {
+	Reader
+	Writer
 }
 
-func NewParserFactory() *Parsers {
-	return &Parsers{map[string]ArtifactParser{}, ParserIterator{}}
+type Workers map[string]Parser
+
+type ParseManager struct {
+	gParser  Parser
+	pFactory map[string]Parser
+	pWorker  map[string]Parser
 }
 
-type pListEntry struct {
-	p ArtifactParser
-	u string
-}
-type ParserIterator struct {
-	pList []pListEntry
-	cnt   int
-}
-
-func (pi *ParserIterator) PushParser(parser ArtifactParser, update string) {
-	pi.pList = append(pi.pList, pListEntry{parser, update})
-}
-
-func (pi *ParserIterator) Next() (ArtifactParser, string, error) {
-	if len(pi.pList) <= pi.cnt {
-		return nil, "", io.EOF
+func NewParseManager() *ParseManager {
+	return &ParseManager{
+		nil,
+		make(map[string]Parser, 0),
+		make(map[string]Parser, 0),
 	}
-	defer func() { pi.cnt++ }()
-	return pi.pList[pi.cnt].p, pi.pList[pi.cnt].u, nil
 }
 
-func (pi *ParserIterator) Reset() {
-	pi.cnt = 0
+func (p *ParseManager) GetWorkers() Workers {
+	return p.pWorker
 }
 
-type ParserFactory map[string]ArtifactParser
+func (p *ParseManager) PushWorker(parser Parser, update string) error {
+	if _, ok := p.pWorker[update]; ok {
+		return errors.New("parser: already registered")
+	}
+	p.pWorker[update] = parser
+	return nil
+}
 
-func (p *Parsers) Register(parser ArtifactParser, parsingType string) error {
+func (p *ParseManager) GetWorker(update string) (Parser, error) {
+	if p, ok := p.pWorker[update]; ok {
+		return p, nil
+	}
+	return nil, errors.New("parser: can not find worker for update " + update)
+}
+
+func (p *ParseManager) Register(parser Parser, parsingType string) error {
 	if _, ok := p.pFactory[parsingType]; ok {
 		return errors.New("parser: already registered")
 	}
@@ -72,11 +89,14 @@ func (p *Parsers) Register(parser ArtifactParser, parsingType string) error {
 	return nil
 }
 
-// GetParser returns copy of the parser
-func (p Parsers) GetParser(parsingType string) (ArtifactParser, error) {
+func (p *ParseManager) GetRegistered(parsingType string) (Parser, error) {
 	parser, ok := p.pFactory[parsingType]
 	if !ok {
 		return nil, errors.New("parser: does not exist")
 	}
 	return parser, nil
+}
+
+func (p *ParseManager) GetGeneric() Parser {
+	return p.gParser
 }

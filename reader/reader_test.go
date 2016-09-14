@@ -12,7 +12,7 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-package reader
+package areader
 
 import (
 	"io/ioutil"
@@ -42,7 +42,7 @@ var dirStructOK = []TestDirEntry{
 	{Path: "0000/signatures/update.sig", IsDir: false},
 	{Path: "0000/scripts", IsDir: true},
 	{Path: "0000/scripts/pre", IsDir: true},
-	{Path: "0000/scripts/pre/my_script", IsDir: false},
+	{Path: "0000/scripts/pre/my_script", Content: []byte("my first script"), IsDir: false},
 	{Path: "0000/scripts/post", IsDir: true},
 	{Path: "0000/scripts/check", IsDir: true},
 }
@@ -54,7 +54,7 @@ func writeArchive(dir string) (string, error) {
 		return "", err
 	}
 
-	aw := writer.NewArtifactsWriter("artifact.tar.gz", dir, "mender", 1)
+	aw := awriter.NewWriter("artifact.tar.gz", dir, "mender", 1)
 	rp := parser.NewRootfsParser("", nil)
 	aw.Register(rp, "rootfs-image")
 	err = aw.Write()
@@ -67,7 +67,7 @@ func writeArchive(dir string) (string, error) {
 func TestReadArchive(t *testing.T) {
 	// first create archive, that we will be able to read
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
+	//defer os.RemoveAll(updateTestDir)
 
 	archive, err := writeArchive(updateTestDir)
 	assert.NoError(t, err)
@@ -81,7 +81,7 @@ func TestReadArchive(t *testing.T) {
 
 	df, err := os.Create(path.Join(updateTestDir, "my_update"))
 
-	aReader := NewArtifactsReader(f)
+	aReader := NewReader(f)
 	rp := parser.NewRootfsParser("", df)
 	aReader.Register(rp, "rootfs-image")
 	err = aReader.Read()
@@ -109,7 +109,7 @@ func TestReadSequence(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, f)
 
-	aReader := NewArtifactsReader(f)
+	aReader := NewReader(f)
 	defer aReader.Close()
 	rp := parser.NewRootfsParser("", nil)
 	aReader.Register(rp, "rootfs-image")
@@ -122,6 +122,6 @@ func TestReadSequence(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, upd)
 
-	err = aReader.ProcessUpdateFiles()
+	err = aReader.ReadUpdates()
 	assert.NoError(t, err)
 }
