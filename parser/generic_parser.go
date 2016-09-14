@@ -150,6 +150,10 @@ func parseData(r io.Reader, w io.Writer, uFiles map[string]UpdateFile) error {
 	return nil
 }
 
+func (rp *GenericParser) Copy() Parser {
+	return NewGenericParser()
+}
+
 // data files are stored in tar.gz format
 func (rp *GenericParser) ParseData(r io.Reader) error {
 	return parseData(r, ioutil.Discard, rp.updates)

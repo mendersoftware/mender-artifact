@@ -46,6 +46,10 @@ func NewRootfsParser(sStoreDir string, w io.Writer) *RootfsParser {
 		updates:    map[string]UpdateFile{}}
 }
 
+func (rp *RootfsParser) Copy() Parser {
+	return NewRootfsParser("", rp.dataWriter)
+}
+
 func (rp *RootfsParser) GetUpdateType() *metadata.UpdateType {
 	return &metadata.UpdateType{Type: "rootfs-image"}
 }
@@ -201,7 +205,8 @@ func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, src, dst string) error {
 			filepath.Join(src, "signatures", withoutExt(u.Name())+".sig"),
 			filepath.Join(dst, "signatures", withoutExt(u.Name())+".sig"))
 		if err := a.Archive(tw); err != nil {
-			return errors.Wrapf(err, "parser: can not store signatures")
+			// TODO: for now we are skipping storing signatures
+			return nil
 		}
 	}
 
@@ -256,13 +261,14 @@ var hFormatPreWrite = metadata.ArtifactHeader{
 	// while calling filepath.Walk() `.` (root) directory is included
 	// when iterating throug entries in the tree
 	".":               {Path: ".", IsDir: true, Required: false},
+	"artifact.mender": {Path: "artifact.mender", IsDir: false, Required: false},
 	"files":           {Path: "files", IsDir: false, Required: false},
 	"meta-data":       {Path: "meta-data", IsDir: false, Required: true},
 	"type-info":       {Path: "type-info", IsDir: false, Required: true},
 	"checksums":       {Path: "checksums", IsDir: true, Required: false},
 	"checksums/*":     {Path: "checksums", IsDir: false, Required: false},
-	"signatures":      {Path: "signatures", IsDir: true, Required: true},
-	"signatures/*":    {Path: "signatures", IsDir: false, Required: true},
+	"signatures":      {Path: "signatures", IsDir: true, Required: false},
+	"signatures/*":    {Path: "signatures", IsDir: false, Required: false},
 	"scripts":         {Path: "scripts", IsDir: true, Required: false},
 	"scripts/pre":     {Path: "scripts/pre", IsDir: true, Required: false},
 	"scripts/pre/*":   {Path: "scripts/pre", IsDir: false, Required: false},

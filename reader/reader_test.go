@@ -97,7 +97,7 @@ func TestReadArchive(t *testing.T) {
 func TestReadGeneric(t *testing.T) {
 	// first create archive, that we will be able to read
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	//defer os.RemoveAll(updateTestDir)
+	defer os.RemoveAll(updateTestDir)
 
 	archive, err := writeArchive(updateTestDir)
 	assert.NoError(t, err)

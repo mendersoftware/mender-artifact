@@ -17,6 +17,7 @@ package archiver
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 
 	"github.com/mendersoftware/artifacts/metadata"
 )
@@ -29,7 +30,7 @@ import (
 func NewMetadataArchiver(data metadata.Validater, archivePath string) *StreamArchiver {
 	j, err := convertToJSON(data)
 	if err != nil {
-		return nil
+		return &StreamArchiver{}
 	}
 	return &StreamArchiver{archivePath, bytes.NewReader(j)}
 }
@@ -37,7 +38,7 @@ func NewMetadataArchiver(data metadata.Validater, archivePath string) *StreamArc
 // gets data which is Validated before converting to JSON
 func convertToJSON(data metadata.Validater) ([]byte, error) {
 	if data == nil {
-		return nil, nil
+		return nil, errors.New("archiver: empty data")
 	}
 	if err := data.Validate(); err != nil {
 		return nil, err

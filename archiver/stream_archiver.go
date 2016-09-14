@@ -36,6 +36,9 @@ func NewStreamArchiver(data []byte, archivePath string) *StreamArchiver {
 }
 
 func (str *StreamArchiver) Archive(tw *tar.Writer) error {
+	if len(str.archPath) == 0 || str.Reader == nil {
+		return errors.New("arch: trying to call archive on uninitialized archiver")
+	}
 
 	hdr := &tar.Header{
 		Name: str.archPath,

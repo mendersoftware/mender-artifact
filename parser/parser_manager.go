@@ -45,6 +45,7 @@ type Reader interface {
 type Writer interface {
 	ArchiveHeader(tw *tar.Writer, srcDir, dstDir string) error
 	ArchiveData(tw *tar.Writer, srcDir, dst string) error
+	Copy() Parser
 }
 
 type Parser interface {
@@ -104,7 +105,7 @@ func (p *ParseManager) GetRegistered(parsingType string) (Parser, error) {
 	if !ok {
 		return nil, errors.New("parser: does not exist")
 	}
-	return parser, nil
+	return parser.Copy(), nil
 }
 
 func (p *ParseManager) SetGeneric(parser Parser) {

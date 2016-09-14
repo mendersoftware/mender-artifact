@@ -102,9 +102,80 @@ func TestWriteArtifactFile(t *testing.T) {
 	err = aw.Write()
 	assert.NoError(t, err)
 
+	aw.Close()
+
 	// check is dir structure is correct
 	err = dirStructOKAfterWriting.CheckHeaderStructure(updateTestDir)
 	assert.NoError(t, err)
+}
+
+var dirStructOKSingle = []TestDirEntry{
+	{Path: "data", IsDir: true},
+	{Path: "data/update.ext4", Content: []byte("first update"), IsDir: false},
+	{Path: "type-info", Content: []byte(`{"type": "rootfs-image"}`), IsDir: false},
+	{Path: "meta-data", Content: []byte(`{"DeviceType": "vexpress-qemu", "ImageID": "core-image-minimal-201608110900"}`), IsDir: false},
+}
+
+func TestWriteSingleArtifactFile(t *testing.T) {
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+	err := MakeFakeUpdateDir(updateTestDir, dirStructOKSingle)
+	assert.NoError(t, err)
+
+	aw := NewWriter("artifact.tar.gz", updateTestDir, "mender", 1)
+
+	rp := parser.NewRootfsParser("", nil)
+	aw.Register(rp)
+
+	err = aw.Write()
+	assert.NoError(t, err)
+
+	aw.Close()
+}
+
+var dirStructMultiple = []TestDirEntry{
+	{Path: "0000", IsDir: true},
+	{Path: "0000/data", IsDir: true},
+	{Path: "0000/data/update.ext4", Content: []byte("first update"), IsDir: false},
+	{Path: "0000/type-info", Content: []byte(`{"type": "rootfs-image"}`), IsDir: false},
+	{Path: "0000/meta-data", Content: []byte(`{"DeviceType": "vexpress-qemu", "ImageID": "core-image-minimal-201608110900"}`), IsDir: false},
+	{Path: "0000/signatures", IsDir: true},
+	{Path: "0000/signatures/update.sig", IsDir: false},
+	{Path: "0000/scripts", IsDir: true},
+	{Path: "0000/scripts/pre", IsDir: true},
+	{Path: "0000/scripts/pre/0000_install.sh", Content: []byte("run me!"), IsDir: false},
+	{Path: "0000/scripts/post", IsDir: true},
+	{Path: "0000/scripts/check", IsDir: true},
+
+	{Path: "0001", IsDir: true},
+	{Path: "0001/data", IsDir: true},
+	{Path: "0001/data/update_next.ext3", Content: []byte("second update"), IsDir: false},
+	{Path: "0001/type-info", Content: []byte(`{"type": "rootfs-image"}`), IsDir: false},
+	{Path: "0001/meta-data", Content: []byte(`{"DeviceType": "vexpress-qemu", "ImageID": "core-image-minimal-201608110900"}`), IsDir: false},
+	{Path: "0001/signatures", IsDir: true},
+	{Path: "0001/signatures/update_next.sig", IsDir: false},
+	{Path: "0001/scripts", IsDir: true},
+	{Path: "0001/scripts/pre", IsDir: true},
+	{Path: "0001/scripts/pre/0000_install.sh", Content: []byte("run me!"), IsDir: false},
+	{Path: "0001/scripts/post", IsDir: true},
+	{Path: "0001/scripts/check", IsDir: true},
+}
+
+func TestWriteMultiple(t *testing.T) {
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+	err := MakeFakeUpdateDir(updateTestDir, dirStructMultiple)
+	assert.NoError(t, err)
+
+	aw := NewWriter("artifact.tar.gz", updateTestDir, "mender", 1)
+
+	rp := parser.NewRootfsParser("", nil)
+	aw.Register(rp)
+
+	err = aw.Write()
+	assert.NoError(t, err)
+
+	aw.Close()
 }
 
 var dirStructBroken = []TestDirEntry{
@@ -133,4 +204,6 @@ func TestWriteBrokenArtifact(t *testing.T) {
 	aw := NewWriter("artifact", updateTestDir, "mender", 1)
 	err = aw.Write()
 	assert.Error(t, err)
+
+	aw.Close()
 }
