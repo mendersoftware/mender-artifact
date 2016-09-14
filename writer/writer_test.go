@@ -97,7 +97,7 @@ func TestWriteArtifactFile(t *testing.T) {
 	aw := NewWriter("artifact.tar.gz", updateTestDir, "mender", 1)
 
 	rp := parser.NewRootfsParser("", nil)
-	aw.Register(rp, "rootfs-image")
+	aw.Register(rp)
 
 	err = aw.Write()
 	assert.NoError(t, err)

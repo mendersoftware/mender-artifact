@@ -16,7 +16,6 @@ package parser
 
 import (
 	"archive/tar"
-	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
@@ -25,55 +24,40 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/mendersoftware/artifacts/archiver"
 	"github.com/mendersoftware/artifacts/metadata"
-	"github.com/mendersoftware/log"
 	"github.com/pkg/errors"
 )
 
-type rootfsFile struct {
-	name      string
-	path      string
-	size      int64
-	date      time.Time
-	checksum  []byte
-	signature []byte
-}
-
 type RootfsParser struct {
-	files    metadata.Files
-	tInfo    metadata.TypeInfo
+	dataWriter io.Writer
+
 	metadata metadata.Metadata
-	updates  map[string]rootfsFile
-
-	tw     *tar.Writer
-	updDir string
-	dstDir string
-
-	sStore string
-	dStore io.Writer
+	updates  map[string]UpdateFile
 }
 
 func NewRootfsParser(sStoreDir string, w io.Writer) *RootfsParser {
+	if w == nil {
+		w = ioutil.Discard
+	}
 	return &RootfsParser{
-		sStore:  sStoreDir,
-		dStore:  w,
-		updates: map[string]rootfsFile{}}
+		dataWriter: w,
+		updates:    map[string]UpdateFile{}}
 }
 
-func (rp *RootfsParser) ReadUpdateType() (*metadata.UpdateType, error) {
-	return nil, nil
+func (rp *RootfsParser) GetUpdateType() *metadata.UpdateType {
+	return &metadata.UpdateType{Type: "rootfs-image"}
 }
-func (rp *RootfsParser) ReadUpdateFiles() error {
+
+func (rp *RootfsParser) GetUpdateFiles() map[string]UpdateFile {
 	return nil
 }
-func (rp *RootfsParser) ReadDeviceType() (string, error) {
-	return "", nil
+func (rp *RootfsParser) GetDeviceType() string {
+	return rp.metadata["DeviceType"].(string)
 }
-func (rp *RootfsParser) ReadMetadata() (*metadata.Metadata, error) {
-	return nil, nil
+func (rp *RootfsParser) GetMetadata() *metadata.Metadata {
+	return &rp.metadata
 }
 
 func (rp *RootfsParser) archiveToTmp(tw *tar.Writer, f *os.File) (err error) {
@@ -83,7 +67,7 @@ func (rp *RootfsParser) archiveToTmp(tw *tar.Writer, f *os.File) (err error) {
 	defer func() { err = dtw.Close() }()
 
 	for _, data := range rp.updates {
-		a := archiver.NewFileArchiver(data.path, data.name)
+		a := archiver.NewFileArchiver(data.Path, data.Name)
 		if err = a.Archive(dtw); err != nil {
 			return err
 		}
@@ -91,7 +75,7 @@ func (rp *RootfsParser) archiveToTmp(tw *tar.Writer, f *os.File) (err error) {
 	return err
 }
 
-func (rp *RootfsParser) ArchiveData(tw *tar.Writer, srcDir, dst string) error {
+func (rp *RootfsParser) ArchiveData(tw *tar.Writer, src, dst string) error {
 	f, err := ioutil.TempFile("", "data")
 	if err != nil {
 		return errors.Wrapf(err, "parser: can not create tmp data file")
@@ -151,196 +135,121 @@ func archiveChecksums(tw *tar.Writer, upd []os.FileInfo, src, dir string) error 
 	return nil
 }
 
-func (rp *RootfsParser) archiveScrpt(path string, info os.FileInfo, err error) error {
+type scriptArchiver struct {
+	tw  *tar.Writer
+	src string
+	dst string
+}
+
+func (sa *scriptArchiver) archiveScrpt(path string, info os.FileInfo, err error) error {
 	if info.IsDir() {
 		return nil
 	}
-	sPath, err := filepath.Rel(rp.updDir, path)
+	sPath, err := filepath.Rel(sa.src, path)
 	if err != nil {
 		return errors.Wrapf(err, "parser: error getting path for storing scripts")
 	}
 
-	a := archiver.NewFileArchiver(path, filepath.Join(rp.dstDir, sPath))
-	return a.Archive(rp.tw)
+	a := archiver.NewFileArchiver(path, filepath.Join(sa.dst, sPath))
+	return a.Archive(sa.tw)
 }
 
-func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, srcDir, dstDir string) error {
-	if err := hFormatPreWrite.CheckHeaderStructure(srcDir); err != nil {
+func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, src, dst string) error {
+	if err := hFormatPreWrite.CheckHeaderStructure(src); err != nil {
 		return err
 	}
 
-	rp.tw = tw
-	rp.updDir = srcDir
-	rp.dstDir = dstDir
-
 	// here we should get list of all update files which are
-	// part of current update
-	updFiles, err := ioutil.ReadDir(filepath.Join(srcDir, "data"))
+	// part of the current update
+	updFiles, err := ioutil.ReadDir(filepath.Join(src, "data"))
 	if err != nil {
 		return err
 	}
 
-	// store data files
 	for _, f := range updFiles {
 		rp.updates[withoutExt(f.Name())] =
-			rootfsFile{
-				name: f.Name(),
-				path: filepath.Join(srcDir, "data", f.Name()),
+			UpdateFile{
+				Name: f.Name(),
+				Path: filepath.Join(src, "data", f.Name()),
 			}
 	}
-	if err = archiveFiles(tw, updFiles, dstDir); err != nil {
+	if err = archiveFiles(tw, updFiles, dst); err != nil {
 		return errors.Wrapf(err, "parser: can not store files")
 	}
 
-	a := archiver.NewFileArchiver(filepath.Join(srcDir, "type-info"),
-		filepath.Join(dstDir, "type-info"))
+	a := archiver.NewFileArchiver(filepath.Join(src, "type-info"),
+		filepath.Join(dst, "type-info"))
 	if err := a.Archive(tw); err != nil {
 		return errors.Wrapf(err, "parser: can not store type-info")
 	}
 
-	a = archiver.NewFileArchiver(filepath.Join(srcDir, "meta-data"),
-		filepath.Join(dstDir, "meta-data"))
+	a = archiver.NewFileArchiver(filepath.Join(src, "meta-data"),
+		filepath.Join(dst, "meta-data"))
 	if err := a.Archive(tw); err != nil {
 		return errors.Wrapf(err, "parser: can not store meta-data")
 	}
 
 	if err := archiveChecksums(tw, updFiles,
-		filepath.Join(srcDir, "data"),
-		filepath.Join(dstDir, "checksums")); err != nil {
+		filepath.Join(src, "data"),
+		filepath.Join(dst, "checksums")); err != nil {
 		return err
 	}
 
 	// copy signatures
 	for _, u := range updFiles {
 		a = archiver.NewFileArchiver(
-			filepath.Join(srcDir, "signatures", withoutExt(u.Name())+".sig"),
-			filepath.Join(dstDir, "signatures", withoutExt(u.Name())+".sig"))
+			filepath.Join(src, "signatures", withoutExt(u.Name())+".sig"),
+			filepath.Join(dst, "signatures", withoutExt(u.Name())+".sig"))
 		if err := a.Archive(tw); err != nil {
 			return errors.Wrapf(err, "parser: can not store signatures")
 		}
 	}
 
 	// scripts
-	if err := filepath.Walk(filepath.Join(srcDir, "scripts"),
-		rp.archiveScrpt); err != nil {
+	sa := scriptArchiver{tw, src, dst}
+	if err := filepath.Walk(filepath.Join(src, "scripts"),
+		sa.archiveScrpt); err != nil {
 		return errors.Wrapf(err, "parser: can not store scripts")
 	}
-
 	return nil
 }
 
-func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hPath string) error {
-	if tr == nil {
-		return errors.New("parser: uninitialized tar reader")
-	}
-	// reach end of archive
-	for i := 0; ; i++ {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			// we have reached end of archive
-			return nil
-		} else if err != nil {
-			return errors.Wrapf(err, "parser: error reading archive header")
-		}
+func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hdr *tar.Header, hPath string) error {
 
-		relPath, err := filepath.Rel(hPath, hdr.Name)
-		if err != nil {
+	relPath, err := filepath.Rel(hPath, hdr.Name)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case strings.Compare(relPath, "files") == 0:
+		if err = parseFiles(tr, rp.updates); err != nil {
 			return err
 		}
-
-		switch {
-		case i == 0 && strings.Compare(relPath, "files") == 0:
-
-			if _, err = io.Copy(&rp.files, tr); err != nil {
-				return errors.Wrapf(err, "parser: error reading files")
-			}
-			for _, file := range rp.files.File {
-				rp.updates[withoutExt(file)] = rootfsFile{name: file}
-			}
-		case i == 1 && strings.Compare(relPath, "type-info") == 0:
-			// we can skip this one for now
-		case i == 2 && strings.Compare(relPath, "meta-data") == 0:
-			if _, err = io.Copy(&rp.metadata, tr); err != nil {
-				return errors.Wrapf(err, "parser: error reading metadata")
-			}
-		case strings.HasPrefix(relPath, "checksums"):
-			update, ok := rp.updates[withoutExt(hdr.Name)]
-			if !ok {
-				return errors.New("parser: found signature for non existing update file")
-			}
-			buf := bytes.NewBuffer(nil)
-			if _, err = io.Copy(buf, tr); err != nil {
-				return errors.Wrapf(err, "rparser: error reading checksum")
-			}
-			update.checksum = buf.Bytes()
-			rp.updates[withoutExt(hdr.Name)] = update
-		case strings.HasPrefix(relPath, "signatures"):
-			//TODO:
-		case strings.HasPrefix(relPath, "scripts"):
-			//TODO
-
-		default:
-			log.Errorf("jhdsf: %v %v", relPath, i)
-			return errors.New("parser: unsupported element in header")
+	case strings.Compare(relPath, "type-info") == 0:
+		// we can skip this one for now
+	case strings.Compare(relPath, "meta-data") == 0:
+		if _, err = io.Copy(&rp.metadata, tr); err != nil {
+			return errors.Wrapf(err, "parser: error reading metadata")
 		}
+	case strings.HasPrefix(relPath, "checksums"):
+		if err = processChecksums(tr, hdr.Name, rp.updates); err != nil {
+			return err
+		}
+	case strings.HasPrefix(relPath, "signatures"):
+		//TODO:
+	case strings.HasPrefix(relPath, "scripts"):
+		//TODO
+
+	default:
+		return errors.New("parser: unsupported element in header")
 	}
+	return nil
 }
 
 // data files are stored in tar.gz format
 func (rp *RootfsParser) ParseData(r io.Reader) error {
-	if r == nil {
-		return errors.New("rootfs updater: uninitialized tar reader")
-	}
-	//[data.tar].gz
-	gz, err := gzip.NewReader(r)
-	if err != nil {
-		return err
-	}
-	defer gz.Close()
-
-	//data[.tar].gz
-	tar := tar.NewReader(gz)
-	// iterate over the files in tar archive
-	for {
-		hdr, err := tar.Next()
-		if err == io.EOF {
-			// once we reach end of archive break the loop
-			break
-		} else if err != nil {
-			return errors.Wrapf(err, "rootfs updater: error reading archive")
-		}
-		fh, ok := rp.updates[withoutExt(hdr.Name)]
-		if !ok {
-			return errors.New("rootfs updater: can not find header info for data file")
-		}
-
-		// for calculating hash
-		h := sha256.New()
-
-		var w io.Writer
-		// if we don't want to store the file just calculate checksum
-		if rp.dStore == nil {
-			w = h
-		} else {
-			w = io.MultiWriter(h, rp.dStore)
-		}
-
-		if _, err := io.Copy(w, tar); err != nil {
-			return err
-		}
-		sum := h.Sum(nil)
-		hSum := make([]byte, hex.EncodedLen(len(sum)))
-		hex.Encode(hSum, h.Sum(nil))
-
-		if bytes.Compare(hSum, fh.checksum) != 0 {
-			return errors.New("rootfs updater: invalid data file checksum")
-		}
-
-		fh.date = hdr.ModTime
-		fh.size = hdr.Size
-		rp.updates[withoutExt(hdr.Name)] = fh
-	}
-	return nil
+	return parseData(r, rp.dataWriter, rp.updates)
 }
 
 var hFormatPreWrite = metadata.ArtifactHeader{

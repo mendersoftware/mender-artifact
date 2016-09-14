@@ -21,38 +21,17 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"io/ioutil"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/mendersoftware/artifacts/metadata"
 	"github.com/pkg/errors"
 )
 
-type UpdateFile struct {
-	Name     string
-	Size     int64
-	Date     time.Time
-	checksum []byte
-}
-
 type GenericParser struct {
-	Metadata metadata.Metadata
-	files    metadata.Files
+	metadata metadata.Metadata
 	updates  map[string]UpdateFile
-}
-
-func (rp *GenericParser) ReadUpdateType() (*metadata.UpdateType, error) {
-	return nil, nil
-}
-func (rp *GenericParser) ReadUpdateFiles() error {
-	return nil
-}
-func (rp *GenericParser) ReadDeviceType() (string, error) {
-	return "", nil
-}
-func (rp *GenericParser) ReadMetadata() (*metadata.Metadata, error) {
-	return nil, nil
 }
 
 func NewGenericParser() Parser {
@@ -60,56 +39,69 @@ func NewGenericParser() Parser {
 		updates: map[string]UpdateFile{}}
 }
 
-func (rp *GenericParser) ParseHeader(tr *tar.Reader, hPath string) error {
-	if tr == nil {
-		return errors.New("parser: uninitialized tar reader")
-	}
-	// reach end of archive
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			// we have reached end of archive
-			return nil
-		} else if err != nil {
-			return errors.Wrapf(err, "parser: error reading archive header")
-		}
-
-		relPath, err := filepath.Rel(hPath, hdr.Name)
-		if err != nil {
-			return err
-		}
-
-		switch {
-		case strings.Compare(relPath, "files") == 0:
-			if _, err = io.Copy(&rp.files, tr); err != nil {
-				return errors.Wrapf(err, "parser: error reading files")
-			}
-			for _, file := range rp.files.File {
-				rp.updates[withoutExt(file)] = UpdateFile{Name: file}
-			}
-		case strings.Compare(relPath, "type-info") == 0:
-			// we can skip this one for now
-		case strings.Compare(relPath, "meta-data") == 0:
-			if _, err = io.Copy(&rp.Metadata, tr); err != nil {
-				return errors.Wrapf(err, "parser: error reading metadata")
-			}
-		case strings.HasPrefix(relPath, "checksums"):
-			update, ok := rp.updates[withoutExt(hdr.Name)]
-			if !ok {
-				return errors.New("parser: found checksum for non existing update file")
-			}
-			buf := bytes.NewBuffer(nil)
-			if _, err = io.Copy(buf, tr); err != nil {
-				return errors.Wrapf(err, "rparser: error reading checksum")
-			}
-			update.checksum = buf.Bytes()
-			rp.updates[withoutExt(hdr.Name)] = update
-		}
-	}
+func (rp *GenericParser) GetUpdateType() *metadata.UpdateType {
+	return &metadata.UpdateType{Type: "generic"}
 }
 
-// data files are stored in tar.gz format
-func (rp *GenericParser) ParseData(r io.Reader) error {
+func (rp *GenericParser) GetUpdateFiles() map[string]UpdateFile {
+	return rp.updates
+}
+func (rp *GenericParser) GetDeviceType() string {
+	return rp.metadata["DeviceType"].(string)
+}
+func (rp *GenericParser) GetMetadata() *metadata.Metadata {
+	return &rp.metadata
+}
+
+func parseFiles(tr *tar.Reader, uFiles map[string]UpdateFile) error {
+	files := new(metadata.Files)
+	if _, err := io.Copy(files, tr); err != nil {
+		return errors.Wrapf(err, "parser: error reading files")
+	}
+	for _, file := range files.File {
+		uFiles[withoutExt(file)] = UpdateFile{Name: file}
+	}
+	return nil
+}
+
+func processChecksums(tr *tar.Reader, name string, uFiles map[string]UpdateFile) error {
+	update, ok := uFiles[withoutExt(name)]
+	if !ok {
+		return errors.New("parser: found checksum for non existing update file")
+	}
+	buf := bytes.NewBuffer(nil)
+	if _, err := io.Copy(buf, tr); err != nil {
+		return errors.Wrapf(err, "rparser: error reading checksum")
+	}
+	update.Checksum = buf.Bytes()
+	uFiles[withoutExt(name)] = update
+	return nil
+}
+
+func (rp *GenericParser) ParseHeader(tr *tar.Reader, hdr *tar.Header, hPath string) error {
+	relPath, err := filepath.Rel(hPath, hdr.Name)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case strings.Compare(relPath, "files") == 0:
+		if err = parseFiles(tr, rp.updates); err != nil {
+			return err
+		}
+	case strings.Compare(relPath, "meta-data") == 0:
+		if _, err = io.Copy(&rp.metadata, tr); err != nil {
+			return errors.Wrapf(err, "parser: error reading metadata")
+		}
+	case strings.HasPrefix(relPath, "checksums"):
+		if err = processChecksums(tr, hdr.Name, rp.updates); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func parseData(r io.Reader, w io.Writer, uFiles map[string]UpdateFile) error {
 	if r == nil {
 		return errors.New("rootfs updater: uninitialized tar reader")
 	}
@@ -129,37 +121,44 @@ func (rp *GenericParser) ParseData(r io.Reader) error {
 			// once we reach end of archive break the loop
 			break
 		} else if err != nil {
-			return errors.Wrapf(err, "rootfs updater: error reading archive")
+			return errors.Wrapf(err, "parser: error reading archive")
 		}
-		fh, ok := rp.updates[withoutExt(hdr.Name)]
+		fh, ok := uFiles[withoutExt(hdr.Name)]
 		if !ok {
-			return errors.New("rootfs updater: can not find header info for data file")
+			return errors.New("parser: can not find header info for data file")
 		}
 
-		// for calculating hash
+		// for calculating checksums
 		h := sha256.New()
-		if _, err := io.Copy(h, r); err != nil {
-			return err
+		dw := io.MultiWriter(h, w)
+
+		if _, err := io.Copy(dw, tar); err != nil {
+			return errors.Wrapf(err, "parser: can not read data: %v", hdr.Name)
 		}
 		sum := h.Sum(nil)
 		hSum := make([]byte, hex.EncodedLen(len(sum)))
 		hex.Encode(hSum, h.Sum(nil))
 
-		if bytes.Compare(hSum, fh.checksum) != 0 {
-			return errors.New("rootfs updater: invalid data file checksum: " + hdr.Name)
+		if bytes.Compare(hSum, fh.Checksum) != 0 {
+			return errors.New("parser: invalid data file checksum")
 		}
 
 		fh.Date = hdr.ModTime
 		fh.Size = hdr.Size
-		rp.updates[withoutExt(hdr.Name)] = fh
+		uFiles[withoutExt(hdr.Name)] = fh
 	}
 	return nil
 }
 
-func (rp *GenericParser) ArchiveData(tw *tar.Writer, srcDir, dst string) error {
-	return nil
+// data files are stored in tar.gz format
+func (rp *GenericParser) ParseData(r io.Reader) error {
+	return parseData(r, ioutil.Discard, rp.updates)
 }
 
-func (rp *GenericParser) ArchiveHeader(tw *tar.Writer, srcDir, dstDir string) error {
-	return nil
+func (rp *GenericParser) ArchiveData(tw *tar.Writer, src, dst string) error {
+	return errors.New("generic: can not use generic parser for writing artifact")
+}
+
+func (rp *GenericParser) ArchiveHeader(tw *tar.Writer, src, dst string) error {
+	return errors.New("generic: can not use generic parser for writing artifact")
 }

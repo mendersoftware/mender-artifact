@@ -18,22 +18,28 @@ import (
 	"archive/tar"
 	"errors"
 	"io"
+	"time"
 
 	"github.com/mendersoftware/artifacts/metadata"
 )
 
-type ContentReader interface {
-	ReadUpdateType() (*metadata.UpdateType, error)
-	ReadUpdateFiles() error
-	ReadDeviceType() (string, error)
-	ReadMetadata() (*metadata.Metadata, error)
+type UpdateFile struct {
+	Name      string
+	Path      string
+	Size      int64
+	Date      time.Time
+	Checksum  []byte
+	Signature []byte
 }
 
 type Reader interface {
-	ParseHeader(tr *tar.Reader, hPath string) error
+	ParseHeader(tr *tar.Reader, hdr *tar.Header, hPath string) error
 	ParseData(r io.Reader) error
 
-	ContentReader
+	GetUpdateType() *metadata.UpdateType
+	GetUpdateFiles() map[string]UpdateFile
+	GetDeviceType() string
+	GetMetadata() *metadata.Metadata
 }
 
 type Writer interface {
@@ -46,19 +52,22 @@ type Parser interface {
 	Writer
 }
 
-type Workers map[string]Parser
-
 type ParseManager struct {
-	gParser  Parser
+	// generic parser for basic archive reading and validataing
+	gParser Parser
+	// list of registered parsers for specific types
 	pFactory map[string]Parser
-	pWorker  map[string]Parser
+	// parser instances produced by factory to parse specific update type
+	pWorker Workers
 }
+
+type Workers map[string]Parser
 
 func NewParseManager() *ParseManager {
 	return &ParseManager{
 		nil,
 		make(map[string]Parser, 0),
-		make(map[string]Parser, 0),
+		make(Workers, 0),
 	}
 }
 
@@ -81,7 +90,8 @@ func (p *ParseManager) GetWorker(update string) (Parser, error) {
 	return nil, errors.New("parser: can not find worker for update " + update)
 }
 
-func (p *ParseManager) Register(parser Parser, parsingType string) error {
+func (p *ParseManager) Register(parser Parser) error {
+	parsingType := parser.GetUpdateType().Type
 	if _, ok := p.pFactory[parsingType]; ok {
 		return errors.New("parser: already registered")
 	}
@@ -95,6 +105,10 @@ func (p *ParseManager) GetRegistered(parsingType string) (Parser, error) {
 		return nil, errors.New("parser: does not exist")
 	}
 	return parser, nil
+}
+
+func (p *ParseManager) SetGeneric(parser Parser) {
+	p.gParser = parser
 }
 
 func (p *ParseManager) GetGeneric() Parser {

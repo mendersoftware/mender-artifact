@@ -40,8 +40,9 @@ type Reader struct {
 type headerReader struct {
 	hInfo metadata.HeaderInfo
 
-	hReader     *tar.Reader
 	hGzipReader *gzip.Reader
+	hReader     *tar.Reader
+	nextUpdate  int
 }
 
 func NewReader(r io.Reader) *Reader {
@@ -50,22 +51,30 @@ func NewReader(r io.Reader) *Reader {
 		ParseManager: parser.NewParseManager(),
 		headerReader: &headerReader{},
 	}
-	//TODO:
-	//ar.Register(parser, parsingType)
+	// register generic parser so that basic parsing will always work
+	p := parser.NewGenericParser()
+	ar.SetGeneric(p)
 	return &ar
 }
 
-func (ar *Reader) Read() error {
-	if _, err := ar.GetUpdates(); err != nil {
-		return err
+func (ar *Reader) Read() (parser.Workers, error) {
+	info, err := ar.ReadInfo()
+	if err != nil {
+		return nil, err
 	}
-	if _, err := ar.ReadHeader(); err != nil {
-		return err
+	switch info.Version {
+	// so far we are supporting only v1
+	case 1:
+		if _, err := ar.ReadHeader(); err != nil {
+			return nil, err
+		}
+		if _, err := ar.ReadData(); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, errors.New("reader: unsupported artifact version")
 	}
-	if err := ar.ReadUpdates(); err != nil {
-		return err
-	}
-	return nil
+	return ar.ParseManager.GetWorkers(), nil
 }
 
 func (ar *Reader) Close() error {
@@ -89,23 +98,23 @@ func (ar *Reader) readNext(w io.Writer, elem string) error {
 	return readNext(tr, w, elem)
 }
 
-func (ar *Reader) getNext() (io.Reader, *tar.Header, error) {
+func (ar *Reader) getNext() (*tar.Header, error) {
 	tr := ar.getTarReader()
 	return getNext(tr)
 }
 
-func (ar *Reader) initHeaderReading() error {
-	r, hdr, err := ar.getNext()
+func (ar *Reader) InitReadingHeader() (parser.Workers, error) {
+	hdr, err := ar.getNext()
 	if err != nil {
-		return errors.New("reader: error initializing header")
+		return nil, errors.New("reader: error initializing header")
 	}
 	if !strings.HasPrefix(hdr.Name, "header.tar.") {
-		return errors.New("reader: invalid header name or elemet out of order")
+		return nil, errors.New("reader: invalid header name or elemet out of order")
 	}
 
-	gz, err := gzip.NewReader(r)
+	gz, err := gzip.NewReader(ar.tReader)
 	if err != nil {
-		return errors.Wrapf(err, "reader: error opening compressed header")
+		return nil, errors.Wrapf(err, "reader: error opening compressed header")
 	}
 	ar.hGzipReader = gz
 	tr := tar.NewReader(gz)
@@ -113,13 +122,25 @@ func (ar *Reader) initHeaderReading() error {
 
 	hInfo := new(metadata.HeaderInfo)
 	if err := readNext(tr, hInfo, "header-info"); err != nil {
-		return err
+		return nil, err
 	}
 	ar.hInfo = *hInfo
-	return nil
+
+	for cnt, update := range ar.hInfo.Updates {
+		p, err := ar.ParseManager.GetRegistered(update.Type)
+		if err != nil {
+			p = ar.ParseManager.GetGeneric()
+			if p == nil {
+				return nil, errors.Wrapf(err,
+					"reader: can not find parser for update type: [%v]", update.Type)
+			}
+		}
+		ar.ParseManager.PushWorker(p, fmt.Sprintf("%04d", cnt))
+	}
+	return ar.ParseManager.GetWorkers(), nil
 }
 
-func (ar *Reader) readInfo() (*metadata.Info, error) {
+func (ar *Reader) ReadInfo() (*metadata.Info, error) {
 	info := new(metadata.Info)
 	err := ar.readNext(info, "info")
 	if err != nil {
@@ -128,105 +149,116 @@ func (ar *Reader) readInfo() (*metadata.Info, error) {
 	return info, nil
 }
 
-func (ar *Reader) GetUpdates() (parser.Workers, error) {
-	info, err := ar.readInfo()
-	if err != nil {
-		return nil, err
+func getUpdateFromHdr(hdr string) string {
+	r := strings.Split(hdr, string(os.PathSeparator))
+	if len(r) < 2 {
+		return ""
 	}
-	// so far we are supporing only v1
-	switch info.Version {
-	case 1:
-		// we know that in v1 header goes just after info
-		err := ar.initHeaderReading()
-		if err != nil {
-			return nil, err
-		}
-		for cnt, update := range ar.hInfo.Updates {
-			p, err := ar.ParseManager.GetRegistered(update.Type)
-			if err != nil {
-				p = ar.ParseManager.GetGeneric()
-				if p == nil {
-					return nil, errors.Wrapf(err,
-						"reader: can not find parser for update type: [%v]", update.Type)
-				}
+	return r[1]
+}
+
+func (ar *Reader) ReadNextHeader() (p parser.Parser, err error) {
+	// make sure to increase update counter while current header is processed
+	defer func() { ar.headerReader.nextUpdate = ar.headerReader.nextUpdate + 1 }()
+
+	for {
+		var hdr *tar.Header
+		hdr, err = getNext(ar.hReader)
+		if err == io.EOF {
+			errClose := ar.Close()
+			if errClose != nil {
+				err = errors.Wrapf(errClose, "reader: error closing header reader")
+				return
 			}
-			ar.ParseManager.PushWorker(p, fmt.Sprintf("%04d", cnt))
+			return
+		} else if err != nil {
+			err = errors.Wrapf(err, "reader: can not init header reading")
+			return
 		}
-		return ar.ParseManager.GetWorkers(), nil
-	default:
-		return nil, errors.New("reader: unsupported artifact version")
+
+		// make sure we are reading first header file for given update
+		// some parsers might skip some header files
+		upd := getUpdateFromHdr(hdr.Name)
+
+		if strings.Compare(upd, fmt.Sprintf("%04d", ar.headerReader.nextUpdate)) != 0 {
+			return
+		}
+
+		p, err = ar.ParseManager.GetWorker(upd)
+		if err != nil {
+			err = errors.Wrapf(err, "reader: can not find parser for update: %v", upd)
+			return
+		}
+		err = p.ParseHeader(ar.hReader, hdr, filepath.Join("headers", upd))
+		if err != nil {
+			return
+		}
 	}
 }
 
-//TODO
-//func getUpdateFromHeaderName()
-
 func (ar *Reader) ReadHeader() (parser.Workers, error) {
-	r := ar.hReader
+	_, err := ar.InitReadingHeader()
+	if err != nil {
+		return nil, err
+	}
 	for {
-		// TODO: make sure we are reading first header file
-		p, err := ar.ParseManager.GetWorker("0000")
-		if err != nil {
-			return nil, errors.Wrapf(err, "reader: can not find parser for update: %v", "0000")
-		}
-		if err = p.ParseHeader(r,
-			filepath.Join("headers", fmt.Sprintf("%04d", 0))); err != nil {
-			return nil, err
-		}
-
-		r, _, err = getNext(ar.hReader)
+		_, err := ar.ReadNextHeader()
 		if err == io.EOF {
-			break
+			return ar.ParseManager.GetWorkers(), nil
 		} else if err != nil {
 			return nil, err
 		}
 	}
-
-	// at the end close gzip
-	if ar.hGzipReader != nil {
-		if err := ar.hGzipReader.Close(); err != nil {
-			return nil, errors.Wrapf(err, "reader: error closing gzip reader")
-		}
-	}
-	return ar.ParseManager.GetWorkers(), nil
 }
 
 func getDataFileUpdate(path string) string {
 	return strings.TrimSuffix(filepath.Base(path), ".tar.gz")
 }
 
-func (ar *Reader) ReadUpdates() error {
+func (ar *Reader) ReadNextDataFile() (parser.Parser, error) {
+	hdr, err := ar.getNext()
+	if err == io.EOF {
+		return nil, io.EOF
+	} else if err != nil {
+		return nil, errors.Wrapf(err, "reader: error reading update file: "+hdr.Name)
+	}
+	if strings.Compare(filepath.Dir(hdr.Name), "data") != 0 {
+		return nil, errors.New("reader: invalid data file name: " + hdr.Name)
+	}
+	p, err := ar.ParseManager.GetWorker(getDataFileUpdate(hdr.Name))
+	if err != nil {
+		return nil, errors.Wrapf(err,
+			"reader: can not find parser for parsing data file [%v]", hdr.Name)
+	}
+	err = p.ParseData(ar.tReader)
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+func (ar *Reader) ReadData() (parser.Workers, error) {
 	for {
-		r, hdr, err := ar.getNext()
+		_, err := ar.ReadNextDataFile()
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return errors.Wrapf(err, "reader: error reading update file: "+hdr.Name)
+			return nil, err
 		}
-		if strings.Compare(filepath.Dir(hdr.Name), "data") != 0 {
-			return errors.New("reader: invalid data file name: " + hdr.Name)
-		}
-		p, err := ar.ParseManager.GetWorker(getDataFileUpdate(hdr.Name))
-		if err != nil {
-			return errors.Wrapf(err,
-				"reader: can not find parser for parsing data file [%v]", hdr.Name)
-		}
-		p.ParseData(r)
-
 	}
-	return nil
+	return ar.GetWorkers(), nil
 }
 
 func readNext(tr *tar.Reader, w io.Writer, elem string) error {
 	if tr == nil {
 		return errors.New("reader: read next called on invalid stream")
 	}
-	r, hdr, err := getNext(tr)
+	hdr, err := getNext(tr)
 	if err != nil {
 		return err
 	}
 	if strings.HasPrefix(hdr.Name, elem) {
-		_, err = io.Copy(w, r)
+		_, err = io.Copy(w, tr)
 		if err != nil {
 			return errors.Wrapf(err, "reader: error reading")
 		}
@@ -235,15 +267,15 @@ func readNext(tr *tar.Reader, w io.Writer, elem string) error {
 	return os.ErrInvalid
 }
 
-func getNext(tr *tar.Reader) (*tar.Reader, *tar.Header, error) {
+func getNext(tr *tar.Reader) (*tar.Header, error) {
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
 			// we've reached end of archive
-			return nil, hdr, err
+			return hdr, err
 		} else if err != nil {
-			return nil, nil, errors.New("reader: error reading archive")
+			return nil, errors.New("reader: error reading archive")
 		}
-		return tr, hdr, nil
+		return hdr, nil
 	}
 }

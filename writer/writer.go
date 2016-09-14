@@ -33,8 +33,9 @@ import (
 // Mender client and server.
 // Call Write to start writing artifacts file.
 type Writer struct {
-	aName   string
-	updDir  string
+	aName  string
+	updDir string
+
 	format  string
 	version int
 
@@ -168,21 +169,26 @@ func getTypeInfo(dir string) (*metadata.TypeInfo, error) {
 }
 
 func (av *Writer) Close() (err error) {
-	//TODO:
-	//finalize header
 	av.closeHeader()
 
 	if av.hTmpFilePath != "" {
 		os.Remove(av.hTmpFilePath)
 	}
 
+	var errArch error
 	if av.aArchiver != nil {
-		err = av.aArchiver.Close()
+		errArch = av.aArchiver.Close()
 	}
+
+	var errFile error
 	if av.aFile != nil {
-		err = av.aFile.Close()
+		errFile = av.aFile.Close()
 	}
-	return err
+
+	if errArch != nil || errFile != nil {
+		err = errors.New("writer: close error")
+	}
+	return
 }
 
 func (av *Writer) ScanUpdateDirs() error {
@@ -233,8 +239,7 @@ func (h *aHeader) closeHeader() (err error) {
 			err = errors.New("writer: error closing header")
 		}
 	}
-
-	return err
+	return
 }
 
 func (av *Writer) WriteHeader() error {

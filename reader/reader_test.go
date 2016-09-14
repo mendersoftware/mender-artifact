@@ -56,7 +56,7 @@ func writeArchive(dir string) (string, error) {
 
 	aw := awriter.NewWriter("artifact.tar.gz", dir, "mender", 1)
 	rp := parser.NewRootfsParser("", nil)
-	aw.Register(rp, "rootfs-image")
+	aw.Register(rp)
 	err = aw.Write()
 	if err != nil {
 		return "", err
@@ -67,7 +67,7 @@ func writeArchive(dir string) (string, error) {
 func TestReadArchive(t *testing.T) {
 	// first create archive, that we will be able to read
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	//defer os.RemoveAll(updateTestDir)
+	defer os.RemoveAll(updateTestDir)
 
 	archive, err := writeArchive(updateTestDir)
 	assert.NoError(t, err)
@@ -83,8 +83,8 @@ func TestReadArchive(t *testing.T) {
 
 	aReader := NewReader(f)
 	rp := parser.NewRootfsParser("", df)
-	aReader.Register(rp, "rootfs-image")
-	err = aReader.Read()
+	aReader.Register(rp)
+	_, err = aReader.Read()
 	assert.NoError(t, err)
 	assert.NotNil(t, df)
 	df.Close()
@@ -92,6 +92,26 @@ func TestReadArchive(t *testing.T) {
 	data, err := ioutil.ReadFile(path.Join(updateTestDir, "my_update"))
 	assert.NoError(t, err)
 	assert.Equal(t, "my first update", string(data))
+}
+
+func TestReadGeneric(t *testing.T) {
+	// first create archive, that we will be able to read
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	//defer os.RemoveAll(updateTestDir)
+
+	archive, err := writeArchive(updateTestDir)
+	assert.NoError(t, err)
+	assert.NotEqual(t, "", archive)
+
+	// open archive file
+	f, err := os.Open(archive)
+	defer f.Close()
+	assert.NoError(t, err)
+	assert.NotNil(t, f)
+
+	aReader := NewReader(f)
+	_, err = aReader.Read()
+	assert.NoError(t, err)
 }
 
 func TestReadSequence(t *testing.T) {
@@ -112,16 +132,20 @@ func TestReadSequence(t *testing.T) {
 	aReader := NewReader(f)
 	defer aReader.Close()
 	rp := parser.NewRootfsParser("", nil)
-	aReader.Register(rp, "rootfs-image")
+	aReader.Register(rp)
 
-	upd, err := aReader.GetUpdates()
+	upd, err := aReader.ReadInfo()
 	assert.NoError(t, err)
 	assert.NotNil(t, upd)
 
-	upd, err = aReader.ReadHeader()
+	hdr, err := aReader.ReadHeader()
 	assert.NoError(t, err)
-	assert.NotNil(t, upd)
+	assert.NotNil(t, hdr)
 
-	err = aReader.ReadUpdates()
+	w, err := aReader.ReadData()
 	assert.NoError(t, err)
+
+	for _, p := range w {
+		assert.Equal(t, "vexpress-qemu", p.GetDeviceType())
+	}
 }
