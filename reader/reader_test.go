@@ -15,6 +15,7 @@
 package areader
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -84,6 +85,7 @@ func TestReadArchive(t *testing.T) {
 
 	df, err := os.Create(path.Join(updateTestDir, "my_update"))
 	rp := parser.NewRootfsParser("", df)
+	defer df.Close()
 
 	aReader := NewReader(f)
 	aReader.Register(rp)
@@ -117,6 +119,31 @@ func TestReadGeneric(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestReadKnownUpdate(t *testing.T) {
+	// first create archive, that we will be able to read
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	archive, err := writeArchive(updateTestDir)
+	assert.NoError(t, err)
+	assert.NotEqual(t, "", archive)
+
+	// open archive file
+	f, err := os.Open(archive)
+	defer f.Close()
+	assert.NoError(t, err)
+	assert.NotNil(t, f)
+
+	df, err := os.Create(filepath.Join(updateTestDir, "my_update"))
+	rp := parser.NewRootfsParser("", df)
+	defer df.Close()
+
+	aReader := NewReader(f)
+	aReader.PushWorker(rp, "0000")
+	_, err = aReader.Read()
+	assert.NoError(t, err)
+}
+
 func TestReadSequence(t *testing.T) {
 	// first create archive, that we will be able to read
 	updateTestDir, _ := ioutil.TempDir("", "update")
@@ -137,9 +164,23 @@ func TestReadSequence(t *testing.T) {
 	rp := parser.NewRootfsParser("", nil)
 	aReader.Register(rp)
 
-	upd, err := aReader.ReadInfo()
+	info, err := aReader.ReadInfo()
 	assert.NoError(t, err)
-	assert.NotNil(t, upd)
+	assert.NotNil(t, info)
+
+	hInfo, err := aReader.ReadHeaderInfo()
+	assert.NoError(t, err)
+	assert.NotNil(t, hInfo)
+
+	df, err := os.Create(filepath.Join(updateTestDir, "my_update"))
+	defer df.Close()
+
+	for cnt, update := range hInfo.Updates {
+		if update.Type == "rootfs-image" {
+			rp := parser.NewRootfsParser("", df)
+			aReader.PushWorker(rp, fmt.Sprintf("%04d", cnt))
+		}
+	}
 
 	hdr, err := aReader.ReadHeader()
 	assert.NoError(t, err)
@@ -151,4 +192,8 @@ func TestReadSequence(t *testing.T) {
 	for _, p := range w {
 		assert.Equal(t, "vexpress-qemu", p.GetDeviceType())
 	}
+
+	data, err := ioutil.ReadFile(path.Join(updateTestDir, "my_update"))
+	assert.NoError(t, err)
+	assert.Equal(t, "my first update", string(data))
 }

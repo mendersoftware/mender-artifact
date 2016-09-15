@@ -38,7 +38,7 @@ type Reader struct {
 }
 
 type headerReader struct {
-	hInfo metadata.HeaderInfo
+	hInfo *metadata.HeaderInfo
 
 	hGzipReader *gzip.Reader
 	hReader     *tar.Reader
@@ -65,6 +65,12 @@ func (ar *Reader) Read() (parser.Workers, error) {
 	switch info.Version {
 	// so far we are supporting only v1
 	case 1:
+		if ar.hInfo, err = ar.ReadHeaderInfo(); err != nil {
+			return nil, err
+		}
+		if _, err = ar.setWorkers(); err != nil {
+			return nil, err
+		}
 		if _, err := ar.ReadHeader(); err != nil {
 			return nil, err
 		}
@@ -103,7 +109,7 @@ func (ar *Reader) getNext() (*tar.Header, error) {
 	return getNext(tr)
 }
 
-func (ar *Reader) InitReadingHeader() (parser.Workers, error) {
+func (ar *Reader) ReadHeaderInfo() (*metadata.HeaderInfo, error) {
 	hdr, err := ar.getNext()
 	if err != nil {
 		return nil, errors.New("reader: error initializing header")
@@ -124,11 +130,23 @@ func (ar *Reader) InitReadingHeader() (parser.Workers, error) {
 	if err := readNext(tr, hInfo, "header-info"); err != nil {
 		return nil, err
 	}
-	ar.hInfo = *hInfo
+	return hInfo, nil
+}
 
+func (ar *Reader) setWorkers() (parser.Workers, error) {
 	for cnt, update := range ar.hInfo.Updates {
+		// firsrt check if we have worker for given update
+		w, err := ar.ParseManager.GetWorker(fmt.Sprintf("%04d", cnt))
+		if err == nil {
+			if w.GetUpdateType().Type == update.Type {
+				continue
+			}
+			return nil, errors.New("reader: wrong worker for given update type")
+		}
+		// if not just register worker for given update type
 		p, err := ar.ParseManager.GetRegistered(update.Type)
 		if err != nil {
+			// if there is no registered one; check if we can use generic
 			p = ar.ParseManager.GetGeneric()
 			if p == nil {
 				return nil, errors.Wrapf(err,
@@ -179,7 +197,6 @@ func (ar *Reader) ReadNextHeader() (p parser.Parser, err error) {
 		// make sure we are reading first header file for given update
 		// some parsers might skip some header files
 		upd := getUpdateFromHdr(hdr.Name)
-
 		if strings.Compare(upd, fmt.Sprintf("%04d", ar.headerReader.nextUpdate)) != 0 {
 			return
 		}
@@ -196,17 +213,15 @@ func (ar *Reader) ReadNextHeader() (p parser.Parser, err error) {
 	}
 }
 
-func (ar *Reader) ReadHeader() (parser.Workers, error) {
-	_, err := ar.InitReadingHeader()
-	if err != nil {
-		return nil, err
-	}
+func (ar *Reader) ReadHeader() (workers parser.Workers, err error) {
 	for {
-		_, err := ar.ReadNextHeader()
+		_, err = ar.ReadNextHeader()
 		if err == io.EOF {
-			return ar.ParseManager.GetWorkers(), nil
+			workers = ar.ParseManager.GetWorkers()
+			err = nil
+			return
 		} else if err != nil {
-			return nil, err
+			return
 		}
 	}
 }
