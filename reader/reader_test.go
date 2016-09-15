@@ -59,7 +59,7 @@ func writeArchive(dir string) (path string, err error) {
 	defer func() {
 		err = aw.Close()
 	}()
-	rp := parser.NewRootfsParser("", nil)
+	rp := parser.NewRootfsParser(nil, "")
 	aw.Register(rp)
 
 	path = filepath.Join(dir, "artifact.tar.gz")
@@ -84,7 +84,7 @@ func TestReadArchive(t *testing.T) {
 	assert.NotNil(t, f)
 
 	df, err := os.Create(path.Join(updateTestDir, "my_update"))
-	rp := parser.NewRootfsParser("", df)
+	rp := parser.NewRootfsParser(df, "")
 	defer df.Close()
 
 	aReader := NewReader(f)
@@ -135,7 +135,7 @@ func TestReadKnownUpdate(t *testing.T) {
 	assert.NotNil(t, f)
 
 	df, err := os.Create(filepath.Join(updateTestDir, "my_update"))
-	rp := parser.NewRootfsParser("", df)
+	rp := parser.NewRootfsParser(df, "")
 	defer df.Close()
 
 	aReader := NewReader(f)
@@ -161,7 +161,7 @@ func TestReadSequence(t *testing.T) {
 
 	aReader := NewReader(f)
 	defer aReader.Close()
-	rp := parser.NewRootfsParser("", nil)
+	rp := parser.NewRootfsParser(nil, "")
 	aReader.Register(rp)
 
 	info, err := aReader.ReadInfo()
@@ -177,7 +177,7 @@ func TestReadSequence(t *testing.T) {
 
 	for cnt, update := range hInfo.Updates {
 		if update.Type == "rootfs-image" {
-			rp := parser.NewRootfsParser("", df)
+			rp := parser.NewRootfsParser(df, "")
 			aReader.PushWorker(rp, fmt.Sprintf("%04d", cnt))
 		}
 	}

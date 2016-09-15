@@ -32,22 +32,24 @@ import (
 
 type RootfsParser struct {
 	dataWriter io.Writer
+	scriptDir  string
 
 	metadata metadata.Metadata
 	updates  map[string]UpdateFile
 }
 
-func NewRootfsParser(sStoreDir string, w io.Writer) *RootfsParser {
+func NewRootfsParser(w io.Writer, scriptDir string) *RootfsParser {
 	if w == nil {
 		w = ioutil.Discard
 	}
 	return &RootfsParser{
 		dataWriter: w,
+		scriptDir:  scriptDir,
 		updates:    map[string]UpdateFile{}}
 }
 
 func (rp *RootfsParser) Copy() Parser {
-	return NewRootfsParser("", rp.dataWriter)
+	return NewRootfsParser(rp.dataWriter, rp.scriptDir)
 }
 
 func (rp *RootfsParser) GetUpdateType() *metadata.UpdateType {
