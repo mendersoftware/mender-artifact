@@ -54,17 +54,16 @@ func writeArchive(dir string) (path string, err error) {
 		return
 	}
 
-	aw := awriter.NewWriter("artifact.tar.gz", dir, "mender", 1)
+	aw := awriter.NewWriter("mender", 1)
 	defer func() {
 		err = aw.Close()
 	}()
 	rp := parser.NewRootfsParser("", nil)
 	aw.Register(rp)
-	err = aw.Write()
-	if err != nil {
-		return
-	}
+
 	path = filepath.Join(dir, "artifact.tar.gz")
+	err = aw.Write(dir, path)
+
 	return
 }
 
@@ -84,9 +83,9 @@ func TestReadArchive(t *testing.T) {
 	assert.NotNil(t, f)
 
 	df, err := os.Create(path.Join(updateTestDir, "my_update"))
+	rp := parser.NewRootfsParser("", df)
 
 	aReader := NewReader(f)
-	rp := parser.NewRootfsParser("", df)
 	aReader.Register(rp)
 	_, err = aReader.Read()
 	assert.NoError(t, err)

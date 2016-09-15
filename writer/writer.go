@@ -17,6 +17,7 @@ package awriter
 import (
 	"archive/tar"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -29,24 +30,24 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ArtifactsWriter provides on the fly writing of artifacts metadata file used by
+// Writer provides on the fly writing of artifacts metadata file used by
 // Mender client and server.
 // Call Write to start writing artifacts file.
 type Writer struct {
-	aName  string
-	updDir string
-
 	format  string
 	version int
 
 	*parser.ParseManager
 	availableUpdates []hdrData
 
+	aName  string
+	updDir string
+
 	aArchiver *tar.Writer
 	aFile     *os.File
 	isClosed  bool
 
-	aHeader
+	*aHeader
 }
 
 type hdrData struct {
@@ -65,7 +66,7 @@ type aHeader struct {
 	isClosed     bool
 }
 
-func makeHeader() *aHeader {
+func newHeader() *aHeader {
 	hFile, err := initHeaderFile()
 	if err != nil {
 		return nil
@@ -82,29 +83,24 @@ func makeHeader() *aHeader {
 	}
 }
 
-// NewArtifactsWriter creates a new ArtifactsWriter providing a location
-// of Mender metadata artifacts, format of the update and version.
-func NewWriter(name, path, format string, version int) *Writer {
-	aFile, err := createArtFile(path, "artifact.mender")
+func (av *Writer) init(path string) (err error) {
+	av.aFile, err = createArtFile(filepath.Dir(path), "artifact.mender")
 	if err != nil {
-		return nil
+		return
 	}
-	arch := tar.NewWriter(aFile)
-
-	hdr := makeHeader()
-	if hdr == nil {
-		return nil
+	av.aArchiver = tar.NewWriter(av.aFile)
+	av.aName = path
+	av.aHeader = newHeader()
+	if av.aHeader == nil {
+		err = errors.New("writer: error initializing header")
 	}
+	return
+}
 
+func NewWriter(format string, version int) *Writer {
 	return &Writer{
-		aName:     name,
-		updDir:    path,
-		format:    format,
-		version:   version,
-		aFile:     aFile,
-		aArchiver: arch,
-
-		aHeader:      *hdr,
+		format:       format,
+		version:      version,
 		ParseManager: parser.NewParseManager(),
 	}
 }
@@ -132,6 +128,7 @@ func initHeaderFile() (*os.File, error) {
 
 func (av *Writer) write(updates []hdrData) error {
 	av.availableUpdates = updates
+
 	// write header
 	if err := av.WriteHeader(); err != nil {
 		return err
@@ -155,12 +152,43 @@ func (av *Writer) write(updates []hdrData) error {
 	return nil
 }
 
-func (av *Writer) Write() error {
-	updates, err := av.ScanUpdateDirs()
+func (av *Writer) Write(updateDir, atrifactName string) error {
+	if err := av.init(atrifactName); err != nil {
+		return err
+	}
+
+	updates, err := av.ScanUpdateDirs(updateDir)
 	if err != nil {
 		return err
 	}
 	return av.write(updates)
+}
+
+func (av *Writer) WriteSingle(header, data, updateType, atrifactName string) error {
+	if err := av.init(atrifactName); err != nil {
+		return err
+	}
+
+	worker, err := av.GetRegistered(updateType)
+	if err != nil {
+		return err
+	}
+
+	hdr := hdrData{
+		path:      header,
+		dataFiles: []string{data},
+		tInfo:     updateType,
+		p:         worker,
+	}
+	typeInfo := metadata.TypeInfo{Type: "rootfs-image"}
+	info, err := json.Marshal(&typeInfo)
+	if err != nil {
+		return errors.Wrapf(err, "reader: can not create type-info")
+	}
+	if err := ioutil.WriteFile(filepath.Join(header, "type-info"), info, os.ModePerm); err != nil {
+		return errors.Wrapf(err, "reader: can not create type-info file")
+	}
+	return av.write([]hdrData{hdr})
 }
 
 func (av *Writer) Close() (err error) {
@@ -187,7 +215,9 @@ func (av *Writer) Close() (err error) {
 	if errHeader != nil || errArch != nil || errFile != nil {
 		err = errors.New("writer: close error")
 	} else {
-		os.Rename(av.aFile.Name(), filepath.Join(av.updDir, av.aName))
+		if av.aFile != nil {
+			os.Rename(av.aFile.Name(), av.aName)
+		}
 		av.isClosed = true
 	}
 	return
@@ -260,7 +290,8 @@ func (av *Writer) readDirContent(dir string) (*hdrData, error) {
 	return &hdr, nil
 }
 
-func (av *Writer) ScanUpdateDirs() ([]hdrData, error) {
+func (av *Writer) ScanUpdateDirs(dir string) ([]hdrData, error) {
+	av.updDir = dir
 	// first check  if we have plain dir update
 	hdr, err := av.readDirContent("")
 	if err == nil {

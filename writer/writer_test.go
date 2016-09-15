@@ -15,7 +15,6 @@
 package awriter
 
 import (
-	"encoding/json"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -46,13 +45,13 @@ func TestWriteArtifactBrokenDirStruct(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructInvalid)
 	assert.NoError(t, err)
 
-	aw := NewWriter("artifact", updateTestDir, "mender", 1)
+	aw := NewWriter("mender", 1)
 	defer func() {
 		err = aw.Close()
 		assert.NoError(t, err)
 	}()
 
-	err = aw.Write()
+	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact"))
 	assert.Error(t, err)
 }
 
@@ -98,7 +97,7 @@ func TestWriteArtifactFile(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructOK)
 	assert.NoError(t, err)
 
-	aw := NewWriter("artifact.tar.gz", updateTestDir, "mender", 1)
+	aw := NewWriter("mender", 1)
 	defer func() {
 		err = aw.Close()
 		assert.NoError(t, err)
@@ -107,7 +106,7 @@ func TestWriteArtifactFile(t *testing.T) {
 	rp := parser.NewRootfsParser("", nil)
 	aw.Register(rp)
 
-	err = aw.Write()
+	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact.tar.gz"))
 	assert.NoError(t, err)
 
 	// check is dir structure is correct
@@ -128,7 +127,7 @@ func TestWriteSingleArtifactFile(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructOKSingle)
 	assert.NoError(t, err)
 
-	aw := NewWriter("artifact.tar.gz", updateTestDir, "mender", 1)
+	aw := NewWriter("mender", 1)
 	defer func() {
 		err = aw.Close()
 		assert.NoError(t, err)
@@ -137,7 +136,7 @@ func TestWriteSingleArtifactFile(t *testing.T) {
 	rp := parser.NewRootfsParser("", nil)
 	aw.Register(rp)
 
-	err = aw.Write()
+	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact.tar.gz"))
 	assert.NoError(t, err)
 }
 
@@ -175,7 +174,7 @@ func TestWriteMultiple(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructMultiple)
 	assert.NoError(t, err)
 
-	aw := NewWriter("artifact.tar.gz", updateTestDir, "mender", 1)
+	aw := NewWriter("mender", 1)
 	defer func() {
 		err = aw.Close()
 		assert.NoError(t, err)
@@ -184,7 +183,7 @@ func TestWriteMultiple(t *testing.T) {
 	rp := parser.NewRootfsParser("", nil)
 	aw.Register(rp)
 
-	err = aw.Write()
+	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact.tar.gz"))
 	assert.NoError(t, err)
 }
 
@@ -211,13 +210,13 @@ func TestWriteBrokenArtifact(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructBroken)
 	assert.NoError(t, err)
 
-	aw := NewWriter("artifact", updateTestDir, "mender", 1)
+	aw := NewWriter("mender", 1)
 	defer func() {
 		err = aw.Close()
 		assert.NoError(t, err)
 	}()
 
-	err = aw.Write()
+	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact.tar.gz"))
 	assert.Error(t, err)
 }
 
@@ -230,35 +229,20 @@ var dirStructCustom = []TestDirEntry{
 
 func TestWriteCustom(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
+	//defer os.RemoveAll(updateTestDir)
 	err := MakeFakeUpdateDir(updateTestDir, dirStructCustom)
 	assert.NoError(t, err)
 
-	aw := NewWriter("artifact.tar.gz", updateTestDir, "mender", 1)
+	aw := NewWriter("mender", 1)
 	defer func() {
 		err = aw.Close()
 		assert.NoError(t, err)
 	}()
-
 	rp := parser.NewRootfsParser("", nil)
 	aw.Register(rp)
 
-	worker, err := aw.GetRegistered("rootfs-image")
+	err = aw.WriteSingle(filepath.Join(updateTestDir, "some_dir"),
+		filepath.Join(updateTestDir, "my_data/update.ext4"),
+		"rootfs-image", "/tmp/mender.tar.gz")
 	assert.NoError(t, err)
-
-	hdr := hdrData{
-		path:      filepath.Join(updateTestDir, "some_dir"),
-		dataFiles: []string{filepath.Join(updateTestDir, "my_data", "update.ext4")},
-		tInfo:     "rootfs-image",
-		p:         worker,
-	}
-	typeInfo := metadata.TypeInfo{Type: "rootfs-image"}
-	data, err := json.Marshal(&typeInfo)
-	assert.NoError(t, err)
-	ioutil.WriteFile(filepath.Join(updateTestDir, "some_dir", "type-info"), data, os.ModePerm)
-
-	err = aw.write([]hdrData{hdr})
-	assert.NoError(t, err)
-
-	aw.Close()
 }
