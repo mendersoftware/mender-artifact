@@ -17,11 +17,12 @@ package metadata
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 type Validater interface {
@@ -267,9 +268,9 @@ func (ah ArtifactHeader) CheckHeaderStructure(headerDir string) error {
 	}
 
 	// check if all required elements are in place
-	for _, v := range required {
+	for k, v := range required {
 		if !v {
-			return ErrMissingMetadataElem
+			return errors.Wrapf(ErrMissingMetadataElem, "missing: %v", k)
 		}
 	}
 

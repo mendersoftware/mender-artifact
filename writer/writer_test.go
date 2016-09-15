@@ -15,8 +15,10 @@
 package awriter
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/mendersoftware/artifacts/metadata"
@@ -44,9 +46,11 @@ func TestWriteArtifactBrokenDirStruct(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructInvalid)
 	assert.NoError(t, err)
 
-	aw := Writer{
-		updDir: updateTestDir,
-	}
+	aw := NewWriter("artifact", updateTestDir, "mender", 1)
+	defer func() {
+		err = aw.Close()
+		assert.NoError(t, err)
+	}()
 
 	err = aw.Write()
 	assert.Error(t, err)
@@ -95,14 +99,16 @@ func TestWriteArtifactFile(t *testing.T) {
 	assert.NoError(t, err)
 
 	aw := NewWriter("artifact.tar.gz", updateTestDir, "mender", 1)
+	defer func() {
+		err = aw.Close()
+		assert.NoError(t, err)
+	}()
 
 	rp := parser.NewRootfsParser("", nil)
 	aw.Register(rp)
 
 	err = aw.Write()
 	assert.NoError(t, err)
-
-	aw.Close()
 
 	// check is dir structure is correct
 	err = dirStructOKAfterWriting.CheckHeaderStructure(updateTestDir)
@@ -123,14 +129,16 @@ func TestWriteSingleArtifactFile(t *testing.T) {
 	assert.NoError(t, err)
 
 	aw := NewWriter("artifact.tar.gz", updateTestDir, "mender", 1)
+	defer func() {
+		err = aw.Close()
+		assert.NoError(t, err)
+	}()
 
 	rp := parser.NewRootfsParser("", nil)
 	aw.Register(rp)
 
 	err = aw.Write()
 	assert.NoError(t, err)
-
-	aw.Close()
 }
 
 var dirStructMultiple = []TestDirEntry{
@@ -168,14 +176,16 @@ func TestWriteMultiple(t *testing.T) {
 	assert.NoError(t, err)
 
 	aw := NewWriter("artifact.tar.gz", updateTestDir, "mender", 1)
+	defer func() {
+		err = aw.Close()
+		assert.NoError(t, err)
+	}()
 
 	rp := parser.NewRootfsParser("", nil)
 	aw.Register(rp)
 
 	err = aw.Write()
 	assert.NoError(t, err)
-
-	aw.Close()
 }
 
 var dirStructBroken = []TestDirEntry{
@@ -202,8 +212,53 @@ func TestWriteBrokenArtifact(t *testing.T) {
 	assert.NoError(t, err)
 
 	aw := NewWriter("artifact", updateTestDir, "mender", 1)
+	defer func() {
+		err = aw.Close()
+		assert.NoError(t, err)
+	}()
+
 	err = aw.Write()
 	assert.Error(t, err)
+}
+
+var dirStructCustom = []TestDirEntry{
+	{Path: "my_data", IsDir: true},
+	{Path: "my_data/update.ext4", Content: []byte("first update"), IsDir: false},
+	{Path: "some_dir", IsDir: true},
+	{Path: "some_dir/meta-data", Content: []byte(`{"DeviceType": "vexpress-qemu", "ImageID": "core-image-minimal-201608110900"}`), IsDir: false},
+}
+
+func TestWriteCustom(t *testing.T) {
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+	err := MakeFakeUpdateDir(updateTestDir, dirStructCustom)
+	assert.NoError(t, err)
+
+	aw := NewWriter("artifact.tar.gz", updateTestDir, "mender", 1)
+	defer func() {
+		err = aw.Close()
+		assert.NoError(t, err)
+	}()
+
+	rp := parser.NewRootfsParser("", nil)
+	aw.Register(rp)
+
+	worker, err := aw.GetRegistered("rootfs-image")
+	assert.NoError(t, err)
+
+	hdr := hdrData{
+		path:      filepath.Join(updateTestDir, "some_dir"),
+		dataFiles: []string{filepath.Join(updateTestDir, "my_data", "update.ext4")},
+		tInfo:     "rootfs-image",
+		p:         worker,
+	}
+	typeInfo := metadata.TypeInfo{Type: "rootfs-image"}
+	data, err := json.Marshal(&typeInfo)
+	assert.NoError(t, err)
+	ioutil.WriteFile(filepath.Join(updateTestDir, "some_dir", "type-info"), data, os.ModePerm)
+
+	err = aw.write([]hdrData{hdr})
+	assert.NoError(t, err)
 
 	aw.Close()
 }

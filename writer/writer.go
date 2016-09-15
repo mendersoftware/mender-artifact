@@ -40,11 +40,20 @@ type Writer struct {
 	version int
 
 	*parser.ParseManager
-	updateDirs []string
+	availableUpdates []hdrData
 
 	aArchiver *tar.Writer
 	aFile     *os.File
+	isClosed  bool
+
 	aHeader
+}
+
+type hdrData struct {
+	path      string
+	dataFiles []string
+	tInfo     string
+	p         parser.Parser
 }
 
 type aHeader struct {
@@ -121,11 +130,9 @@ func initHeaderFile() (*os.File, error) {
 	return f, nil
 }
 
-func (av *Writer) Write() error {
-	if err := av.ScanUpdateDirs(); err != nil {
-		return err
-	}
-	// scan header
+func (av *Writer) write(updates []hdrData) error {
+	av.availableUpdates = updates
+	// write header
 	if err := av.WriteHeader(); err != nil {
 		return err
 	}
@@ -146,6 +153,44 @@ func (av *Writer) Write() error {
 		return err
 	}
 	return nil
+}
+
+func (av *Writer) Write() error {
+	updates, err := av.ScanUpdateDirs()
+	if err != nil {
+		return err
+	}
+	return av.write(updates)
+}
+
+func (av *Writer) Close() (err error) {
+	if av.isClosed {
+		return nil
+	}
+
+	errHeader := av.closeHeader()
+
+	if av.hTmpFilePath != "" {
+		os.Remove(av.hTmpFilePath)
+	}
+
+	var errArch error
+	if av.aArchiver != nil {
+		errArch = av.aArchiver.Close()
+	}
+
+	var errFile error
+	if av.aFile != nil {
+		errFile = av.aFile.Close()
+	}
+
+	if errHeader != nil || errArch != nil || errFile != nil {
+		err = errors.New("writer: close error")
+	} else {
+		os.Rename(av.aFile.Name(), filepath.Join(av.updDir, av.aName))
+		av.isClosed = true
+	}
+	return
 }
 
 // This reads `type-info` file in provided directory location.
@@ -169,75 +214,84 @@ func getTypeInfo(dir string) (*metadata.TypeInfo, error) {
 	return info, nil
 }
 
-func (av *Writer) Close() (err error) {
-	av.closeHeader()
-
-	if av.hTmpFilePath != "" {
-		os.Remove(av.hTmpFilePath)
+func getDataFiles(dir string) ([]string, error) {
+	info, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		// we have no data file(s) associated with given header
+		return nil, nil
+	} else if err != nil {
+		return nil, errors.Wrapf(err, "writer: error reading data directory")
 	}
-
-	var errArch error
-	if av.aArchiver != nil {
-		errArch = av.aArchiver.Close()
+	if info.IsDir() {
+		updFiles, err := ioutil.ReadDir(dir)
+		if err != nil {
+			return nil, err
+		}
+		var updates []string
+		for _, f := range updFiles {
+			updates = append(updates, filepath.Join(dir, f.Name()))
+		}
+		return updates, nil
 	}
-
-	var errFile error
-	if av.aFile != nil {
-		errFile = av.aFile.Close()
-	}
-
-	if errArch != nil || errFile != nil {
-		err = errors.New("writer: close error")
-	} else {
-		os.Rename(av.aFile.Name(), filepath.Join(av.updDir, av.aName))
-	}
-	return
+	return nil, errors.New("writer: broken data directory")
 }
 
-func (av *Writer) readDirContent(dir string) error {
+func (av *Writer) readDirContent(dir string) (*hdrData, error) {
 	tInfo, err := getTypeInfo(filepath.Join(av.updDir, dir))
 	if err != nil {
-		return os.ErrInvalid
+		return nil, os.ErrInvalid
 	}
 	p, err := av.ParseManager.GetRegistered(tInfo.Type)
 	if err != nil {
-		return errors.Wrapf(err, "writer: error finding parser for [%v]", tInfo.Type)
+		return nil, errors.Wrapf(err, "writer: error finding parser for [%v]", tInfo.Type)
 	}
-	av.ParseManager.PushWorker(p, dir)
-	av.hInfo.Updates =
-		append(av.hInfo.Updates, metadata.UpdateType{Type: tInfo.Type})
-	av.updateDirs = append(av.updateDirs, dir)
-	return nil
+
+	data, err := getDataFiles(filepath.Join(av.updDir, dir, "data"))
+	if err != nil {
+		return nil, err
+	}
+
+	hdr := hdrData{
+		path:      filepath.Join(av.updDir, dir),
+		dataFiles: data,
+		tInfo:     tInfo.Type,
+		p:         p,
+	}
+	return &hdr, nil
 }
 
-func (av *Writer) ScanUpdateDirs() error {
+func (av *Writer) ScanUpdateDirs() ([]hdrData, error) {
 	// first check  if we have plain dir update
-	if err := av.readDirContent(""); err == nil {
-		return nil
+	hdr, err := av.readDirContent("")
+	if err == nil {
+		return []hdrData{*hdr}, nil
 	} else if err != os.ErrInvalid {
-		return err
+		return nil, err
 	}
 
 	dirs, err := ioutil.ReadDir(av.updDir)
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	var updates []hdrData
 
 	for _, uDir := range dirs {
 		if uDir.IsDir() {
-			err := av.readDirContent(uDir.Name())
+			hdr, err := av.readDirContent(uDir.Name())
 			if err == os.ErrInvalid {
 				continue
 			} else if err != nil {
-				return err
+				return nil, err
 			}
+			updates = append(updates, *hdr)
 		}
 	}
 
-	if len(av.updateDirs) == 0 {
-		return errors.New("writer: no update data detected")
+	if len(updates) == 0 {
+		return nil, errors.New("writer: no update data detected")
 	}
-	return nil
+	return updates, nil
 }
 
 func (h *aHeader) closeHeader() (err error) {
@@ -267,12 +321,16 @@ func (h *aHeader) closeHeader() (err error) {
 
 func (av *Writer) WriteHeader() error {
 	// store header info
+	for _, upd := range av.availableUpdates {
+		av.hInfo.Updates =
+			append(av.hInfo.Updates, metadata.UpdateType{Type: upd.tInfo})
+	}
 	hi := archiver.NewMetadataArchiver(&av.hInfo, "header-info")
 	if err := hi.Archive(av.hArchiver); err != nil {
 		return errors.Wrapf(err, "writer: can not store header-info")
 	}
-	for cnt := 0; cnt < len(av.updateDirs); cnt++ {
-		err := av.processNextHeaderDir(av.updateDirs[cnt], fmt.Sprintf("%04d", cnt))
+	for cnt := 0; cnt < len(av.availableUpdates); cnt++ {
+		err := av.processNextHeaderDir(av.availableUpdates[cnt], fmt.Sprintf("%04d", cnt))
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -282,22 +340,17 @@ func (av *Writer) WriteHeader() error {
 	return av.aHeader.closeHeader()
 }
 
-func (av *Writer) processNextHeaderDir(update, order string) error {
-	p, err := av.ParseManager.GetWorker(update)
-	if err != nil {
-		return errors.Wrapf(err, "writer: can not find header parser: %v", update)
-	}
-
-	if err := p.ArchiveHeader(av.hArchiver, filepath.Join(av.updDir, update),
-		filepath.Join("headers", order)); err != nil {
+func (av *Writer) processNextHeaderDir(hdr hdrData, order string) error {
+	if err := hdr.p.ArchiveHeader(av.hArchiver, hdr.path,
+		filepath.Join("headers", order), hdr.dataFiles); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (av *Writer) WriteData() error {
-	for cnt := 0; cnt < len(av.updateDirs); cnt++ {
-		err := av.processNextDataDir(av.updateDirs[cnt], fmt.Sprintf("%04d", cnt))
+	for cnt := 0; cnt < len(av.availableUpdates); cnt++ {
+		err := av.processNextDataDir(av.availableUpdates[cnt], fmt.Sprintf("%04d", cnt))
 		if err != nil {
 			return errors.Wrapf(err, "writer: error writing data files")
 		}
@@ -305,13 +358,8 @@ func (av *Writer) WriteData() error {
 	return av.Close()
 }
 
-func (av *Writer) processNextDataDir(update, order string) error {
-	p, err := av.ParseManager.GetWorker(update)
-	if err != nil {
-		return errors.Wrapf(err, "witer: can not find data parser: %v", update)
-	}
-
-	if err := p.ArchiveData(av.aArchiver, filepath.Join(av.updDir, update),
+func (av *Writer) processNextDataDir(hdr hdrData, order string) error {
+	if err := hdr.p.ArchiveData(av.aArchiver, hdr.path,
 		filepath.Join("data", order+".tar.gz")); err != nil {
 		return err
 	}

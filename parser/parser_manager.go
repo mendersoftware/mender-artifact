@@ -43,7 +43,7 @@ type Reader interface {
 }
 
 type Writer interface {
-	ArchiveHeader(tw *tar.Writer, srcDir, dstDir string) error
+	ArchiveHeader(tw *tar.Writer, srcDir, dstDir string, updFiles []string) error
 	ArchiveData(tw *tar.Writer, srcDir, dst string) error
 	Copy() Parser
 }

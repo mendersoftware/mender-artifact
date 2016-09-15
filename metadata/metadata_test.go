@@ -289,7 +289,7 @@ func TestDirectoryStructure(t *testing.T) {
 		{dirStructMissingOptional, nil},
 	}
 
-	for _, tt := range validateTests {
+	for idx, tt := range validateTests {
 		updateTestDir, _ := ioutil.TempDir("", "update")
 		defer os.RemoveAll(updateTestDir)
 		err := MakeFakeUpdateDir(updateTestDir, tt.dirContent)
@@ -298,7 +298,11 @@ func TestDirectoryStructure(t *testing.T) {
 		header := testMetadataHeaderFormat
 
 		err = header.CheckHeaderStructure(updateTestDir)
-		assert.Equal(t, tt.err, err)
+		if tt.err != nil {
+			assert.Error(t, err, "failing test: %v (%v)", idx, tt)
+		} else {
+			assert.NoError(t, err, "failing test: %v (%v)", idx, tt)
+		}
 	}
 }
 

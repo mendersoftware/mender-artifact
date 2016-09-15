@@ -98,10 +98,10 @@ func (rp *RootfsParser) ArchiveData(tw *tar.Writer, src, dst string) error {
 	return nil
 }
 
-func archiveFiles(tw *tar.Writer, upd []os.FileInfo, dir string) error {
+func archiveFiles(tw *tar.Writer, upd []string, dir string) error {
 	files := new(metadata.Files)
 	for _, u := range upd {
-		files.File = append(files.File, filepath.Base(u.Name()))
+		files.File = append(files.File, filepath.Base(u))
 	}
 	a := archiver.NewMetadataArchiver(files, filepath.Join(dir, "files"))
 	return a.Archive(tw)
@@ -125,13 +125,13 @@ func calcChecksum(file string) ([]byte, error) {
 	return checksum, nil
 }
 
-func archiveChecksums(tw *tar.Writer, upd []os.FileInfo, src, dir string) error {
+func archiveChecksums(tw *tar.Writer, upd []string, src, dir string) error {
 	for _, u := range upd {
-		sum, err := calcChecksum(filepath.Join(src, u.Name()))
+		sum, err := calcChecksum(u)
 		if err != nil {
 			return err
 		}
-		a := archiver.NewStreamArchiver(sum, filepath.Join(dir, withoutExt(u.Name())+".sha256sum"))
+		a := archiver.NewStreamArchiver(sum, filepath.Join(dir, withoutExt(u)+".sha256sum"))
 		if err := a.Archive(tw); err != nil {
 			return errors.Wrapf(err, "parser: error storing checksum")
 		}
@@ -158,26 +158,20 @@ func (sa *scriptArchiver) archiveScrpt(path string, info os.FileInfo, err error)
 	return a.Archive(sa.tw)
 }
 
-func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, src, dst string) error {
+func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer,
+	src, dst string, updFiles []string) error {
 	if err := hFormatPreWrite.CheckHeaderStructure(src); err != nil {
 		return err
 	}
 
-	// here we should get list of all update files which are
-	// part of the current update
-	updFiles, err := ioutil.ReadDir(filepath.Join(src, "data"))
-	if err != nil {
-		return err
-	}
-
 	for _, f := range updFiles {
-		rp.updates[withoutExt(f.Name())] =
+		rp.updates[withoutExt(f)] =
 			UpdateFile{
-				Name: f.Name(),
-				Path: filepath.Join(src, "data", f.Name()),
+				Name: filepath.Base(f),
+				Path: f,
 			}
 	}
-	if err = archiveFiles(tw, updFiles, dst); err != nil {
+	if err := archiveFiles(tw, updFiles, dst); err != nil {
 		return errors.Wrapf(err, "parser: can not store files")
 	}
 
@@ -202,8 +196,8 @@ func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, src, dst string) error {
 	// copy signatures
 	for _, u := range updFiles {
 		a = archiver.NewFileArchiver(
-			filepath.Join(src, "signatures", withoutExt(u.Name())+".sig"),
-			filepath.Join(dst, "signatures", withoutExt(u.Name())+".sig"))
+			filepath.Join(src, "signatures", withoutExt(u)+".sig"),
+			filepath.Join(dst, "signatures", withoutExt(u)+".sig"))
 		if err := a.Archive(tw); err != nil {
 			// TODO: for now we are skipping storing signatures
 			return nil
@@ -260,7 +254,8 @@ func (rp *RootfsParser) ParseData(r io.Reader) error {
 var hFormatPreWrite = metadata.ArtifactHeader{
 	// while calling filepath.Walk() `.` (root) directory is included
 	// when iterating throug entries in the tree
-	".":               {Path: ".", IsDir: true, Required: false},
+	".": {Path: ".", IsDir: true, Required: false},
+	// temporary artifact file
 	"artifact.mender": {Path: "artifact.mender", IsDir: false, Required: false},
 	"files":           {Path: "files", IsDir: false, Required: false},
 	"meta-data":       {Path: "meta-data", IsDir: false, Required: true},
@@ -276,9 +271,9 @@ var hFormatPreWrite = metadata.ArtifactHeader{
 	"scripts/post/*":  {Path: "scripts/post", IsDir: false, Required: false},
 	"scripts/check":   {Path: "scripts/check", IsDir: true, Required: false},
 	"scripts/check/*": {Path: "scripts/check", IsDir: false, Required: false},
-	// we must have data directory containing update
-	"data":   {Path: "data", IsDir: true, Required: true},
-	"data/*": {Path: "data/*", IsDir: false, Required: true},
+	// we can have data directory containing update
+	"data":   {Path: "data", IsDir: true, Required: false},
+	"data/*": {Path: "data/*", IsDir: false, Required: false},
 }
 
 func withoutExt(name string) string {

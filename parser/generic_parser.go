@@ -163,6 +163,6 @@ func (rp *GenericParser) ArchiveData(tw *tar.Writer, src, dst string) error {
 	return errors.New("generic: can not use generic parser for writing artifact")
 }
 
-func (rp *GenericParser) ArchiveHeader(tw *tar.Writer, src, dst string) error {
+func (rp *GenericParser) ArchiveHeader(tw *tar.Writer, src, dst string, updFiles []string) error {
 	return errors.New("generic: can not use generic parser for writing artifact")
 }

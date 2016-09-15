@@ -47,21 +47,25 @@ var dirStructOK = []TestDirEntry{
 	{Path: "0000/scripts/check", IsDir: true},
 }
 
-func writeArchive(dir string) (string, error) {
+func writeArchive(dir string) (path string, err error) {
 
-	err := MakeFakeUpdateDir(dir, dirStructOK)
+	err = MakeFakeUpdateDir(dir, dirStructOK)
 	if err != nil {
-		return "", err
+		return
 	}
 
 	aw := awriter.NewWriter("artifact.tar.gz", dir, "mender", 1)
+	defer func() {
+		err = aw.Close()
+	}()
 	rp := parser.NewRootfsParser("", nil)
 	aw.Register(rp)
 	err = aw.Write()
 	if err != nil {
-		return "", err
+		return
 	}
-	return filepath.Join(dir, "artifact.tar.gz"), nil
+	path = filepath.Join(dir, "artifact.tar.gz")
+	return
 }
 
 func TestReadArchive(t *testing.T) {
