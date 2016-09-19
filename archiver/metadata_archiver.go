@@ -27,7 +27,7 @@ import (
 // data is the data structure implementing Validater interface and must be
 // a struct that can be converted to JSON (see getJSON below)
 // archivePath is the relatve path inside the archive (see tar.Header.Name)
-func NewMetadataArchiver(data metadata.Validater, archivePath string) *StreamArchiver {
+func NewMetadataArchiver(data metadata.WriteValidator, archivePath string) *StreamArchiver {
 	j, err := convertToJSON(data)
 	if err != nil {
 		return &StreamArchiver{}
@@ -36,7 +36,7 @@ func NewMetadataArchiver(data metadata.Validater, archivePath string) *StreamArc
 }
 
 // gets data which is Validated before converting to JSON
-func convertToJSON(data metadata.Validater) ([]byte, error) {
+func convertToJSON(data metadata.WriteValidator) ([]byte, error) {
 	if data == nil {
 		return nil, errors.New("archiver: empty data")
 	}

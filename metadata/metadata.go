@@ -25,7 +25,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Validater interface {
+type WriteValidator interface {
 	io.Writer
 	Validate() error
 }
@@ -49,7 +49,7 @@ func (i Info) Validate() error {
 	return nil
 }
 
-func decode(p []byte, data Validater) error {
+func decode(p []byte, data WriteValidator) error {
 	dec := json.NewDecoder(bytes.NewReader(p))
 	for {
 		if err := dec.Decode(data); err != io.EOF {
