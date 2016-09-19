@@ -12,382 +12,394 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-package writer
+package awriter
 
 import (
 	"archive/tar"
 	"compress/gzip"
-	"crypto/sha256"
-	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"github.com/mendersoftware/artifacts/archiver"
 	"github.com/mendersoftware/artifacts/metadata"
-	"github.com/mendersoftware/log"
+	"github.com/mendersoftware/artifacts/parser"
 	"github.com/pkg/errors"
 )
 
-// ArtifactsWriter provides on the fly writing of artifacts metadata file used by
+// Writer provides on the fly writing of artifacts metadata file used by
 // Mender client and server.
 // Call Write to start writing artifacts file.
-type ArtifactsWriter struct {
-	artifactName    string
-	updateLocation  string
-	headerStructure metadata.ArtifactHeader
-	format          string
-	version         int
-	updates         map[string]updateBucket
+type Writer struct {
+	format  string
+	version int
+
+	*parser.ParseManager
+	availableUpdates []hdrData
+
+	aName  string
+	updDir string
+
+	aArchiver *tar.Writer
+	aFile     *os.File
+	isClosed  bool
+
+	*aHeader
 }
 
-// ArtifactsHeaderFormat provides the structure of the files and
-// directories required for creating artifacts file.
-// Some of the files are optional and will be created while creating
-// artifacts archive.
-var ArtifactsHeaderFormat = map[string]metadata.DirEntry{
-	// while calling filepath.Walk() `.` (root) directory is included
-	// when iterating throug entries in the tree
-	".":               {Path: ".", IsDir: true, Required: false},
-	"files":           {Path: "files", IsDir: false, Required: false},
-	"meta-data":       {Path: "meta-data", IsDir: false, Required: true},
-	"type-info":       {Path: "type-info", IsDir: false, Required: true},
-	"checksums":       {Path: "checksums", IsDir: true, Required: false},
-	"checksums/*":     {Path: "checksums", IsDir: false, Required: false},
-	"signatures":      {Path: "signatures", IsDir: true, Required: true},
-	"signatures/*":    {Path: "signatures", IsDir: false, Required: true},
-	"scripts":         {Path: "scripts", IsDir: true, Required: false},
-	"scripts/pre":     {Path: "scripts/pre", IsDir: true, Required: false},
-	"scripts/pre/*":   {Path: "scripts/pre", IsDir: false, Required: false},
-	"scripts/post":    {Path: "scripts/post", IsDir: true, Required: false},
-	"scripts/post/*":  {Path: "scripts/post", IsDir: false, Required: false},
-	"scripts/check":   {Path: "scripts/check", IsDir: true, Required: false},
-	"scripts/check/*": {Path: "scripts/check/*", IsDir: false, Required: false},
-	// we must have data directory containing update
-	"data":   {Path: "data", IsDir: true, Required: true},
-	"data/*": {Path: "data/*", IsDir: false, Required: true},
+type hdrData struct {
+	path      string
+	dataFiles []string
+	tInfo     string
+	p         parser.Parser
 }
 
-// NewArtifactsWriter creates a new ArtifactsWriter providing a location
-// of Mender metadata artifacts, format of the update and version.
-func NewArtifactsWriter(name, path, format string, version int) *ArtifactsWriter {
-	return &ArtifactsWriter{
-		artifactName:    name,
-		updateLocation:  path,
-		headerStructure: metadata.ArtifactHeader{Artifacts: ArtifactsHeaderFormat},
-		format:          format,
-		version:         version,
-		updates:         make(map[string]updateBucket),
-	}
+type aHeader struct {
+	hInfo        metadata.HeaderInfo
+	hTmpFile     *os.File
+	hTmpFilePath string
+	hArchiver    *tar.Writer
+	hCompressor  *gzip.Writer
+	isClosed     bool
 }
 
-type updateArtifact struct {
-	name         string
-	path         string
-	updateBucket string
-	info         os.FileInfo
-	checksum     []byte
-}
-
-type updateBucket struct {
-	location        string
-	path            string
-	archivedPath    string
-	updateArtifacts []updateArtifact
-	files           metadata.Files
-}
-
-// ReadArchiver provides interface for reading files or streams and preparing
-// those to be written to tar archive.
-// GetHeader returns Header to be written to the crrent entry it the tar archive.
-type ReadArchiver interface {
-	io.ReadCloser
-	Open() error
-	GetHeader() (*tar.Header, error)
-}
-
-func (av ArtifactsWriter) calculateChecksum(upd *updateArtifact) error {
-	f, err := os.Open(upd.path)
+func newHeader() *aHeader {
+	hFile, err := initHeaderFile()
 	if err != nil {
-		return errors.Wrapf(err, "can not open file for calculating checksum")
-	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return errors.Wrapf(err, "error calculating checksum")
+		return nil
 	}
 
-	checksum := h.Sum(nil)
-	upd.checksum = make([]byte, hex.EncodedLen(len(checksum)))
-	hex.Encode(upd.checksum, h.Sum(nil))
-	log.Debugf("hash of file: %v (%x)\n", upd.path, upd.checksum)
+	hComp := gzip.NewWriter(hFile)
+	hArch := tar.NewWriter(hComp)
+
+	return &aHeader{
+		hCompressor:  hComp,
+		hArchiver:    hArch,
+		hTmpFile:     hFile,
+		hTmpFilePath: hFile.Name(),
+	}
+}
+
+func (av *Writer) init(path string) (err error) {
+	av.aFile, err = createArtFile(filepath.Dir(path), "artifact.mender")
+	if err != nil {
+		return
+	}
+	av.aArchiver = tar.NewWriter(av.aFile)
+	av.aName = path
+	av.aHeader = newHeader()
+	if av.aHeader == nil {
+		err = errors.New("writer: error initializing header")
+	}
+	return
+}
+
+func NewWriter(format string, version int) *Writer {
+	return &Writer{
+		format:       format,
+		version:      version,
+		ParseManager: parser.NewParseManager(),
+	}
+}
+
+func createArtFile(dir, name string) (*os.File, error) {
+	// here we should have header stored in temporary location
+	fPath := filepath.Join(dir, name)
+	f, err := os.Create(fPath)
+	if err != nil {
+		return nil, errors.Wrapf(err, "writer: can not create artifact file: %v", fPath)
+	}
+	return f, nil
+}
+
+func initHeaderFile() (*os.File, error) {
+	// we need to create a file for storing header
+	f, err := ioutil.TempFile("", "header")
+	if err != nil {
+		return nil, errors.Wrapf(err,
+			"writer: error creating temp file for storing header")
+	}
+
+	return f, nil
+}
+
+func (av *Writer) write(updates []hdrData) error {
+	av.availableUpdates = updates
+
+	// write header
+	if err := av.WriteHeader(); err != nil {
+		return err
+	}
+
+	// archive info
+	info := av.getInfo()
+	ia := archiver.NewMetadataArchiver(&info, "info")
+	if err := ia.Archive(av.aArchiver); err != nil {
+		return errors.Wrapf(err, "writer: error archiving info")
+	}
+	// archive header
+	ha := archiver.NewFileArchiver(av.hTmpFilePath, "header.tar.gz")
+	if err := ha.Archive(av.aArchiver); err != nil {
+		return errors.Wrapf(err, "writer: error archiving header")
+	}
+	// archive data
+	if err := av.WriteData(); err != nil {
+		return err
+	}
 	return nil
 }
 
-func (av ArtifactsWriter) getHeaderInfo(updates []os.FileInfo) metadata.HeaderInfo {
-	// for now we have ONLY one type of update - rootfs-image
-	headerInfo := metadata.HeaderInfo{}
-
-	// TODO: should we store update name as well?
-	for range updates {
-		headerInfo.Updates = append(headerInfo.Updates, metadata.UpdateType{Type: "rootfs-image"})
+func (av *Writer) Write(updateDir, atrifactName string) error {
+	if err := av.init(atrifactName); err != nil {
+		return err
 	}
-	return headerInfo
+
+	updates, err := av.ScanUpdateDirs(updateDir)
+	if err != nil {
+		return err
+	}
+	return av.write(updates)
 }
 
-func (av ArtifactsWriter) getInfo() metadata.Info {
+func (av *Writer) WriteSingle(header, data, updateType, atrifactName string) error {
+	if err := av.init(atrifactName); err != nil {
+		return err
+	}
+
+	worker, err := av.GetRegistered(updateType)
+	if err != nil {
+		return err
+	}
+
+	hdr := hdrData{
+		path:      header,
+		dataFiles: []string{data},
+		tInfo:     updateType,
+		p:         worker,
+	}
+	typeInfo := metadata.TypeInfo{Type: "rootfs-image"}
+	info, err := json.Marshal(&typeInfo)
+	if err != nil {
+		return errors.Wrapf(err, "reader: can not create type-info")
+	}
+	if err := ioutil.WriteFile(filepath.Join(header, "type-info"), info, os.ModePerm); err != nil {
+		return errors.Wrapf(err, "reader: can not create type-info file")
+	}
+	return av.write([]hdrData{hdr})
+}
+
+func (av *Writer) Close() (err error) {
+	if av.isClosed {
+		return nil
+	}
+
+	errHeader := av.closeHeader()
+
+	if av.hTmpFilePath != "" {
+		os.Remove(av.hTmpFilePath)
+	}
+
+	var errArch error
+	if av.aArchiver != nil {
+		errArch = av.aArchiver.Close()
+	}
+
+	var errFile error
+	if av.aFile != nil {
+		errFile = av.aFile.Close()
+	}
+
+	if errHeader != nil || errArch != nil || errFile != nil {
+		err = errors.New("writer: close error")
+	} else {
+		if av.aFile != nil {
+			os.Rename(av.aFile.Name(), av.aName)
+		}
+		av.isClosed = true
+	}
+	return
+}
+
+// This reads `type-info` file in provided directory location.
+func getTypeInfo(dir string) (*metadata.TypeInfo, error) {
+	iPath := filepath.Join(dir, "type-info")
+	f, err := os.Open(iPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	info := new(metadata.TypeInfo)
+	_, err = io.Copy(info, f)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = info.Validate(); err != nil {
+		return nil, err
+	}
+	return info, nil
+}
+
+func getDataFiles(dir string) ([]string, error) {
+	info, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		// we have no data file(s) associated with given header
+		return nil, nil
+	} else if err != nil {
+		return nil, errors.Wrapf(err, "writer: error reading data directory")
+	}
+	if info.IsDir() {
+		updFiles, err := ioutil.ReadDir(dir)
+		if err != nil {
+			return nil, err
+		}
+		var updates []string
+		for _, f := range updFiles {
+			updates = append(updates, filepath.Join(dir, f.Name()))
+		}
+		return updates, nil
+	}
+	return nil, errors.New("writer: broken data directory")
+}
+
+func (av *Writer) readDirContent(dir string) (*hdrData, error) {
+	tInfo, err := getTypeInfo(filepath.Join(av.updDir, dir))
+	if err != nil {
+		return nil, os.ErrInvalid
+	}
+	p, err := av.ParseManager.GetRegistered(tInfo.Type)
+	if err != nil {
+		return nil, errors.Wrapf(err, "writer: error finding parser for [%v]", tInfo.Type)
+	}
+
+	data, err := getDataFiles(filepath.Join(av.updDir, dir, "data"))
+	if err != nil {
+		return nil, err
+	}
+
+	hdr := hdrData{
+		path:      filepath.Join(av.updDir, dir),
+		dataFiles: data,
+		tInfo:     tInfo.Type,
+		p:         p,
+	}
+	return &hdr, nil
+}
+
+func (av *Writer) ScanUpdateDirs(dir string) ([]hdrData, error) {
+	av.updDir = dir
+	// first check  if we have plain dir update
+	hdr, err := av.readDirContent("")
+	if err == nil {
+		return []hdrData{*hdr}, nil
+	} else if err != os.ErrInvalid {
+		return nil, err
+	}
+
+	dirs, err := ioutil.ReadDir(av.updDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var updates []hdrData
+
+	for _, uDir := range dirs {
+		if uDir.IsDir() {
+			hdr, err := av.readDirContent(uDir.Name())
+			if err == os.ErrInvalid {
+				continue
+			} else if err != nil {
+				return nil, err
+			}
+			updates = append(updates, *hdr)
+		}
+	}
+
+	if len(updates) == 0 {
+		return nil, errors.New("writer: no update data detected")
+	}
+	return updates, nil
+}
+
+func (h *aHeader) closeHeader() (err error) {
+	// We have seen some of header components to cause crash while
+	// closing. That's why we are trying to close and clean up as much
+	// as possible here and recover() if crash happens.
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New("error closing header")
+		}
+		if err == nil {
+			h.isClosed = true
+		}
+	}()
+
+	if !h.isClosed {
+		errArch := h.hArchiver.Close()
+		errComp := h.hCompressor.Close()
+		errFile := h.hTmpFile.Close()
+
+		if errArch != nil || errComp != nil || errFile != nil {
+			err = errors.New("writer: error closing header")
+		}
+	}
+	return
+}
+
+func (av *Writer) WriteHeader() error {
+	// store header info
+	for _, upd := range av.availableUpdates {
+		av.hInfo.Updates =
+			append(av.hInfo.Updates, metadata.UpdateType{Type: upd.tInfo})
+	}
+	hi := archiver.NewMetadataArchiver(&av.hInfo, "header-info")
+	if err := hi.Archive(av.hArchiver); err != nil {
+		return errors.Wrapf(err, "writer: can not store header-info")
+	}
+	for cnt := 0; cnt < len(av.availableUpdates); cnt++ {
+		err := av.processNextHeaderDir(av.availableUpdates[cnt], fmt.Sprintf("%04d", cnt))
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return errors.Wrapf(err, "writer: error processing update directory")
+		}
+	}
+	return av.aHeader.closeHeader()
+}
+
+func (av *Writer) processNextHeaderDir(hdr hdrData, order string) error {
+	if err := hdr.p.ArchiveHeader(av.hArchiver, hdr.path,
+		filepath.Join("headers", order), hdr.dataFiles); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (av *Writer) WriteData() error {
+	for cnt := 0; cnt < len(av.availableUpdates); cnt++ {
+		err := av.processNextDataDir(av.availableUpdates[cnt], fmt.Sprintf("%04d", cnt))
+		if err != nil {
+			return errors.Wrapf(err, "writer: error writing data files")
+		}
+	}
+	return av.Close()
+}
+
+func (av *Writer) processNextDataDir(hdr hdrData, order string) error {
+	if err := hdr.p.ArchiveData(av.aArchiver, hdr.path,
+		filepath.Join("data", order+".tar.gz")); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (av Writer) getInfo() metadata.Info {
 	return metadata.Info{
 		Format:  av.format,
 		Version: av.version,
 	}
-}
-
-func (av *ArtifactsWriter) writeArchive(destination io.WriteCloser, content []ReadArchiver, compressed bool) error {
-	if len(content) == 0 {
-		return errors.New("artifacts writer: empty content")
-	}
-
-	var tw *tar.Writer
-	if compressed {
-		// start with something simple for now
-		gz := gzip.NewWriter(destination)
-		defer gz.Close()
-		tw = tar.NewWriter(gz)
-	} else {
-		tw = tar.NewWriter(destination)
-	}
-
-	// use extra function to make sure we will not end up with exhausting
-	// open file descriptors (in case of huge archive)
-	extractAndWrite := func(archiver ReadArchiver) error {
-		defer archiver.Close()
-
-		hdr, err := archiver.GetHeader()
-		if err != nil || hdr == nil {
-			return errors.New("artifacts writer: broken or empty header")
-		}
-
-		if err := tw.WriteHeader(hdr); err != nil {
-			return errors.Wrapf(err, "error writing archive header")
-		}
-
-		if err := archiver.Open(); err != nil {
-			return errors.Wrapf(err, "error opening file to be stored in archive")
-		}
-		// on the fly copy
-		if _, err := io.Copy(tw, archiver); err != nil {
-			return errors.Wrapf(err, "error copying file to archive")
-		}
-		return nil
-	}
-
-	for _, arch := range content {
-		if arch == nil {
-			tw.Close()
-			return errors.New("artifacts writer: invalid archiver entry")
-		}
-		if err := extractAndWrite(arch); err != nil {
-			tw.Close()
-			return err
-		}
-	}
-
-	// make sure to check the error on Close
-	if err := tw.Close(); err != nil {
-		log.Errorf("artifacts writer: error closing archive writer")
-	}
-
-	return nil
-}
-
-func (av *ArtifactsWriter) archiveData(updates *updateBucket) error {
-	destination := filepath.Join(av.updateLocation, "data")
-
-	// create directory and file for archiving data
-	if err := os.MkdirAll(destination, os.ModeDir|os.ModePerm); err != nil {
-		return err
-	}
-	dataArchive, err := os.Create(filepath.Join(destination, updates.location+".tar.gz"))
-	if err != nil {
-		return err
-	}
-	defer dataArchive.Close()
-
-	// we need to ensure correct ordering of files
-	var dataContent []ReadArchiver
-
-	for _, update := range updates.updateArtifacts {
-		dataContent = append(dataContent,
-			NewFileArchiver(update.path, update.info.Name()))
-	}
-	updates.archivedPath = dataArchive.Name()
-	return av.writeArchive(dataArchive, dataContent, true)
-}
-
-func (av ArtifactsWriter) archiveHeader(updates []os.FileInfo) error {
-	archive, err := os.Create(filepath.Join(av.updateLocation, "header.tar.gz"))
-	if err != nil {
-		return err
-	}
-	defer archive.Close()
-
-	// we need to ensure correct ordering of files
-	var hCnt []ReadArchiver
-	// header-info
-	sr := NewJSONStreamArchiver(av.getHeaderInfo(updates), "header-info")
-	hCnt = append(hCnt, sr)
-
-	for _, update := range updates {
-		bucket, ok := av.updates[update.Name()]
-
-		if !ok {
-			return errors.New("artifacts writer: invalid update bucket")
-		}
-		updateTarLocation := filepath.Join("headers", update.Name())
-
-		// files
-		hCnt = append(hCnt, NewJSONStreamArchiver(bucket.files,
-			filepath.Join(updateTarLocation, "files")))
-		// type-info
-		hCnt = append(hCnt, NewFileArchiver(filepath.Join(bucket.path, "type-info"),
-			filepath.Join(updateTarLocation, "type-info")))
-		// meta-data
-		hCnt = append(hCnt, NewFileArchiver(filepath.Join(bucket.path, "meta-data"),
-			filepath.Join(updateTarLocation, "meta-data")))
-		// checksums
-		for _, upd := range bucket.updateArtifacts {
-			fileName := strings.TrimSuffix(upd.name, filepath.Ext(upd.name)) + ".sha256sum"
-			hCnt = append(hCnt, NewStreamArchiver(upd.checksum,
-				filepath.Join(updateTarLocation, "checksums", fileName)))
-		}
-		// signatures
-		for _, upd := range bucket.updateArtifacts {
-			fileName := strings.TrimSuffix(upd.name, filepath.Ext(upd.name)) + ".sig"
-			fr := NewFileArchiver(filepath.Join(bucket.path, "signatures", fileName),
-				filepath.Join(updateTarLocation, "signatures", fileName))
-			hCnt = append(hCnt, fr)
-		}
-		// TODO: scripts
-		//tarContent = append(tarContent, NewPlainFile(filepath.Join(bucket.path, "scripts"), filepath.Join("headers", update.Name(), "scripts")))
-	}
-	return av.writeArchive(archive, hCnt, true)
-}
-
-func (av *ArtifactsWriter) removeCompressedHeader() error {
-	// remove temporary header file
-	return os.Remove(filepath.Join(av.updateLocation, "header.tar.gz"))
-}
-
-func (av *ArtifactsWriter) createArtifact(files []os.FileInfo) error {
-	artifact, err := os.Create(filepath.Join(av.updateLocation, av.artifactName+".mender"))
-	if err != nil {
-		return err
-	}
-	defer artifact.Close()
-
-	// we need to ensure correct ordering of files
-	var artifactContent []ReadArchiver
-
-	aInfo := NewJSONStreamArchiver(av.getInfo(), "info")
-	artifactContent = append(artifactContent, aInfo)
-	aHdr := NewFileArchiver(filepath.Join(av.updateLocation, "header.tar.gz"), "header.tar.gz")
-	artifactContent = append(artifactContent, aHdr)
-
-	for _, artifact := range files {
-		bucket, ok := av.updates[artifact.Name()]
-
-		if !ok {
-			return errors.New("artifacts writer: can not find data file")
-		}
-		aData := NewFileArchiver(bucket.archivedPath, "data/0000.tar.gz")
-		artifactContent = append(artifactContent, aData)
-	}
-	return av.writeArchive(artifact, artifactContent, false)
-}
-
-func (av *ArtifactsWriter) storeFile(bucket *updateBucket, upd updateArtifact) error {
-	bucket.files.Files =
-		append(bucket.files.Files, metadata.File{File: upd.name})
-	return nil
-}
-
-func (av *ArtifactsWriter) processUpdateBucket(bucket string) error {
-	// get list of update files
-	// at this point we know that `data` exists and contains update(s)
-	bucketLocation := filepath.Join(av.updateLocation, bucket)
-	dataLocation := filepath.Join(av.updateLocation, bucket, "data")
-
-	updateFiles, err := ioutil.ReadDir(dataLocation)
-	if err != nil {
-		return err
-	}
-
-	updBucket := updateBucket{}
-	// iterate through all data files
-	for _, file := range updateFiles {
-		upd := updateArtifact{
-			name:         file.Name(),
-			path:         filepath.Join(dataLocation, file.Name()),
-			updateBucket: bucket,
-			info:         file,
-		}
-		// generate checksums
-		err = av.calculateChecksum(&upd)
-		if err != nil {
-			return err
-		}
-		// TODO: generate signatures
-
-		// store `file` data
-		if err = av.storeFile(&updBucket, upd); err != nil {
-			return err
-		}
-		updBucket.updateArtifacts = append(updBucket.updateArtifacts, upd)
-		updBucket.location = bucket
-		updBucket.path = bucketLocation
-	}
-
-	// move (and compress) updates from `data` to `../data/location.tar.gz`
-	if err = av.archiveData(&updBucket); err != nil {
-		return err
-	}
-
-	av.updates[bucket] = updBucket
-	return nil
-}
-
-// Write writes Mender artifacts metadata compressed archive
-func (av *ArtifactsWriter) Write() error {
-	// get directories list containing updates
-	entries, err := ioutil.ReadDir(av.updateLocation)
-	if err != nil {
-		return err
-	}
-	// iterate through all directories containing updates
-	for _, location := range entries {
-		// check files and directories consistency
-		err = av.headerStructure.CheckHeaderStructure(
-			filepath.Join(av.updateLocation, location.Name()))
-		if err != nil {
-			return err
-		}
-		if err = av.processUpdateBucket(location.Name()); err != nil {
-			return err
-		}
-	}
-	// create compressed header; the intermediate step is needed as we
-	// can not create tar archive containing files compressed on the fly
-	if err = av.archiveHeader(entries); err != nil {
-		return err
-	}
-	// crate whole artifacts file
-	if err = av.createArtifact(entries); err != nil {
-		return err
-	}
-	// remove header which copy is now part of artifact
-	if err = av.removeCompressedHeader(); err != nil {
-		return err
-	}
-	return nil
 }

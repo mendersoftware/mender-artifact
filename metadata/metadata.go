@@ -15,16 +15,18 @@
 package metadata
 
 import (
-	"errors"
+	"bytes"
+	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/mendersoftware/log"
+	"github.com/pkg/errors"
 )
 
-// Validater interface is providing a method of validating data.
-type Validater interface {
+type WriteValidator interface {
+	io.Writer
 	Validate() error
 }
 
@@ -45,6 +47,25 @@ func (i Info) Validate() error {
 		return ErrValidatingData
 	}
 	return nil
+}
+
+func decode(p []byte, data WriteValidator) error {
+	dec := json.NewDecoder(bytes.NewReader(p))
+	for {
+		if err := dec.Decode(data); err != io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (i *Info) Write(p []byte) (n int, err error) {
+	if err := decode(p, i); err != nil {
+		return 0, err
+	}
+	return len(p), nil
 }
 
 // UpdateType provides information about the type of update.
@@ -72,48 +93,53 @@ func (hi HeaderInfo) Validate() error {
 	return nil
 }
 
+func (hi *HeaderInfo) Write(p []byte) (n int, err error) {
+	if err := decode(p, hi); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
 // TypeInfo provides information of type of individual updates
 // archived in artifacts archive.
 type TypeInfo struct {
-	Rootfs string `json:"rootfs"`
+	Type string `json:"type"`
 }
 
 // Validate validates corectness of TypeInfo.
 func (ti TypeInfo) Validate() error {
-	if len(ti.Rootfs) == 0 {
+	if len(ti.Type) == 0 {
 		return ErrValidatingData
 	}
 	return nil
 }
 
-// Metadata contains artifacts metadata information. The exact metadata fields
-// are user-defined and are not specified. The only requirement is that those
-// must be stored in a for of JSON.
-// The only fields which must exist are 'DeviceType' and 'ImageId'.
-type Metadata struct {
-	// we don't know exactly what type of data we will have here
-	data map[string]interface{}
+func (ti *TypeInfo) Write(p []byte) (n int, err error) {
+	if err := decode(p, ti); err != nil {
+		return 0, err
+	}
+	return len(p), nil
 }
 
-// Validate check corecness of artifacts metadata. Since the exact format is
-// nost specified we are only checking if those could be converted to JSON.
-// The only fields which must exist are 'DeviceType' and 'ImageId'.
-func (m Metadata) Validate() error {
-	if m.data == nil {
+type AllMetadata map[string]interface{}
+
+func (am AllMetadata) Validate() error {
+	if am == nil || len(am) == 0 {
 		return ErrValidatingData
 	}
-	// mandatory fields
+
+	// check some required fields
 	var deviceType interface{}
 	var imageID interface{}
 
-	for k, v := range m.data {
+	for k, v := range am {
 		if v == nil {
 			return ErrValidatingData
 		}
-		if strings.Compare(k, "DeviceType") == 0 {
+		if strings.Compare(k, "deviceType") == 0 {
 			deviceType = v
 		}
-		if strings.Compare(k, "ImageID") == 0 {
+		if strings.Compare(k, "imageId") == 0 {
 			imageID = v
 		}
 	}
@@ -123,28 +149,85 @@ func (m Metadata) Validate() error {
 	return nil
 }
 
-// File is a single file being a part of Files struct.
-type File struct {
-	File string `json:"file"`
+func (am *AllMetadata) Write(p []byte) (n int, err error) {
+	if err := decode(p, am); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
+// Metadata contains artifacts metadata information. The exact metadata fields
+// are user-defined and are not specified. The only requirement is that those
+// must be stored in a for of JSON.
+// The only fields which must exist are 'DeviceType' and 'ImageId'.
+type Metadata struct {
+	Required RequiredMetadata
+	All      AllMetadata
+}
+
+type RequiredMetadata struct {
+	DeviceType string `json:"deviceType"`
+	ImageID    string `json:"imageId"`
+}
+
+func (rm RequiredMetadata) Validate() error {
+	if len(rm.DeviceType) == 0 || len(rm.ImageID) == 0 {
+		return ErrValidatingData
+	}
+	return nil
+}
+
+func (rm *RequiredMetadata) Write(p []byte) (n int, err error) {
+	if err := decode(p, rm); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
+// Validate check corecness of artifacts metadata. Since the exact format is
+// nost specified we are only checking if those could be converted to JSON.
+// The only fields which must exist are 'DeviceType' and 'ImageId'.
+func (m Metadata) Validate() error {
+	if m.All.Validate() != nil || m.Required.Validate() != nil {
+		return ErrValidatingData
+	}
+	return nil
+}
+
+func (m *Metadata) Write(p []byte) (n int, err error) {
+	if _, err := m.Required.Write(p); err != nil {
+		return 0, err
+	}
+	if _, err := m.All.Write(p); err != nil {
+		return 0, err
+	}
+	return len(p), nil
 }
 
 // Files represents the list of file names that make up the payload for given
 // update.
 type Files struct {
-	Files []File `json:"files"`
+	FileList []string `json:"files"`
 }
 
 // Validate checks format of Files.
 func (f Files) Validate() error {
-	if len(f.Files) == 0 {
+	if len(f.FileList) == 0 {
 		return ErrValidatingData
 	}
-	for _, file := range f.Files {
-		if file == (File{}) {
+	for _, f := range f.FileList {
+		if len(f) == 0 {
 			return ErrValidatingData
 		}
 	}
 	return nil
+}
+
+func (f *Files) Write(p []byte) (n int, err error) {
+	if err := decode(p, f); err != nil {
+		return 0, err
+	}
+	return len(p), nil
 }
 
 // DirEntry contains information about single enttry of artifact archive.
@@ -159,9 +242,7 @@ type DirEntry struct {
 
 // ArtifactHeader is a filesystem structure containing information about
 // all required elements of given Mender artifact.
-type ArtifactHeader struct {
-	Artifacts map[string]DirEntry
-}
+type ArtifactHeader map[string]DirEntry
 
 var (
 	// ErrInvalidMetadataElemType indicates that element type is not supported.
@@ -176,8 +257,8 @@ var (
 	ErrUnsupportedElement = errors.New("Unsupported artifact")
 )
 
-func (mh ArtifactHeader) processEntry(entry string, isDir bool, required map[string]bool) error {
-	elem, ok := mh.Artifacts[entry]
+func (ah ArtifactHeader) processEntry(entry string, isDir bool, required map[string]bool) error {
+	elem, ok := ah[entry]
 	if !ok {
 		// for now we are only allowing file name to be user defined
 		// the directory structure is pre defined
@@ -185,7 +266,7 @@ func (mh ArtifactHeader) processEntry(entry string, isDir bool, required map[str
 			return ErrUnsupportedElement
 		}
 		newEntry := filepath.Dir(entry) + "/*"
-		return mh.processEntry(newEntry, isDir, required)
+		return ah.processEntry(newEntry, isDir, required)
 	}
 
 	if isDir != elem.IsDir {
@@ -200,12 +281,12 @@ func (mh ArtifactHeader) processEntry(entry string, isDir bool, required map[str
 
 // CheckHeaderStructure checks if headerDir directory contains all needed
 // files and sub-directories for creating Mender artifact.
-func (mh ArtifactHeader) CheckHeaderStructure(headerDir string) error {
+func (ah ArtifactHeader) CheckHeaderStructure(headerDir string) error {
 	if _, err := os.Stat(headerDir); os.IsNotExist(err) {
 		return os.ErrNotExist
 	}
 	var required = make(map[string]bool)
-	for k, v := range mh.Artifacts {
+	for k, v := range ah {
 		if v.Required {
 			required[k] = false
 		}
@@ -217,9 +298,8 @@ func (mh ArtifactHeader) CheckHeaderStructure(headerDir string) error {
 				return err
 			}
 
-			err = mh.processEntry(pth, f.IsDir(), required)
+			err = ah.processEntry(pth, f.IsDir(), required)
 			if err != nil {
-				log.Errorf("unsupported element in update metadata header: %v (is dir: %v)", path, f.IsDir())
 				return err
 			}
 
@@ -232,8 +312,7 @@ func (mh ArtifactHeader) CheckHeaderStructure(headerDir string) error {
 	// check if all required elements are in place
 	for k, v := range required {
 		if !v {
-			log.Errorf("missing element in update metadata header: %v", k)
-			return ErrMissingMetadataElem
+			return errors.Wrapf(ErrMissingMetadataElem, "missing: %v", k)
 		}
 	}
 
