@@ -79,23 +79,26 @@ func TestValidateTypeInfo(t *testing.T) {
 
 func TestValidateMetadata(t *testing.T) {
 	var validateTests = []struct {
-		in  Metadata
+		in  string
 		err error
 	}{
-		{Metadata{}, ErrValidatingData},
-		{make(Metadata), ErrValidatingData},
-		{Metadata{}, ErrValidatingData},
-		{Metadata{"": nil}, ErrValidatingData},
-		{Metadata{"key": nil}, ErrValidatingData},
-		{Metadata{"key": "val"}, ErrValidatingData},
-		{Metadata{"DeviceType": "type"}, ErrValidatingData},
-		{Metadata{"DeviceType": nil, "ImageID": "image"}, ErrValidatingData},
-		{Metadata{"DeviceType": "device", "ImageID": "image"}, nil},
-		{Metadata{"DeviceType": "device", "ImageID": "image", "Data": "data"}, nil},
+		{`{"": nil}`, ErrValidatingData},
+		{`{"key": nil}`, ErrValidatingData},
+		{`{"key": "val"}`, ErrValidatingData},
+		{`{"deviceType": "type"}`, ErrValidatingData},
+		{`{"deviceType": nil, "imageId": "image"}`, ErrValidatingData},
+		{`{"deviceType": "device", "imageId": "image"}`, nil},
+		{`{"deviceType": "device", "imageId": "image", "data": "data"}`, nil},
 	}
 
 	for _, tt := range validateTests {
-		e := tt.in.Validate()
+		mtd := new(Metadata)
+		l, e := mtd.Write([]byte(tt.in))
+		assert.NoError(t, e)
+		assert.Equal(t, len(tt.in), l)
+		e = mtd.Required.Validate()
+		assert.Equal(t, e, tt.err, "failing test: %v", tt)
+		e = mtd.Validate()
 		assert.Equal(t, e, tt.err, "failing test: %v", tt)
 	}
 }

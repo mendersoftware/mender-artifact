@@ -39,7 +39,7 @@ type Reader interface {
 	GetUpdateType() *metadata.UpdateType
 	GetUpdateFiles() map[string]UpdateFile
 	GetDeviceType() string
-	GetMetadata() *metadata.Metadata
+	GetMetadata() *metadata.AllMetadata
 }
 
 type Writer interface {

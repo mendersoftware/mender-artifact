@@ -60,10 +60,10 @@ func (rp *RootfsParser) GetUpdateFiles() map[string]UpdateFile {
 	return nil
 }
 func (rp *RootfsParser) GetDeviceType() string {
-	return rp.metadata["DeviceType"].(string)
+	return rp.metadata.Required.DeviceType
 }
-func (rp *RootfsParser) GetMetadata() *metadata.Metadata {
-	return &rp.metadata
+func (rp *RootfsParser) GetMetadata() *metadata.AllMetadata {
+	return &rp.metadata.All
 }
 
 func (rp *RootfsParser) archiveToTmp(tw *tar.Writer, f *os.File) (err error) {

@@ -121,31 +121,25 @@ func (ti *TypeInfo) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// Metadata contains artifacts metadata information. The exact metadata fields
-// are user-defined and are not specified. The only requirement is that those
-// must be stored in a for of JSON.
-// The only fields which must exist are 'DeviceType' and 'ImageId'.
-type Metadata map[string]interface{}
+type AllMetadata map[string]interface{}
 
-// Validate check corecness of artifacts metadata. Since the exact format is
-// nost specified we are only checking if those could be converted to JSON.
-// The only fields which must exist are 'DeviceType' and 'ImageId'.
-func (m Metadata) Validate() error {
-	if m == nil {
+func (am AllMetadata) Validate() error {
+	if am == nil || len(am) == 0 {
 		return ErrValidatingData
 	}
-	// mandatory fields
+
+	// check some required fields
 	var deviceType interface{}
 	var imageID interface{}
 
-	for k, v := range m {
+	for k, v := range am {
 		if v == nil {
 			return ErrValidatingData
 		}
-		if strings.Compare(k, "DeviceType") == 0 {
+		if strings.Compare(k, "deviceType") == 0 {
 			deviceType = v
 		}
-		if strings.Compare(k, "ImageID") == 0 {
+		if strings.Compare(k, "imageId") == 0 {
 			imageID = v
 		}
 	}
@@ -155,8 +149,56 @@ func (m Metadata) Validate() error {
 	return nil
 }
 
+func (am *AllMetadata) Write(p []byte) (n int, err error) {
+	if err := decode(p, am); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
+// Metadata contains artifacts metadata information. The exact metadata fields
+// are user-defined and are not specified. The only requirement is that those
+// must be stored in a for of JSON.
+// The only fields which must exist are 'DeviceType' and 'ImageId'.
+type Metadata struct {
+	Required RequiredMetadata
+	All      AllMetadata
+}
+
+type RequiredMetadata struct {
+	DeviceType string `json:"deviceType"`
+	ImageID    string `json:"imageId"`
+}
+
+func (rm RequiredMetadata) Validate() error {
+	if len(rm.DeviceType) == 0 || len(rm.ImageID) == 0 {
+		return ErrValidatingData
+	}
+	return nil
+}
+
+func (rm *RequiredMetadata) Write(p []byte) (n int, err error) {
+	if err := decode(p, rm); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
+// Validate check corecness of artifacts metadata. Since the exact format is
+// nost specified we are only checking if those could be converted to JSON.
+// The only fields which must exist are 'DeviceType' and 'ImageId'.
+func (m Metadata) Validate() error {
+	if m.All.Validate() != nil || m.Required.Validate() != nil {
+		return ErrValidatingData
+	}
+	return nil
+}
+
 func (m *Metadata) Write(p []byte) (n int, err error) {
-	if err := decode(p, m); err != nil {
+	if _, err := m.Required.Write(p); err != nil {
+		return 0, err
+	}
+	if _, err := m.All.Write(p); err != nil {
 		return 0, err
 	}
 	return len(p), nil
