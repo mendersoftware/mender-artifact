@@ -103,7 +103,7 @@ func (rp *RootfsParser) ArchiveData(tw *tar.Writer, src, dst string) error {
 func archiveFiles(tw *tar.Writer, upd []string, dir string) error {
 	files := new(metadata.Files)
 	for _, u := range upd {
-		files.File = append(files.File, filepath.Base(u))
+		files.FileList = append(files.FileList, filepath.Base(u))
 	}
 	a := archiver.NewMetadataArchiver(files, filepath.Join(dir, "files"))
 	return a.Archive(tw)

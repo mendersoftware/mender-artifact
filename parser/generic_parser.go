@@ -58,7 +58,7 @@ func parseFiles(tr *tar.Reader, uFiles map[string]UpdateFile) error {
 	if _, err := io.Copy(files, tr); err != nil {
 		return errors.Wrapf(err, "parser: error reading files")
 	}
-	for _, file := range files.File {
+	for _, file := range files.FileList {
 		uFiles[withoutExt(file)] = UpdateFile{Name: file}
 	}
 	return nil

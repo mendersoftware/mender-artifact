@@ -165,15 +165,15 @@ func (m *Metadata) Write(p []byte) (n int, err error) {
 // Files represents the list of file names that make up the payload for given
 // update.
 type Files struct {
-	File []string `json:"file"`
+	FileList []string `json:"files"`
 }
 
 // Validate checks format of Files.
 func (f Files) Validate() error {
-	if len(f.File) == 0 {
+	if len(f.FileList) == 0 {
 		return ErrValidatingData
 	}
-	for _, f := range f.File {
+	for _, f := range f.FileList {
 		if len(f) == 0 {
 			return ErrValidatingData
 		}
