@@ -57,7 +57,7 @@ func (rp *RootfsParser) GetUpdateType() *metadata.UpdateType {
 }
 
 func (rp *RootfsParser) GetUpdateFiles() map[string]UpdateFile {
-	return nil
+	return rp.updates
 }
 func (rp *RootfsParser) GetDeviceType() string {
 	return rp.metadata.Required.DeviceType
