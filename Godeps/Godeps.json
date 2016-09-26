@@ -1,0 +1,14 @@
+{
+	"ImportPath": "github.com/mendersoftware/artifacts",
+	"GoVersion": "go1.6",
+	"GodepVersion": "v74",
+	"Packages": [
+		"github.com/mendersoftware/mendertesting"
+	],
+	"Deps": [
+		{
+			"ImportPath": "github.com/mendersoftware/mendertesting",
+			"Rev": "bc995f337d2788cbc9faca2af6f527007953e687"
+		}
+	]
+}
