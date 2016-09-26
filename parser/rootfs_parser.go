@@ -62,6 +62,9 @@ func (rp *RootfsParser) GetUpdateFiles() map[string]UpdateFile {
 func (rp *RootfsParser) GetDeviceType() string {
 	return rp.metadata.Required.DeviceType
 }
+func (rp *RootfsParser) GetImageID() string {
+	return rp.metadata.Required.ImageID
+}
 func (rp *RootfsParser) GetMetadata() *metadata.AllMetadata {
 	return &rp.metadata.All
 }

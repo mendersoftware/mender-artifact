@@ -191,6 +191,9 @@ func TestReadSequence(t *testing.T) {
 
 	for _, p := range w {
 		assert.Equal(t, "vexpress-qemu", p.GetDeviceType())
+		if rp, ok := p.(*parser.RootfsParser); ok {
+			assert.Equal(t, "core-image-minimal-201608110900", rp.GetImageID())
+		}
 	}
 
 	data, err := ioutil.ReadFile(path.Join(updateTestDir, "my_update"))
