@@ -8,14 +8,7 @@ go:
 before_install:
     # Install code coverage / coveralls tooling
     - go get -u github.com/axw/gocov/gocov
-    - go get -u github.com/mattn/goveralls
     - go get -u golang.org/x/tools/cmd/cover
-
-    # Install godep for dependency management
-    - go get -u github.com/tools/godep
-
-    # Merge all subpackage code coverage reports into a single report
-    - go get -u github.com/modocache/gover
 
 before_script:
     # Print build info.
@@ -39,18 +32,11 @@ script:
     # also including their coverage may introduce to much noice. Concentrate on the coverage of local packages.
     # Execute go test on every local subpackage (resolved as dependencies) and generate covreage report for each.
     # Test packages pararell (xargs -P)
-    - go list ./... | grep -v vendor | xargs -n1 -I {} -P 4 go test -v -covermode=atomic -coverprofile=../../../{}/profile.coverprofile {}
+    - go list ./... | grep -v vendor | xargs -n1 -I {} -P 4 go test -v -covermode=atomic -coverprofile=../../../{}/coverage.txt {}
 
     # Compile binary
     - go build ./...
 
 after_success:
-    # Merge all coverage reports located in subdirectories and put them under: gover.coverprofile
-    - gover
-
-    # Send code coverage report to coveralls.io
-    - goveralls -service=travis-ci -coverprofile=gover.coverprofile
-
     # Integrate with https://codecov.io
-    - find . -name *profile.coverprofile | sed -e "p;s/profile.coverprofile/coverage.txt/" | xargs -n2 mv
     - bash <(curl -s https://codecov.io/bash)

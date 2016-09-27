@@ -103,7 +103,7 @@ func TestWriteArtifactFile(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	rp := parser.NewRootfsParser(nil, "")
+	rp := &parser.RootfsParser{}
 	aw.Register(rp)
 
 	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact.tar.gz"))
@@ -123,7 +123,7 @@ var dirStructOKSingle = []TestDirEntry{
 
 func TestWriteSingleArtifactFile(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
+	//defer os.RemoveAll(updateTestDir)
 	err := MakeFakeUpdateDir(updateTestDir, dirStructOKSingle)
 	assert.NoError(t, err)
 
@@ -133,7 +133,7 @@ func TestWriteSingleArtifactFile(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	rp := parser.NewRootfsParser(nil, "")
+	rp := &parser.RootfsParser{}
 	aw.Register(rp)
 
 	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact.tar.gz"))
@@ -180,7 +180,7 @@ func TestWriteMultiple(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	rp := parser.NewRootfsParser(nil, "")
+	rp := &parser.RootfsParser{}
 	aw.Register(rp)
 
 	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact.tar.gz"))
@@ -238,7 +238,7 @@ func TestWriteCustom(t *testing.T) {
 		err = aw.Close()
 		assert.NoError(t, err)
 	}()
-	rp := parser.NewRootfsParser(nil, "")
+	rp := &parser.RootfsParser{}
 	aw.Register(rp)
 
 	err = aw.WriteSingle(filepath.Join(updateTestDir, "some_dir"),
