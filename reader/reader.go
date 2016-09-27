@@ -52,7 +52,7 @@ func NewReader(r io.Reader) *Reader {
 		headerReader: &headerReader{},
 	}
 	// register generic parser so that basic parsing will always work
-	p := parser.NewGenericParser()
+	p := &parser.GenericParser{}
 	ar.SetGeneric(p)
 	return &ar
 }

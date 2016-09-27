@@ -34,11 +34,6 @@ type GenericParser struct {
 	updates  map[string]UpdateFile
 }
 
-func NewGenericParser() Parser {
-	return &GenericParser{
-		updates: map[string]UpdateFile{}}
-}
-
 func (rp *GenericParser) GetUpdateType() *metadata.UpdateType {
 	return &metadata.UpdateType{Type: "generic"}
 }
@@ -86,6 +81,9 @@ func (rp *GenericParser) ParseHeader(tr *tar.Reader, hdr *tar.Header, hPath stri
 
 	switch {
 	case strings.Compare(relPath, "files") == 0:
+		if rp.updates == nil {
+			rp.updates = map[string]UpdateFile{}
+		}
 		if err = parseFiles(tr, rp.updates); err != nil {
 			return err
 		}
@@ -151,7 +149,7 @@ func parseData(r io.Reader, w io.Writer, uFiles map[string]UpdateFile) error {
 }
 
 func (rp *GenericParser) Copy() Parser {
-	return NewGenericParser()
+	return &GenericParser{}
 }
 
 // data files are stored in tar.gz format
