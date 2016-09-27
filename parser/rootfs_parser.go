@@ -36,10 +36,13 @@ import (
 // occur.
 type DataHandlerFunc func(r io.Reader, dt string, uf UpdateFile) error
 
+// RootfsParser handles updates of type 'image-rootfs'. The parser can be
+// initialized setting `W` (io.Writer the update data gets written to), or
+// `DataFunc` (user provided callback that handlers the update data stream).
 type RootfsParser struct {
-	W         io.Writer
-	ScriptDir string
-	DataFunc  DataHandlerFunc
+	W         io.Writer       // output stream the update gets written to
+	ScriptDir string          // output directory for scripts
+	DataFunc  DataHandlerFunc // custom update data handler
 
 	metadata metadata.Metadata
 	updates  map[string]UpdateFile

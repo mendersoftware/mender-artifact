@@ -15,7 +15,9 @@
 package areader
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -24,6 +26,7 @@ import (
 
 	"github.com/mendersoftware/artifacts/parser"
 	"github.com/mendersoftware/artifacts/writer"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
 	. "github.com/mendersoftware/artifacts/test_utils"
@@ -97,6 +100,75 @@ func TestReadArchive(t *testing.T) {
 	data, err := ioutil.ReadFile(path.Join(updateTestDir, "my_update"))
 	assert.NoError(t, err)
 	assert.Equal(t, "my first update", string(data))
+}
+
+func TestReadArchiveCustomHandler(t *testing.T) {
+	// first create archive, that we will be able to read
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	archive, err := writeArchive(updateTestDir)
+	assert.NoError(t, err)
+	assert.NotEqual(t, "", archive)
+
+	// open archive file
+	f, err := os.Open(archive)
+	defer f.Close()
+	assert.NoError(t, err)
+	assert.NotNil(t, f)
+
+	var called bool
+	rp := &parser.RootfsParser{
+		DataFunc: func(r io.Reader, dt string, uf parser.UpdateFile) error {
+			called = true
+			assert.Equal(t, "vexpress-qemu", dt)
+			assert.Equal(t, "update.ext4", uf.Name)
+
+			b := bytes.Buffer{}
+
+			n, err := io.Copy(&b, r)
+			assert.NoError(t, err)
+			assert.Equal(t, uf.Size, n)
+			assert.Equal(t, []byte("my first update"), b.Bytes())
+			return nil
+		},
+	}
+
+	aReader := NewReader(f)
+	aReader.Register(rp)
+	_, err = aReader.Read()
+	assert.NoError(t, err)
+	assert.True(t, called)
+}
+
+func TestReadArchiveCustomHandlerError(t *testing.T) {
+	// first create archive, that we will be able to read
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	archive, err := writeArchive(updateTestDir)
+	assert.NoError(t, err)
+	assert.NotEqual(t, "", archive)
+
+	// open archive file
+	f, err := os.Open(archive)
+	defer f.Close()
+	assert.NoError(t, err)
+	assert.NotNil(t, f)
+
+	var called bool
+	rp := &parser.RootfsParser{
+		DataFunc: func(r io.Reader, dt string, uf parser.UpdateFile) error {
+			called = true
+			return errors.New("failed")
+		},
+	}
+
+	aReader := NewReader(f)
+	aReader.Register(rp)
+	_, err = aReader.Read()
+	assert.Error(t, err)
+	assert.True(t, called)
 }
 
 func TestReadGeneric(t *testing.T) {
