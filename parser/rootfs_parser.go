@@ -30,26 +30,30 @@ import (
 	"github.com/pkg/errors"
 )
 
+// DataHandlerFunc is a user provided update data stream handler. Parameter `r`
+// is a decompressed data stream, `dt` holds current device type, `uf` contains
+// basic information about update. The handler shall return nil if no errors
+// occur.
+type DataHandlerFunc func(r io.Reader, dt string, uf UpdateFile) error
+
+// RootfsParser handles updates of type 'image-rootfs'. The parser can be
+// initialized setting `W` (io.Writer the update data gets written to), or
+// `DataFunc` (user provided callback that handlers the update data stream).
 type RootfsParser struct {
-	dataWriter io.Writer
-	scriptDir  string
+	W         io.Writer       // output stream the update gets written to
+	ScriptDir string          // output directory for scripts
+	DataFunc  DataHandlerFunc // custom update data handler
 
 	metadata metadata.Metadata
 	updates  map[string]UpdateFile
 }
 
-func NewRootfsParser(w io.Writer, scriptDir string) *RootfsParser {
-	if w == nil {
-		w = ioutil.Discard
-	}
-	return &RootfsParser{
-		dataWriter: w,
-		scriptDir:  scriptDir,
-		updates:    map[string]UpdateFile{}}
-}
-
 func (rp *RootfsParser) Copy() Parser {
-	return NewRootfsParser(rp.dataWriter, rp.scriptDir)
+	return &RootfsParser{
+		W:         rp.W,
+		ScriptDir: rp.ScriptDir,
+		DataFunc:  rp.DataFunc,
+	}
 }
 
 func (rp *RootfsParser) GetUpdateType() *metadata.UpdateType {
@@ -169,6 +173,7 @@ func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer,
 		return err
 	}
 
+	rp.updates = map[string]UpdateFile{}
 	for _, f := range updFiles {
 		rp.updates[withoutExt(f)] =
 			UpdateFile{
@@ -227,6 +232,9 @@ func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hdr *tar.Header, hPath strin
 
 	switch {
 	case strings.Compare(relPath, "files") == 0:
+		if rp.updates == nil {
+			rp.updates = map[string]UpdateFile{}
+		}
 		if err = parseFiles(tr, rp.updates); err != nil {
 			return err
 		}
@@ -253,7 +261,21 @@ func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hdr *tar.Header, hPath strin
 
 // data files are stored in tar.gz format
 func (rp *RootfsParser) ParseData(r io.Reader) error {
-	return parseData(r, rp.dataWriter, rp.updates)
+	if rp.W == nil {
+		rp.W = ioutil.Discard
+	}
+
+	if rp.DataFunc != nil {
+		// run with user provided callback
+		return parseDataWithHandler(
+			r,
+			func(dr io.Reader, uf UpdateFile) error {
+				return rp.DataFunc(dr, rp.GetDeviceType(), uf)
+			},
+			rp.updates,
+		)
+	}
+	return parseData(r, rp.W, rp.updates)
 }
 
 var hFormatPreWrite = metadata.ArtifactHeader{
