@@ -99,7 +99,26 @@ func (rp *GenericParser) ParseHeader(tr *tar.Reader, hdr *tar.Header, hPath stri
 	return nil
 }
 
+// Default data parser what writes the uncompressed data to `w`.
 func parseData(r io.Reader, w io.Writer, uFiles map[string]UpdateFile) error {
+	return parseDataWithHandler(
+		r,
+		func(dr io.Reader, uf UpdateFile) error {
+			if _, err := io.Copy(w, dr); err != nil {
+				return errors.Wrapf(err, "parser: can not read data: %v", uf.Name)
+			}
+			return nil
+		},
+		uFiles,
+	)
+}
+
+// Caller provided update data stream handler. Parameter `r` is a decompressed
+// data stream, `uf` contains basic information about update. The handler shall
+// return nil if no errors occur.
+type parseDataHandlerFunc func(r io.Reader, uf UpdateFile) error
+
+func parseDataWithHandler(r io.Reader, handler parseDataHandlerFunc, uFiles map[string]UpdateFile) error {
 	if r == nil {
 		return errors.New("rootfs updater: uninitialized tar reader")
 	}
@@ -125,14 +144,17 @@ func parseData(r io.Reader, w io.Writer, uFiles map[string]UpdateFile) error {
 		if !ok {
 			return errors.New("parser: can not find header info for data file")
 		}
+		fh.Date = hdr.ModTime
+		fh.Size = hdr.Size
 
-		// for calculating checksums
 		h := sha256.New()
-		dw := io.MultiWriter(h, w)
+		// use tee reader to pass read data for checksum calculation
+		tr := io.TeeReader(tar, h)
 
-		if _, err := io.Copy(dw, tar); err != nil {
-			return errors.Wrapf(err, "parser: can not read data: %v", hdr.Name)
+		if err := handler(tr, fh); err != nil {
+			return errors.Wrapf(err, "parser: data handler failed")
 		}
+
 		sum := h.Sum(nil)
 		hSum := make([]byte, hex.EncodedLen(len(sum)))
 		hex.Encode(hSum, h.Sum(nil))
@@ -141,8 +163,6 @@ func parseData(r io.Reader, w io.Writer, uFiles map[string]UpdateFile) error {
 			return errors.New("parser: invalid data file checksum")
 		}
 
-		fh.Date = hdr.ModTime
-		fh.Size = hdr.Size
 		uFiles[withoutExt(hdr.Name)] = fh
 	}
 	return nil
