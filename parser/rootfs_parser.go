@@ -30,9 +30,16 @@ import (
 	"github.com/pkg/errors"
 )
 
+// DataHandlerFunc is a user provided update data stream handler. Parameter `r`
+// is a decompressed data stream, `dt` holds current device type, `uf` contains
+// basic information about update. The handler shall return nil if no errors
+// occur.
+type DataHandlerFunc func(r io.Reader, dt string, uf UpdateFile) error
+
 type RootfsParser struct {
 	W         io.Writer
 	ScriptDir string
+	DataFunc  DataHandlerFunc
 
 	metadata metadata.Metadata
 	updates  map[string]UpdateFile
@@ -42,6 +49,7 @@ func (rp *RootfsParser) Copy() Parser {
 	return &RootfsParser{
 		W:         rp.W,
 		ScriptDir: rp.ScriptDir,
+		DataFunc:  rp.DataFunc,
 	}
 }
 
@@ -250,6 +258,20 @@ func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hdr *tar.Header, hPath strin
 
 // data files are stored in tar.gz format
 func (rp *RootfsParser) ParseData(r io.Reader) error {
+	if rp.W == nil {
+		rp.W = ioutil.Discard
+	}
+
+	if rp.DataFunc != nil {
+		// run with user provided callback
+		return parseDataWithHandler(
+			r,
+			func(dr io.Reader, uf UpdateFile) error {
+				return rp.DataFunc(dr, rp.GetDeviceType(), uf)
+			},
+			rp.updates,
+		)
+	}
 	return parseData(r, rp.W, rp.updates)
 }
 
