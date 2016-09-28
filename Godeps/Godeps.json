@@ -8,7 +8,7 @@
 	"Deps": [
 		{
 			"ImportPath": "github.com/mendersoftware/mendertesting",
-			"Rev": "bc995f337d2788cbc9faca2af6f527007953e687"
+			"Rev": "23647f884d1acaf5754257152f143a9d4ea1215e"
 		}
 	]
 }
