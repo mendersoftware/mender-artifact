@@ -180,7 +180,7 @@ func (av *Writer) WriteSingle(header, data, updateType, atrifactName string) err
 		tInfo:     updateType,
 		p:         worker,
 	}
-	typeInfo := metadata.TypeInfo{Type: "rootfs-image"}
+	typeInfo := metadata.TypeInfo{Type: updateType}
 	info, err := json.Marshal(&typeInfo)
 	if err != nil {
 		return errors.Wrapf(err, "reader: can not create type-info")
