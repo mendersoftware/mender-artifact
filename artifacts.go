@@ -16,10 +16,7 @@ package main
 
 import (
 	"errors"
-	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 
 	"github.com/mendersoftware/artifacts/parser"
 	"github.com/mendersoftware/artifacts/writer"
@@ -28,28 +25,24 @@ import (
 )
 
 func wrieArtifact(c *cli.Context) error {
-	if c.String("update") != "" {
-		fmt.Printf("have data file: %v\n", c.String("update"))
-	}
-	if c.String("device-type") != "" {
-		fmt.Printf("have data file: %v\n", c.String("device-type"))
-	}
-	if c.String("image-id") != "" {
-		fmt.Printf("have data file: %v\n", c.String("image-id"))
-	}
-
-	if c.NArg() != 3 ||
-		len(c.String("device-type")) == 0 || len(c.String("image-id")) == 0 {
+	if len(c.String("device-type")) == 0 || len(c.String("image-id")) == 0 ||
+		len(c.String("update")) == 0 {
 		return errors.New("invalid arguments")
 	}
+
+	he := &parser.HeaderElems{
+		Metadata: []byte(`{"deviceType": "` + c.String("device-type") + `", "imageId": "` + c.String("image-id") + `"}`),
+	}
+
+	ud := parser.UpdateData{
+		P:         &parser.RootfsParser{},
+		DataFiles: []string{c.String("update")},
+		Type:      "rootfs-image",
+		Data:      he,
+	}
+
 	aw := awriter.NewWriter("mender", 1)
-	p := parser.RootfsParser{}
-	aw.Register(&p)
-
-	updateTestDir, _ := ioutil.TempDir("", "update")
-	ioutil.WriteFile(filepath.Join(updateTestDir, "meta-data"), []byte(`{"deviceType": "`+c.Args().Get(1)+`", "imageId": "`+c.Args().Get(2)+`"}`), os.ModePerm)
-
-	return aw.WriteSingle(updateTestDir, c.Args().First(), "rootfs-image", filepath.Join(updateTestDir, "mender.tar.gz"))
+	return aw.WriteKnown([]parser.UpdateData{ud}, "mender.tar.gz")
 }
 
 func readArtifact(c *cli.Context) error {

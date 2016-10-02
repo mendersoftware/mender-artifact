@@ -177,10 +177,10 @@ func (rp *GenericParser) ParseData(r io.Reader) error {
 	return parseData(r, ioutil.Discard, rp.updates)
 }
 
-func (rp *GenericParser) ArchiveData(tw *tar.Writer, src, dst string) error {
+func (rp *GenericParser) ArchiveData(tw *tar.Writer, dst string) error {
 	return errors.New("generic: can not use generic parser for writing artifact")
 }
 
-func (rp *GenericParser) ArchiveHeader(tw *tar.Writer, src, dst string, updFiles []string) error {
+func (rp *GenericParser) ArchiveHeader(tw *tar.Writer, dstDir string, update *UpdateData) error {
 	return errors.New("generic: can not use generic parser for writing artifact")
 }

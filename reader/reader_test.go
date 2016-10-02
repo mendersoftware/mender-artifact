@@ -59,9 +59,6 @@ func writeArchive(dir string) (path string, err error) {
 	}
 
 	aw := awriter.NewWriter("mender", 1)
-	defer func() {
-		err = aw.Close()
-	}()
 	rp := &parser.RootfsParser{}
 	aw.Register(rp)
 
