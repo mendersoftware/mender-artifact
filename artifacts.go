@@ -16,15 +16,18 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"os"
 
 	"github.com/mendersoftware/artifacts/parser"
+	"github.com/mendersoftware/artifacts/reader"
 	"github.com/mendersoftware/artifacts/writer"
 
 	"github.com/urfave/cli"
 )
 
-func wrieArtifact(c *cli.Context) error {
+func writeArtifact(c *cli.Context) error {
 	if len(c.String("device-type")) == 0 || len(c.String("image-id")) == 0 ||
 		len(c.String("update")) == 0 {
 		return errors.New("must provide `device-type`, `image-id` and `update`")
@@ -55,6 +58,43 @@ func readArtifact(c *cli.Context) error {
 	return nil
 }
 
+func validateArtifact(c *cli.Context) error {
+	if c.NArg() == 0 {
+		return errors.New("Nothing specified, nothing validated. \nMaybe you wanted" +
+			"to say 'artifacts validate <pathspec>'?")
+	}
+	_, err := os.Stat(c.Args().First())
+	if err != nil {
+		return errors.New("Pathsec '" + c.Args().First() +
+			"' does not match any files.")
+	}
+
+	f, err := os.Open(c.Args().First())
+	if err != nil {
+		return errors.New("Can not open '" + c.Args().First() + "' file.")
+	}
+	defer f.Close()
+
+	ar := areader.NewReader(f)
+	if ar == nil {
+		return errors.New("Can not read artifact file.")
+	}
+	defer ar.Close()
+
+	p := parser.RootfsParser{
+		W: ioutil.Discard, // don't store update anywhere
+	}
+	ar.Register(&p)
+
+	_, err = ar.Read()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Artifact file '" + c.Args().First() + "' validated successfully")
+	return nil
+}
+
 func main() {
 	app := cli.NewApp()
 	app.Name = "artifact"
@@ -67,7 +107,7 @@ func main() {
 
 	writeRootfs := cli.Command{
 		Name:   "rootfs-image",
-		Action: wrieArtifact,
+		Action: writeArtifact,
 	}
 
 	writeRootfs.Flags = []cli.Flag{
@@ -87,6 +127,14 @@ func main() {
 			Name:  "name, n",
 			Usage: "Name of the artifact file",
 		},
+	}
+
+	validate := cli.Command{
+		Name:        "validate",
+		Usage:       "Validates artifact file",
+		Action:      validateArtifact,
+		UsageText:   "atrifacts validate [options] <pathspec>",
+		Description: "This command validates artifact file provided by pathspec.",
 	}
 
 	app.Commands = []cli.Command{
@@ -111,6 +159,7 @@ func main() {
 				},
 			},
 		},
+		validate,
 	}
 
 	app.Run(os.Args)

@@ -89,10 +89,15 @@ func TestReadArchive(t *testing.T) {
 
 	aReader := NewReader(f)
 	aReader.Register(rp)
-	_, err = aReader.Read()
+	p, err := aReader.Read()
 	assert.NoError(t, err)
 	assert.NotNil(t, df)
 	df.Close()
+	assert.Len(t, p, 1)
+	rp, ok := p["0000"].(*parser.RootfsParser)
+	assert.True(t, ok)
+	assert.Equal(t, "vexpress-qemu", rp.GetDeviceType())
+	assert.Equal(t, "core-image-minimal-201608110900", rp.GetImageID())
 
 	data, err := ioutil.ReadFile(path.Join(updateTestDir, "my_update"))
 	assert.NoError(t, err)

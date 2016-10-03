@@ -268,7 +268,6 @@ func (s *scriptArch) archScrpt(path string, info os.FileInfo, err error) error {
 }
 
 func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hdr *tar.Header, hPath string) error {
-
 	relPath, err := filepath.Rel(hPath, hdr.Name)
 	if err != nil {
 		return err
@@ -298,7 +297,7 @@ func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hdr *tar.Header, hPath strin
 		//TODO
 
 	default:
-		return errors.New("parser: unsupported element in header")
+		return errors.New("parser: unsupported element '" + relPath + "' in header")
 	}
 	return nil
 }
