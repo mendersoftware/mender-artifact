@@ -95,7 +95,7 @@ func validateArtifact(c *cli.Context) error {
 	return nil
 }
 
-func main() {
+func run() error {
 	app := cli.NewApp()
 	app.Name = "artifact"
 	app.Usage = "Mender artifact read/writer"
@@ -161,6 +161,9 @@ func main() {
 		},
 		validate,
 	}
+	return app.Run(os.Args)
+}
 
-	app.Run(os.Args)
+func main() {
+	run()
 }
