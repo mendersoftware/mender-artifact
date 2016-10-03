@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/mendersoftware/artifacts/archiver"
 	"github.com/mendersoftware/artifacts/metadata"
@@ -228,24 +229,42 @@ func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, dstDir string, update *Upd
 			}
 		}
 	} else {
-		// if err := filepath.Walk(filepath.Join(update.Path, "scripts"),
-		// 	rp.archScrpt); err != nil {
-		// 	return errors.Wrapf(err, "parser: can not archive scripts")
-		// }
+		sa := scriptArch{
+			w:   tw,
+			dst: filepath.Join(dstDir, "scripts"),
+		}
+		if err := filepath.Walk(filepath.Join(update.Path, "scripts"),
+			sa.archScrpt); err != nil {
+			return errors.Wrapf(err, "parser: can not archive scripts")
+		}
 	}
 	return nil
 }
 
-func (rp *RootfsParser) archScrpt(path string, info os.FileInfo, err error) error {
+type scriptArch struct {
+	w   *tar.Writer
+	dst string
+}
+
+func (s *scriptArch) archScrpt(path string, info os.FileInfo, err error) error {
+	if err != nil {
+		// if there is no `scripts` directory
+		if pErr, ok := err.(*os.PathError); ok && pErr.Err == syscall.ENOENT {
+			return nil
+		}
+		return err
+	}
+	// store only files
 	if info.IsDir() {
 		return nil
 	}
-	// store only files
-	//TODO:
-	// sPath, err := filepath.Rel(sa.src, path)
-	// a := archiver.NewFileArchiver(path, filepath.Join(sa.dst, sPath))
-	// return a.Archive(rp.)
-	return nil
+	// scripts should be always stored in `./scripts/{pre,post,check}/` directory
+	sPath, err := filepath.Rel(filepath.Join(path, "..", ".."), path)
+	if err != nil {
+		return errors.Wrapf(err, "parser: can not archive scripts")
+	}
+	a := archiver.NewFileArchiver(path, filepath.Join(s.dst, sPath))
+	return a.Archive(s.w)
 }
 
 func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hdr *tar.Header, hPath string) error {

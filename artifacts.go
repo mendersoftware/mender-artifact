@@ -27,11 +27,12 @@ import (
 func wrieArtifact(c *cli.Context) error {
 	if len(c.String("device-type")) == 0 || len(c.String("image-id")) == 0 ||
 		len(c.String("update")) == 0 {
-		return errors.New("invalid arguments")
+		return errors.New("must provide `device-type`, `image-id` and `update`")
 	}
 
 	he := &parser.HeaderElems{
-		Metadata: []byte(`{"deviceType": "` + c.String("device-type") + `", "imageId": "` + c.String("image-id") + `"}`),
+		Metadata: []byte(`{"deviceType": "` + c.String("device-type") +
+			`", "imageId": "` + c.String("image-id") + `"}`),
 	}
 
 	ud := parser.UpdateData{
@@ -41,8 +42,13 @@ func wrieArtifact(c *cli.Context) error {
 		Data:      he,
 	}
 
+	name := "mender.tar.gz"
+	if len(c.String("name")) > 0 {
+		name = c.String("name")
+	}
+
 	aw := awriter.NewWriter("mender", 1)
-	return aw.WriteKnown([]parser.UpdateData{ud}, "mender.tar.gz")
+	return aw.WriteKnown([]parser.UpdateData{ud}, name)
 }
 
 func readArtifact(c *cli.Context) error {
@@ -50,13 +56,14 @@ func readArtifact(c *cli.Context) error {
 }
 
 func main() {
-
 	app := cli.NewApp()
-	//app. = "Mender artifact read/writer"
-	//app.Copyright =
-	//app.Usage = "asdffasdfafsd"
-	//app.UsageText = "asdfa asdf "
+	app.Name = "artifact"
+	app.Usage = "Mender artifact read/writer"
+	app.UsageText = "artifacts [--version][--help] <command> [<args>]"
 	app.Version = "0.1"
+
+	app.Author = "mender.io"
+	app.Email = "contact@mender.io"
 
 	writeRootfs := cli.Command{
 		Name:   "rootfs-image",
@@ -76,22 +83,33 @@ func main() {
 			Name:  "image-id, i",
 			Usage: "Yocto id of the update image",
 		},
+		cli.StringFlag{
+			Name:  "name, n",
+			Usage: "Name of the artifact file",
+		},
 	}
 
 	app.Commands = []cli.Command{
 		{
-			Name:     "write",
-			Usage:    "Writes artifact file",
-			Category: "write",
+			Name:  "write",
+			Usage: "Writes artifact file",
 			Subcommands: []cli.Command{
 				writeRootfs,
 			},
 		},
 		{
-			Name:     "read",
-			Action:   readArtifact,
-			Usage:    "Reads artifact file",
-			Category: "read",
+			Name:  "read",
+			Usage: "Reads artifact file",
+			Subcommands: []cli.Command{
+				cli.Command{
+					Name:   "artifact",
+					Action: readArtifact,
+				},
+				cli.Command{
+					Name:   "type",
+					Action: readArtifact,
+				},
+			},
 		},
 	}
 
