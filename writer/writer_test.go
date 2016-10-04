@@ -123,7 +123,7 @@ var dirStructOKSingle = []TestDirEntry{
 
 func TestWriteSingleArtifactFile(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	//defer os.RemoveAll(updateTestDir)
+	defer os.RemoveAll(updateTestDir)
 	err := MakeFakeUpdateDir(updateTestDir, dirStructOKSingle)
 	assert.NoError(t, err)
 
