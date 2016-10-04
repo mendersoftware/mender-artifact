@@ -117,3 +117,26 @@ func TestArtifactsValidate(t *testing.T) {
 	assert.Equal(t, "Pathspec 'non-existing' does not match any files.\n",
 		fakeErrWriter.String())
 }
+
+func TestArtifactsRead(t *testing.T) {
+	// first create archive, that we will be able to read
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	archive, err := WriteRootfsImageArchive(updateTestDir, RootfsImageStructOK)
+	assert.NoError(t, err)
+	assert.NotEqual(t, "", archive)
+
+	os.Args = []string{"artifacts", "read", "artifact",
+		filepath.Join(updateTestDir, "artifact.tar.gz")}
+	err = run()
+	assert.NoError(t, err)
+
+	os.Args = []string{"artifacts", "validate", "non-existing"}
+	fakeErrWriter.Reset()
+	err = run()
+	assert.Error(t, err)
+	assert.Equal(t, 1, lastExitCode)
+	assert.Equal(t, "Pathspec 'non-existing' does not match any files.\n",
+		fakeErrWriter.String())
+}

@@ -62,7 +62,7 @@ func parseFiles(tr *tar.Reader, uFiles map[string]UpdateFile) error {
 func processChecksums(tr *tar.Reader, name string, uFiles map[string]UpdateFile) error {
 	update, ok := uFiles[withoutExt(name)]
 	if !ok {
-		return errors.New("parser: found checksum for non existing update file")
+		return errors.New("parser: found checksum for non existing update file: " + name)
 	}
 	buf := bytes.NewBuffer(nil)
 	if _, err := io.Copy(buf, tr); err != nil {

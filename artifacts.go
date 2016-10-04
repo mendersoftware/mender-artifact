@@ -54,30 +54,22 @@ func writeArtifact(c *cli.Context) error {
 	return aw.WriteKnown([]parser.UpdateData{ud}, name)
 }
 
-func readArtifact(c *cli.Context) error {
-	return errors.New("not implemented")
-}
-
-func validateArtifact(c *cli.Context) error {
-	if c.NArg() == 0 {
-		return errors.New("Nothing specified, nothing validated. \nMaybe you wanted" +
-			"to say 'artifacts validate <pathspec>'?")
-	}
-	_, err := os.Stat(c.Args().First())
+func read(aPath string) (parser.Workers, error) {
+	_, err := os.Stat(aPath)
 	if err != nil {
-		return errors.New("Pathspec '" + c.Args().First() +
+		return nil, errors.New("Pathspec '" + aPath +
 			"' does not match any files.")
 	}
 
-	f, err := os.Open(c.Args().First())
+	f, err := os.Open(aPath)
 	if err != nil {
-		return errors.New("Can not open '" + c.Args().First() + "' file.")
+		return nil, errors.New("Can not open '" + aPath + "' file.")
 	}
 	defer f.Close()
 
 	ar := areader.NewReader(f)
 	if ar == nil {
-		return errors.New("Can not read artifact file.")
+		return nil, errors.New("Can not read artifact file.")
 	}
 	defer ar.Close()
 
@@ -86,7 +78,44 @@ func validateArtifact(c *cli.Context) error {
 	}
 	ar.Register(&p)
 
-	_, err = ar.Read()
+	return ar.Read()
+}
+
+func readArtifact(c *cli.Context) error {
+	if c.NArg() == 0 {
+		return errors.New("Nothing specified, nothing validated. \nMaybe you wanted" +
+			"to say 'artifacts validate <pathspec>'?")
+	}
+	parsers, err := read(c.Args().First())
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Read Mender artifact file containing %d updates\n", len(parsers))
+
+	for k, p := range parsers {
+		fmt.Printf("details of update: %s\n", k)
+		fmt.Printf("  update type: '%s'\n", p.GetUpdateType().Type)
+		fmt.Printf("  supported device: '%s'\n", p.GetDeviceType())
+		if ri, ok := p.(*parser.RootfsParser); ok {
+			fmt.Printf("  image id: '%s'\n", ri.GetImageID())
+		}
+
+		for _, f := range p.GetUpdateFiles() {
+			fmt.Printf("  update files: name: '%s', size: %d bytes, modified: %s\n",
+				f.Name, f.Size, f.Date)
+		}
+	}
+	return nil
+}
+
+func validateArtifact(c *cli.Context) error {
+	if c.NArg() == 0 {
+		return errors.New("Nothing specified, nothing validated. \nMaybe you wanted" +
+			"to say 'artifacts validate <pathspec>'?")
+	}
+
+	_, err := read(c.Args().First())
 	if err != nil {
 		return err
 	}
