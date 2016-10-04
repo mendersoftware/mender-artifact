@@ -46,11 +46,6 @@ func TestWriteArtifactBrokenDirStruct(t *testing.T) {
 	assert.NoError(t, err)
 
 	aw := NewWriter("mender", 1)
-	defer func() {
-		err = aw.Close()
-		assert.NoError(t, err)
-	}()
-
 	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact"))
 	assert.Error(t, err)
 }
@@ -98,10 +93,6 @@ func TestWriteArtifactFile(t *testing.T) {
 	assert.NoError(t, err)
 
 	aw := NewWriter("mender", 1)
-	defer func() {
-		err = aw.Close()
-		assert.NoError(t, err)
-	}()
 
 	rp := &parser.RootfsParser{}
 	aw.Register(rp)
@@ -123,15 +114,11 @@ var dirStructOKSingle = []TestDirEntry{
 
 func TestWriteSingleArtifactFile(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	//defer os.RemoveAll(updateTestDir)
+	defer os.RemoveAll(updateTestDir)
 	err := MakeFakeUpdateDir(updateTestDir, dirStructOKSingle)
 	assert.NoError(t, err)
 
 	aw := NewWriter("mender", 1)
-	defer func() {
-		err = aw.Close()
-		assert.NoError(t, err)
-	}()
 
 	rp := &parser.RootfsParser{}
 	aw.Register(rp)
@@ -175,10 +162,6 @@ func TestWriteMultiple(t *testing.T) {
 	assert.NoError(t, err)
 
 	aw := NewWriter("mender", 1)
-	defer func() {
-		err = aw.Close()
-		assert.NoError(t, err)
-	}()
 
 	rp := &parser.RootfsParser{}
 	aw.Register(rp)
@@ -211,20 +194,13 @@ func TestWriteBrokenArtifact(t *testing.T) {
 	assert.NoError(t, err)
 
 	aw := NewWriter("mender", 1)
-	defer func() {
-		err = aw.Close()
-		assert.NoError(t, err)
-	}()
 
 	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact.tar.gz"))
 	assert.Error(t, err)
 }
 
 var dirStructCustom = []TestDirEntry{
-	{Path: "my_data", IsDir: true},
-	{Path: "my_data/update.ext4", Content: []byte("first update"), IsDir: false},
-	{Path: "some_dir", IsDir: true},
-	{Path: "some_dir/meta-data", Content: []byte(`{"DeviceType": "vexpress-qemu", "ImageID": "core-image-minimal-201608110900"}`), IsDir: false},
+	{Path: "update.ext4", Content: []byte("first update"), IsDir: false},
 }
 
 func TestWriteCustom(t *testing.T) {
@@ -234,15 +210,18 @@ func TestWriteCustom(t *testing.T) {
 	assert.NoError(t, err)
 
 	aw := NewWriter("mender", 1)
-	defer func() {
-		err = aw.Close()
-		assert.NoError(t, err)
-	}()
-	rp := &parser.RootfsParser{}
-	aw.Register(rp)
 
-	err = aw.WriteSingle(filepath.Join(updateTestDir, "some_dir"),
-		filepath.Join(updateTestDir, "my_data/update.ext4"),
-		"rootfs-image", "/tmp/mender.tar.gz")
+	he := &parser.HeaderElems{
+		Metadata: []byte(`{"deviceType": "my-device", "imageId": "image-id"}`),
+	}
+	ud := parser.UpdateData{
+		P:         &parser.RootfsParser{},
+		DataFiles: []string{filepath.Join(updateTestDir, "update.ext4")},
+		Type:      "rootfs-image",
+		Data:      he,
+	}
+
+	err = aw.WriteKnown([]parser.UpdateData{ud},
+		filepath.Join(updateTestDir, "mender.tar.gz"))
 	assert.NoError(t, err)
 }

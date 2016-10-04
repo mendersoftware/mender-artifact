@@ -25,49 +25,25 @@ import (
 	"testing"
 
 	"github.com/mendersoftware/artifacts/parser"
-	"github.com/mendersoftware/artifacts/writer"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
 	. "github.com/mendersoftware/artifacts/test_utils"
+	"github.com/mendersoftware/artifacts/writer"
 )
 
-var dirStructOK = []TestDirEntry{
-	{Path: "0000", IsDir: true},
-	{Path: "0000/data", IsDir: true},
-	{Path: "0000/data/update.ext4", Content: []byte("my first update"), IsDir: false},
-	{Path: "0000/type-info",
-		Content: []byte(`{"type": "rootfs-image"}`),
-		IsDir:   false},
-	{Path: "0000/meta-data",
-		Content: []byte(`{"DeviceType": "vexpress-qemu", "ImageID": "core-image-minimal-201608110900"}`),
-		IsDir:   false},
-	{Path: "0000/signatures", IsDir: true},
-	{Path: "0000/signatures/update.sig", IsDir: false},
-	{Path: "0000/scripts", IsDir: true},
-	{Path: "0000/scripts/pre", IsDir: true},
-	{Path: "0000/scripts/pre/my_script", Content: []byte("my first script"), IsDir: false},
-	{Path: "0000/scripts/post", IsDir: true},
-	{Path: "0000/scripts/check", IsDir: true},
-}
-
-func writeArchive(dir string) (path string, err error) {
-
-	err = MakeFakeUpdateDir(dir, dirStructOK)
+func WriteRootfsImageArchive(dir string, dirStruct []TestDirEntry) (path string, err error) {
+	err = MakeFakeUpdateDir(dir, dirStruct)
 	if err != nil {
 		return
 	}
 
 	aw := awriter.NewWriter("mender", 1)
-	defer func() {
-		err = aw.Close()
-	}()
 	rp := &parser.RootfsParser{}
 	aw.Register(rp)
 
 	path = filepath.Join(dir, "artifact.tar.gz")
 	err = aw.Write(dir, path)
-
 	return
 }
 
@@ -76,7 +52,7 @@ func TestReadArchive(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	archive, err := writeArchive(updateTestDir)
+	archive, err := WriteRootfsImageArchive(updateTestDir, RootfsImageStructOK)
 	assert.NoError(t, err)
 	assert.NotEqual(t, "", archive)
 
@@ -92,10 +68,15 @@ func TestReadArchive(t *testing.T) {
 
 	aReader := NewReader(f)
 	aReader.Register(rp)
-	_, err = aReader.Read()
+	p, err := aReader.Read()
 	assert.NoError(t, err)
 	assert.NotNil(t, df)
 	df.Close()
+	assert.Len(t, p, 1)
+	rp, ok := p["0000"].(*parser.RootfsParser)
+	assert.True(t, ok)
+	assert.Equal(t, "vexpress-qemu", rp.GetDeviceType())
+	assert.Equal(t, "core-image-minimal-201608110900", rp.GetImageID())
 
 	data, err := ioutil.ReadFile(path.Join(updateTestDir, "my_update"))
 	assert.NoError(t, err)
@@ -107,7 +88,7 @@ func TestReadArchiveCustomHandler(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	archive, err := writeArchive(updateTestDir)
+	archive, err := WriteRootfsImageArchive(updateTestDir, RootfsImageStructOK)
 	assert.NoError(t, err)
 	assert.NotEqual(t, "", archive)
 
@@ -146,7 +127,7 @@ func TestReadArchiveCustomHandlerError(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	archive, err := writeArchive(updateTestDir)
+	archive, err := WriteRootfsImageArchive(updateTestDir, RootfsImageStructOK)
 	assert.NoError(t, err)
 	assert.NotEqual(t, "", archive)
 
@@ -176,7 +157,7 @@ func TestReadGeneric(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	archive, err := writeArchive(updateTestDir)
+	archive, err := WriteRootfsImageArchive(updateTestDir, RootfsImageStructOK)
 	assert.NoError(t, err)
 	assert.NotEqual(t, "", archive)
 
@@ -196,7 +177,7 @@ func TestReadKnownUpdate(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	archive, err := writeArchive(updateTestDir)
+	archive, err := WriteRootfsImageArchive(updateTestDir, RootfsImageStructOK)
 	assert.NoError(t, err)
 	assert.NotEqual(t, "", archive)
 
@@ -221,7 +202,7 @@ func TestReadSequence(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	archive, err := writeArchive(updateTestDir)
+	archive, err := WriteRootfsImageArchive(updateTestDir, RootfsImageStructOK)
 	assert.NoError(t, err)
 	assert.NotEqual(t, "", archive)
 
