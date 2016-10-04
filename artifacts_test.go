@@ -86,7 +86,7 @@ func TestArtifactsWrite(t *testing.T) {
 	// store named file
 	os.Args = []string{"artifacts", "write", "rootfs-image", "-t", "my-device",
 		"-i", "my-id", "-u", filepath.Join(updateTestDir, "update.ext4"),
-		"-n", filepath.Join(updateTestDir, "art.mender")}
+		"-o", filepath.Join(updateTestDir, "art.mender")}
 	err = run()
 	assert.NoError(t, err)
 
@@ -114,6 +114,6 @@ func TestArtifactsValidate(t *testing.T) {
 	err = run()
 	assert.Error(t, err)
 	assert.Equal(t, 1, lastExitCode)
-	assert.Equal(t, "Pathsec 'non-existing' does not match any files.\n",
+	assert.Equal(t, "Pathspec 'non-existing' does not match any files.\n",
 		fakeErrWriter.String())
 }

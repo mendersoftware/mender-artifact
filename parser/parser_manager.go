@@ -33,7 +33,8 @@ type UpdateFile struct {
 }
 
 type UpdateData struct {
-	// path to directory containg update data
+	// path to directory containing update files; for `rootfs-image` type update
+	// this will contain among the others `meta-data`, `type-info` and image files
 	Path string
 	// update data files
 	DataFiles []string

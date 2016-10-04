@@ -46,8 +46,8 @@ func writeArtifact(c *cli.Context) error {
 	}
 
 	name := "mender.tar.gz"
-	if len(c.String("name")) > 0 {
-		name = c.String("name")
+	if len(c.String("output-path")) > 0 {
+		name = c.String("output-path")
 	}
 
 	aw := awriter.NewWriter("mender", 1)
@@ -55,7 +55,7 @@ func writeArtifact(c *cli.Context) error {
 }
 
 func readArtifact(c *cli.Context) error {
-	return nil
+	return errors.New("not implemented")
 }
 
 func validateArtifact(c *cli.Context) error {
@@ -65,7 +65,7 @@ func validateArtifact(c *cli.Context) error {
 	}
 	_, err := os.Stat(c.Args().First())
 	if err != nil {
-		return errors.New("Pathsec '" + c.Args().First() +
+		return errors.New("Pathspec '" + c.Args().First() +
 			"' does not match any files.")
 	}
 
@@ -124,8 +124,8 @@ func run() error {
 			Usage: "Yocto id of the update image",
 		},
 		cli.StringFlag{
-			Name:  "name, n",
-			Usage: "Name of the artifact file",
+			Name:  "output-path, o",
+			Usage: "Full path to output artifact file",
 		},
 	}
 
