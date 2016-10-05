@@ -119,7 +119,8 @@ func createArtFile(dir, name string) (*os.File, error) {
 	// here we should have header stored in temporary location
 	f, err := os.Create(filepath.Join(dir, name))
 	if err != nil {
-		return nil, errors.Wrapf(err, "writer: can not create artifact file: %v", f.Name())
+		return nil, errors.Wrapf(err,
+			"writer: can not store artifact file in directory: %s", dir)
 	}
 	return f, nil
 }
