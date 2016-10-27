@@ -213,15 +213,13 @@ func (ar *Reader) ReadNextHeader() (p parser.Parser, err error) {
 	}
 }
 
-func (ar *Reader) ReadHeader() (workers parser.Workers, err error) {
+func (ar *Reader) ReadHeader() (parser.Workers, error) {
 	for {
-		_, err = ar.ReadNextHeader()
+		_, err := ar.ReadNextHeader()
 		if err == io.EOF {
-			workers = ar.ParseManager.GetWorkers()
-			err = nil
-			return
+			return ar.ParseManager.GetWorkers(), nil
 		} else if err != nil {
-			return
+			return nil, err
 		}
 	}
 }
