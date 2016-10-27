@@ -75,7 +75,7 @@ func (av *Writer) init(path string) error {
 		return errors.New("writer: error initializing header")
 	}
 	var err error
-	av.aTmpFile, err = createArtFile(filepath.Dir(path), "artifact.mender")
+	av.aTmpFile, err = createArtFile(filepath.Dir(path), "artifact.mender.tmp")
 	if err != nil {
 		return err
 	}

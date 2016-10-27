@@ -99,7 +99,7 @@ func (rp *GenericParser) ParseHeader(tr *tar.Reader, hdr *tar.Header, hPath stri
 	return nil
 }
 
-// Default data parser what writes the uncompressed data to `w`.
+// Default data parser which writes the uncompressed data to `w`.
 func parseData(r io.Reader, w io.Writer, uFiles map[string]UpdateFile) error {
 	return parseDataWithHandler(
 		r,
@@ -160,7 +160,8 @@ func parseDataWithHandler(r io.Reader, handler parseDataHandlerFunc, uFiles map[
 		hex.Encode(hSum, h.Sum(nil))
 
 		if bytes.Compare(hSum, fh.Checksum) != 0 {
-			return errors.New("parser: invalid data file checksum")
+			return errors.Errorf("parser: invalid data file [%s] checksum (%s) -> (%s)",
+				hdr.Name, hSum, fh.Checksum)
 		}
 
 		uFiles[withoutExt(hdr.Name)] = fh
@@ -172,7 +173,9 @@ func (rp *GenericParser) Copy() Parser {
 	return &GenericParser{}
 }
 
-// data files are stored in tar.gz format
+// ParseData for generic parser is used ONLY for validating the integrity
+// of artifact file. The content of the update is "copied" to `ioutil.Discard`
+// which causes all writes succeed without doing anything.
 func (rp *GenericParser) ParseData(r io.Reader) error {
 	return parseData(r, ioutil.Discard, rp.updates)
 }
