@@ -75,7 +75,7 @@ func (av *Writer) init(path string) error {
 		return errors.New("writer: error initializing header")
 	}
 	var err error
-	av.aTmpFile, err = createArtFile(filepath.Dir(path), "artifact.mender.tmp")
+	av.aTmpFile, err = ioutil.TempFile(filepath.Dir(path), "mender")
 	if err != nil {
 		return err
 	}
@@ -113,16 +113,6 @@ func NewWriter(format string, version int) *Writer {
 		version:      version,
 		ParseManager: parser.NewParseManager(),
 	}
-}
-
-func createArtFile(dir, name string) (*os.File, error) {
-	// here we should have header stored in temporary location
-	f, err := os.Create(filepath.Join(dir, name))
-	if err != nil {
-		return nil, errors.Wrapf(err,
-			"writer: can not store artifact file in directory: %s", dir)
-	}
-	return f, nil
 }
 
 func initHeaderFile() (*os.File, error) {

@@ -310,8 +310,8 @@ func (rp *RootfsParser) ParseData(r io.Reader) error {
 
 	// we are supporting ONLY one update file for `rootfs-image` update type
 	if len(rp.updates) != 1 {
-		return errors.New("parser: too many update files (" + string(len(rp.updates)) +
-			"); only one is supported")
+		return errors.Errorf("parser: too many update files (%s); only one is supported",
+			string(len(rp.updates)))
 	}
 
 	if rp.DataFunc != nil {
