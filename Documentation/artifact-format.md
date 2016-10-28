@@ -117,6 +117,7 @@ Format: JSON
 
 ```
 {
+  "artifactID": "UUIDv4",
   "updates": [
     {
       "type": "rootfs-image"
@@ -172,6 +173,7 @@ required. For instance:
 ```
 {
   "type": "rootfs-image"
+  "DeviceType": [ "vexpress-qemu" ] ,
 }
 ```
 
@@ -189,7 +191,6 @@ Meta data about the image. This depends on the `type` in `header-info`. For
 
 ```
 {
-  "DeviceType": "vexpress-qemu",
   "ImageID": "core-image-minimal-201608110900"
 }
 ```
