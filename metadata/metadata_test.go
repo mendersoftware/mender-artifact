@@ -82,13 +82,9 @@ func TestValidateMetadata(t *testing.T) {
 		in  string
 		err error
 	}{
-		{`{"": nil}`, ErrValidatingData},
-		{`{"key": nil}`, ErrValidatingData},
-		{`{"key": "val"}`, ErrValidatingData},
-		{`{"deviceType": "type"}`, ErrValidatingData},
-		{`{"deviceType": nil, "imageId": "image"}`, ErrValidatingData},
-		{`{"deviceType": "device", "imageId": "image"}`, nil},
-		{`{"deviceType": "device", "imageId": "image", "data": "data"}`, nil},
+		{``, nil},
+		{`{"key": "val"}`, nil},
+		{`{"key": "val", "other_key": "other_val"}`, nil},
 	}
 
 	for _, tt := range validateTests {
@@ -96,8 +92,6 @@ func TestValidateMetadata(t *testing.T) {
 		l, e := mtd.Write([]byte(tt.in))
 		assert.NoError(t, e)
 		assert.Equal(t, len(tt.in), l)
-		e = mtd.Required.Validate()
-		assert.Equal(t, e, tt.err, "failing test: %v", tt)
 		e = mtd.Validate()
 		assert.Equal(t, e, tt.err, "failing test: %v", tt)
 	}
