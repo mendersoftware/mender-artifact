@@ -38,9 +38,8 @@ var ErrValidatingData = errors.New("error validating data")
 // Info contains the information about the format and the version
 // of artifact archive.
 type Info struct {
-	Format            string   `json:"format"`
-	Version           int      `json:"version"`
-	CompatibleDevices []string `json:"compatibleDevices"`
+	Format  string `json:"format"`
+	Version int    `json:"version"`
 }
 
 // Validate performs sanity checks on artifact info.
@@ -83,12 +82,14 @@ type UpdateType struct {
 // HeaderInfo contains information of numner and type of update files
 // archived in Mender metadata archive.
 type HeaderInfo struct {
-	Updates []UpdateType `json:"updates"`
+	Updates           []UpdateType `json:"updates"`
+	CompatibleDevices []string     `json:"compatibleDevices"`
+	ArtifactID        string       `json:"artifactId"`
 }
 
 // Validate checks if header-info structure is correct.
 func (hi HeaderInfo) Validate() error {
-	if len(hi.Updates) == 0 {
+	if len(hi.Updates) == 0 || len(hi.CompatibleDevices) == 0 || len(hi.ArtifactID) == 0 {
 		return ErrValidatingData
 	}
 	for _, update := range hi.Updates {
@@ -146,6 +147,10 @@ func (m *Metadata) Write(p []byte) (n int, err error) {
 		return 0, err
 	}
 	return len(p), nil
+}
+
+func (m *Metadata) Map() map[string]interface{} {
+	return map[string]interface{}(*m)
 }
 
 // Files represents the list of file names that make up the payload for given

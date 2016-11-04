@@ -85,8 +85,7 @@ Contains the below content exactly:
 ```
 {
   "format": "mender",
-  "version": 1,
-  "compatibleDevices": ["vexpress-qemu", "beaglebone"]
+  "version": 1
 }
 ```
 
@@ -94,8 +93,6 @@ The `format` value is to confirm that this is indeed a Mender update file, and
 the `version` value is a way to extend/change the format later if needed.
 Currently there is only version 1, but this document may describe later versions
 if they are created.
-The `compatibleDevices` value provides information about devices compatible
-with the given artifact.
 
 
 header.tar.gz
@@ -130,7 +127,9 @@ Format: JSON
     {
       ...
     }
-  ]
+  ],
+  "compatibleDevices": ["vexpress-qemu", "beaglebone"],
+  "artifactId": "id"
 }
 ```
 
@@ -142,6 +141,11 @@ updates downloaded to single devices, there will usually be only one.
 `type` is the type of update contained within the image. At the moment there is
 only `rootfs-image`, but there may be others in the future, like `docker-image`
 or something package based.
+
+The `compatibleDevices` value provides information about devices compatible
+with the given artifact.
+
+`artifactId` is the unique identifier of the given artifact.
 
 The remaining entries in `header.tar.gz` are then organized in buckets under
 `headers/xxxx` folders, where `xxxx` are four digits, starting from zero, and
@@ -183,13 +187,9 @@ corresponding to the type in `header-info` file.
 Format: JSON
 
 Meta data about the image. This depends on the `type` in `header-info`. For
-`rootfs-image` this is at minimum `rootfsId`. For example:
+`rootfs-image` there are no additional information needed and the file might
+be empty.
 
-```
-{ "rootfsId": "core-image-minimal-201608110900" }
-```
-
-There may also be other meta data attributes specified.
 For other package types this file can contain for example number of files in the
 `data` directory, if the update contains more than one. Or it can contain
 network address(es) and credentials if Mender is to do a proxy update.
