@@ -36,15 +36,16 @@ import (
 // is a decompressed data stream, `dt` holds current device type, `uf` contains
 // basic information about update. The handler shall return nil if no errors
 // occur.
-type DataHandlerFunc func(r io.Reader, dt string, uf UpdateFile) error
+type DataHandlerFunc func(r io.Reader, dt []string, uf UpdateFile) error
 
 // RootfsParser handles updates of type 'rootfs-image'. The parser can be
 // initialized setting `W` (io.Writer the update data gets written to), or
 // `DataFunc` (user provided callback that handlers the update data stream).
 type RootfsParser struct {
-	W         io.Writer       // output stream the update gets written to
-	ScriptDir string          // output directory for scripts
-	DataFunc  DataHandlerFunc // custom update data handler
+	W                 io.Writer       // output stream the update gets written to
+	ScriptDir         string          // output directory for scripts
+	DataFunc          DataHandlerFunc // custom update data handler
+	CompatibleDevices []string        // devices compatible with given artifact
 
 	metadata metadata.Metadata
 	update   UpdateFile // we are supporting ONLY one update file for rootfs-image
@@ -52,9 +53,10 @@ type RootfsParser struct {
 
 func (rp *RootfsParser) Copy() Parser {
 	return &RootfsParser{
-		W:         rp.W,
-		ScriptDir: rp.ScriptDir,
-		DataFunc:  rp.DataFunc,
+		W:                 rp.W,
+		ScriptDir:         rp.ScriptDir,
+		DataFunc:          rp.DataFunc,
+		CompatibleDevices: rp.CompatibleDevices,
 	}
 }
 
@@ -65,14 +67,9 @@ func (rp *RootfsParser) GetUpdateType() *metadata.UpdateType {
 func (rp *RootfsParser) GetUpdateFiles() map[string]UpdateFile {
 	return map[string]UpdateFile{withoutExt(rp.update.Name): rp.update}
 }
-func (rp *RootfsParser) GetDeviceType() string {
-	return rp.metadata.Required.DeviceType
-}
-func (rp *RootfsParser) GetImageID() string {
-	return rp.metadata.Required.ImageID
-}
-func (rp *RootfsParser) GetMetadata() *metadata.AllMetadata {
-	return &rp.metadata.All
+
+func (rp *RootfsParser) GetMetadata() *metadata.Metadata {
+	return &rp.metadata
 }
 
 func (rp *RootfsParser) archiveToTmp(tw *tar.Writer, f *os.File) (err error) {
@@ -321,18 +318,25 @@ func (rp *RootfsParser) ParseData(r io.Reader) error {
 		rp.W = ioutil.Discard
 	}
 
+	updates := map[string]UpdateFile{}
+	updates[withoutExt(rp.update.Name)] = rp.update
+
 	if rp.DataFunc != nil {
 		// run with user provided callback
-		return parseDataWithHandler(
+		err := parseDataWithHandler(
 			r,
 			func(dr io.Reader, uf UpdateFile) error {
-				return rp.DataFunc(dr, rp.GetDeviceType(), uf)
+				return rp.DataFunc(dr, rp.CompatibleDevices, uf)
 			},
-			map[string]UpdateFile{withoutExt(rp.update.Name): rp.update},
+			updates,
 		)
+		rp.update = updates[withoutExt(rp.update.Name)]
+		return err
 	}
-	return parseData(r, rp.W,
-		map[string]UpdateFile{withoutExt(rp.update.Name): rp.update})
+
+	err := parseData(r, rp.W, updates)
+	rp.update = updates[withoutExt(rp.update.Name)]
+	return err
 }
 
 func withoutExt(name string) string {

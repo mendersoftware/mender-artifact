@@ -33,10 +33,12 @@ import (
 // Mender client and server.
 // Call Write to start writing artifacts file.
 type Writer struct {
-	format  string
-	version int
-	aName   string
+	format            string
+	version           int
+	compatibleDevices []string
+	artifactID        string
 
+	aName string
 	*parser.ParseManager
 	availableUpdates []parser.UpdateData
 	aArchiver        *tar.Writer
@@ -107,11 +109,14 @@ func (av *Writer) deinit() error {
 	return nil
 }
 
-func NewWriter(format string, version int) *Writer {
+func NewWriter(format string, version int, devices []string, id string) *Writer {
+
 	return &Writer{
-		format:       format,
-		version:      version,
-		ParseManager: parser.NewParseManager(),
+		format:            format,
+		version:           version,
+		compatibleDevices: devices,
+		artifactID:        id,
+		ParseManager:      parser.NewParseManager(),
 	}
 }
 
@@ -135,7 +140,7 @@ func (av *Writer) write(updates []parser.UpdateData) error {
 
 	// archive info
 	info := av.getInfo()
-	ia := archiver.NewMetadataArchiver(&info, "info")
+	ia := archiver.NewMetadataArchiver(&info, "version")
 	if err := ia.Archive(av.aArchiver); err != nil {
 		return errors.Wrapf(err, "writer: error archiving info")
 	}
@@ -314,6 +319,9 @@ func (av *Writer) WriteHeader() error {
 		av.hInfo.Updates =
 			append(av.hInfo.Updates, metadata.UpdateType{Type: upd.Type})
 	}
+	av.hInfo.CompatibleDevices = av.compatibleDevices
+	av.hInfo.ArtifactID = av.artifactID
+
 	hi := archiver.NewMetadataArchiver(&av.hInfo, "header-info")
 	if err := hi.Archive(av.hArchiver); err != nil {
 		return errors.Wrapf(err, "writer: can not store header-info")

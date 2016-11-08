@@ -28,14 +28,13 @@ import (
 )
 
 func writeArtifact(c *cli.Context) error {
-	if len(c.String("device-type")) == 0 || len(c.String("image-id")) == 0 ||
+	if len(c.String("device-type")) == 0 || len(c.String("artifact-id")) == 0 ||
 		len(c.String("update")) == 0 {
-		return errors.New("must provide `device-type`, `image-id` and `update`")
+		return errors.New("must provide `device-type`, `artifact-id` and `update`")
 	}
 
 	he := &parser.HeaderElems{
-		Metadata: []byte(`{"deviceType": "` + c.String("device-type") +
-			`", "imageId": "` + c.String("image-id") + `"}`),
+		Metadata: []byte(""),
 	}
 
 	ud := parser.UpdateData{
@@ -50,11 +49,11 @@ func writeArtifact(c *cli.Context) error {
 		name = c.String("output-path")
 	}
 
-	aw := awriter.NewWriter("mender", 1)
+	aw := awriter.NewWriter("mender", 1, []string{c.String("device-type")}, c.String("artifact-id"))
 	return aw.WriteKnown([]parser.UpdateData{ud}, name)
 }
 
-func read(aPath string) (parser.Workers, error) {
+func read(aPath string) (*areader.Reader, error) {
 	_, err := os.Stat(aPath)
 	if err != nil {
 		return nil, errors.New("Pathspec '" + aPath +
@@ -71,14 +70,19 @@ func read(aPath string) (parser.Workers, error) {
 	if ar == nil {
 		return nil, errors.New("Can not read artifact file.")
 	}
-	defer ar.Close()
 
 	p := parser.RootfsParser{
 		W: ioutil.Discard, // don't store update anywhere
 	}
 	ar.Register(&p)
 
-	return ar.Read()
+	_, err = ar.Read()
+	if err != nil {
+		return nil, err
+	}
+	defer ar.Close()
+
+	return ar, nil
 }
 
 func readArtifact(c *cli.Context) error {
@@ -86,24 +90,31 @@ func readArtifact(c *cli.Context) error {
 		return errors.New("Nothing specified, nothing validated. \nMaybe you wanted" +
 			"to say 'artifacts validate <pathspec>'?")
 	}
-	parsers, err := read(c.Args().First())
+
+	r, err := read(c.Args().First())
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Read Mender artifact file containing %d updates\n", len(parsers))
+	parsers := r.GetWorkers()
+	info := r.GetInfo()
+
+	fmt.Printf("Mender artifact:\n")
+	fmt.Printf("  Id: %s\n", r.GetArtifactId())
+	fmt.Printf("  Format: %s\n", info.Format)
+	fmt.Printf("  Version: %d\n", info.Version)
+	fmt.Printf("  Compatible devices: '%s'\n", r.GetCompatibleDevices())
+
+	fmt.Printf("\nUpdates:\n")
 
 	for k, p := range parsers {
-		fmt.Printf("details of update: %s\n", k)
-		fmt.Printf("  update type: '%s'\n", p.GetUpdateType().Type)
-		fmt.Printf("  supported device: '%s'\n", p.GetDeviceType())
-		if ri, ok := p.(*parser.RootfsParser); ok {
-			fmt.Printf("  image id: '%s'\n", ri.GetImageID())
-		}
-
+		fmt.Printf("  %s\n", k)
+		fmt.Printf("  Type: '%s'\n", p.GetUpdateType().Type)
 		for _, f := range p.GetUpdateFiles() {
-			fmt.Printf("  update files: name: '%s', size: %d bytes, modified: %s\n",
-				f.Name, f.Size, f.Date)
+			fmt.Printf("  Files:\n")
+			fmt.Printf("    %s\n", f.Name)
+			fmt.Printf("    size: %d\n", f.Size)
+			fmt.Printf("    modified: %s\n", f.Date)
 		}
 	}
 	return nil
@@ -149,8 +160,8 @@ func run() error {
 			Usage: "Type of device supported by the update",
 		},
 		cli.StringFlag{
-			Name:  "image-id, i",
-			Usage: "Yocto id of the update image",
+			Name:  "artifact-id, i",
+			Usage: "Id of the artifact",
 		},
 		cli.StringFlag{
 			Name:  "output-path, o",

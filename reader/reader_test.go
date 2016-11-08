@@ -38,7 +38,7 @@ func WriteRootfsImageArchive(dir string, dirStruct []TestDirEntry) (path string,
 		return
 	}
 
-	aw := awriter.NewWriter("mender", 1)
+	aw := awriter.NewWriter("mender", 1, []string{"vexpress"}, "mender-1.1")
 	rp := &parser.RootfsParser{}
 	aw.Register(rp)
 
@@ -75,8 +75,8 @@ func TestReadArchive(t *testing.T) {
 	assert.Len(t, p, 1)
 	rp, ok := p["0000"].(*parser.RootfsParser)
 	assert.True(t, ok)
-	assert.Equal(t, "vexpress-qemu", rp.GetDeviceType())
-	assert.Equal(t, "core-image-minimal-201608110900", rp.GetImageID())
+	assert.Len(t, aReader.GetCompatibleDevices(), 1)
+	assert.Equal(t, "vexpress", aReader.GetCompatibleDevices()[0])
 
 	data, err := ioutil.ReadFile(path.Join(updateTestDir, "my_update"))
 	assert.NoError(t, err)
@@ -100,9 +100,9 @@ func TestReadArchiveCustomHandler(t *testing.T) {
 
 	var called bool
 	rp := &parser.RootfsParser{
-		DataFunc: func(r io.Reader, dt string, uf parser.UpdateFile) error {
+		DataFunc: func(r io.Reader, dt []string, uf parser.UpdateFile) error {
 			called = true
-			assert.Equal(t, "vexpress-qemu", dt)
+			assert.Equal(t, "vexpress", dt[0])
 			assert.Equal(t, "update.ext4", uf.Name)
 
 			b := bytes.Buffer{}
@@ -113,6 +113,7 @@ func TestReadArchiveCustomHandler(t *testing.T) {
 			assert.Equal(t, []byte("my first update"), b.Bytes())
 			return nil
 		},
+		CompatibleDevices: []string{"vexpress"},
 	}
 
 	aReader := NewReader(f)
@@ -139,7 +140,7 @@ func TestReadArchiveCustomHandlerError(t *testing.T) {
 
 	var called bool
 	rp := &parser.RootfsParser{
-		DataFunc: func(r io.Reader, dt string, uf parser.UpdateFile) error {
+		DataFunc: func(r io.Reader, dt []string, uf parser.UpdateFile) error {
 			called = true
 			return errors.New("failed")
 		},
@@ -230,7 +231,7 @@ func TestReadSequence(t *testing.T) {
 
 	for cnt, update := range hInfo.Updates {
 		if update.Type == "rootfs-image" {
-			rp := &parser.RootfsParser{W: df}
+			rp := &parser.RootfsParser{W: df, CompatibleDevices: hInfo.CompatibleDevices}
 			aReader.PushWorker(rp, fmt.Sprintf("%04d", cnt))
 		}
 	}
@@ -241,13 +242,8 @@ func TestReadSequence(t *testing.T) {
 
 	w, err := aReader.ReadData()
 	assert.NoError(t, err)
-
-	for _, p := range w {
-		assert.Equal(t, "vexpress-qemu", p.GetDeviceType())
-		if rp, ok := p.(*parser.RootfsParser); ok {
-			assert.Equal(t, "core-image-minimal-201608110900", rp.GetImageID())
-		}
-	}
+	assert.Equal(t, "vexpress", aReader.GetCompatibleDevices()[0])
+	assert.NotNil(t, w)
 
 	data, err := ioutil.ReadFile(path.Join(updateTestDir, "my_update"))
 	assert.NoError(t, err)

@@ -9,7 +9,7 @@ restrictions on ordering of the files, described in the "Ordering" section.
 ```
 -artifact.mender (tar format)
   |
-  +---info
+  +---version
   |
   +---header.tar.gz (tar format)
   |    |
@@ -75,7 +75,7 @@ restrictions on ordering of the files, described in the "Ordering" section.
 ```
 
 
-info
+version
 ----
 
 Format: JSON

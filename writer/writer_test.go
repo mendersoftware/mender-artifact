@@ -45,7 +45,7 @@ func TestWriteArtifactBrokenDirStruct(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructInvalid)
 	assert.NoError(t, err)
 
-	aw := NewWriter("mender", 1)
+	aw := NewWriter("mender", 1, []string{"vexpress"}, "mender-1.0")
 	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact"))
 	assert.Error(t, err)
 }
@@ -88,7 +88,7 @@ func TestWriteArtifactFile(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructOK)
 	assert.NoError(t, err)
 
-	aw := NewWriter("mender", 1)
+	aw := NewWriter("mender", 1, []string{"vexpress"}, "mender-1.0")
 
 	rp := &parser.RootfsParser{}
 	aw.Register(rp)
@@ -114,7 +114,7 @@ func TestWriteSingleArtifactFile(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructOKSingle)
 	assert.NoError(t, err)
 
-	aw := NewWriter("mender", 1)
+	aw := NewWriter("mender", 1, []string{"vexpress"}, "mender-1.0")
 
 	rp := &parser.RootfsParser{}
 	aw.Register(rp)
@@ -157,7 +157,7 @@ func TestWriteMultiple(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructMultiple)
 	assert.NoError(t, err)
 
-	aw := NewWriter("mender", 1)
+	aw := NewWriter("mender", 1, []string{"vexpress"}, "mender-1.0")
 
 	rp := &parser.RootfsParser{}
 	aw.Register(rp)
@@ -189,7 +189,7 @@ func TestWriteBrokenArtifact(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructBroken)
 	assert.NoError(t, err)
 
-	aw := NewWriter("mender", 1)
+	aw := NewWriter("mender", 1, []string{"vexpress"}, "mender-1.0")
 
 	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact.tar.gz"))
 	assert.Error(t, err)
@@ -205,7 +205,7 @@ func TestWriteCustom(t *testing.T) {
 	err := MakeFakeUpdateDir(updateTestDir, dirStructCustom)
 	assert.NoError(t, err)
 
-	aw := NewWriter("mender", 1)
+	aw := NewWriter("mender", 1, []string{"vexpress"}, "mender-1.0")
 
 	he := &parser.HeaderElems{
 		Metadata: []byte(`{"deviceType": "my-device", "imageId": "image-id"}`),

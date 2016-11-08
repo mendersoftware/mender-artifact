@@ -49,7 +49,7 @@ func NewReader(r io.Reader) *Reader {
 	ar := Reader{
 		r:            r,
 		ParseManager: parser.NewParseManager(),
-		headerReader: &headerReader{},
+		headerReader: &headerReader{hInfo: new(metadata.HeaderInfo)},
 	}
 	// register generic parser so that basic parsing will always work
 	p := &parser.GenericParser{}
@@ -65,7 +65,7 @@ func (ar *Reader) Read() (parser.Workers, error) {
 	switch info.Version {
 	// so far we are supporting only v1
 	case 1:
-		if ar.hInfo, err = ar.ReadHeaderInfo(); err != nil {
+		if _, err = ar.ReadHeaderInfo(); err != nil {
 			return nil, err
 		}
 		if _, err = ar.setWorkers(); err != nil {
@@ -88,6 +88,18 @@ func (ar *Reader) Close() error {
 		return ar.hGzipReader.Close()
 	}
 	return nil
+}
+
+func (ar *Reader) GetCompatibleDevices() []string {
+	return ar.hInfo.CompatibleDevices
+}
+
+func (ar *Reader) GetArtifactId() string {
+	return ar.hInfo.ArtifactID
+}
+
+func (ar *Reader) GetInfo() metadata.Info {
+	return ar.info
 }
 
 func (ar *Reader) getTarReader() *tar.Reader {
@@ -126,11 +138,10 @@ func (ar *Reader) ReadHeaderInfo() (*metadata.HeaderInfo, error) {
 	tr := tar.NewReader(gz)
 	ar.hReader = tr
 
-	hInfo := new(metadata.HeaderInfo)
-	if err := readNext(tr, hInfo, "header-info"); err != nil {
+	if err := readNext(tr, ar.hInfo, "header-info"); err != nil {
 		return nil, err
 	}
-	return hInfo, nil
+	return ar.hInfo, nil
 }
 
 func (ar *Reader) setWorkers() (parser.Workers, error) {
@@ -160,7 +171,7 @@ func (ar *Reader) setWorkers() (parser.Workers, error) {
 
 func (ar *Reader) ReadInfo() (*metadata.Info, error) {
 	info := new(metadata.Info)
-	err := ar.readNext(info, "info")
+	err := ar.readNext(info, "version")
 	if err != nil {
 		return nil, err
 	}

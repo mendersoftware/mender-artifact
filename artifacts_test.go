@@ -48,7 +48,7 @@ func WriteRootfsImageArchive(dir string, dirStruct []TestDirEntry) (path string,
 		return
 	}
 
-	aw := awriter.NewWriter("mender", 1)
+	aw := awriter.NewWriter("mender", 1, []string{"vexpress"}, "mender-1.1")
 	rp := &parser.RootfsParser{}
 	aw.Register(rp)
 
@@ -67,7 +67,7 @@ func TestArtifactsWrite(t *testing.T) {
 	err = run()
 	assert.Error(t, err)
 	assert.Equal(t, 1, lastExitCode)
-	assert.Equal(t, "must provide `device-type`, `image-id` and `update`\n",
+	assert.Equal(t, "must provide `device-type`, `artifact-id` and `update`\n",
 		fakeErrWriter.String())
 
 	updateTestDir, _ := ioutil.TempDir("", "update")
@@ -121,7 +121,7 @@ func TestArtifactsValidate(t *testing.T) {
 func TestArtifactsRead(t *testing.T) {
 	// first create archive, that we will be able to read
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
+	//defer os.RemoveAll(updateTestDir)
 
 	archive, err := WriteRootfsImageArchive(updateTestDir, RootfsImageStructOK)
 	assert.NoError(t, err)
