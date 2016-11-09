@@ -50,12 +50,12 @@ func TestValidateHeaderInfo(t *testing.T) {
 		{HeaderInfo{Updates: []UpdateType{}}, ErrValidatingData},
 		{HeaderInfo{Updates: []UpdateType{{Type: ""}}}, ErrValidatingData},
 		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {}}}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{}, {Type: "update"}}, CompatibleDevices: []string{""}, ArtifactID: "id"}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: ""}}, CompatibleDevices: []string{""}, ArtifactID: "id"}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, CompatibleDevices: []string{""}, ArtifactID: "id"}, nil},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, ArtifactID: "id"}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, CompatibleDevices: []string{""}, ArtifactID: ""}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: "update"}}, CompatibleDevices: []string{""}, ArtifactID: "id"}, nil},
+		{HeaderInfo{Updates: []UpdateType{{}, {Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"}, ErrValidatingData},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: ""}}, CompatibleDevices: []string{""}, ArtifactName: "id"}, ErrValidatingData},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"}, nil},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, ArtifactName: "id"}, ErrValidatingData},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: ""}, ErrValidatingData},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"}, nil},
 	}
 	for idx, tt := range validateTests {
 		e := tt.in.Validate()

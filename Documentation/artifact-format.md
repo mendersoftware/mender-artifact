@@ -128,8 +128,8 @@ Format: JSON
       ...
     }
   ],
-  "compatibleDevices": ["vexpress-qemu", "beaglebone"],
-  "artifactId": "id"
+  "device_types_compatible": ["vexpress-qemu", "beaglebone"],
+  "artifact_name": "name"
 }
 ```
 
@@ -142,10 +142,10 @@ updates downloaded to single devices, there will usually be only one.
 only `rootfs-image`, but there may be others in the future, like `docker-image`
 or something package based.
 
-The `compatibleDevices` value provides information about devices compatible
+The `device_types_compatible` value provides information about devices compatible
 with the given artifact.
 
-`artifactId` is the unique identifier of the given artifact.
+`artifact_name` is the name of the given artifact.
 
 The remaining entries in `header.tar.gz` are then organized in buckets under
 `headers/xxxx` folders, where `xxxx` are four digits, starting from zero, and
@@ -176,8 +176,7 @@ corresponding to the type in `header-info` file.
 
 ```
 {
-  "type": "rootfs-image",
-  "compatibleDevices": ["vexpress-qemu", "beaglebone"]
+  "type": "rootfs-image"
 }
 ```
 

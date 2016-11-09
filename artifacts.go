@@ -28,9 +28,9 @@ import (
 )
 
 func writeArtifact(c *cli.Context) error {
-	if len(c.String("device-type")) == 0 || len(c.String("artifact-id")) == 0 ||
+	if len(c.String("device-type")) == 0 || len(c.String("artifact-name")) == 0 ||
 		len(c.String("update")) == 0 {
-		return errors.New("must provide `device-type`, `artifact-id` and `update`")
+		return errors.New("must provide `device-type`, `artifact-name` and `update`")
 	}
 
 	he := &parser.HeaderElems{
@@ -49,7 +49,7 @@ func writeArtifact(c *cli.Context) error {
 		name = c.String("output-path")
 	}
 
-	aw := awriter.NewWriter("mender", 1, []string{c.String("device-type")}, c.String("artifact-id"))
+	aw := awriter.NewWriter("mender", 1, []string{c.String("device-type")}, c.String("artifact-name"))
 	return aw.WriteKnown([]parser.UpdateData{ud}, name)
 }
 
@@ -100,7 +100,7 @@ func readArtifact(c *cli.Context) error {
 	info := r.GetInfo()
 
 	fmt.Printf("Mender artifact:\n")
-	fmt.Printf("  Id: %s\n", r.GetArtifactId())
+	fmt.Printf("  Name: %s\n", r.GetArtifactName())
 	fmt.Printf("  Format: %s\n", info.Format)
 	fmt.Printf("  Version: %d\n", info.Version)
 	fmt.Printf("  Compatible devices: '%s'\n", r.GetCompatibleDevices())
@@ -160,7 +160,7 @@ func run() error {
 			Usage: "Type of device supported by the update",
 		},
 		cli.StringFlag{
-			Name:  "artifact-id, i",
+			Name:  "artifact-name, n",
 			Usage: "Id of the artifact",
 		},
 		cli.StringFlag{

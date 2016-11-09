@@ -83,13 +83,13 @@ type UpdateType struct {
 // archived in Mender metadata archive.
 type HeaderInfo struct {
 	Updates           []UpdateType `json:"updates"`
-	CompatibleDevices []string     `json:"compatibleDevices"`
-	ArtifactID        string       `json:"artifactId"`
+	CompatibleDevices []string     `json:"device_types_compatible"`
+	ArtifactName      string       `json:"artifact_name"`
 }
 
 // Validate checks if header-info structure is correct.
 func (hi HeaderInfo) Validate() error {
-	if len(hi.Updates) == 0 || len(hi.CompatibleDevices) == 0 || len(hi.ArtifactID) == 0 {
+	if len(hi.Updates) == 0 || len(hi.CompatibleDevices) == 0 || len(hi.ArtifactName) == 0 {
 		return ErrValidatingData
 	}
 	for _, update := range hi.Updates {

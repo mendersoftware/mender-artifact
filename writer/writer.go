@@ -36,7 +36,7 @@ type Writer struct {
 	format            string
 	version           int
 	compatibleDevices []string
-	artifactID        string
+	artifactName      string
 
 	aName string
 	*parser.ParseManager
@@ -109,13 +109,13 @@ func (av *Writer) deinit() error {
 	return nil
 }
 
-func NewWriter(format string, version int, devices []string, id string) *Writer {
+func NewWriter(format string, version int, devices []string, name string) *Writer {
 
 	return &Writer{
 		format:            format,
 		version:           version,
 		compatibleDevices: devices,
-		artifactID:        id,
+		artifactName:      name,
 		ParseManager:      parser.NewParseManager(),
 	}
 }
@@ -320,7 +320,7 @@ func (av *Writer) WriteHeader() error {
 			append(av.hInfo.Updates, metadata.UpdateType{Type: upd.Type})
 	}
 	av.hInfo.CompatibleDevices = av.compatibleDevices
-	av.hInfo.ArtifactID = av.artifactID
+	av.hInfo.ArtifactName = av.artifactName
 
 	hi := archiver.NewMetadataArchiver(&av.hInfo, "header-info")
 	if err := hi.Archive(av.hArchiver); err != nil {

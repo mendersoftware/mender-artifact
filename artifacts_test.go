@@ -67,7 +67,7 @@ func TestArtifactsWrite(t *testing.T) {
 	err = run()
 	assert.Error(t, err)
 	assert.Equal(t, 1, lastExitCode)
-	assert.Equal(t, "must provide `device-type`, `artifact-id` and `update`\n",
+	assert.Equal(t, "must provide `device-type`, `artifact-name` and `update`\n",
 		fakeErrWriter.String())
 
 	updateTestDir, _ := ioutil.TempDir("", "update")
@@ -85,7 +85,7 @@ func TestArtifactsWrite(t *testing.T) {
 
 	// store named file
 	os.Args = []string{"artifacts", "write", "rootfs-image", "-t", "my-device",
-		"-i", "my-id", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "art.mender")}
 	err = run()
 	assert.NoError(t, err)

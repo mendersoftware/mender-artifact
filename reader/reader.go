@@ -94,8 +94,8 @@ func (ar *Reader) GetCompatibleDevices() []string {
 	return ar.hInfo.CompatibleDevices
 }
 
-func (ar *Reader) GetArtifactId() string {
-	return ar.hInfo.ArtifactID
+func (ar *Reader) GetArtifactName() string {
+	return ar.hInfo.ArtifactName
 }
 
 func (ar *Reader) GetInfo() metadata.Info {
