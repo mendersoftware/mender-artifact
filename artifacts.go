@@ -161,7 +161,7 @@ func run() error {
 		},
 		cli.StringFlag{
 			Name:  "artifact-name, n",
-			Usage: "Id of the artifact",
+			Usage: "Name of the artifact",
 		},
 		cli.StringFlag{
 			Name:  "output-path, o",

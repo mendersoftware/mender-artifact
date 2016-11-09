@@ -121,7 +121,7 @@ func TestArtifactsValidate(t *testing.T) {
 func TestArtifactsRead(t *testing.T) {
 	// first create archive, that we will be able to read
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	//defer os.RemoveAll(updateTestDir)
+	defer os.RemoveAll(updateTestDir)
 
 	archive, err := WriteRootfsImageArchive(updateTestDir, RootfsImageStructOK)
 	assert.NoError(t, err)

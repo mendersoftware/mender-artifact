@@ -110,8 +110,7 @@ func (hi *HeaderInfo) Write(p []byte) (n int, err error) {
 // TypeInfo provides information of type of individual updates
 // archived in artifacts archive.
 type TypeInfo struct {
-	Type              string   `json:"type"`
-	CompatibleDevices []string `json:"compatibleDevices"`
+	Type string `json:"type"`
 }
 
 // Validate validates corectness of TypeInfo.
@@ -133,7 +132,7 @@ func (ti *TypeInfo) Write(p []byte) (n int, err error) {
 // are user-defined and are not specified. The only requirement is that those
 // must be stored in a for of JSON.
 // The fields which must exist are update-type dependent. In case of
-// `rootfs-update` image type, `rootfsId` is required.
+// `rootfs-update` image type, there are no additional fields required.
 type Metadata map[string]interface{}
 
 // Validate check corecness of artifacts metadata. Since the exact format is
