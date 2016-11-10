@@ -36,16 +36,15 @@ import (
 // is a decompressed data stream, `dt` holds current device type, `uf` contains
 // basic information about update. The handler shall return nil if no errors
 // occur.
-type DataHandlerFunc func(r io.Reader, dt []string, uf UpdateFile) error
+type DataHandlerFunc func(r io.Reader, uf UpdateFile) error
 
 // RootfsParser handles updates of type 'rootfs-image'. The parser can be
 // initialized setting `W` (io.Writer the update data gets written to), or
 // `DataFunc` (user provided callback that handlers the update data stream).
 type RootfsParser struct {
-	W                 io.Writer       // output stream the update gets written to
-	ScriptDir         string          // output directory for scripts
-	DataFunc          DataHandlerFunc // custom update data handler
-	CompatibleDevices []string        // devices compatible with given artifact
+	W         io.Writer       // output stream the update gets written to
+	ScriptDir string          // output directory for scripts
+	DataFunc  DataHandlerFunc // custom update data handler
 
 	metadata metadata.Metadata
 	update   UpdateFile // we are supporting ONLY one update file for rootfs-image
@@ -53,10 +52,9 @@ type RootfsParser struct {
 
 func (rp *RootfsParser) Copy() Parser {
 	return &RootfsParser{
-		W:                 rp.W,
-		ScriptDir:         rp.ScriptDir,
-		DataFunc:          rp.DataFunc,
-		CompatibleDevices: rp.CompatibleDevices,
+		W:         rp.W,
+		ScriptDir: rp.ScriptDir,
+		DataFunc:  rp.DataFunc,
 	}
 }
 
@@ -326,7 +324,7 @@ func (rp *RootfsParser) ParseData(r io.Reader) error {
 		err := parseDataWithHandler(
 			r,
 			func(dr io.Reader, uf UpdateFile) error {
-				return rp.DataFunc(dr, rp.CompatibleDevices, uf)
+				return rp.DataFunc(dr, uf)
 			},
 			updates,
 		)

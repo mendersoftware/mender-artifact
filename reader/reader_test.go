@@ -81,6 +81,7 @@ func TestReadArchive(t *testing.T) {
 	data, err := ioutil.ReadFile(path.Join(updateTestDir, "my_update"))
 	assert.NoError(t, err)
 	assert.Equal(t, "my first update", string(data))
+	assert.Equal(t, "vexpress", aReader.GetCompatibleDevices()[0])
 }
 
 func TestReadArchiveCustomHandler(t *testing.T) {
@@ -100,9 +101,8 @@ func TestReadArchiveCustomHandler(t *testing.T) {
 
 	var called bool
 	rp := &parser.RootfsParser{
-		DataFunc: func(r io.Reader, dt []string, uf parser.UpdateFile) error {
+		DataFunc: func(r io.Reader, uf parser.UpdateFile) error {
 			called = true
-			assert.Equal(t, "vexpress", dt[0])
 			assert.Equal(t, "update.ext4", uf.Name)
 
 			b := bytes.Buffer{}
@@ -113,7 +113,6 @@ func TestReadArchiveCustomHandler(t *testing.T) {
 			assert.Equal(t, []byte("my first update"), b.Bytes())
 			return nil
 		},
-		CompatibleDevices: []string{"vexpress"},
 	}
 
 	aReader := NewReader(f)
@@ -140,7 +139,7 @@ func TestReadArchiveCustomHandlerError(t *testing.T) {
 
 	var called bool
 	rp := &parser.RootfsParser{
-		DataFunc: func(r io.Reader, dt []string, uf parser.UpdateFile) error {
+		DataFunc: func(r io.Reader, uf parser.UpdateFile) error {
 			called = true
 			return errors.New("failed")
 		},
@@ -171,6 +170,16 @@ func TestReadGeneric(t *testing.T) {
 	aReader := NewReader(f)
 	_, err = aReader.Read()
 	assert.NoError(t, err)
+
+	// WriteRootfsImageArchive() uses `vexpress` as artifact devices_type_compatible
+	f.Seek(0, 0)
+	_, err = aReader.ReadCompatibleWithDevice("non-existing")
+	assert.Error(t, err)
+
+	f.Seek(0, 0)
+	_, err = aReader.ReadCompatibleWithDevice("vexpress")
+	assert.NoError(t, err)
+
 }
 
 func TestReadKnownUpdate(t *testing.T) {
@@ -195,6 +204,8 @@ func TestReadKnownUpdate(t *testing.T) {
 	aReader := NewReader(f)
 	aReader.PushWorker(rp, "0000")
 	_, err = aReader.Read()
+	assert.NoError(t, err)
+	err = aReader.Close()
 	assert.NoError(t, err)
 }
 
@@ -231,7 +242,7 @@ func TestReadSequence(t *testing.T) {
 
 	for cnt, update := range hInfo.Updates {
 		if update.Type == "rootfs-image" {
-			rp := &parser.RootfsParser{W: df, CompatibleDevices: hInfo.CompatibleDevices}
+			rp := &parser.RootfsParser{W: df}
 			aReader.PushWorker(rp, fmt.Sprintf("%04d", cnt))
 		}
 	}

@@ -57,17 +57,41 @@ func NewReader(r io.Reader) *Reader {
 	return &ar
 }
 
-func (ar *Reader) Read() (parser.Workers, error) {
+func isCompatibleWithDevice(current string, compatible []string) bool {
+	for _, dev := range compatible {
+		if strings.Compare(current, dev) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (ar *Reader) read(device string) (parser.Workers, error) {
+	defer func() { ar.tReader = nil }()
+
 	info, err := ar.ReadInfo()
 	if err != nil {
 		return nil, err
 	}
+
 	switch info.Version {
 	// so far we are supporting only v1
 	case 1:
-		if _, err = ar.ReadHeaderInfo(); err != nil {
+		var hInfo *metadata.HeaderInfo
+		hInfo, err = ar.ReadHeaderInfo()
+		if err != nil {
 			return nil, err
 		}
+
+		// check compatibility with given device type
+		if len(device) > 0 {
+			if !isCompatibleWithDevice(device, hInfo.CompatibleDevices) {
+				return nil, errors.Errorf(
+					"unexpected device type [%v], expected to see one of [%v]",
+					device, hInfo.CompatibleDevices)
+			}
+		}
+
 		if _, err = ar.setWorkers(); err != nil {
 			return nil, err
 		}
@@ -80,7 +104,16 @@ func (ar *Reader) Read() (parser.Workers, error) {
 	default:
 		return nil, errors.New("reader: unsupported artifact version")
 	}
+
 	return ar.ParseManager.GetWorkers(), nil
+}
+
+func (ar *Reader) Read() (parser.Workers, error) {
+	return ar.read("")
+}
+
+func (ar *Reader) ReadCompatibleWithDevice(device string) (parser.Workers, error) {
+	return ar.read(device)
 }
 
 func (ar *Reader) Close() error {
@@ -148,10 +181,12 @@ func (ar *Reader) setWorkers() (parser.Workers, error) {
 	for cnt, update := range ar.hInfo.Updates {
 		// firsrt check if we have worker for given update
 		w, err := ar.ParseManager.GetWorker(fmt.Sprintf("%04d", cnt))
+
 		if err == nil {
-			if w.GetUpdateType().Type == update.Type {
+			if w.GetUpdateType().Type == update.Type || w.GetUpdateType().Type == "generic" {
 				continue
 			}
+
 			return nil, errors.New("reader: wrong worker for given update type")
 		}
 		// if not just register worker for given update type
