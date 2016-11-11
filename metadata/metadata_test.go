@@ -50,10 +50,12 @@ func TestValidateHeaderInfo(t *testing.T) {
 		{HeaderInfo{Updates: []UpdateType{}}, ErrValidatingData},
 		{HeaderInfo{Updates: []UpdateType{{Type: ""}}}, ErrValidatingData},
 		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {}}}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{}, {Type: "update"}}}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: ""}}}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}}, nil},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: "update"}}}, nil},
+		{HeaderInfo{Updates: []UpdateType{{}, {Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"}, ErrValidatingData},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: ""}}, CompatibleDevices: []string{""}, ArtifactName: "id"}, ErrValidatingData},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"}, nil},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, ArtifactName: "id"}, ErrValidatingData},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: ""}, ErrValidatingData},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"}, nil},
 	}
 	for idx, tt := range validateTests {
 		e := tt.in.Validate()
@@ -82,13 +84,9 @@ func TestValidateMetadata(t *testing.T) {
 		in  string
 		err error
 	}{
-		{`{"": nil}`, ErrValidatingData},
-		{`{"key": nil}`, ErrValidatingData},
-		{`{"key": "val"}`, ErrValidatingData},
-		{`{"deviceType": "type"}`, ErrValidatingData},
-		{`{"deviceType": nil, "imageId": "image"}`, ErrValidatingData},
-		{`{"deviceType": "device", "imageId": "image"}`, nil},
-		{`{"deviceType": "device", "imageId": "image", "data": "data"}`, nil},
+		{``, nil},
+		{`{"key": "val"}`, nil},
+		{`{"key": "val", "other_key": "other_val"}`, nil},
 	}
 
 	for _, tt := range validateTests {
@@ -96,8 +94,6 @@ func TestValidateMetadata(t *testing.T) {
 		l, e := mtd.Write([]byte(tt.in))
 		assert.NoError(t, e)
 		assert.Equal(t, len(tt.in), l)
-		e = mtd.Required.Validate()
-		assert.Equal(t, e, tt.err, "failing test: %v", tt)
 		e = mtd.Validate()
 		assert.Equal(t, e, tt.err, "failing test: %v", tt)
 	}
