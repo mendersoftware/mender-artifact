@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/mendersoftware/artifacts/parser"
 	"github.com/mendersoftware/artifacts/reader"
@@ -49,7 +50,9 @@ func writeArtifact(c *cli.Context) error {
 		name = c.String("output-path")
 	}
 
-	aw := awriter.NewWriter("mender", 1, []string{c.String("device-type")}, c.String("artifact-name"))
+	devices := strings.Split(c.String("device-type"), ",")
+
+	aw := awriter.NewWriter("mender", 1, devices, c.String("artifact-name"))
 	return aw.WriteKnown([]parser.UpdateData{ud}, name)
 }
 
@@ -87,8 +90,8 @@ func read(aPath string) (*areader.Reader, error) {
 
 func readArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
-		return errors.New("Nothing specified, nothing validated. \nMaybe you wanted" +
-			"to say 'artifacts validate <pathspec>'?")
+		return errors.New("Nothing specified, nothing read. \nMaybe you wanted" +
+			"to say 'artifacts read <pathspec>'?")
 	}
 
 	r, err := read(c.Args().First())
