@@ -84,6 +84,27 @@ func TestReadArchive(t *testing.T) {
 	assert.Equal(t, "vexpress", aReader.GetCompatibleDevices()[0])
 }
 
+func TestReadArchiveMultipleUpdates(t *testing.T) {
+	// first create archive, that we will be able to read
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	archive, err := WriteRootfsImageArchive(updateTestDir, RootfsImageStructMultiple)
+	assert.NoError(t, err)
+	assert.NotEqual(t, "", archive)
+
+	// open archive file
+	f, err := os.Open(archive)
+	defer f.Close()
+	assert.NoError(t, err)
+	assert.NotNil(t, f)
+
+	aReader := NewReader(f)
+	p, err := aReader.Read()
+	assert.NoError(t, err)
+	assert.Len(t, p, 2)
+}
+
 func TestReadArchiveCustomHandler(t *testing.T) {
 	// first create archive, that we will be able to read
 	updateTestDir, _ := ioutil.TempDir("", "update")
