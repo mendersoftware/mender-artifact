@@ -91,7 +91,7 @@ func read(aPath string) (*areader.Reader, error) {
 func readArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return errors.New("Nothing specified, nothing read. \nMaybe you wanted" +
-			"to say 'artifacts read <pathspec>'?")
+			" to say 'artifacts read <pathspec>'?")
 	}
 
 	r, err := read(c.Args().First())
@@ -126,7 +126,7 @@ func readArtifact(c *cli.Context) error {
 func validateArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return errors.New("Nothing specified, nothing validated. \nMaybe you wanted" +
-			"to say 'artifacts validate <pathspec>'?")
+			" to say 'artifacts validate <pathspec>'?")
 	}
 
 	_, err := read(c.Args().First())
