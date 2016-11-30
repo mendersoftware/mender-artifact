@@ -194,7 +194,7 @@ func (ar *Reader) setWorkers() (parser.Workers, error) {
 		p, err := ar.ParseManager.GetRegistered(update.Type)
 		if err != nil {
 			// if there is no registered one; check if we can use generic
-			p = ar.ParseManager.GetGeneric()
+			p = ar.ParseManager.GetGeneric(update.Type)
 			if p == nil {
 				return nil, errors.Wrapf(err,
 					"reader: can not find parser for update type: [%v]", update.Type)

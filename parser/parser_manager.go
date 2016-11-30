@@ -121,10 +121,10 @@ func (p *ParseManager) GetRegistered(parsingType string) (Parser, error) {
 	return parser.Copy(), nil
 }
 
+func (p *ParseManager) GetGeneric(parsingType string) Parser {
+	return &GenericParser{typeParsed: parsingType}
 func (p *ParseManager) SetGeneric(parser Parser) {
 	p.gParser = parser
 }
 
-func (p *ParseManager) GetGeneric() Parser {
-	return p.gParser
 }

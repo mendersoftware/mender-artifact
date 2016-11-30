@@ -30,12 +30,13 @@ import (
 )
 
 type GenericParser struct {
-	metadata metadata.Metadata
-	updates  map[string]UpdateFile
+	metadata   metadata.Metadata
+	updates    map[string]UpdateFile
+	typeParsed string
 }
 
 func (rp *GenericParser) GetUpdateType() *metadata.UpdateType {
-	return &metadata.UpdateType{Type: "generic"}
+	return &metadata.UpdateType{Type: rp.typeParsed}
 }
 
 func (rp *GenericParser) GetUpdateFiles() map[string]UpdateFile {
