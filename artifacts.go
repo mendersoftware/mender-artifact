@@ -17,7 +17,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -73,11 +72,6 @@ func read(aPath string) (*areader.Reader, error) {
 	if ar == nil {
 		return nil, errors.New("Can not read artifact file.")
 	}
-
-	p := parser.RootfsParser{
-		W: ioutil.Discard, // don't store update anywhere
-	}
-	ar.Register(&p)
 
 	_, err = ar.Read()
 	if err != nil {

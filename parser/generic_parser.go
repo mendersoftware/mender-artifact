@@ -168,8 +168,10 @@ func parseDataWithHandler(r io.Reader, handler parseDataHandlerFunc, uFiles map[
 	return nil
 }
 
+// Copy is implemented to satisfy Parser interface. We shouldn't allow
+// copying GenericParser as this one is created ad-hoc by `ParseManager`.
 func (rp *GenericParser) Copy() Parser {
-	return &GenericParser{}
+	return nil
 }
 
 // ParseData for generic parser is used ONLY for validating the integrity

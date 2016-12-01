@@ -46,15 +46,11 @@ type headerReader struct {
 }
 
 func NewReader(r io.Reader) *Reader {
-	ar := Reader{
+	return &Reader{
 		r:            r,
 		ParseManager: parser.NewParseManager(),
 		headerReader: &headerReader{hInfo: new(metadata.HeaderInfo)},
 	}
-	// register generic parser so that basic parsing will always work
-	p := &parser.GenericParser{}
-	ar.SetGeneric(p)
-	return &ar
 }
 
 func isCompatibleWithDevice(current string, compatible []string) bool {
