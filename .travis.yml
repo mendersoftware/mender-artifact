@@ -9,7 +9,7 @@ before_install:
     # Install code coverage / coveralls tooling
     - go get -u github.com/axw/gocov/gocov
     - go get -u golang.org/x/tools/cmd/cover
-
+    - go get ./...
 before_script:
     # Print build info.
     - echo $TRAVIS_COMMIT
@@ -35,8 +35,18 @@ script:
     - go list ./... | grep -v vendor | xargs -n1 -I {} -P 4 go test -v -covermode=atomic -coverprofile=../../../{}/coverage.txt {}
 
     # Compile binary
-    - go build ./...
+    - go build .
 
 after_success:
     # Integrate with https://codecov.io
     - bash <(curl -s https://codecov.io/bash)
+
+deploy:
+    provider: s3
+    access_key_id: $AWS_ACCESS_KEY_ID
+    secret_access_key: $AWS_SECRET_ACCESS_KEY
+    bucket: $AWS_BUCKET/$TRAVIS_BRANCH/$TRAVIS_GO_VERSION
+    region: $AWS_REGION
+    upload-dir: release
+    skip_cleanup: true
+    acl: $AWS_S3_ACL
