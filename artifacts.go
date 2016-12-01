@@ -17,7 +17,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -74,11 +73,6 @@ func read(aPath string) (*areader.Reader, error) {
 		return nil, errors.New("Can not read artifact file.")
 	}
 
-	p := parser.RootfsParser{
-		W: ioutil.Discard, // don't store update anywhere
-	}
-	ar.Register(&p)
-
 	_, err = ar.Read()
 	if err != nil {
 		return nil, err
@@ -91,7 +85,7 @@ func read(aPath string) (*areader.Reader, error) {
 func readArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return errors.New("Nothing specified, nothing read. \nMaybe you wanted" +
-			"to say 'artifacts read <pathspec>'?")
+			" to say 'artifacts read <pathspec>'?")
 	}
 
 	r, err := read(c.Args().First())
@@ -126,7 +120,7 @@ func readArtifact(c *cli.Context) error {
 func validateArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return errors.New("Nothing specified, nothing validated. \nMaybe you wanted" +
-			"to say 'artifacts validate <pathspec>'?")
+			" to say 'artifacts validate <pathspec>'?")
 	}
 
 	_, err := read(c.Args().First())
