@@ -46,15 +46,11 @@ type headerReader struct {
 }
 
 func NewReader(r io.Reader) *Reader {
-	ar := Reader{
+	return &Reader{
 		r:            r,
 		ParseManager: parser.NewParseManager(),
 		headerReader: &headerReader{hInfo: new(metadata.HeaderInfo)},
 	}
-	// register generic parser so that basic parsing will always work
-	p := &parser.GenericParser{}
-	ar.SetGeneric(p)
-	return &ar
 }
 
 func isCompatibleWithDevice(current string, compatible []string) bool {
@@ -194,7 +190,7 @@ func (ar *Reader) setWorkers() (parser.Workers, error) {
 		p, err := ar.ParseManager.GetRegistered(update.Type)
 		if err != nil {
 			// if there is no registered one; check if we can use generic
-			p = ar.ParseManager.GetGeneric()
+			p = ar.ParseManager.GetGeneric(update.Type)
 			if p == nil {
 				return nil, errors.Wrapf(err,
 					"reader: can not find parser for update type: [%v]", update.Type)
