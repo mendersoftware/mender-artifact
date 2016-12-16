@@ -1,5 +1,5 @@
 {
-	"ImportPath": "github.com/mendersoftware/artifacts",
+	"ImportPath": "github.com/mendersoftware/mender-artifact",
 	"GoVersion": "go1.6",
 	"GodepVersion": "v74",
 	"Packages": [
