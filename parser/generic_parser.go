@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mendersoftware/artifacts/metadata"
+	"github.com/mendersoftware/mender-artifact/metadata"
 	"github.com/pkg/errors"
 )
 

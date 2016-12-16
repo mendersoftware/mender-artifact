@@ -20,11 +20,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mendersoftware/artifacts/metadata"
-	"github.com/mendersoftware/artifacts/parser"
+	"github.com/mendersoftware/mender-artifact/metadata"
+	"github.com/mendersoftware/mender-artifact/parser"
 	"github.com/stretchr/testify/assert"
 
-	. "github.com/mendersoftware/artifacts/test_utils"
+	. "github.com/mendersoftware/mender-artifact/test_utils"
 )
 
 var dirStructInvalid = []TestDirEntry{

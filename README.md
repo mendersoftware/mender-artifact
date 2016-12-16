@@ -1,6 +1,6 @@
-[![Build Status](https://travis-ci.org/mendersoftware/artifacts.svg?branch=master)](https://travis-ci.org/mendersoftware/artifacts)
-[![codecov](https://codecov.io/gh/mendersoftware/artifacts/branch/master/graph/badge.svg)](https://codecov.io/gh/mendersoftware/artifacts)
-[![Go Report Card](https://goreportcard.com/badge/github.com/mendersoftware/artifacts)](https://goreportcard.com/report/github.com/mendersoftware/artifacts)
+[![Build Status](https://travis-ci.org/mendersoftware/mender-artifact.svg?branch=master)](https://travis-ci.org/mendersoftware/mender-artifact)
+[![codecov](https://codecov.io/gh/mendersoftware/mender-artifact/branch/master/graph/badge.svg)](https://codecov.io/gh/mendersoftware/mender-artifact)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mendersoftware/mender-artifact)](https://goreportcard.com/report/github.com/mendersoftware/mender-artifact)
 
 Mender Artifacts Library
 ==============================================
@@ -10,7 +10,7 @@ devices. Mender comprises a client running at the embedded device, as well as
 a server that manages deployments across many devices.
 
 This repository contains the artifacts library, which is used by the
-Mender client, command line interface, server and for build integration with the Yocto Project. 
+Mender client, command line interface, server and for build integration with the Yocto Project.
 
 The artifacts library makes it easy to programmatically work with a Mender artifact, which
 is a file that can be recognized by its `.mender` suffix. Mender artifacts
@@ -41,8 +41,8 @@ You can use the parser and reader in go in the standard way:
 
 ```
 import (
-        "github.com/mendersoftware/artifacts/parser"
-        "github.com/mendersoftware/artifacts/reader"
+        "github.com/mendersoftware/mender-artifact/parser"
+        "github.com/mendersoftware/mender-artifact/reader"
 ...
 )
 ```
