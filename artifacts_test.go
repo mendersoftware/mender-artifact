@@ -127,7 +127,7 @@ func TestArtifactsRead(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEqual(t, "", archive)
 
-	os.Args = []string{"artifacts", "read", "artifact",
+	os.Args = []string{"artifacts", "read",
 		filepath.Join(updateTestDir, "artifact.tar.gz")}
 	err = run()
 	assert.NoError(t, err)

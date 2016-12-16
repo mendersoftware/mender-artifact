@@ -99,7 +99,8 @@ func (ar *Reader) read(device string) (parser.Workers, error) {
 			return nil, err
 		}
 	default:
-		return nil, errors.New("reader: unsupported artifact version")
+		return nil, errors.Errorf("reader: unsupported version: %d",
+			ar.info.Version)
 	}
 
 	return ar.ParseManager.GetWorkers(), nil
