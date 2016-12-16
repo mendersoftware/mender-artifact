@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mendersoftware/artifacts/parser"
-	"github.com/mendersoftware/artifacts/reader"
-	"github.com/mendersoftware/artifacts/writer"
+	"github.com/mendersoftware/mender-artifact/parser"
+	"github.com/mendersoftware/mender-artifact/reader"
+	"github.com/mendersoftware/mender-artifact/writer"
 
 	"github.com/urfave/cli"
 )

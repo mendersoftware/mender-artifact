@@ -24,9 +24,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli"
 
-	"github.com/mendersoftware/artifacts/parser"
-	. "github.com/mendersoftware/artifacts/test_utils"
-	"github.com/mendersoftware/artifacts/writer"
+	"github.com/mendersoftware/mender-artifact/parser"
+	. "github.com/mendersoftware/mender-artifact/test_utils"
+	"github.com/mendersoftware/mender-artifact/writer"
 )
 
 var (
@@ -58,12 +58,12 @@ func WriteRootfsImageArchive(dir string, dirStruct []TestDirEntry) (path string,
 }
 
 func TestArtifactsWrite(t *testing.T) {
-	os.Args = []string{"artifacts", "write"}
+	os.Args = []string{"mender-artifact", "write"}
 	err := run()
 	// should output help message and no error
 	assert.NoError(t, err)
 
-	os.Args = []string{"artifacts", "write", "rootfs-image"}
+	os.Args = []string{"mender-artifact", "write", "rootfs-image"}
 	err = run()
 	assert.Error(t, err)
 	assert.Equal(t, 1, lastExitCode)
@@ -84,7 +84,7 @@ func TestArtifactsWrite(t *testing.T) {
 	assert.NoError(t, err)
 
 	// store named file
-	os.Args = []string{"artifacts", "write", "rootfs-image", "-t", "my-device",
+	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
 		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "art.mender")}
 	err = run()
@@ -104,12 +104,12 @@ func TestArtifactsValidate(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEqual(t, "", archive)
 
-	os.Args = []string{"artifacts", "validate",
+	os.Args = []string{"mender-artifact", "validate",
 		filepath.Join(updateTestDir, "artifact.tar.gz")}
 	err = run()
 	assert.NoError(t, err)
 
-	os.Args = []string{"artifacts", "validate", "non-existing"}
+	os.Args = []string{"mender-artifact", "validate", "non-existing"}
 	fakeErrWriter.Reset()
 	err = run()
 	assert.Error(t, err)
@@ -127,12 +127,12 @@ func TestArtifactsRead(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEqual(t, "", archive)
 
-	os.Args = []string{"artifacts", "read",
+	os.Args = []string{"mender-artifact", "read",
 		filepath.Join(updateTestDir, "artifact.tar.gz")}
 	err = run()
 	assert.NoError(t, err)
 
-	os.Args = []string{"artifacts", "validate", "non-existing"}
+	os.Args = []string{"mender-artifact", "validate", "non-existing"}
 	fakeErrWriter.Reset()
 	err = run()
 	assert.Error(t, err)

@@ -20,7 +20,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/mendersoftware/artifacts/metadata"
+	"github.com/mendersoftware/mender-artifact/metadata"
 )
 
 type UpdateFile struct {

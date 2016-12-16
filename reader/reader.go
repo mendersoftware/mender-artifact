@@ -23,8 +23,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mendersoftware/artifacts/metadata"
-	"github.com/mendersoftware/artifacts/parser"
+	"github.com/mendersoftware/mender-artifact/metadata"
+	"github.com/mendersoftware/mender-artifact/parser"
 	"github.com/pkg/errors"
 )
 
