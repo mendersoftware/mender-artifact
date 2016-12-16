@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/mendersoftware/artifacts/parser"
 	"github.com/mendersoftware/artifacts/reader"
@@ -26,6 +25,9 @@ import (
 
 	"github.com/urfave/cli"
 )
+
+// VERSION of the mender-artifact CLI tool
+var VERSION = "0.1"
 
 func writeArtifact(c *cli.Context) error {
 	if len(c.String("device-type")) == 0 || len(c.String("artifact-name")) == 0 ||
@@ -49,9 +51,9 @@ func writeArtifact(c *cli.Context) error {
 		name = c.String("output-path")
 	}
 
-	devices := strings.Split(c.String("device-type"), ",")
+	devices := c.StringSlice("device-type")
 
-	aw := awriter.NewWriter("mender", 1, devices, c.String("artifact-name"))
+	aw := awriter.NewWriter("mender", c.Int("version"), devices, c.String("artifact-name"))
 	return aw.WriteKnown([]parser.UpdateData{ud}, name)
 }
 
@@ -134,14 +136,17 @@ func validateArtifact(c *cli.Context) error {
 
 func run() error {
 	app := cli.NewApp()
-	app.Name = "artifact"
+	app.Name = "mender-artifact"
 	app.Usage = "Mender artifact read/writer"
-	app.UsageText = "artifacts [--version][--help] <command> [<args>]"
-	app.Version = "0.1"
+	app.UsageText = "mender-artifact [--version][--help] <command> [<args>]"
+	app.Version = VERSION
 
 	app.Author = "mender.io"
 	app.Email = "contact@mender.io"
 
+	//
+	// write
+	//
 	writeRootfs := cli.Command{
 		Name:   "rootfs-image",
 		Action: writeArtifact,
@@ -150,11 +155,12 @@ func run() error {
 	writeRootfs.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:  "update, u",
-			Usage: "Update `FILE`",
+			Usage: "Update `FILE`.",
 		},
-		cli.StringFlag{
-			Name:  "device-type, t",
-			Usage: "Type of device supported by the update",
+		cli.StringSliceFlag{
+			Name: "device-type, t",
+			Usage: "Type of device(s) supported by the update. You can specify multiple " +
+				"compatible devices providing this parameter multiple times.",
 		},
 		cli.StringFlag{
 			Name:  "artifact-name, n",
@@ -162,40 +168,48 @@ func run() error {
 		},
 		cli.StringFlag{
 			Name:  "output-path, o",
-			Usage: "Full path to output artifact file",
+			Usage: "Full path to output artifact file.",
+		},
+		cli.IntFlag{
+			Name:  "version, v",
+			Usage: "Version of the artifact.",
+			Value: 1,
 		},
 	}
 
+	write := cli.Command{
+		Name:  "write",
+		Usage: "Writes artifact file.",
+		Subcommands: []cli.Command{
+			writeRootfs,
+		},
+	}
+
+	//
+	// validate
+	//
 	validate := cli.Command{
 		Name:        "validate",
-		Usage:       "Validates artifact file",
+		Usage:       "Validates artifact file.",
 		Action:      validateArtifact,
-		UsageText:   "atrifacts validate [options] <pathspec>",
+		UsageText:   "mender-artifact validate [options] <pathspec>",
+		Description: "This command validates artifact file provided by pathspec.",
+	}
+
+	//
+	// read
+	//
+	read := cli.Command{
+		Name:        "read",
+		Usage:       "Reads artifact file.",
+		Action:      readArtifact,
+		UsageText:   "mender-artifact read [options] <pathspec>",
 		Description: "This command validates artifact file provided by pathspec.",
 	}
 
 	app.Commands = []cli.Command{
-		{
-			Name:  "write",
-			Usage: "Writes artifact file",
-			Subcommands: []cli.Command{
-				writeRootfs,
-			},
-		},
-		{
-			Name:  "read",
-			Usage: "Reads artifact file",
-			Subcommands: []cli.Command{
-				cli.Command{
-					Name:   "artifact",
-					Action: readArtifact,
-				},
-				cli.Command{
-					Name:   "type",
-					Action: readArtifact,
-				},
-			},
-		},
+		write,
+		read,
 		validate,
 	}
 	return app.Run(os.Args)
