@@ -50,3 +50,7 @@ deploy:
     upload-dir: $TRAVIS_BRANCH/$TRAVIS_GO_VERSION
     skip_cleanup: true
     acl: $AWS_S3_ACL
+    on:
+        branch:
+            - master
+            - stable
