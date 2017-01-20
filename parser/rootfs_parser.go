@@ -149,9 +149,20 @@ type HeaderElems struct {
 	Scripts  []string
 }
 
-func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, dstDir string, update *UpdateData) error {
+func validateRootfsUpdate(update *UpdateData) error {
 	if update == nil {
 		return errors.New("paser: empty update")
+	}
+	if len(update.DataFiles) != 1 {
+		return errors.Errorf("parser: only one update file supported for "+
+			"rootfs-image; %d found", len(update.DataFiles))
+	}
+	return nil
+}
+
+func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, dstDir string, update *UpdateData) error {
+	if err := validateRootfsUpdate(update); err != nil {
+		return err
 	}
 
 	e := new(HeaderElems)
@@ -161,11 +172,6 @@ func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, dstDir string, update *Upd
 		if !ok {
 			return errors.New("invalid header elements type")
 		}
-	}
-
-	if len(update.DataFiles) != 1 {
-		return errors.Errorf("parser: only one update file supported for "+
-			"rootfs-image; %d found", len(update.DataFiles))
 	}
 
 	// we have ONLY one update file below
@@ -213,8 +219,14 @@ func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, dstDir string, update *Upd
 	}
 
 	// scripts
-	if len(e.Scripts) > 0 {
-		for _, scr := range e.Scripts {
+	return arvhiveScripts(tw, dstDir, update, e)
+}
+
+func arvhiveScripts(tw *tar.Writer, dstDir string, update *UpdateData,
+	hElems *HeaderElems) error {
+
+	if len(hElems.Scripts) > 0 {
+		for _, scr := range hElems.Scripts {
 			scrRelPath, err := filepath.Rel(scr, filepath.Dir(filepath.Dir(scr)))
 			if err != nil {
 				return err
@@ -230,7 +242,7 @@ func (rp *RootfsParser) ArchiveHeader(tw *tar.Writer, dstDir string, update *Upd
 			dst: filepath.Join(dstDir, "scripts"),
 		}
 		if err := filepath.Walk(filepath.Join(update.Path, "scripts"),
-			sa.archScrpt); err != nil {
+			sa.archive); err != nil {
 			return errors.Wrapf(err, "parser: can not archive scripts")
 		}
 	}
@@ -242,7 +254,7 @@ type scriptArch struct {
 	dst string
 }
 
-func (s *scriptArch) archScrpt(path string, info os.FileInfo, err error) error {
+func (s *scriptArch) archive(path string, info os.FileInfo, err error) error {
 	if err != nil {
 		// if there is no `scripts` directory
 		if pErr, ok := err.(*os.PathError); ok && pErr.Err == syscall.ENOENT {
@@ -263,6 +275,23 @@ func (s *scriptArch) archScrpt(path string, info os.FileInfo, err error) error {
 	return a.Archive(s.w)
 }
 
+func parseUpdates(tr *tar.Reader, rp *RootfsParser) error {
+	updates := map[string]UpdateFile{}
+	if err := parseFiles(tr, updates); err != nil {
+		return err
+	}
+	if len(updates) != 1 {
+		return errors.Errorf("parser: only one update file supported for "+
+			"rootfs-image; %d found", len(updates))
+	}
+
+	// it is OK; we are having ONLY one update file
+	for _, upd := range updates {
+		rp.update = upd
+	}
+	return nil
+}
+
 func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hdr *tar.Header, hPath string) error {
 	relPath, err := filepath.Rel(hPath, hdr.Name)
 	if err != nil {
@@ -271,19 +300,10 @@ func (rp *RootfsParser) ParseHeader(tr *tar.Reader, hdr *tar.Header, hPath strin
 
 	switch {
 	case strings.Compare(relPath, "files") == 0:
-		updates := map[string]UpdateFile{}
-		if err = parseFiles(tr, updates); err != nil {
+		if err = parseUpdates(tr, rp); err != nil {
 			return err
 		}
-		if len(updates) != 1 {
-			return errors.Wrapf(err, "parser: only one update file supported for "+
-				"rootfs-image; %d found", len(updates))
-		}
 
-		// it is OK; we are having ONLY one update file
-		for _, upd := range updates {
-			rp.update = upd
-		}
 	case strings.Compare(relPath, "type-info") == 0:
 		// we can skip this one for now
 	case strings.Compare(relPath, "meta-data") == 0:
