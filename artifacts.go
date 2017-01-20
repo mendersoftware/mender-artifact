@@ -26,8 +26,8 @@ import (
 	"github.com/urfave/cli"
 )
 
-// VERSION of the mender-artifact CLI tool
-var VERSION = "0.1"
+// Version of the mender-artifact CLI tool
+var Version = "unknown"
 
 func writeArtifact(c *cli.Context) error {
 	if len(c.String("device-type")) == 0 || len(c.String("artifact-name")) == 0 ||
@@ -139,7 +139,7 @@ func run() error {
 	app.Name = "mender-artifact"
 	app.Usage = "Mender artifact read/writer"
 	app.UsageText = "mender-artifact [--version][--help] <command> [<args>]"
-	app.Version = VERSION
+	app.Version = Version
 
 	app.Author = "mender.io"
 	app.Email = "contact@mender.io"
