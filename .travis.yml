@@ -26,6 +26,8 @@ before_script:
     - make extracheck
 
 script:
+    - make coverage
+
     - make
 
 after_success:
