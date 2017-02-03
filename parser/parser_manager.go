@@ -24,11 +24,18 @@ import (
 )
 
 type UpdateFile struct {
-	Name      string
-	Path      string
-	Size      int64
-	Date      time.Time
-	Checksum  []byte
+	// name of the update file
+	Name string
+	// absolute path to the update file; this is used only while writing
+	// artifact; not filled in while reading
+	Path string
+	// size of the update file
+	Size int64
+	// last modification time
+	Date time.Time
+	// checksum of the update file
+	Checksum []byte
+	// signature of the update file
 	Signature []byte
 }
 
