@@ -41,6 +41,4 @@ deploy:
     skip_cleanup: true
     acl: $AWS_S3_ACL
     on:
-        branch:
-            - master
-            - stable
+        all_branches: true
