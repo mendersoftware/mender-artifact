@@ -78,10 +78,12 @@ htmlcover: coverage
 coverage:
 	rm -f coverage.out
 	echo 'mode: set' > coverage.out
-	for p in $(PKGS); do \
+	set -e ; for p in $(PKGS); do \
 		rm -f coverage-tmp.out;  \
 		$(GO) test -coverprofile=coverage-tmp.out $$p ; \
-		cat coverage-tmp.out |grep -v 'mode:' >> coverage.out; \
+		if [ -f coverage-tmp.out ]; then \
+			cat coverage-tmp.out |grep -v 'mode:' >> coverage.out; \
+		fi; \
 	done
 	rm -f coverage-tmp.out
 
