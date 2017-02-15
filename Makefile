@@ -44,7 +44,7 @@ clean:
 	rm -f coverage.out coverage-tmp.out
 
 get-tools:
-	for t in $(TOOLS); do \
+	set -e ; for t in $(TOOLS); do \
 		echo "-- go getting $$t"; \
 		go get -u $$t; \
 	done
