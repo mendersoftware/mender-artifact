@@ -30,7 +30,7 @@ import (
 var Version = "unknown"
 
 func writeArtifact(c *cli.Context) error {
-	if len(c.String("device-type")) == 0 || len(c.String("artifact-name")) == 0 ||
+	if len(c.StringSlice("device-type")) == 0 || len(c.String("artifact-name")) == 0 ||
 		len(c.String("update")) == 0 {
 		return errors.New("must provide `device-type`, `artifact-name` and `update`")
 	}
