@@ -53,7 +53,7 @@ func writeArtifact(c *cli.Context) error {
 
 	devices := c.StringSlice("device-type")
 
-	aw := awriter.NewWriter("mender", c.Int("version"), devices, c.String("artifact-name"))
+	aw := awriter.NewWriter("mender", c.Int("version"), devices, c.String("artifact-name"), false)
 	return aw.WriteKnown([]parser.UpdateData{ud}, name)
 }
 

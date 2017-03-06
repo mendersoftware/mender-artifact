@@ -16,8 +16,12 @@ package areader
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"hash"
 	"io"
 	"os"
 	"path/filepath"
@@ -62,11 +66,31 @@ func isCompatibleWithDevice(current string, compatible []string) bool {
 	return false
 }
 
+func (ar *Reader) isSigned() bool {
+	if ar.info != nil {
+		return ar.info.Signed
+	}
+	return false
+}
+
+// TODO: implement me
+func verifySignature() error {
+	return nil
+}
+
+type checksums map[string]([]byte)
+
+func getChecksums() (checksums, error) {
+	return nil, nil
+}
+
 func (ar *Reader) read(device string) (parser.Workers, error) {
 	defer func() { ar.tReader = nil }()
 
 	var err error
-	ar.info, err = ar.ReadInfo()
+	var sum []byte
+
+	ar.info, sum, err = ar.ReadInfo()
 	if err != nil {
 		return nil, err
 	}
@@ -74,6 +98,23 @@ func (ar *Reader) read(device string) (parser.Workers, error) {
 	switch ar.info.Version {
 	// so far we are supporting only v1
 	case 1:
+		if ar.isSigned() {
+			if err := verifySignature(); err != nil {
+				return nil, err
+			}
+
+			// get all the artifact checksums
+			chcksum, err := getChecksums()
+			if err != nil {
+				return nil, err
+			}
+
+			// we can easily verify `version` file signature at this point
+			if bytes.Compare(chcksum[""], sum) != 0 {
+			}
+
+		}
+
 		var hInfo *metadata.HeaderInfo
 		hInfo, err = ar.ReadHeaderInfo()
 		if err != nil {
@@ -144,7 +185,14 @@ func (ar *Reader) getTarReader() *tar.Reader {
 // In v1 there are only info, header and data files available.
 func (ar *Reader) readNext(w io.Writer, elem string) error {
 	tr := ar.getTarReader()
-	return readNext(tr, w, elem)
+	_, err := readNextElem(tr, w, elem, false)
+
+	return err
+}
+
+func (ar *Reader) readNextWithChecksum(w io.Writer, elem string) ([]byte, error) {
+	tr := ar.getTarReader()
+	return readNextElem(tr, w, elem, true)
 }
 
 func (ar *Reader) getNext() (*tar.Header, error) {
@@ -202,13 +250,15 @@ func (ar *Reader) setWorkers() (parser.Workers, error) {
 	return ar.ParseManager.GetWorkers(), nil
 }
 
-func (ar *Reader) ReadInfo() (*metadata.Info, error) {
+func (ar *Reader) ReadInfo() (*metadata.Info, []byte, error) {
 	info := new(metadata.Info)
-	err := ar.readNext(info, "version")
+
+	// read data and calculate checksum
+	sum, err := ar.readNextWithChecksum(info, "version")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return info, nil
+	return info, sum, nil
 }
 
 func getUpdateFromHdr(hdr string) string {
@@ -308,21 +358,43 @@ func (ar *Reader) ReadData() (parser.Workers, error) {
 }
 
 func readNext(tr *tar.Reader, w io.Writer, elem string) error {
+	_, err := readNextElem(tr, w, elem, false)
+	return err
+}
+
+func readNextElem(tr *tar.Reader, w io.Writer, elem string,
+	getSum bool) ([]byte, error) {
 	if tr == nil {
-		return errors.New("reader: read next called on invalid stream")
+		return nil, errors.New("reader: read next called on invalid stream")
 	}
 	hdr, err := getNext(tr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if strings.HasPrefix(hdr.Name, elem) {
-		_, err = io.Copy(w, tr)
-		if err != nil {
-			return errors.Wrapf(err, "reader: error reading")
+		var h hash.Hash
+		if getSum {
+			h = sha256.New()
+			// use tee reader to pass read data for checksum calculation
+			teer := io.TeeReader(tr, h)
+			_, err = io.Copy(w, teer)
+		} else {
+			_, err = io.Copy(w, tr)
 		}
-		return nil
+
+		if err != nil {
+			return nil, errors.Wrapf(err, "reader: error reading")
+		}
+
+		if getSum {
+			sum := h.Sum(nil)
+			hSum := make([]byte, hex.EncodedLen(len(sum)))
+			hex.Encode(hSum, h.Sum(nil))
+			return hSum, nil
+		}
+		return nil, nil
 	}
-	return os.ErrInvalid
+	return nil, os.ErrInvalid
 }
 
 func getNext(tr *tar.Reader) (*tar.Header, error) {

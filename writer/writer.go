@@ -37,6 +37,8 @@ type Writer struct {
 	version           int
 	compatibleDevices []string
 	artifactName      string
+	// determine if artifact should be signed or not
+	signed bool
 
 	aName string
 	*parser.ParseManager
@@ -109,13 +111,15 @@ func (av *Writer) deinit() error {
 	return nil
 }
 
-func NewWriter(format string, version int, devices []string, name string) *Writer {
+func NewWriter(format string, version int, devices []string, name string,
+	signed bool) *Writer {
 
 	return &Writer{
 		format:            format,
 		version:           version,
 		compatibleDevices: devices,
 		artifactName:      name,
+		signed:            signed,
 		ParseManager:      parser.NewParseManager(),
 	}
 }
@@ -144,6 +148,12 @@ func (av *Writer) write(updates []parser.UpdateData) error {
 	if err := ia.Archive(av.aArchiver); err != nil {
 		return errors.Wrapf(err, "writer: error archiving info")
 	}
+
+	// archive signatures
+	if av.signed {
+
+	}
+
 	// archive header
 	ha := archiver.NewFileArchiver(av.hTmpFile.Name(), "header.tar.gz")
 	if err := ha.Archive(av.aArchiver); err != nil {

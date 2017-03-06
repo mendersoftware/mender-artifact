@@ -40,6 +40,7 @@ var ErrValidatingData = errors.New("error validating data")
 type Info struct {
 	Format  string `json:"format"`
 	Version int    `json:"version"`
+	Signed  bool   `json:"signed"`
 }
 
 // Validate performs sanity checks on artifact info.
