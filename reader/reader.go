@@ -16,6 +16,7 @@ package areader
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
@@ -35,6 +36,7 @@ import (
 type Reader struct {
 	r io.Reader
 	*parser.ParseManager
+	signed bool
 
 	info    *metadata.Info
 	tReader *tar.Reader
@@ -67,10 +69,7 @@ func isCompatibleWithDevice(current string, compatible []string) bool {
 }
 
 func (ar *Reader) isSigned() bool {
-	if ar.info != nil {
-		return ar.info.Signed
-	}
-	return false
+	return ar.isSigned()
 }
 
 // TODO: implement me
@@ -80,9 +79,39 @@ func verifySignature() error {
 
 type checksums map[string]([]byte)
 
-func getChecksums() (checksums, error) {
-	return nil, nil
+func (ar *Reader) ReadChecksums() (checksums, []byte, error) {
+	buf := bytes.NewBuffer(nil)
+
+	sum, err := ar.readNextWithChecksum(buf, "checksums")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// we should have at least version, checksums, header and data files
+	chs := make(checksums, 4)
+
+	s := bufio.NewScanner(buf)
+	for s.Scan() {
+		l := strings.Split(s.Text(), " ")
+		if len(l) != 2 {
+			return nil, nil, errors.New("")
+		}
+		// add element to map
+		chs[l[0]] = []byte(l[1])
+	}
+
+	if err := s.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	return chs, sum, nil
 }
+
+// TODO: rewrite to have handlers for different files being part of artifact
+// for hdr.Next()
+// swith
+// case "version"
+//
 
 func (ar *Reader) read(device string) (parser.Workers, error) {
 	defer func() { ar.tReader = nil }()
@@ -96,25 +125,7 @@ func (ar *Reader) read(device string) (parser.Workers, error) {
 	}
 
 	switch ar.info.Version {
-	// so far we are supporting only v1
 	case 1:
-		if ar.isSigned() {
-			if err := verifySignature(); err != nil {
-				return nil, err
-			}
-
-			// get all the artifact checksums
-			chcksum, err := getChecksums()
-			if err != nil {
-				return nil, err
-			}
-
-			// we can easily verify `version` file signature at this point
-			if bytes.Compare(chcksum[""], sum) != 0 {
-			}
-
-		}
-
 		var hInfo *metadata.HeaderInfo
 		hInfo, err = ar.ReadHeaderInfo()
 		if err != nil {
@@ -139,6 +150,47 @@ func (ar *Reader) read(device string) (parser.Workers, error) {
 		if _, err := ar.ReadData(); err != nil {
 			return nil, err
 		}
+	case 2:
+		// first file after version contains all the checksums
+		chcksums, sum, err := ar.ReadChecksums()
+		if err != nil {
+			return nil, err
+		}
+
+		// check what is the next file in the artifact
+		// depending if artifact is signed or not we can have header or signature
+		hdr, err := ar.getNext()
+		if err != nil {
+			return nil, errors.New("")
+		}
+		n := hdr.FileInfo().Name()
+
+		switch {
+		case strings.HasPrefix(n, "signature"):
+			ar.signed = true
+
+			// first read signature
+			buf := bytes.NewBuffer(nil)
+			if err = ar.readNext(buf, "signature"); err != nil {
+				return nil, errors.New("")
+			}
+
+			// and then header
+			hInfo, err := ar.readHeaderInfo()
+			if err != nil {
+				return nil, err
+			}
+
+		case strings.HasPrefix(n, "header.tar."):
+			hInfo, err := ar.readHeaderInfo()
+			if err != nil {
+				return nil, err
+			}
+
+		default:
+			return nil, errors.New("")
+		}
+
 	default:
 		return nil, errors.Errorf("reader: unsupported version: %d",
 			ar.info.Version)
@@ -203,12 +255,15 @@ func (ar *Reader) getNext() (*tar.Header, error) {
 func (ar *Reader) ReadHeaderInfo() (*metadata.HeaderInfo, error) {
 	hdr, err := ar.getNext()
 	if err != nil {
-		return nil, errors.New("reader: error initializing header")
+		return nil, errors.New("reader: error reading header")
 	}
 	if !strings.HasPrefix(hdr.Name, "header.tar.") {
 		return nil, errors.New("reader: invalid header name or elemet out of order")
 	}
+	return ar.readHeaderInfo()
+}
 
+func (ar *Reader) readHeaderInfo() (*metadata.HeaderInfo, error) {
 	gz, err := gzip.NewReader(ar.tReader)
 	if err != nil {
 		return nil, errors.Wrapf(err, "reader: error opening compressed header")
@@ -253,7 +308,7 @@ func (ar *Reader) setWorkers() (parser.Workers, error) {
 func (ar *Reader) ReadInfo() (*metadata.Info, []byte, error) {
 	info := new(metadata.Info)
 
-	// read data and calculate checksum
+	// read version file and calculate checksum
 	sum, err := ar.readNextWithChecksum(info, "version")
 	if err != nil {
 		return nil, nil, err
