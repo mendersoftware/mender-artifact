@@ -48,7 +48,7 @@ func WriteRootfsImageArchive(dir string, dirStruct []TestDirEntry) (path string,
 		return
 	}
 
-	aw := awriter.NewWriter("mender", 1, []string{"vexpress"}, "mender-1.1")
+	aw := awriter.NewWriter("mender", 1, []string{"vexpress"}, "mender-1.1", false)
 	rp := &parser.RootfsParser{}
 	aw.Register(rp)
 

@@ -34,55 +34,38 @@ import (
 )
 
 type Reader struct {
-	r io.Reader
 	*parser.ParseManager
-	signed bool
 
-	info    *metadata.Info
+	CompatibleDevicesCallback func([]string) error
+
 	tReader *tar.Reader
-	*headerReader
-}
+	signed  bool
 
-type headerReader struct {
 	hInfo *metadata.HeaderInfo
-
-	hGzipReader *gzip.Reader
-	hReader     *tar.Reader
-	nextUpdate  int
+	info  *metadata.Info
 }
 
-func NewReader(r io.Reader) *Reader {
+func NewReader() *Reader {
 	return &Reader{
-		r:            r,
 		ParseManager: parser.NewParseManager(),
-		headerReader: &headerReader{hInfo: new(metadata.HeaderInfo)},
 	}
-}
-
-func isCompatibleWithDevice(current string, compatible []string) bool {
-	for _, dev := range compatible {
-		if strings.Compare(current, dev) == 0 {
-			return true
-		}
-	}
-	return false
 }
 
 func (ar *Reader) isSigned() bool {
-	return ar.isSigned()
+	return ar.signed
 }
 
 // TODO: implement me
-func verifySignature() error {
+func verifySignature(sig []byte) error {
 	return nil
 }
 
 type checksums map[string]([]byte)
 
-func (ar *Reader) ReadChecksums() (checksums, []byte, error) {
+func readChecksums(r *tar.Reader) (checksums, []byte, error) {
 	buf := bytes.NewBuffer(nil)
 
-	sum, err := ar.readNextWithChecksum(buf, "checksums")
+	sum, err := readNextWithChecksum(r, buf, "checksums")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -103,114 +86,169 @@ func (ar *Reader) ReadChecksums() (checksums, []byte, error) {
 	if err := s.Err(); err != nil {
 		return nil, nil, err
 	}
-
 	return chs, sum, nil
 }
 
-// TODO: rewrite to have handlers for different files being part of artifact
-// for hdr.Next()
-// swith
-// case "version"
 //
+// example implementation of checking device compatibility
+//
+// func checkDevice(devices []string) error {
+// 	for _, dev := range devices {
+// 		if dev == "beaglebone" {
+// 			return nil
+// 		}
+// 	}
+// 	return errors.New("artifact not compatible with device")
+// }
 
-func (ar *Reader) read(device string) (parser.Workers, error) {
-	defer func() { ar.tReader = nil }()
-
-	var err error
-	var sum []byte
-
-	ar.info, sum, err = ar.ReadInfo()
+func (ar *Reader) ReadHeader() error {
+	hdr, err := getNext(ar.tReader)
 	if err != nil {
-		return nil, err
+		return errors.New("reader: error reading header")
+	}
+	if !strings.HasPrefix(hdr.Name, "header.tar.") {
+		return errors.New("reader: invalid header name or elemet out of order")
 	}
 
-	switch ar.info.Version {
+	// header MUST always be compressed
+	gz, err := gzip.NewReader(ar.tReader)
+	if err != nil {
+		return errors.Wrapf(err, "reader: error opening compressed header")
+	}
+	defer gz.Close()
+
+	var h hash.Hash
+	var tr *tar.Reader
+
+	// If artifact is signed we need to calculate header checksum to be
+	// able to validate it later.
+	if ar.isSigned() {
+		h = sha256.New()
+		// use tee reader to pass read data for checksum calculation
+		teeReader := io.TeeReader(gz, h)
+		tr = tar.NewReader(teeReader)
+	} else {
+		tr = tar.NewReader(gz)
+	}
+
+	// first part of header must always be header-info
+	hInfo := new(metadata.HeaderInfo)
+	if err = readNext(tr, hInfo, "header-info"); err != nil {
+		return err
+	}
+	ar.hInfo = hInfo
+
+	// after reading header-info we can check device compatibility
+	if ar.CompatibleDevicesCallback != nil {
+		if err = ar.CompatibleDevicesCallback(hInfo.CompatibleDevices); err != nil {
+			return err
+		}
+	}
+
+	// Next step is setting correct parsers based on update types being
+	// part of the artifact.
+	if err = setWorkers(ar.ParseManager, hInfo.Updates); err != nil {
+		return err
+	}
+
+	// At the end read rest of the header using correct parsers.
+	if err := readHeader(tr, ar.ParseManager); err != nil {
+		return err
+	}
+
+	// calculate whole header checksum
+	if ar.isSigned() {
+		sum := h.Sum(nil)
+		hSum := make([]byte, hex.EncodedLen(len(sum)))
+		hex.Encode(hSum, h.Sum(nil))
+	}
+
+	return nil
+}
+
+func readVersion(r *tar.Reader) (*metadata.Info, []byte, error) {
+	info := new(metadata.Info)
+
+	// read version file and calculate checksum
+	sum, err := readNextWithChecksum(r, info, "version")
+	if err != nil {
+		return nil, nil, err
+	}
+	return info, sum, nil
+}
+
+func (ar *Reader) Read(r io.Reader) error {
+	ar.tReader = tar.NewReader(r)
+
+	// first file inside the artifact MUST be version
+	ver, _, err := readVersion(ar.tReader)
+	if err != nil {
+		return err
+	}
+	ar.info = ver
+
+	switch ver.Version {
 	case 1:
-		var hInfo *metadata.HeaderInfo
-		hInfo, err = ar.ReadHeaderInfo()
-		if err != nil {
-			return nil, err
+		if err = ar.ReadHeader(); err != nil {
+			return err
 		}
 
-		// check compatibility with given device type
-		if len(device) > 0 {
-			if !isCompatibleWithDevice(device, hInfo.CompatibleDevices) {
-				return nil, errors.Errorf(
-					"unexpected device type [%v], expected to see one of [%v]",
-					device, hInfo.CompatibleDevices)
-			}
-		}
-
-		if _, err = ar.setWorkers(); err != nil {
-			return nil, err
-		}
-		if _, err := ar.ReadHeader(); err != nil {
-			return nil, err
-		}
-		if _, err := ar.ReadData(); err != nil {
-			return nil, err
-		}
 	case 2:
-		// first file after version contains all the checksums
-		chcksums, sum, err := ar.ReadChecksums()
+		// first file after version MUST contains all the checksums
+		//chcksums, sum, err := readChecksums(ar.tReader)
+		_, _, err := readChecksums(ar.tReader)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// check what is the next file in the artifact
 		// depending if artifact is signed or not we can have header or signature
-		hdr, err := ar.getNext()
+		hdr, err := getNext(ar.tReader)
 		if err != nil {
-			return nil, errors.New("")
+			return errors.Wrapf(err, "reader: error reading file after checksums")
 		}
-		n := hdr.FileInfo().Name()
 
+		// check if artifact is signed
+		fName := hdr.FileInfo().Name()
 		switch {
-		case strings.HasPrefix(n, "signature"):
+		case strings.HasPrefix(fName, "signature"):
 			ar.signed = true
 
-			// first read signature
-			buf := bytes.NewBuffer(nil)
-			if err = ar.readNext(buf, "signature"); err != nil {
-				return nil, errors.New("")
+			// first read signature...
+			sig := bytes.NewBuffer(nil)
+			if err = readNext(ar.tReader, sig, "signature"); err != nil {
+				return errors.Wrapf(err, "reader: can not read signature file")
 			}
 
-			// and then header
-			hInfo, err := ar.readHeaderInfo()
-			if err != nil {
-				return nil, err
+			// here we can varify signature and the checksum of header
+			if err = verifySignature(sig.Bytes()); err != nil {
+				return err
 			}
 
-		case strings.HasPrefix(n, "header.tar."):
-			hInfo, err := ar.readHeaderInfo()
-			if err != nil {
-				return nil, err
+			// verify checksums of the checksums file and the header
+
+			// ...and then header
+			if err = ar.ReadHeader(); err != nil {
+				return err
+			}
+
+		case strings.HasPrefix(fName, "header.tar."):
+			if err = ar.ReadHeader(); err != nil {
+				return err
 			}
 
 		default:
-			return nil, errors.New("")
+			return errors.Errorf("reader: found unexpected file: %v", fName)
 		}
 
 	default:
-		return nil, errors.Errorf("reader: unsupported version: %d",
-			ar.info.Version)
+		return errors.Errorf("reader: unsupported version: %d", ver.Version)
 	}
 
-	return ar.ParseManager.GetWorkers(), nil
-}
-
-func (ar *Reader) Read() (parser.Workers, error) {
-	return ar.read("")
-}
-
-func (ar *Reader) ReadCompatibleWithDevice(device string) (parser.Workers, error) {
-	return ar.read(device)
-}
-
-func (ar *Reader) Close() error {
-	if ar.hGzipReader != nil {
-		return ar.hGzipReader.Close()
+	if err := ar.ReadData(); err != nil {
+		return err
 	}
+
 	return nil
 }
 
@@ -226,96 +264,34 @@ func (ar *Reader) GetInfo() metadata.Info {
 	return *ar.info
 }
 
-func (ar *Reader) getTarReader() *tar.Reader {
-	if ar.tReader == nil {
-		ar.tReader = tar.NewReader(ar.r)
-	}
-	return ar.tReader
-}
-
-// This reads next element in main artifact tar structure.
-// In v1 there are only info, header and data files available.
-func (ar *Reader) readNext(w io.Writer, elem string) error {
-	tr := ar.getTarReader()
-	_, err := readNextElem(tr, w, elem, false)
-
-	return err
-}
-
-func (ar *Reader) readNextWithChecksum(w io.Writer, elem string) ([]byte, error) {
-	tr := ar.getTarReader()
-	return readNextElem(tr, w, elem, true)
-}
-
-func (ar *Reader) getNext() (*tar.Header, error) {
-	tr := ar.getTarReader()
-	return getNext(tr)
-}
-
-func (ar *Reader) ReadHeaderInfo() (*metadata.HeaderInfo, error) {
-	hdr, err := ar.getNext()
-	if err != nil {
-		return nil, errors.New("reader: error reading header")
-	}
-	if !strings.HasPrefix(hdr.Name, "header.tar.") {
-		return nil, errors.New("reader: invalid header name or elemet out of order")
-	}
-	return ar.readHeaderInfo()
-}
-
-func (ar *Reader) readHeaderInfo() (*metadata.HeaderInfo, error) {
-	gz, err := gzip.NewReader(ar.tReader)
-	if err != nil {
-		return nil, errors.Wrapf(err, "reader: error opening compressed header")
-	}
-	ar.hGzipReader = gz
-	tr := tar.NewReader(gz)
-	ar.hReader = tr
-
-	if err := readNext(tr, ar.hInfo, "header-info"); err != nil {
-		return nil, err
-	}
-	return ar.hInfo, nil
-}
-
-func (ar *Reader) setWorkers() (parser.Workers, error) {
-	for cnt, update := range ar.hInfo.Updates {
+func setWorkers(p *parser.ParseManager, u []metadata.UpdateType) error {
+	for cnt, update := range u {
 		// firsrt check if we have worker for given update
-		w, err := ar.ParseManager.GetWorker(fmt.Sprintf("%04d", cnt))
+		w, err := p.GetWorker(fmt.Sprintf("%04d", cnt))
 
 		if err == nil {
 			if w.GetUpdateType().Type == update.Type || w.GetUpdateType().Type == "generic" {
 				continue
 			}
 
-			return nil, errors.New("reader: wrong worker for given update type")
+			return errors.New("reader: wrong worker for given update type")
 		}
 		// if not just register worker for given update type
-		p, err := ar.ParseManager.GetRegistered(update.Type)
+		par, err := p.GetRegistered(update.Type)
 		if err != nil {
 			// if there is no registered one; check if we can use generic
-			p = ar.ParseManager.GetGeneric(update.Type)
-			if p == nil {
-				return nil, errors.Wrapf(err,
+			par = p.GetGeneric(update.Type)
+			if par == nil {
+				return errors.Wrapf(err,
 					"reader: can not find parser for update type: [%v]", update.Type)
 			}
 		}
-		ar.ParseManager.PushWorker(p, fmt.Sprintf("%04d", cnt))
+		p.PushWorker(par, fmt.Sprintf("%04d", cnt))
 	}
-	return ar.ParseManager.GetWorkers(), nil
+	return nil
 }
 
-func (ar *Reader) ReadInfo() (*metadata.Info, []byte, error) {
-	info := new(metadata.Info)
-
-	// read version file and calculate checksum
-	sum, err := ar.readNextWithChecksum(info, "version")
-	if err != nil {
-		return nil, nil, err
-	}
-	return info, sum, nil
-}
-
+// should be `headers/0000/file` format
 func getUpdateFromHdr(hdr string) string {
 	r := strings.Split(hdr, string(os.PathSeparator))
 	if len(r) < 2 {
@@ -324,52 +300,33 @@ func getUpdateFromHdr(hdr string) string {
 	return r[1]
 }
 
-func (ar *Reader) ReadNextHeader() (parser.Parser, error) {
+func processNextHeader(tr *tar.Reader, p *parser.ParseManager,
+	upd string, hdr *tar.Header) error {
 
-	var p parser.Parser
-
-	for {
-
-		var hdr *tar.Header
-		hdr, err := getNext(ar.hReader)
-		if err == io.EOF {
-			errClose := ar.Close()
-			if errClose != nil {
-				return nil, errors.Wrapf(errClose, "reader: error closing header reader")
-			}
-			return p, io.EOF
-		} else if err != nil {
-			return nil, errors.Wrapf(err, "reader: can not init header reading")
-		}
-
-		// make sure we are reading first header file for given update
-		// some parsers might skip some header files
-		upd := getUpdateFromHdr(hdr.Name)
-		if upd != fmt.Sprintf("%04d", ar.headerReader.nextUpdate) {
-			// make sure to increase update counter while current header is processed
-			ar.headerReader.nextUpdate = ar.headerReader.nextUpdate + 1
-		}
-
-		p, err = ar.ParseManager.GetWorker(upd)
-		if err != nil {
-			err = errors.Wrapf(err, "reader: can not find parser for update: %v", upd)
-			return nil, err
-		}
-		err = p.ParseHeader(ar.hReader, hdr, filepath.Join("headers", upd))
-		if err != nil {
-			return nil, err
-		}
-
+	par, err := p.GetWorker(upd)
+	if err != nil {
+		return errors.Wrapf(err, "reader: can not find parser for update: %v", upd)
 	}
+
+	// TODO: refactor ParseHeader
+	if err := par.ParseHeader(tr, hdr, filepath.Join("headers", upd)); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (ar *Reader) ReadHeader() (parser.Workers, error) {
+func readHeader(r *tar.Reader, p *parser.ParseManager) error {
 	for {
-		_, err := ar.ReadNextHeader()
+		hdr, err := getNext(r)
+
 		if err == io.EOF {
-			return ar.ParseManager.GetWorkers(), nil
+			return nil
 		} else if err != nil {
-			return nil, err
+			return errors.Wrapf(err,
+				"reader: can not read artifact header file: %v", hdr)
+		}
+		if err := processNextHeader(r, p, getUpdateFromHdr(hdr.Name), hdr); err != nil {
+			return err
 		}
 	}
 }
@@ -378,43 +335,48 @@ func getDataFileUpdate(path string) string {
 	return strings.TrimSuffix(filepath.Base(path), ".tar.gz")
 }
 
-func (ar *Reader) ReadNextDataFile() (parser.Parser, error) {
-	hdr, err := ar.getNext()
+func readNextDataFile(r *tar.Reader, p *parser.ParseManager) error {
+	hdr, err := getNext(r)
 	if err == io.EOF {
-		return nil, io.EOF
+		return io.EOF
 	} else if err != nil {
-		return nil, errors.Wrapf(err, "reader: error reading update file: [%v]", hdr)
+		return errors.Wrapf(err, "reader: error reading update file: [%v]", hdr)
 	}
-	if strings.Compare(filepath.Dir(hdr.Name), "data") != 0 {
-		return nil, errors.New("reader: invalid data file name: " + hdr.Name)
+	if filepath.Dir(hdr.Name) != "data" {
+		return errors.New("reader: invalid data file name: " + hdr.Name)
 	}
-	p, err := ar.ParseManager.GetWorker(getDataFileUpdate(hdr.Name))
+	par, err := p.GetWorker(getDataFileUpdate(hdr.Name))
 	if err != nil {
-		return nil, errors.Wrapf(err,
+		return errors.Wrapf(err,
 			"reader: can not find parser for parsing data file [%v]", hdr.Name)
 	}
-	err = p.ParseData(ar.tReader)
+	err = par.ParseData(r)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return p, nil
+	return nil
 }
 
-func (ar *Reader) ReadData() (parser.Workers, error) {
+func (ar *Reader) ReadData() error {
 	for {
-		_, err := ar.ReadNextDataFile()
+		err := readNextDataFile(ar.tReader, ar.ParseManager)
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return ar.GetWorkers(), nil
+	return nil
 }
 
 func readNext(tr *tar.Reader, w io.Writer, elem string) error {
 	_, err := readNextElem(tr, w, elem, false)
 	return err
+}
+
+func readNextWithChecksum(tr *tar.Reader, w io.Writer,
+	elem string) ([]byte, error) {
+	return readNextElem(tr, w, elem, true)
 }
 
 func readNextElem(tr *tar.Reader, w io.Writer, elem string,

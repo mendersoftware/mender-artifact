@@ -70,16 +70,14 @@ func read(aPath string) (*areader.Reader, error) {
 	}
 	defer f.Close()
 
-	ar := areader.NewReader(f)
+	ar := areader.NewReader()
 	if ar == nil {
 		return nil, errors.New("Can not read artifact file.")
 	}
 
-	_, err = ar.Read()
-	if err != nil {
+	if err = ar.Read(f); err != nil {
 		return nil, err
 	}
-	defer ar.Close()
 
 	return ar, nil
 }
