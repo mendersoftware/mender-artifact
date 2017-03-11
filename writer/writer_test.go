@@ -18,8 +18,10 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
+	"os"
 	"testing"
 
+	"github.com/mendersoftware/mender-artifact/parser"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,6 +34,38 @@ func TestFixed(t *testing.T) {
 
 	f, _ := ioutil.TempFile("", "update")
 	io.Copy(f, buf)
+
+	os.Remove(f.Name())
+}
+
+func TestFixedWithUpdates(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+
+	w := NewWriter("format", 1, []string{"asd"}, "name", false)
+
+	df, _ := ioutil.TempFile("", "update_data")
+	//defer os.Remove(df.Name())
+
+	df.WriteString("this is a fake update")
+	df.Close()
+
+	he := &parser.HeaderElems{
+		Metadata: []byte(`{"deviceType": "my-device", "imageId": "image-id"}`),
+	}
+	ud := parser.UpdateData{
+		P:         &parser.RootfsParser{},
+		DataFiles: []string{df.Name()},
+		Type:      "rootfs-image",
+		Data:      he,
+	}
+
+	err := w.FixedWrite(buf, []parser.UpdateData{ud})
+	assert.NoError(t, err)
+
+	f, _ := ioutil.TempFile("", "update")
+	io.Copy(f, buf)
+
+	f.Close()
 }
 
 //import . "github.com/mendersoftware/mender-artifact/test_utils"

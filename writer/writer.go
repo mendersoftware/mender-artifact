@@ -223,6 +223,17 @@ func (aw *Writer) FixedWrite(w io.Writer, upd []parser.UpdateData) error {
 		return errors.New("writer: can not tar version")
 	}
 
+	// calculate checksums of all data files
+	for _, u := range upd {
+		for _, f := range u.DataFiles {
+			ch := NewChecksumWriter(ioutil.Discard)
+			f, _ := os.Open(f)
+			io.Copy(ch, f)
+
+			fmt.Printf("have file %v checksum: %s", f.Name(), ch.Checksum())
+		}
+	}
+
 	// write header
 	fw := archiver.NewWriterFile(tw)
 	fw.WriteHeader(f.Name(), "header.tar.gz")
@@ -237,7 +248,7 @@ func (aw *Writer) FixedWrite(w io.Writer, upd []parser.UpdateData) error {
 		return errors.Wrapf(err, "writer: can not tar header")
 	}
 
-	// write data
+	// write data files
 	if err := aw.writeData(tw, upd); err != nil {
 		return err
 	}
