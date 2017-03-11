@@ -214,12 +214,12 @@ func (aw *Writer) FixedWrite(w io.Writer, upd []parser.UpdateData) error {
 	inf := ToStream(&info)
 
 	ch := NewChecksumWriter(tw)
-	sa := archiver.NewWriterStream(ch, inf)
-	if err := sa.WriteHeader(tw, "version"); err != nil {
+	sa := archiver.NewWriterStream(tw)
+	if err := sa.WriteHeader(inf, "version"); err != nil {
 		return errors.Wrapf(err, "writer: can not write version tar header")
 	}
 
-	if n, err := sa.Write(inf); err != nil || n != len(inf) {
+	if n, err := ch.Write(inf); err != nil || n != len(inf) {
 		return errors.New("writer: can not tar version")
 	}
 
@@ -238,9 +238,9 @@ func (aw *Writer) FixedWrite(w io.Writer, upd []parser.UpdateData) error {
 	}
 
 	// write data
-	// if err := aw.WriteData(); err != nil {
-	// 	return err
-	// }
+	if err := aw.writeData(tw, upd); err != nil {
+		return err
+	}
 
 	return nil
 
@@ -459,19 +459,21 @@ func (h *aHeader) closeHeader() (err error) {
 	return
 }
 
-func (av *Writer) writeHeader(tw *tar.Writer, updates []parser.UpdateData) error {
+func (aw *Writer) writeHeader(tw *tar.Writer, updates []parser.UpdateData) error {
 	// store header info
 	hInfo := new(metadata.HeaderInfo)
 	for _, upd := range updates {
 		hInfo.Updates =
 			append(hInfo.Updates, metadata.UpdateType{Type: upd.Type})
 	}
-	hInfo.CompatibleDevices = av.compatibleDevices
-	hInfo.ArtifactName = av.artifactName
+	// TODO:
+	hInfo.CompatibleDevices = aw.compatibleDevices
+	hInfo.ArtifactName = aw.artifactName
 
 	hinf := ToStream(hInfo)
-	sa := archiver.NewWriterStream(tw, hinf)
-	sa.WriteHeader(tw, "header-info")
+	sa := archiver.NewWriterStream(tw)
+	// TODO: check error codes
+	sa.WriteHeader(hinf, "header-info")
 	sa.Write(hinf)
 
 	// hi := archiver.NewMetadataArchiver(hInfo, "header-info")
@@ -489,6 +491,7 @@ func (av *Writer) writeHeader(tw *tar.Writer, updates []parser.UpdateData) error
 	return nil
 }
 
+// TODO: do something with order
 func processNextHeaderDir(tw *tar.Writer, upd *parser.UpdateData,
 	order string) error {
 	if err := upd.P.ArchiveHeader(tw, filepath.Join("headers", order),
@@ -525,6 +528,25 @@ func (av *Writer) WriteHeader() error {
 func (av *Writer) processNextHeaderDir(upd *parser.UpdateData, order string) error {
 	if err := upd.P.ArchiveHeader(av.hArchiver, filepath.Join("headers", order),
 		upd); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (aw *Writer) writeData(tw *tar.Writer, updates []parser.UpdateData) error {
+	for cnt := 0; cnt < len(updates); cnt++ {
+		err := processNextDataDir(tw, updates[cnt], fmt.Sprintf("%04d", cnt))
+		if err != nil {
+			return errors.Wrapf(err, "writer: error writing data files")
+		}
+	}
+	return nil
+}
+
+func processNextDataDir(tw *tar.Writer, upd parser.UpdateData,
+	order string) error {
+	if err := upd.P.ArchiveData(tw,
+		filepath.Join("data", order+".tar.gz")); err != nil {
 		return err
 	}
 	return nil

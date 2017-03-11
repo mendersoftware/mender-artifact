@@ -25,7 +25,8 @@ import (
 type StreamArchiver struct {
 	archPath string
 	*bytes.Reader
-	io.Writer
+	//io.Writer
+	*tar.Writer
 }
 
 // NewStreamArchiver creates streamArchiver used for storing plain text files
@@ -36,18 +37,18 @@ func NewStreamArchiver(data []byte, archivePath string) *StreamArchiver {
 	return &StreamArchiver{archivePath, bytes.NewReader(data), nil}
 }
 
-func NewWriterStream(w io.Writer, d []byte) *StreamArchiver {
-	return &StreamArchiver{"", bytes.NewReader(d), w}
+func NewWriterStream(w *tar.Writer) *StreamArchiver {
+	return &StreamArchiver{"", nil, w}
 }
 
-func (str *StreamArchiver) WriteHeader(tw *tar.Writer,
+func (str *StreamArchiver) WriteHeader(d []byte,
 	archivePath string) error {
 	hdr := &tar.Header{
 		Name: archivePath,
 		Mode: 0600,
-		Size: int64(str.Reader.Len()),
+		Size: int64(len(d)),
 	}
-	if err := tw.WriteHeader(hdr); err != nil {
+	if err := str.Writer.WriteHeader(hdr); err != nil {
 		return errors.Wrapf(err, "arch: can not write header")
 	}
 	return nil

@@ -25,11 +25,11 @@ import (
 
 func NewWriterMetadata(w io.Writer,
 	d metadata.WriteValidator) *StreamArchiver {
-	j, err := convertToJSON(d)
-	if err != nil {
-		return &StreamArchiver{}
-	}
-	return &StreamArchiver{"", bytes.NewReader(j), w}
+	// j, err := convertToJSON(d)
+	// if err != nil {
+	return &StreamArchiver{}
+	// }
+	// return &StreamArchiver{"", bytes.NewReader(j), w}
 }
 
 // NewMetadataArchiver creates streamArchiver used for storing metadata elements
