@@ -25,7 +25,9 @@ import (
 type FileArchiver struct {
 	path        string
 	archivePath string
-	*os.File
+	//*os.File
+
+	*tar.Writer
 }
 
 // NewFileArchiver creates fileArchiver used for storing plain files
@@ -34,6 +36,29 @@ type FileArchiver struct {
 // archivePath is the relatve path inside the archive (see tar.Header.Name)
 func NewFileArchiver(path, archivePath string) *FileArchiver {
 	return &FileArchiver{path, archivePath, nil}
+}
+
+func NewWriterFile(tw *tar.Writer) *FileArchiver {
+	w := FileArchiver{
+		Writer: tw,
+	}
+	return &w
+}
+
+func (fa *FileArchiver) WriteHeader(f string, archivePath string) error {
+	info, err := os.Stat(f)
+	if err != nil {
+		return err
+	}
+	hdr, err := tar.FileInfoHeader(info, "")
+	if err != nil {
+		return errors.Wrapf(err, "arch: invalid file info header")
+	}
+	hdr.Name = archivePath
+	if err = fa.Writer.WriteHeader(hdr); err != nil {
+		return errors.Wrapf(err, "arch: error writing header")
+	}
+	return nil
 }
 
 func (f *FileArchiver) Archive(tw *tar.Writer) error {

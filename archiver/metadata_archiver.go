@@ -18,9 +18,19 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 
 	"github.com/mendersoftware/mender-artifact/metadata"
 )
+
+func NewWriterMetadata(w io.Writer,
+	d metadata.WriteValidator) *StreamArchiver {
+	j, err := convertToJSON(d)
+	if err != nil {
+		return &StreamArchiver{}
+	}
+	return &StreamArchiver{"", bytes.NewReader(j), w}
+}
 
 // NewMetadataArchiver creates streamArchiver used for storing metadata elements
 // inside tar archive.
@@ -32,7 +42,7 @@ func NewMetadataArchiver(data metadata.WriteValidator, archivePath string) *Stre
 	if err != nil {
 		return &StreamArchiver{}
 	}
-	return &StreamArchiver{archivePath, bytes.NewReader(j)}
+	return &StreamArchiver{archivePath, bytes.NewReader(j), nil}
 }
 
 // gets data which is Validated before converting to JSON
