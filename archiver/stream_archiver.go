@@ -17,10 +17,23 @@ package archiver
 import (
 	"archive/tar"
 	"bytes"
+	"encoding/json"
 	"io"
 
+	"github.com/mendersoftware/mender-artifact/metadata"
 	"github.com/pkg/errors"
 )
+
+func ToStream(m metadata.WriteValidator) []byte {
+	if err := m.Validate(); err != nil {
+		return nil
+	}
+	data, err := json.Marshal(m)
+	if err != nil {
+		return nil
+	}
+	return data
+}
 
 type StreamArchiver struct {
 	archPath string

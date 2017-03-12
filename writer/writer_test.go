@@ -21,15 +21,16 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mendersoftware/mender-artifact/parser"
+	"github.com/mendersoftware/mender-artifact/update"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestFixed(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 
-	w := NewWriter("format", 1, []string{"asd"}, "name", false)
-	err := w.FixedWrite(buf, nil)
+	w := NewWriter(buf)
+
+	err := w.FixedWrite("format", 1, []string{"asd"}, "name", nil)
 	assert.NoError(t, err)
 
 	f, _ := ioutil.TempFile("", "update")
@@ -40,26 +41,19 @@ func TestFixed(t *testing.T) {
 
 func TestFixedWithUpdates(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
-
-	w := NewWriter("format", 1, []string{"asd"}, "name", false)
+	w := NewWriter(buf)
 
 	df, _ := ioutil.TempFile("", "update_data")
-	//defer os.Remove(df.Name())
-
+	defer os.Remove(df.Name())
 	df.WriteString("this is a fake update")
 	df.Close()
 
-	he := &parser.HeaderElems{
-		Metadata: []byte(`{"deviceType": "my-device", "imageId": "image-id"}`),
-	}
-	ud := parser.UpdateData{
-		P:         &parser.RootfsParser{},
-		DataFiles: []string{df.Name()},
-		Type:      "rootfs-image",
-		Data:      he,
-	}
+	u := update.NewRootfsV1(df.Name())
+	updates := update.NewUpdates()
+	err := updates.Add(u)
+	assert.NoError(t, err)
 
-	err := w.FixedWrite(buf, []parser.UpdateData{ud})
+	err = w.FixedWrite("format", 1, []string{"asd"}, "name", updates)
 	assert.NoError(t, err)
 
 	f, _ := ioutil.TempFile("", "update")
