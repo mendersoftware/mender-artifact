@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mendersoftware/mender-artifact/parser"
 	"github.com/mendersoftware/mender-artifact/reader"
+	"github.com/mendersoftware/mender-artifact/update"
 	"github.com/mendersoftware/mender-artifact/writer"
 
 	"github.com/urfave/cli"
@@ -35,26 +35,24 @@ func writeArtifact(c *cli.Context) error {
 		return errors.New("must provide `device-type`, `artifact-name` and `update`")
 	}
 
-	he := &parser.HeaderElems{
-		Metadata: []byte(""),
-	}
-
-	ud := parser.UpdateData{
-		P:         &parser.RootfsParser{},
-		DataFiles: []string{c.String("update")},
-		Type:      "rootfs-image",
-		Data:      he,
-	}
-
 	name := "mender.tar.gz"
 	if len(c.String("output-path")) > 0 {
 		name = c.String("output-path")
 	}
-
 	devices := c.StringSlice("device-type")
 
-	aw := awriter.NewWriter("mender", c.Int("version"), devices, c.String("artifact-name"), false)
-	return aw.WriteKnown([]parser.UpdateData{ud}, name)
+	f, err := os.Open(name)
+	if err != nil {
+		return errors.New("can not create artifact")
+	}
+	defer f.Close()
+
+	u := update.NewRootfsV1(c.String("update"))
+
+	aw := awriter.NewWriter(f)
+	//"mender", c.Int("version"), devices, c.String("artifact-name"), false
+	return aw.WriteArtifact("mender", c.Int("version"),
+		devices, c.String("artifact-name"), &update.Updates{u})
 }
 
 func read(aPath string) (*areader.Reader, error) {

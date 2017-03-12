@@ -30,7 +30,7 @@ func TestFixed(t *testing.T) {
 
 	w := NewWriter(buf)
 
-	err := w.FixedWrite("format", 1, []string{"asd"}, "name", nil)
+	err := w.WriteArtifact("mender", 1, []string{"asd"}, "name", &update.Updates{})
 	assert.NoError(t, err)
 
 	f, _ := ioutil.TempFile("", "update")
@@ -53,7 +53,7 @@ func TestFixedWithUpdates(t *testing.T) {
 	err := updates.Add(u)
 	assert.NoError(t, err)
 
-	err = w.FixedWrite("format", 1, []string{"asd"}, "name", updates)
+	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates)
 	assert.NoError(t, err)
 
 	f, _ := ioutil.TempFile("", "update")

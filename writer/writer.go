@@ -24,12 +24,10 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"syscall"
 
 	"github.com/mendersoftware/mender-artifact/archiver"
 	"github.com/mendersoftware/mender-artifact/metadata"
-	"github.com/mendersoftware/mender-artifact/parser"
 	"github.com/mendersoftware/mender-artifact/update"
 	"github.com/pkg/errors"
 )
@@ -47,22 +45,6 @@ type Writer struct {
 	signed bool
 
 	w io.Writer
-
-	aName string
-	*parser.ParseManager
-	availableUpdates []parser.UpdateData
-	aArchiver        *tar.Writer
-	aTmpFile         *os.File
-
-	*aHeader
-}
-
-type aHeader struct {
-	hInfo       metadata.HeaderInfo
-	hTmpFile    *os.File
-	hArchiver   *tar.Writer
-	hCompressor *gzip.Writer
-	isClosed    bool
 }
 
 func NewWriter(w io.Writer) *Writer {
@@ -82,36 +64,52 @@ func NewWriterSigned(w io.Writer) *Writer {
 	}
 }
 
-type ChecksumWriter struct {
-	W io.Writer // underlying writer
+type Checksum struct {
+	w io.Writer // underlying writer
+	r io.Reader
 	h hash.Hash
 	c []byte // checksum
 }
 
-func NewWriterChecksum(w io.Writer) *ChecksumWriter {
+func NewWriterChecksum(w io.Writer) *Checksum {
 	h := sha256.New()
-	return &ChecksumWriter{
-		W: io.MultiWriter(h, w),
+	return &Checksum{
+		w: io.MultiWriter(h, w),
 		h: h,
 	}
 }
 
-func (cw *ChecksumWriter) Write(p []byte) (int, error) {
-	if cw.W == nil {
-		return 0, syscall.EBADF
+func NewReaderChecksum(r io.Reader) *Checksum {
+	h := sha256.New()
+	return &Checksum{
+		r: io.TeeReader(r, h),
+		h: h,
 	}
-	return cw.W.Write(p)
 }
 
-func (cw *ChecksumWriter) Checksum() []byte {
-	sum := cw.h.Sum(nil)
+func (c *Checksum) Write(p []byte) (int, error) {
+	if c.w == nil {
+		return 0, syscall.EBADF
+	}
+	return c.w.Write(p)
+}
+
+func (c *Checksum) Read(p []byte) (int, error) {
+	if c.r == nil {
+		return 0, syscall.EBADF
+	}
+	return c.r.Read(p)
+}
+
+func (c *Checksum) Checksum() []byte {
+	sum := c.h.Sum(nil)
 	checksum := make([]byte, hex.EncodedLen(len(sum)))
-	hex.Encode(checksum, cw.h.Sum(nil))
+	hex.Encode(checksum, c.h.Sum(nil))
 	return checksum
 }
 
-func (aw *Writer) FixedWrite(format string, version int,
-	devices []string, name string, upd update.Updates) error {
+func (aw *Writer) WriteArtifact(format string, version int,
+	devices []string, name string, upd *update.Updates) error {
 
 	f, ferr := ioutil.TempFile("", "header")
 	if ferr != nil {
@@ -121,10 +119,15 @@ func (aw *Writer) FixedWrite(format string, version int,
 
 	// calculate checksums of all data files
 	// we need this regardless of which artifact version we are writing
-	checksums := make(map[string]([]byte), len(upd))
+	checksums := make(map[string]([]byte), 1)
 
-	updates.Reset()
-	for u, err := upd.Next(); err != io.EOF; {
+	upd.Reset()
+	for {
+		u, err := upd.Next()
+		if err == io.EOF {
+			break
+		}
+
 		for _, f := range u.GetUpdateFiles() {
 			ch := NewWriterChecksum(ioutil.Discard)
 			df, err := os.Open(f.Name)
@@ -137,25 +140,25 @@ func (aw *Writer) FixedWrite(format string, version int,
 			f.Checksum = ch.Checksum()
 
 			// TODO:
-			checksums[f] = ch.Checksum()
+			checksums[f.Name] = ch.Checksum()
 		}
+		fmt.Printf("blah: %v\n\n", err)
 	}
 
 	// write temporary header (we need to know the size before storing in tar)
-	if hChecksum, err := func(f *os.File) (*ChecksumWriter, error) {
+	if hChecksum, err := func() (*Checksum, error) {
 		ch := NewWriterChecksum(f)
 		gz := gzip.NewWriter(ch)
-		tw := tar.NewWriter(gz)
-
-		defer f.Close()
 		defer gz.Close()
+
+		tw := tar.NewWriter(gz)
 		defer tw.Close()
 
 		if err := aw.writeHeader(tw, devices, name, upd); err != nil {
 			return nil, errors.Wrapf(err, "writer: error writing header")
 		}
 		return ch, nil
-	}(f); err != nil {
+	}(); err != nil {
 		return err
 	} else if aw.signed {
 		checksums["header.tar.gz"] = hChecksum.Checksum()
@@ -166,7 +169,7 @@ func (aw *Writer) FixedWrite(format string, version int,
 	defer tw.Close()
 
 	// write version file
-	inf := ToStream(&metadata.Info{Version: version, Format: format})
+	inf := archiver.ToStream(&metadata.Info{Version: version, Format: format})
 
 	var ch io.Writer
 	// only calculate version checksum if artifact must be signed
@@ -185,7 +188,7 @@ func (aw *Writer) FixedWrite(format string, version int,
 	}
 
 	if aw.signed {
-		checksums["version"] = ch.(*ChecksumWriter).Checksum()
+		checksums["version"] = ch.(*Checksum).Checksum()
 	}
 
 	switch version {
@@ -201,15 +204,15 @@ func (aw *Writer) FixedWrite(format string, version int,
 	case 1:
 		// write header
 		fw := archiver.NewWriterFile(tw)
-		fw.WriteHeader(f.Name(), "header.tar.gz")
+		if err := fw.WriteHeader(f.Name(), "header.tar.gz"); err != nil {
+			return errors.Wrapf(err, "writer: can not tar header")
+		}
 
-		hFile, err := os.Open(f.Name())
-		if err != nil {
+		if _, err := f.Seek(0, 0); err != nil {
 			return errors.Wrapf(err, "writer: error opening tmp header for reading")
 		}
-		defer hFile.Close()
 
-		if _, err := io.Copy(fw, hFile); err != nil {
+		if _, err := io.Copy(fw, f); err != nil {
 			return errors.Wrapf(err, "writer: can not tar header")
 		}
 
@@ -390,19 +393,23 @@ func (aw *Writer) FixedWrite(format string, version int,
 // }
 
 func (aw *Writer) writeHeader(tw *tar.Writer, devices []string, name string,
-	updates update.Updates) error {
+	updates *update.Updates) error {
 	// store header info
 	hInfo := new(metadata.HeaderInfo)
 
 	updates.Reset()
-	for upd, err := updates.Next(); err != io.EOF; {
+	for {
+		upd, err := updates.Next()
+		if err == io.EOF {
+			break
+		}
 		hInfo.Updates =
 			append(hInfo.Updates, metadata.UpdateType{Type: upd.GetType()})
 	}
 	hInfo.CompatibleDevices = devices
 	hInfo.ArtifactName = name
 
-	hinf := ToStream(hInfo)
+	hinf := archiver.ToStream(hInfo)
 	sa := archiver.NewWriterStream(tw)
 	if err := sa.WriteHeader(hinf, "header-info"); err != nil {
 		return errors.Wrapf(err, "writer: can not tar header-info")
@@ -412,29 +419,28 @@ func (aw *Writer) writeHeader(tw *tar.Writer, devices []string, name string,
 	}
 
 	updates.Reset()
-	for upd, err := updates.Next(); err != io.EOF; {
-		if err := upd.Compose(tw); err != nil {
+	for {
+		upd, err := updates.Next()
+		if err == io.EOF {
+			break
+		}
+		if err := upd.ComposeHeader(tw); err != nil {
 			return errors.Wrapf(err, "writer: error processing update directory")
 		}
 	}
 	return nil
 }
 
-func (aw *Writer) writeData(tw *tar.Writer, updates []parser.UpdateData) error {
-	for cnt := 0; cnt < len(updates); cnt++ {
-		err := processNextDataDir(tw, updates[cnt], fmt.Sprintf("%04d", cnt))
-		if err != nil {
+func (aw *Writer) writeData(tw *tar.Writer, updates *update.Updates) error {
+	updates.Reset()
+	for {
+		upd, err := updates.Next()
+		if err == io.EOF {
+			break
+		}
+		if err := upd.ComposeData(tw); err != nil {
 			return errors.Wrapf(err, "writer: error writing data files")
 		}
-	}
-	return nil
-}
-
-func processNextDataDir(tw *tar.Writer, upd parser.UpdateData,
-	order string) error {
-	if err := upd.P.ArchiveData(tw,
-		filepath.Join("data", order+".tar.gz")); err != nil {
-		return err
 	}
 	return nil
 }

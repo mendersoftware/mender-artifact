@@ -26,10 +26,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/mendersoftware/mender-artifact/metadata"
 	"github.com/mendersoftware/mender-artifact/parser"
+	"github.com/mendersoftware/mender-artifact/update"
 	"github.com/pkg/errors"
 )
 
@@ -43,10 +46,16 @@ type Reader struct {
 
 	hInfo *metadata.HeaderInfo
 	info  *metadata.Info
+
+	// new
+	r          io.Reader
+	handlers   map[string]update.Installer
+	installers map[int]update.Installer
 }
 
-func NewReader() *Reader {
+func NewReader(r io.Reader) *Reader {
 	return &Reader{
+		r:            r,
 		ParseManager: parser.NewParseManager(),
 	}
 }
@@ -89,18 +98,6 @@ func readChecksums(r *tar.Reader) (checksums, []byte, error) {
 	return chs, sum, nil
 }
 
-//
-// example implementation of checking device compatibility
-//
-// func checkDevice(devices []string) error {
-// 	for _, dev := range devices {
-// 		if dev == "beaglebone" {
-// 			return nil
-// 		}
-// 	}
-// 	return errors.New("artifact not compatible with device")
-// }
-
 func (ar *Reader) ReadHeader() error {
 	hdr, err := getNext(ar.tReader)
 	if err != nil {
@@ -110,23 +107,20 @@ func (ar *Reader) ReadHeader() error {
 		return errors.New("reader: invalid header name or elemet out of order")
 	}
 
-	// header MUST always be compressed
+	// header MUST be compressed
 	gz, err := gzip.NewReader(ar.tReader)
 	if err != nil {
 		return errors.Wrapf(err, "reader: error opening compressed header")
 	}
 	defer gz.Close()
 
-	var h hash.Hash
 	var tr *tar.Reader
+	ch := NewReaderChecksum(gz)
 
 	// If artifact is signed we need to calculate header checksum to be
 	// able to validate it later.
 	if ar.isSigned() {
-		h = sha256.New()
-		// use tee reader to pass read data for checksum calculation
-		teeReader := io.TeeReader(gz, h)
-		tr = tar.NewReader(teeReader)
+		tr = tar.NewReader(ch)
 	} else {
 		tr = tar.NewReader(gz)
 	}
@@ -136,6 +130,7 @@ func (ar *Reader) ReadHeader() error {
 	if err = readNext(tr, hInfo, "header-info"); err != nil {
 		return err
 	}
+	// TODO:
 	ar.hInfo = hInfo
 
 	// after reading header-info we can check device compatibility
@@ -145,40 +140,93 @@ func (ar *Reader) ReadHeader() error {
 		}
 	}
 
-	// Next step is setting correct parsers based on update types being
+	// Next step is setting correct installers based on update types being
 	// part of the artifact.
-	if err = setWorkers(ar.ParseManager, hInfo.Updates); err != nil {
+	if err = ar.setInstallers(hInfo.Updates); err != nil {
 		return err
 	}
 
-	// At the end read rest of the header using correct parsers.
-	if err := readHeader(tr, ar.ParseManager); err != nil {
+	// At the end read rest of the header using correct installers.
+	if err := ar.readHeader(tr); err != nil {
 		return err
 	}
 
 	// calculate whole header checksum
 	if ar.isSigned() {
-		sum := h.Sum(nil)
-		hSum := make([]byte, hex.EncodedLen(len(sum)))
-		hex.Encode(hSum, h.Sum(nil))
+		sum := ch.Checksum()
+		// TODO:
+		fmt.Printf("have sum: %s\n", sum)
 	}
 
 	return nil
 }
 
-func readVersion(r *tar.Reader) (*metadata.Info, []byte, error) {
+func readVersion(tr *tar.Reader) (*metadata.Info, []byte, error) {
 	info := new(metadata.Info)
 
 	// read version file and calculate checksum
-	sum, err := readNextWithChecksum(r, info, "version")
+	sum, err := readNextWithChecksum(tr, info, "version")
 	if err != nil {
 		return nil, nil, err
 	}
 	return info, sum, nil
 }
 
-func (ar *Reader) Read(r io.Reader) error {
-	ar.tReader = tar.NewReader(r)
+type Checksum struct {
+	w io.Writer // underlying writer
+	r io.Reader
+	h hash.Hash
+	c []byte // checksum
+}
+
+func NewWriterChecksum(w io.Writer) *Checksum {
+	h := sha256.New()
+	return &Checksum{
+		w: io.MultiWriter(h, w),
+		h: h,
+	}
+}
+
+func NewReaderChecksum(r io.Reader) *Checksum {
+	h := sha256.New()
+	return &Checksum{
+		r: io.TeeReader(r, h),
+		h: h,
+	}
+}
+
+func (c *Checksum) Write(p []byte) (int, error) {
+	if c.w == nil {
+		return 0, syscall.EBADF
+	}
+	return c.w.Write(p)
+}
+
+func (c *Checksum) Read(p []byte) (int, error) {
+	if c.r == nil {
+		return 0, syscall.EBADF
+	}
+	return c.r.Read(p)
+}
+
+func (c *Checksum) Checksum() []byte {
+	sum := c.h.Sum(nil)
+	checksum := make([]byte, hex.EncodedLen(len(sum)))
+	hex.Encode(checksum, c.h.Sum(nil))
+	return checksum
+}
+
+func (ar *Reader) RegisterHandler(handler update.Installer) error {
+	if _, ok := ar.handlers[handler.GetType()]; ok {
+		return os.ErrExist
+	}
+	ar.handlers[handler.GetType()] = handler
+	return nil
+}
+
+func (ar *Reader) ReadArtifact() error {
+	// each artifact is tar archive
+	ar.tReader = tar.NewReader(ar.r)
 
 	// first file inside the artifact MUST be version
 	ver, _, err := readVersion(ar.tReader)
@@ -228,9 +276,7 @@ func (ar *Reader) Read(r io.Reader) error {
 			// verify checksums of the checksums file and the header
 
 			// ...and then header
-			if err = ar.ReadHeader(); err != nil {
-				return err
-			}
+			fallthrough
 
 		case strings.HasPrefix(fName, "header.tar."):
 			if err = ar.ReadHeader(); err != nil {
@@ -264,60 +310,56 @@ func (ar *Reader) GetInfo() metadata.Info {
 	return *ar.info
 }
 
-func setWorkers(p *parser.ParseManager, u []metadata.UpdateType) error {
-	for cnt, update := range u {
+func (ar *Reader) setInstallers(upd []metadata.UpdateType) error {
+	for i, update := range upd {
 		// firsrt check if we have worker for given update
-		w, err := p.GetWorker(fmt.Sprintf("%04d", cnt))
-
-		if err == nil {
-			if w.GetUpdateType().Type == update.Type || w.GetUpdateType().Type == "generic" {
+		if w, ok := ar.installers[i]; ok {
+			if w.GetType() == update.Type || w.GetType() == "generic" {
 				continue
 			}
+			return errors.New("reader: invalid worker for given update type")
+		}
 
-			return errors.New("reader: wrong worker for given update type")
+		// if not just set installer for given update type
+		if w, ok := ar.handlers[update.Type]; ok {
+			ar.installers[i] = w.Copy()
+			continue
 		}
-		// if not just register worker for given update type
-		par, err := p.GetRegistered(update.Type)
-		if err != nil {
-			// if there is no registered one; check if we can use generic
-			par = p.GetGeneric(update.Type)
-			if par == nil {
-				return errors.Wrapf(err,
-					"reader: can not find parser for update type: [%v]", update.Type)
-			}
-		}
-		p.PushWorker(par, fmt.Sprintf("%04d", cnt))
+
+		// if nothing else worked set generic installer for given update
+		//ar.installers[i] =
+
+		// par, err := p.GetRegistered(update.Type)
+		// if err != nil {
+		// 	// if there is no registered one; check if we can use generic
+		// 	par = p.GetGeneric(update.Type)
+		// 	if par == nil {
+		// 		return errors.Wrapf(err,
+		// 			"reader: can not find parser for update type: [%v]", update.Type)
+		// 	}
+		// }
+		// p.PushWorker(par, fmt.Sprintf("%04d", cnt))
 	}
 	return nil
 }
 
 // should be `headers/0000/file` format
-func getUpdateFromHdr(hdr string) string {
-	r := strings.Split(hdr, string(os.PathSeparator))
-	if len(r) < 2 {
-		return ""
+func getUpdateNoFromHeaderPath(path string) (int, error) {
+	split := strings.Split(path, string(os.PathSeparator))
+	if len(split) < 3 {
+		return 0, errors.New("can not get update order from tar path")
 	}
-	return r[1]
+	return strconv.Atoi(split[1])
 }
 
-func processNextHeader(tr *tar.Reader, p *parser.ParseManager,
-	upd string, hdr *tar.Header) error {
-
-	par, err := p.GetWorker(upd)
-	if err != nil {
-		return errors.Wrapf(err, "reader: can not find parser for update: %v", upd)
-	}
-
-	// TODO: refactor ParseHeader
-	if err := par.ParseHeader(tr, hdr, filepath.Join("headers", upd)); err != nil {
-		return err
-	}
-	return nil
+func getUpdateNoFromDataPath(path string) (int, error) {
+	no := strings.TrimSuffix(filepath.Base(path), ".tar.gz")
+	return strconv.Atoi(no)
 }
 
-func readHeader(r *tar.Reader, p *parser.ParseManager) error {
+func (ar *Reader) readHeader(tr *tar.Reader) error {
 	for {
-		hdr, err := getNext(r)
+		hdr, err := getNext(tr)
 
 		if err == io.EOF {
 			return nil
@@ -325,18 +367,21 @@ func readHeader(r *tar.Reader, p *parser.ParseManager) error {
 			return errors.Wrapf(err,
 				"reader: can not read artifact header file: %v", hdr)
 		}
-		if err := processNextHeader(r, p, getUpdateFromHdr(hdr.Name), hdr); err != nil {
-			return err
+		updNo, err := getUpdateNoFromHeaderPath(hdr.Name)
+		if err != nil {
+			return errors.Wrapf(err, "reader: error getting header update number")
 		}
+
+		inst, ok := ar.installers[updNo]
+		if !ok {
+			return errors.Errorf("reader: can not find parser for update: %v", hdr.Name)
+		}
+		return inst.SetFromHeader(tr, hdr.Name)
 	}
 }
 
-func getDataFileUpdate(path string) string {
-	return strings.TrimSuffix(filepath.Base(path), ".tar.gz")
-}
-
-func readNextDataFile(r *tar.Reader, p *parser.ParseManager) error {
-	hdr, err := getNext(r)
+func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
+	hdr, err := getNext(tr)
 	if err == io.EOF {
 		return io.EOF
 	} else if err != nil {
@@ -345,21 +390,22 @@ func readNextDataFile(r *tar.Reader, p *parser.ParseManager) error {
 	if filepath.Dir(hdr.Name) != "data" {
 		return errors.New("reader: invalid data file name: " + hdr.Name)
 	}
-	par, err := p.GetWorker(getDataFileUpdate(hdr.Name))
+	updNo, err := getUpdateNoFromDataPath(hdr.Name)
 	if err != nil {
+		return errors.Wrapf(err, "reader: error getting data update number")
+	}
+	inst, ok := ar.installers[updNo]
+	if !ok {
 		return errors.Wrapf(err,
 			"reader: can not find parser for parsing data file [%v]", hdr.Name)
 	}
-	err = par.ParseData(r)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	return inst.Install(tr)
 }
 
 func (ar *Reader) ReadData() error {
 	for {
-		err := readNextDataFile(ar.tReader, ar.ParseManager)
+		err := ar.readNextDataFile(ar.tReader)
 		if err == io.EOF {
 			break
 		} else if err != nil {
