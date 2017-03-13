@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	. "github.com/mendersoftware/mender-artifact/test_utils"
-	"github.com/mendersoftware/mender-artifact/writer"
 )
 
 func WriteRootfsImageArchive(dir string, dirStruct []TestDirEntry) (path string, err error) {

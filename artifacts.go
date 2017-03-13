@@ -17,14 +17,12 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"os"
 
+	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
-	"github.com/mendersoftware/mender-artifact/reader"
-	"github.com/mendersoftware/mender-artifact/writer"
 
 	"github.com/urfave/cli"
 )
@@ -44,20 +42,18 @@ func writeArtifact(c *cli.Context) error {
 	}
 	devices := c.StringSlice("device-type")
 
-	f, err := os.Open(name)
+	f, err := os.Create(name)
 	if err != nil {
-		return errors.New("can not create artifact")
+		return errors.New("can not create artifact file")
 	}
 	defer f.Close()
 
-	// TODO:
 	u := handlers.NewRootfsV1(c.String("update"))
 	upd := &artifact.Updates{
 		U: []artifact.Composer{u},
 	}
 
 	aw := awriter.NewWriter(f)
-	//"mender", c.Int("version"), devices, c.String("artifact-name"), false
 	return aw.WriteArtifact("mender", c.Int("version"),
 		devices, c.String("artifact-name"), upd)
 }
@@ -79,14 +75,6 @@ func read(aPath string) (*areader.Reader, error) {
 	if ar == nil {
 		return nil, errors.New("Can not read artifact file.")
 	}
-
-	inst := handlers.NewRootfsInstaller()
-	inst.InstallHandler = func(r io.Reader, f *artifact.File) error {
-		// TODO: error
-		io.Copy(ioutil.Discard, r)
-		return nil
-	}
-	//ar.RegisterHandler(inst)
 
 	if err = ar.ReadArtifact(); err != nil {
 		return nil, err

@@ -24,9 +24,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli"
 
-	"github.com/mendersoftware/mender-artifact/parser"
+	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/mendersoftware/mender-artifact/awriter"
+	"github.com/mendersoftware/mender-artifact/handlers"
+
 	. "github.com/mendersoftware/mender-artifact/test_utils"
-	"github.com/mendersoftware/mender-artifact/writer"
 )
 
 var (
@@ -42,19 +44,29 @@ func init() {
 	cli.ErrWriter = fakeErrWriter
 }
 
-func WriteRootfsImageArchive(dir string, dirStruct []TestDirEntry) (path string, err error) {
-	err = MakeFakeUpdateDir(dir, dirStruct)
-	if err != nil {
-		return
+func WriteRootfsImageArchive(dir string) error {
+	if err := MakeFakeUpdateDir(dir,
+		[]TestDirEntry{
+			{
+				Path:    "update.ext4",
+				Content: []byte("my update"),
+				IsDir:   false,
+			},
+		}); err != nil {
+		return err
 	}
 
-	aw := awriter.NewWriter("mender", 1, []string{"vexpress"}, "mender-1.1", false)
-	rp := &parser.RootfsParser{}
-	aw.Register(rp)
+	f, err := os.Create(filepath.Join(dir, "artifact.mender"))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
 
-	path = filepath.Join(dir, "artifact.tar.gz")
-	err = aw.Write(dir, path)
-	return
+	aw := awriter.NewWriter(f)
+	u := handlers.NewRootfsV1(filepath.Join(dir, "update.ext4"))
+	updates := &artifact.Updates{U: []artifact.Composer{u}}
+	return aw.WriteArtifact("mender", 1, []string{"vexpress"},
+		"mender-1.1", updates)
 }
 
 func TestArtifactsWrite(t *testing.T) {
@@ -71,7 +83,7 @@ func TestArtifactsWrite(t *testing.T) {
 		fakeErrWriter.String())
 
 	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
+	//defer os.RemoveAll(updateTestDir)
 
 	err = MakeFakeUpdateDir(updateTestDir,
 		[]TestDirEntry{
@@ -100,12 +112,11 @@ func TestArtifactsValidate(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	archive, err := WriteRootfsImageArchive(updateTestDir, RootfsImageStructOK)
+	err := WriteRootfsImageArchive(updateTestDir)
 	assert.NoError(t, err)
-	assert.NotEqual(t, "", archive)
 
 	os.Args = []string{"mender-artifact", "validate",
-		filepath.Join(updateTestDir, "artifact.tar.gz")}
+		filepath.Join(updateTestDir, "artifact.mender")}
 	err = run()
 	assert.NoError(t, err)
 
@@ -123,12 +134,11 @@ func TestArtifactsRead(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	archive, err := WriteRootfsImageArchive(updateTestDir, RootfsImageStructOK)
+	err := WriteRootfsImageArchive(updateTestDir)
 	assert.NoError(t, err)
-	assert.NotEqual(t, "", archive)
 
 	os.Args = []string{"mender-artifact", "read",
-		filepath.Join(updateTestDir, "artifact.tar.gz")}
+		filepath.Join(updateTestDir, "artifact.mender")}
 	err = run()
 	assert.NoError(t, err)
 
