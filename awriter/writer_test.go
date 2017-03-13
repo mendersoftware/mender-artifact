@@ -22,10 +22,11 @@ import (
 	"testing"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFixed(t *testing.T) {
+func TestWriteArtifact(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 
 	w := NewWriter(buf)
@@ -39,7 +40,7 @@ func TestFixed(t *testing.T) {
 	os.Remove(f.Name())
 }
 
-func TestFixedWithUpdates(t *testing.T) {
+func TestWriteArtifactWithUpdates(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	w := NewWriter(buf)
 
@@ -48,8 +49,30 @@ func TestFixedWithUpdates(t *testing.T) {
 	df.WriteString("this is a fake update")
 	df.Close()
 
-	u := artifact.NewRootfsV1(df.Name())
+	u := handlers.NewRootfsV1(df.Name())
 	updates := &artifact.Updates{U: []artifact.Composer{u}}
+
+	err := w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates)
+	assert.NoError(t, err)
+
+	f, _ := ioutil.TempFile("", "update")
+	io.Copy(f, buf)
+
+	f.Close()
+}
+
+func TestWriteMultipleUpdates(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	w := NewWriter(buf)
+
+	df, _ := ioutil.TempFile("", "update_data")
+	defer os.Remove(df.Name())
+	df.WriteString("this is a fake update")
+	df.Close()
+
+	u1 := handlers.NewRootfsV1(df.Name())
+	u2 := handlers.NewRootfsV1(df.Name())
+	updates := &artifact.Updates{U: []artifact.Composer{u1, u2}}
 
 	err := w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates)
 	assert.NoError(t, err)
