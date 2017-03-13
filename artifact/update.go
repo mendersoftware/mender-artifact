@@ -12,7 +12,7 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-package update
+package artifact
 
 import (
 	"archive/tar"
@@ -26,9 +26,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/mendersoftware/mender-artifact/archiver"
-	"github.com/mendersoftware/mender-artifact/artifact"
-	"github.com/mendersoftware/mender-artifact/metadata"
 	"github.com/pkg/errors"
 )
 
@@ -116,8 +113,8 @@ func (rp *Rootfs) Copy() Installer {
 	}
 }
 
-func parseFiles(r io.Reader) (*metadata.Files, error) {
-	files := new(metadata.Files)
+func parseFiles(r io.Reader) (*Files, error) {
+	files := new(Files)
 	if _, err := io.Copy(files, r); err != nil {
 		return nil, errors.Wrapf(err, "update: error reading files")
 	}
@@ -195,7 +192,7 @@ func (rfs *Rootfs) Install(r io.Reader, info os.FileInfo) error {
 	rfs.update.Size = info.Size()
 
 	// check checksum
-	ch := artifact.NewReaderChecksum(r)
+	ch := NewReaderChecksum(r)
 
 	if rfs.InstallHandler != nil {
 		if err := rfs.InstallHandler(ch, rfs.update); err != nil {
@@ -219,12 +216,12 @@ func (rfs *Rootfs) GetType() string {
 }
 
 func writeFiles(tw *tar.Writer, updFiles []string, dir string) error {
-	files := new(metadata.Files)
+	files := new(Files)
 	for _, u := range updFiles {
 		files.FileList = append(files.FileList, u)
 	}
-	fs := archiver.ToStream(files)
-	sa := archiver.NewWriterStream(tw)
+	fs := ToStream(files)
+	sa := NewWriterStream(tw)
 	if err := sa.WriteHeader(fs, filepath.Join(dir, "files")); err != nil {
 		return errors.Wrapf(err, "writer: can not tar files")
 	}
@@ -235,13 +232,13 @@ func writeFiles(tw *tar.Writer, updFiles []string, dir string) error {
 }
 
 func writeTypeInfo(tw *tar.Writer, updateType string, dir string) error {
-	tInfo := metadata.TypeInfo{Type: updateType}
+	tInfo := TypeInfo{Type: updateType}
 	info, err := json.Marshal(&tInfo)
 	if err != nil {
 		return errors.Wrapf(err, "update: can not create type-info")
 	}
 
-	w := archiver.NewWriterStream(tw)
+	w := NewWriterStream(tw)
 	if err := w.WriteHeader(info, filepath.Join(dir, "type-info")); err != nil {
 		return errors.Wrapf(err, "update: can not tar type-info")
 	}
@@ -253,7 +250,7 @@ func writeTypeInfo(tw *tar.Writer, updateType string, dir string) error {
 
 func writeChecksums(tw *tar.Writer, files [](*File), dir string) error {
 	for _, f := range files {
-		w := archiver.NewWriterStream(tw)
+		w := NewWriterStream(tw)
 		if err := w.WriteHeader(f.Checksum,
 			filepath.Join(dir, filepath.Base(f.Name)+".sha256sum")); err != nil {
 			return errors.Wrapf(err, "update: can not tar checksum for %v", f)
@@ -312,7 +309,7 @@ func (rfs *Rootfs) ComposeData(tw *tar.Writer) error {
 		tarw := tar.NewWriter(gz)
 		defer tarw.Close()
 
-		fw := archiver.NewWriterFile(tarw)
+		fw := NewWriterFile(tarw)
 
 		if err := fw.WriteHeader(rfs.update.Name,
 			filepath.Base(rfs.update.Name)); err != nil {
@@ -332,7 +329,7 @@ func (rfs *Rootfs) ComposeData(tw *tar.Writer) error {
 		return err
 	}
 
-	dfw := archiver.NewWriterFile(tw)
+	dfw := NewWriterFile(tw)
 	if err = dfw.WriteHeader(f.Name(), rfs.updateDataPath()); err != nil {
 		return errors.Wrapf(err, "update: can not tar data header: %v", rfs.update)
 	}

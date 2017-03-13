@@ -20,14 +20,14 @@ import (
 	"errors"
 	"io"
 
-	"github.com/mendersoftware/mender-artifact/metadata"
+	"github.com/mendersoftware/mender-artifact/artifact"
 )
 
 func NewWriterMetadata(w io.Writer,
-	d metadata.WriteValidator) *StreamArchiver {
+	d artifact.WriteValidator) *artifact.StreamArchiver {
 	// j, err := convertToJSON(d)
 	// if err != nil {
-	return &StreamArchiver{}
+	return &artifact.StreamArchiver{}
 	// }
 	// return &StreamArchiver{"", bytes.NewReader(j), w}
 }
@@ -37,16 +37,16 @@ func NewWriterMetadata(w io.Writer,
 // data is the data structure implementing Validater interface and must be
 // a struct that can be converted to JSON (see getJSON below)
 // archivePath is the relatve path inside the archive (see tar.Header.Name)
-func NewMetadataArchiver(data metadata.WriteValidator, archivePath string) *StreamArchiver {
+func NewMetadataArchiver(data artifact.WriteValidator, archivePath string) *artifact.StreamArchiver {
 	j, err := convertToJSON(data)
 	if err != nil {
-		return &StreamArchiver{}
+		return &artifact.StreamArchiver{}
 	}
-	return &StreamArchiver{archivePath, bytes.NewReader(j), nil}
+	return &artifact.StreamArchiver{archivePath, bytes.NewReader(j), nil}
 }
 
 // gets data which is Validated before converting to JSON
-func convertToJSON(data metadata.WriteValidator) ([]byte, error) {
+func convertToJSON(data artifact.WriteValidator) ([]byte, error) {
 	if data == nil {
 		return nil, errors.New("archiver: empty data")
 	}

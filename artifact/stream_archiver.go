@@ -12,7 +12,7 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-package archiver
+package artifact
 
 import (
 	"archive/tar"
@@ -20,11 +20,10 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/mendersoftware/mender-artifact/metadata"
 	"github.com/pkg/errors"
 )
 
-func ToStream(m metadata.WriteValidator) []byte {
+func ToStream(m WriteValidator) []byte {
 	if err := m.Validate(); err != nil {
 		return nil
 	}

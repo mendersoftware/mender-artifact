@@ -30,8 +30,6 @@ import (
 	"strings"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
-	"github.com/mendersoftware/mender-artifact/metadata"
-	"github.com/mendersoftware/mender-artifact/update"
 	"github.com/pkg/errors"
 )
 
@@ -41,20 +39,20 @@ type Reader struct {
 	tReader *tar.Reader
 	signed  bool
 
-	hInfo *metadata.HeaderInfo
-	info  *metadata.Info
+	hInfo *artifact.HeaderInfo
+	info  *artifact.Info
 
 	// new
 	r          io.Reader
-	handlers   map[string]update.Installer
-	installers map[int]update.Installer
+	handlers   map[string]artifact.Installer
+	installers map[int]artifact.Installer
 }
 
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
 		r:          r,
-		handlers:   make(map[string]update.Installer, 1),
-		installers: make(map[int]update.Installer, 1),
+		handlers:   make(map[string]artifact.Installer, 1),
+		installers: make(map[int]artifact.Installer, 1),
 	}
 }
 
@@ -124,7 +122,7 @@ func (ar *Reader) ReadHeader() error {
 	}
 
 	// first part of header must always be header-info
-	hInfo := new(metadata.HeaderInfo)
+	hInfo := new(artifact.HeaderInfo)
 	if err = readNext(tr, hInfo, "header-info"); err != nil {
 		return err
 	}
@@ -159,8 +157,8 @@ func (ar *Reader) ReadHeader() error {
 	return nil
 }
 
-func readVersion(tr *tar.Reader) (*metadata.Info, []byte, error) {
-	info := new(metadata.Info)
+func readVersion(tr *tar.Reader) (*artifact.Info, []byte, error) {
+	info := new(artifact.Info)
 
 	// read version file and calculate checksum
 	sum, err := readNextWithChecksum(tr, info, "version")
@@ -170,7 +168,7 @@ func readVersion(tr *tar.Reader) (*metadata.Info, []byte, error) {
 	return info, sum, nil
 }
 
-func (ar *Reader) RegisterHandler(handler update.Installer) error {
+func (ar *Reader) RegisterHandler(handler artifact.Installer) error {
 	if _, ok := ar.handlers[handler.GetType()]; ok {
 		return os.ErrExist
 	}
@@ -179,7 +177,7 @@ func (ar *Reader) RegisterHandler(handler update.Installer) error {
 }
 
 // TODO:
-func (ar *Reader) GetInstallers() map[int]update.Installer {
+func (ar *Reader) GetInstallers() map[int]artifact.Installer {
 	return ar.installers
 }
 
@@ -265,11 +263,11 @@ func (ar *Reader) GetArtifactName() string {
 	return ar.hInfo.ArtifactName
 }
 
-func (ar *Reader) GetInfo() metadata.Info {
+func (ar *Reader) GetInfo() artifact.Info {
 	return *ar.info
 }
 
-func (ar *Reader) setInstallers(upd []metadata.UpdateType) error {
+func (ar *Reader) setInstallers(upd []artifact.UpdateType) error {
 	for i, update := range upd {
 		// firsrt check if we have worker for given update
 		if w, ok := ar.installers[i]; ok {
@@ -350,7 +348,7 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
 		return errors.Wrapf(err,
 			"reader: can not find parser for parsing data file [%v]", hdr.Name)
 	}
-	return update.ReadAndInstall(tr, inst)
+	return artifact.ReadAndInstall(tr, inst)
 }
 
 func (ar *Reader) ReadData() error {

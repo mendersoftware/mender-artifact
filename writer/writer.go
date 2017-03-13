@@ -21,10 +21,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/mendersoftware/mender-artifact/archiver"
 	"github.com/mendersoftware/mender-artifact/artifact"
-	"github.com/mendersoftware/mender-artifact/metadata"
-	"github.com/mendersoftware/mender-artifact/update"
 	"github.com/pkg/errors"
 )
 
@@ -61,7 +58,7 @@ func NewWriterSigned(w io.Writer) *Writer {
 }
 
 func (aw *Writer) WriteArtifact(format string, version int,
-	devices []string, name string, upd *update.Updates) error {
+	devices []string, name string, upd *artifact.Updates) error {
 
 	f, ferr := ioutil.TempFile("", "header")
 	if ferr != nil {
@@ -115,7 +112,7 @@ func (aw *Writer) WriteArtifact(format string, version int,
 	defer tw.Close()
 
 	// write version file
-	inf := archiver.ToStream(&metadata.Info{Version: version, Format: format})
+	inf := artifact.ToStream(&artifact.Info{Version: version, Format: format})
 
 	var ch io.Writer
 	// only calculate version checksum if artifact must be signed
@@ -124,7 +121,7 @@ func (aw *Writer) WriteArtifact(format string, version int,
 	} else {
 		ch = tw
 	}
-	sa := archiver.NewWriterStream(tw)
+	sa := artifact.NewWriterStream(tw)
 	if err := sa.WriteHeader(inf, "version"); err != nil {
 		return errors.Wrapf(err, "writer: can not write version tar header")
 	}
@@ -149,7 +146,7 @@ func (aw *Writer) WriteArtifact(format string, version int,
 
 	case 1:
 		// write header
-		fw := archiver.NewWriterFile(tw)
+		fw := artifact.NewWriterFile(tw)
 		if err := fw.WriteHeader(f.Name(), "header.tar.gz"); err != nil {
 			return errors.Wrapf(err, "writer: can not tar header")
 		}
@@ -339,19 +336,19 @@ func (aw *Writer) WriteArtifact(format string, version int,
 // }
 
 func (aw *Writer) writeHeader(tw *tar.Writer, devices []string, name string,
-	updates *update.Updates) error {
+	updates *artifact.Updates) error {
 	// store header info
-	hInfo := new(metadata.HeaderInfo)
+	hInfo := new(artifact.HeaderInfo)
 
 	for _, upd := range updates.U {
 		hInfo.Updates =
-			append(hInfo.Updates, metadata.UpdateType{Type: upd.GetType()})
+			append(hInfo.Updates, artifact.UpdateType{Type: upd.GetType()})
 	}
 	hInfo.CompatibleDevices = devices
 	hInfo.ArtifactName = name
 
-	hinf := archiver.ToStream(hInfo)
-	sa := archiver.NewWriterStream(tw)
+	hinf := artifact.ToStream(hInfo)
+	sa := artifact.NewWriterStream(tw)
 	if err := sa.WriteHeader(hinf, "header-info"); err != nil {
 		return errors.Wrapf(err, "writer: can not tar header-info")
 	}
@@ -367,7 +364,7 @@ func (aw *Writer) writeHeader(tw *tar.Writer, devices []string, name string,
 	return nil
 }
 
-func (aw *Writer) writeData(tw *tar.Writer, updates *update.Updates) error {
+func (aw *Writer) writeData(tw *tar.Writer, updates *artifact.Updates) error {
 	for _, upd := range updates.U {
 		if err := upd.ComposeData(tw); err != nil {
 			return errors.Wrapf(err, "writer: error writing data files")

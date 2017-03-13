@@ -21,8 +21,8 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/reader"
-	"github.com/mendersoftware/mender-artifact/update"
 	"github.com/mendersoftware/mender-artifact/writer"
 
 	"github.com/urfave/cli"
@@ -50,9 +50,9 @@ func writeArtifact(c *cli.Context) error {
 	defer f.Close()
 
 	// TODO:
-	u := update.NewRootfsV1(c.String("update"))
-	upd := &update.Updates{
-		U: []update.Composer{u},
+	u := artifact.NewRootfsV1(c.String("update"))
+	upd := &artifact.Updates{
+		U: []artifact.Composer{u},
 	}
 
 	aw := awriter.NewWriter(f)
@@ -79,8 +79,8 @@ func read(aPath string) (*areader.Reader, error) {
 		return nil, errors.New("Can not read artifact file.")
 	}
 
-	inst := update.NewRootfsInstaller()
-	inst.InstallHandler = func(r io.Reader, f *update.File) error {
+	inst := artifact.NewRootfsInstaller()
+	inst.InstallHandler = func(r io.Reader, f *artifact.File) error {
 		io.Copy(ioutil.Discard, r)
 		return nil
 	}

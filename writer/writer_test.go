@@ -21,7 +21,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mendersoftware/mender-artifact/update"
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,7 +30,7 @@ func TestFixed(t *testing.T) {
 
 	w := NewWriter(buf)
 
-	err := w.WriteArtifact("mender", 1, []string{"asd"}, "name", &update.Updates{})
+	err := w.WriteArtifact("mender", 1, []string{"asd"}, "name", &artifact.Updates{})
 	assert.NoError(t, err)
 
 	f, _ := ioutil.TempFile("", "update")
@@ -48,12 +48,10 @@ func TestFixedWithUpdates(t *testing.T) {
 	df.WriteString("this is a fake update")
 	df.Close()
 
-	u := update.NewRootfsV1(df.Name())
-	updates := update.NewUpdates()
-	err := updates.Add(u)
-	assert.NoError(t, err)
+	u := artifact.NewRootfsV1(df.Name())
+	updates := &artifact.Updates{U: []artifact.Composer{u}}
 
-	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates)
+	err := w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates)
 	assert.NoError(t, err)
 
 	f, _ := ioutil.TempFile("", "update")
