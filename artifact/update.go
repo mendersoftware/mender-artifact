@@ -16,25 +16,20 @@ package artifact
 
 import (
 	"archive/tar"
-	"bytes"
 	"compress/gzip"
-	"encoding/json"
-	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/pkg/errors"
 )
 
 const (
-	headerDirectory = "headers"
-	dataDirectory   = "data"
+	HeaderDirectory = "headers"
+	DataDirectory   = "data"
 )
 
-// UpdateFile represents the minimum set of attributes each update file
+// File represents the minimum set of attributes each update file
 // must contain. Some of those might be empty though for specific update types.
 type File struct {
 	// name of the update file
@@ -66,98 +61,6 @@ type Installer interface {
 	Install(r io.Reader, f os.FileInfo) error
 }
 
-// Rootfs handles updates of type 'rootfs-image'. The parser can be
-// initialized setting `W` (io.Writer the update data gets written to), or
-// `DataFunc` (user provided callback that handlers the update data stream).
-type Rootfs struct {
-	version int
-	update  *File
-
-	InstallHandler func(io.Reader, *File) error
-
-	no int
-}
-
-func NewRootfsV1(updFile string) *Rootfs {
-	uf := &File{
-		Name: updFile,
-	}
-	return &Rootfs{
-		update:  uf,
-		version: 1,
-	}
-}
-
-func NewRootfsV2(updFile string) *Rootfs {
-	uf := &File{
-		Name: updFile,
-	}
-	return &Rootfs{
-		update:  uf,
-		version: 2,
-	}
-}
-
-// TODO:
-func NewRootfsInstaller() *Rootfs {
-	return &Rootfs{
-		update: new(File),
-	}
-}
-
-func (rp *Rootfs) Copy() Installer {
-	return &Rootfs{
-		version:        rp.version,
-		update:         new(File),
-		InstallHandler: rp.InstallHandler,
-	}
-}
-
-func parseFiles(r io.Reader) (*Files, error) {
-	files := new(Files)
-	if _, err := io.Copy(files, r); err != nil {
-		return nil, errors.Wrapf(err, "update: error reading files")
-	}
-	return files, nil
-}
-
-func match(pattern, name string) bool {
-	match, err := filepath.Match(pattern, name)
-	if err != nil {
-		return false
-	}
-	return match
-}
-
-func (rp *Rootfs) SetFromHeader(r io.Reader, path string) error {
-	switch {
-	case filepath.Base(path) == "files":
-
-		files, err := parseFiles(r)
-		if err != nil {
-			return err
-		}
-		rp.update.Name = files.FileList[0]
-	case filepath.Base(path) == "type-info":
-		// TODO:
-
-	case filepath.Base(path) == "meta-data":
-		// TODO:
-	case match(headerDirectory+"/*/checksums/*", path):
-		buf := bytes.NewBuffer(nil)
-		if _, err := io.Copy(buf, r); err != nil {
-			return errors.Wrapf(err, "update: error reading checksum")
-		}
-		rp.update.Checksum = buf.Bytes()
-	case match(headerDirectory+"/*/signatres/*", path):
-	case match(headerDirectory+"/*/scripts/*/*", path):
-
-	default:
-		return errors.Errorf("update: unsupported file: %v", path)
-	}
-	return nil
-}
-
 func ReadAndInstall(r io.Reader, i Installer) error {
 	// each data file is stored in tar.gz format
 	gz, err := gzip.NewReader(r)
@@ -183,163 +86,5 @@ func ReadAndInstall(r io.Reader, i Installer) error {
 			return errors.Wrapf(err, "update: can not install update: %v", hdr)
 		}
 	}
-	return nil
-}
-
-func (rfs *Rootfs) Install(r io.Reader, info os.FileInfo) error {
-	// we have only one update file in rootfs-image type
-	rfs.update.Date = info.ModTime()
-	rfs.update.Size = info.Size()
-
-	// check checksum
-	ch := NewReaderChecksum(r)
-
-	if rfs.InstallHandler != nil {
-		if err := rfs.InstallHandler(ch, rfs.update); err != nil {
-			return errors.Wrap(err, "update: can not install")
-		}
-		checksum := ch.Checksum()
-		if bytes.Compare(rfs.update.Checksum, checksum) != 0 {
-			return errors.Errorf("update: invalid data file [%s] checksum (%s) -> (%s)",
-				rfs.update.Name, rfs.update.Checksum, checksum)
-		}
-	}
-	return nil
-}
-
-func (rfs *Rootfs) GetUpdateFiles() [](*File) {
-	return [](*File){rfs.update}
-}
-
-func (rfs *Rootfs) GetType() string {
-	return "rootfs-image"
-}
-
-func writeFiles(tw *tar.Writer, updFiles []string, dir string) error {
-	files := new(Files)
-	for _, u := range updFiles {
-		files.FileList = append(files.FileList, u)
-	}
-	fs := ToStream(files)
-	sa := NewWriterStream(tw)
-	if err := sa.WriteHeader(fs, filepath.Join(dir, "files")); err != nil {
-		return errors.Wrapf(err, "writer: can not tar files")
-	}
-	if n, err := sa.Write(fs); err != nil || n != len(fs) {
-		return errors.New("writer: can not store files")
-	}
-	return nil
-}
-
-func writeTypeInfo(tw *tar.Writer, updateType string, dir string) error {
-	tInfo := TypeInfo{Type: updateType}
-	info, err := json.Marshal(&tInfo)
-	if err != nil {
-		return errors.Wrapf(err, "update: can not create type-info")
-	}
-
-	w := NewWriterStream(tw)
-	if err := w.WriteHeader(info, filepath.Join(dir, "type-info")); err != nil {
-		return errors.Wrapf(err, "update: can not tar type-info")
-	}
-	if n, err := w.Write(info); err != nil || n != len(info) {
-		return errors.New("update: can not store type-info")
-	}
-	return nil
-}
-
-func writeChecksums(tw *tar.Writer, files [](*File), dir string) error {
-	for _, f := range files {
-		w := NewWriterStream(tw)
-		if err := w.WriteHeader(f.Checksum,
-			filepath.Join(dir, filepath.Base(f.Name)+".sha256sum")); err != nil {
-			return errors.Wrapf(err, "update: can not tar checksum for %v", f)
-		}
-		if n, err := w.Write(f.Checksum); err != nil || n != len(f.Checksum) {
-			return errors.Wrapf(err, "update: can not store checksum for: %v", f)
-		}
-	}
-	return nil
-}
-
-func (rfs *Rootfs) updateHeaderPath() string {
-	return filepath.Join(headerDirectory, fmt.Sprintf("%04d", rfs.no))
-}
-
-func (rfs *Rootfs) updateDataPath() string {
-	return filepath.Join(dataDirectory, fmt.Sprintf("%04d.tar.gz", rfs.no))
-}
-
-func (rfs *Rootfs) ComposeHeader(tw *tar.Writer) error {
-
-	path := rfs.updateHeaderPath()
-
-	// first store files
-	if err := writeFiles(tw, []string{filepath.Base(rfs.update.Name)},
-		path); err != nil {
-		return err
-	}
-
-	// store type-info
-	if err := writeTypeInfo(tw, "rootfs-image", path); err != nil {
-		return err
-	}
-
-	if rfs.version == 1 {
-		// store checksums
-		if err := writeChecksums(tw, [](*File){rfs.update},
-			filepath.Join(path, "checksums")); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (rfs *Rootfs) ComposeData(tw *tar.Writer) error {
-	f, ferr := ioutil.TempFile("", "data")
-	if ferr != nil {
-		return errors.New("update: can not create temporary data file")
-	}
-	defer os.Remove(f.Name())
-
-	err := func() error {
-		gz := gzip.NewWriter(f)
-		defer gz.Close()
-
-		tarw := tar.NewWriter(gz)
-		defer tarw.Close()
-
-		fw := NewWriterFile(tarw)
-
-		if err := fw.WriteHeader(rfs.update.Name,
-			filepath.Base(rfs.update.Name)); err != nil {
-			return errors.Wrapf(err, "update: can not tar temp data header: %v", rfs.update)
-		}
-		df, err := os.Open(rfs.update.Name)
-		if err != nil {
-			return errors.Wrapf(err, "update: can not open data file: %v", rfs.update)
-		}
-		if _, err := io.Copy(fw, df); err != nil {
-			return errors.Wrapf(err, "update: can not store temp data file: %v", rfs.update)
-		}
-		return nil
-	}()
-
-	if err != nil {
-		return err
-	}
-
-	dfw := NewWriterFile(tw)
-	if err = dfw.WriteHeader(f.Name(), rfs.updateDataPath()); err != nil {
-		return errors.Wrapf(err, "update: can not tar data header: %v", rfs.update)
-	}
-
-	if _, err = f.Seek(0, 0); err != nil {
-		return errors.Wrapf(err, "update: can not read data file: %v", rfs.update)
-	}
-	if _, err := io.Copy(dfw, f); err != nil {
-		return errors.Wrapf(err, "update: can not store data file: %v", rfs.update)
-	}
-
 	return nil
 }

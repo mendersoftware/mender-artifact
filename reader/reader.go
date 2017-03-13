@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
 )
 
@@ -283,9 +284,8 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType) error {
 			continue
 		}
 
-		// TODO:
 		// if nothing else worked set generic installer for given update
-		//ar.installers[i] =
+		ar.installers[i] = handlers.NewGeneric()
 	}
 	return nil
 }
