@@ -27,8 +27,6 @@ import (
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
-
-	. "github.com/mendersoftware/mender-artifact/test_utils"
 )
 
 var (
@@ -45,8 +43,8 @@ func init() {
 }
 
 func WriteRootfsImageArchive(dir string) error {
-	if err := MakeFakeUpdateDir(dir,
-		[]TestDirEntry{
+	if err := artifact.MakeFakeUpdateDir(dir,
+		[]artifact.TestDirEntry{
 			{
 				Path:    "update.ext4",
 				Content: []byte("my update"),
@@ -85,8 +83,8 @@ func TestArtifactsWrite(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	err = MakeFakeUpdateDir(updateTestDir,
-		[]TestDirEntry{
+	err = artifact.MakeFakeUpdateDir(updateTestDir,
+		[]artifact.TestDirEntry{
 			{
 				Path:    "update.ext4",
 				Content: []byte("my update"),

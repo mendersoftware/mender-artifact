@@ -31,6 +31,7 @@ import (
 
 type Reader struct {
 	CompatibleDevicesCallback func([]string) error
+	VerifySignatureCallback   func(message, sig []byte) error
 
 	tReader *tar.Reader
 	signed  bool
@@ -38,7 +39,6 @@ type Reader struct {
 	hInfo *artifact.HeaderInfo
 	info  *artifact.Info
 
-	// new
 	r          io.Reader
 	handlers   map[string]artifact.Installer
 	installers map[int]artifact.Installer
@@ -164,8 +164,13 @@ func (ar *Reader) ReadArtifact() error {
 			return errors.Wrapf(err, "reader: error reading manifest header")
 		}
 
-		manifest := artifact.NewReaderManifest(ar.tReader)
-		if err := manifest.ReadAll(); err != nil {
+		manifestBuf := bytes.NewBuffer(nil)
+		if _, err := io.Copy(manifestBuf, ar.tReader); err != nil {
+			return errors.Wrap(err, "reader: can not buffer manifest")
+		}
+
+		mr := artifact.NewReaderManifest(manifestBuf)
+		if err := mr.ReadAll(); err != nil {
 			return errors.Wrap(err, "reader: can not read manifest")
 		}
 
@@ -189,12 +194,14 @@ func (ar *Reader) ReadArtifact() error {
 			}
 
 			// verify signature
-			if err = artifact.VerifySignature(sig.Bytes()); err != nil {
+			if ar.VerifySignatureCallback == nil {
+				return errors.New("reader: verify signature callback not registered")
+			} else if err = ar.VerifySignatureCallback(manifestBuf.Bytes(), sig.Bytes()); err != nil {
 				return errors.Wrap(err, "reader: invalid signature")
 			}
 
 			// verify checksums of version
-			vc, err := manifest.GetChecksum("version")
+			vc, err := mr.GetChecksum("version")
 			if err != nil {
 				return err
 			}
@@ -220,7 +227,7 @@ func (ar *Reader) ReadArtifact() error {
 			}
 			if hSum != nil {
 				// verify checksums of header
-				hc, err := manifest.GetChecksum("header.tar.gz")
+				hc, err := mr.GetChecksum("header.tar.gz")
 				if err != nil {
 					return err
 				}

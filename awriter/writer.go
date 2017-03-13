@@ -16,6 +16,7 @@ package awriter
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"io"
 	"io/ioutil"
@@ -31,7 +32,7 @@ import (
 // the Mender client and the server.
 type Writer struct {
 	w      io.Writer // underlying writer
-	signed bool      // determine if artifact should be signed or no
+	signer artifact.Signer
 }
 
 func NewWriter(w io.Writer) *Writer {
@@ -40,10 +41,10 @@ func NewWriter(w io.Writer) *Writer {
 	}
 }
 
-func NewWriterSigned(w io.Writer) *Writer {
+func NewWriterSigned(w io.Writer, s artifact.Signer) *Writer {
 	return &Writer{
 		w:      w,
-		signed: true,
+		signer: s,
 	}
 }
 
@@ -60,7 +61,8 @@ func (aw *Writer) WriteArtifact(format string, version int,
 	tw := tar.NewWriter(aw.w)
 	defer tw.Close()
 
-	mw := artifact.NewTarWriterManifest(tw)
+	manifestBuf := bytes.NewBuffer(nil)
+	mw := artifact.NewWriterManifest(manifestBuf)
 
 	// calculate checksums of all data files
 	// we need this regardless of which artifact version we are writing
@@ -96,7 +98,7 @@ func (aw *Writer) WriteArtifact(format string, version int,
 		return ch, nil
 	}(); err != nil {
 		return err
-	} else if aw.signed {
+	} else if aw.signer != nil {
 		mw.AddChecksum("header.tar.gz", hChecksum.Checksum())
 	}
 
@@ -107,7 +109,7 @@ func (aw *Writer) WriteArtifact(format string, version int,
 		return errors.Wrapf(err, "writer: can not write version tar header")
 	}
 
-	if aw.signed {
+	if aw.signer != nil {
 		ch := artifact.NewWriterChecksum(ioutil.Discard)
 		ch.Write(inf)
 		mw.AddChecksum("version", ch.Checksum())
@@ -116,13 +118,17 @@ func (aw *Writer) WriteArtifact(format string, version int,
 	switch version {
 	case 2:
 		// write manifest file
-		if err := mw.WriteAll("2.0", "manifest"); err != nil {
+		if err := mw.WriteAll("2.0"); err != nil {
+			return errors.Wrapf(err, "writer: can not buffer manifest stream")
+		}
+		sw := artifact.NewTarWriterStream(tw)
+		if err := sw.Write(manifestBuf.Bytes(), "manifest"); err != nil {
 			return errors.Wrapf(err, "writer: can not write manifest stream")
 		}
 
-		if aw.signed {
+		if aw.signer != nil {
 			// write signature
-			sig, err := artifact.Sign()
+			sig, err := aw.signer.Sign(manifestBuf.Bytes())
 			if err != nil {
 				return errors.Wrap(err, "writer: can not sign artifact")
 			}

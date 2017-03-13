@@ -26,13 +26,11 @@ import (
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/stretchr/testify/assert"
-
-	. "github.com/mendersoftware/mender-artifact/test_utils"
 )
 
 func WriteRootfsImageArchive(dir string, version int, signed bool) error {
-	if err := MakeFakeUpdateDir(dir,
-		[]TestDirEntry{
+	if err := artifact.MakeFakeUpdateDir(dir,
+		[]artifact.TestDirEntry{
 			{
 				Path:    "update.ext4",
 				Content: []byte("my first update"),
@@ -52,7 +50,7 @@ func WriteRootfsImageArchive(dir string, version int, signed bool) error {
 	if !signed {
 		aw = awriter.NewWriter(f)
 	} else {
-		aw = awriter.NewWriterSigned(f)
+		aw = awriter.NewWriterSigned(f, new(artifact.DummySigner))
 	}
 	var u artifact.Composer
 	switch version {
@@ -183,6 +181,9 @@ func TestReadArtifactSignedV2(t *testing.T) {
 		return cErr
 	}
 	aReader.RegisterHandler(h)
+
+	v := new(artifact.DummySigner)
+	aReader.VerifySignatureCallback = v.Verify
 
 	err = aReader.ReadArtifact()
 	assert.NoError(t, err)

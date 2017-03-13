@@ -88,7 +88,7 @@ func TestWriteMultipleUpdates(t *testing.T) {
 
 func TestWriteArtifactV2(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
-	w := NewWriterSigned(buf)
+	w := NewWriterSigned(buf, new(artifact.DummySigner))
 
 	df, _ := ioutil.TempFile("", "update_data")
 	defer os.Remove(df.Name())

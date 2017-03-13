@@ -15,7 +15,6 @@
 package artifact
 
 import (
-	"archive/tar"
 	"bufio"
 	"fmt"
 	"io"
@@ -28,13 +27,13 @@ import (
 type Manifest struct {
 	sums map[string]([]byte)
 
-	r  *bufio.Reader
-	tw *tar.Writer
+	r *bufio.Reader
+	w *bufio.Writer
 }
 
-func NewTarWriterManifest(tw *tar.Writer) *Manifest {
+func NewWriterManifest(w io.Writer) *Manifest {
 	return &Manifest{
-		tw:   tw,
+		w:    bufio.NewWriter(w),
 		sums: make(map[string]([]byte), 4),
 	}
 }
@@ -79,27 +78,17 @@ func (m *Manifest) GetChecksum(file string) ([]byte, error) {
 	return sum, nil
 }
 
-func (m *Manifest) WriteAll(version, archivePath string) error {
-	buf := bufio.NewWriter(m.tw)
-	if _, err := buf.WriteString(
+func (m *Manifest) WriteAll(version string) error {
+	if _, err := m.w.WriteString(
 		fmt.Sprintf("Version: %s\nDate: %s\nSHA256:\n", version, time.Now())); err != nil {
 		return errors.Wrap(err, "manifest: can not write manifest file")
 	}
 	for k, v := range m.sums {
-		if _, err := buf.WriteString(fmt.Sprintf(" %s %s\n", v, k)); err != nil {
+		if _, err := m.w.WriteString(fmt.Sprintf(" %s %s\n", v, k)); err != nil {
 			return errors.Wrap(err, "manifest: can not write manifest file")
 		}
 	}
-
-	hdr := &tar.Header{
-		Name: archivePath,
-		Mode: 0600,
-		Size: int64(buf.Buffered()),
-	}
-	if err := m.tw.WriteHeader(hdr); err != nil {
-		return errors.Wrapf(err, "manifest: can not write stream header")
-	}
-	err := buf.Flush()
+	err := m.w.Flush()
 	if err != nil {
 		return errors.Wrapf(err, "manifest: can not write stream data")
 	}

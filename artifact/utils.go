@@ -14,22 +14,35 @@
 
 package artifact
 
-type Signer interface {
-	Sign(message []byte) ([]byte, error)
+import (
+	"os"
+	"path"
+)
+
+type TestDirEntry struct {
+	Path    string
+	Content []byte
+	IsDir   bool
 }
 
-type Verifier interface {
-	Verify(message, sig []byte) error
-}
-
-// TODO:
-type DummySigner struct {
-}
-
-func (d *DummySigner) Sign(message []byte) ([]byte, error) {
-	return []byte("fake signature"), nil
-}
-
-func (d *DummySigner) Verify(message, sig []byte) error {
+func MakeFakeUpdateDir(updateDir string, elements []TestDirEntry) error {
+	for _, elem := range elements {
+		if elem.IsDir {
+			if err := os.MkdirAll(path.Join(updateDir, elem.Path), os.ModeDir|os.ModePerm); err != nil {
+				return err
+			}
+		} else {
+			f, err := os.Create(path.Join(updateDir, elem.Path))
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			if len(elem.Content) > 0 {
+				if _, err = f.Write(elem.Content); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	return nil
 }

@@ -117,7 +117,7 @@ func TestValidateFiles(t *testing.T) {
 	}
 }
 
-func MakeFakeUpdateDir(updateDir string, elements []DirEntry) error {
+func MakeUpdateDir(updateDir string, elements []DirEntry) error {
 	for _, elem := range elements {
 		if elem.IsDir {
 			if err := os.MkdirAll(path.Join(updateDir, elem.Path), os.ModeDir|os.ModePerm); err != nil {
@@ -291,7 +291,7 @@ func TestDirectoryStructure(t *testing.T) {
 	for _, tt := range validateTests {
 		updateTestDir, _ := ioutil.TempDir("", "update")
 		defer os.RemoveAll(updateTestDir)
-		err := MakeFakeUpdateDir(updateTestDir, tt.dirContent)
+		err := MakeUpdateDir(updateTestDir, tt.dirContent)
 		assert.NoError(t, err)
 
 		header := testMetadataHeaderFormat
