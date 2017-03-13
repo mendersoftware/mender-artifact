@@ -402,8 +402,7 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
 		return errors.Wrapf(err,
 			"reader: can not find parser for parsing data file [%v]", hdr.Name)
 	}
-
-	return inst.Install(tr)
+	return update.ReadAndInstall(tr, inst)
 }
 
 func (ar *Reader) ReadData() error {

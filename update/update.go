@@ -66,7 +66,7 @@ type Installer interface {
 	GetType() string
 	Copy() Installer
 	SetFromHeader(r io.Reader, name string) error
-	Install(r io.Reader) error
+	Install(r io.Reader, f os.FileInfo) error
 }
 
 // Rootfs handles updates of type 'rootfs-image'. The parser can be
@@ -75,6 +75,8 @@ type Installer interface {
 type Rootfs struct {
 	version int
 	update  *File
+
+	InstallHandler func(io.Reader, *File) error
 
 	no int
 }
@@ -151,26 +153,43 @@ func (rp *Rootfs) SetFromHeader(r io.Reader, path string) error {
 	return nil
 }
 
-func (rfs *Rootfs) Install(r io.Reader) error {
+func ReadAndInstall(r io.Reader, i Installer) error {
 	// each data file is stored in tar.gz format
 	gz, err := gzip.NewReader(r)
 	if err != nil {
-		return errors.Wrapf(err, "reader: can not open gz for reading data")
+		return errors.Wrapf(err, "update: can not open gz for reading data")
 	}
 	defer gz.Close()
 
 	tar := tar.NewReader(gz)
 
-	// we have only one update file in rootfs-image type
-	hdr, err := tar.Next()
-	if err != nil {
-		return errors.Wrapf(err, "parser: error reading archive")
+	for {
+		hdr, err := tar.Next()
+		if err != nil {
+			return errors.Wrapf(err, "update: error reading archive")
+		}
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return errors.Wrap(err, "update: error reading update file header")
+		}
+		if err := i.Install(r, hdr.FileInfo()); i != nil {
+			return errors.Wrapf(err, "update: can not install update: %v", hdr)
+		}
 	}
-	rfs.update.Date = hdr.ModTime
-	rfs.update.Size = hdr.Size
+	return nil
+}
+
+func (rfs *Rootfs) Install(r io.Reader, info os.FileInfo) error {
+	// we have only one update file in rootfs-image type
+	rfs.update.Date = info.ModTime()
+	rfs.update.Size = info.Size()
 
 	// TODO: check checksum
 
+	if rfs.InstallHandler != nil {
+		return rfs.InstallHandler(r, rfs.update)
+	}
 	return nil
 }
 

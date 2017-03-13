@@ -113,7 +113,7 @@ func readArtifact(c *cli.Context) error {
 		fmt.Printf("  Type: '%s'\n", p.GetType())
 		for _, f := range p.GetUpdateFiles() {
 			fmt.Printf("  Files:\n")
-			fmt.Printf("    %s\n", f.Name)
+			fmt.Printf("    name: %s\n", f.Name)
 			fmt.Printf("    size: %d\n", f.Size)
 			fmt.Printf("    modified: %s\n", f.Date)
 		}
