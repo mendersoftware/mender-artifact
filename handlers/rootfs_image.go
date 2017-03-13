@@ -35,8 +35,6 @@ type Rootfs struct {
 	update  *artifact.File
 
 	InstallHandler func(io.Reader, *artifact.File) error
-
-	no int
 }
 
 func NewRootfsV1(updFile string) *Rootfs {
@@ -132,9 +130,9 @@ func (rfs *Rootfs) GetType() string {
 	return "rootfs-image"
 }
 
-func (rfs *Rootfs) ComposeHeader(tw *tar.Writer) error {
+func (rfs *Rootfs) ComposeHeader(tw *tar.Writer, no int) error {
 
-	path := updateHeaderPath(rfs.no)
+	path := updateHeaderPath(no)
 
 	// first store files
 	if err := writeFiles(tw, []string{filepath.Base(rfs.update.Name)},
@@ -157,7 +155,7 @@ func (rfs *Rootfs) ComposeHeader(tw *tar.Writer) error {
 	return nil
 }
 
-func (rfs *Rootfs) ComposeData(tw *tar.Writer) error {
+func (rfs *Rootfs) ComposeData(tw *tar.Writer, no int) error {
 	f, ferr := ioutil.TempFile("", "data")
 	if ferr != nil {
 		return errors.New("update: can not create temporary data file")
@@ -192,7 +190,7 @@ func (rfs *Rootfs) ComposeData(tw *tar.Writer) error {
 	}
 
 	dfw := artifact.NewWriterFile(tw)
-	if err = dfw.WriteHeader(f.Name(), updateDataPath(rfs.no)); err != nil {
+	if err = dfw.WriteHeader(f.Name(), updateDataPath(no)); err != nil {
 		return errors.Wrapf(err, "update: can not tar data header: %v", rfs.update)
 	}
 

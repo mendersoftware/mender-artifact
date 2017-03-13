@@ -82,10 +82,11 @@ func read(aPath string) (*areader.Reader, error) {
 
 	inst := handlers.NewRootfsInstaller()
 	inst.InstallHandler = func(r io.Reader, f *artifact.File) error {
+		// TODO: error
 		io.Copy(ioutil.Discard, r)
 		return nil
 	}
-	ar.RegisterHandler(inst)
+	//ar.RegisterHandler(inst)
 
 	if err = ar.ReadArtifact(); err != nil {
 		return nil, err
@@ -117,13 +118,14 @@ func readArtifact(c *cli.Context) error {
 	fmt.Printf("\nUpdates:\n")
 
 	for k, p := range inst {
-		fmt.Printf("  %04d\n", k)
-		fmt.Printf("  Type: '%s'\n", p.GetType())
+		fmt.Printf("  %04d:\n", k)
+		fmt.Printf("    Type:   %s\n", p.GetType())
 		for _, f := range p.GetUpdateFiles() {
-			fmt.Printf("  Files:\n")
-			fmt.Printf("    name: %s\n", f.Name)
-			fmt.Printf("    size: %d\n", f.Size)
-			fmt.Printf("    modified: %s\n", f.Date)
+			fmt.Printf("    Files:\n")
+			fmt.Printf("      name:     %s\n", f.Name)
+			fmt.Printf("      size:     %d\n", f.Size)
+			fmt.Printf("      modified: %s\n", f.Date)
+			fmt.Printf("      checksum: %s\n", f.Checksum)
 		}
 	}
 	return nil

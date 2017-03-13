@@ -45,8 +45,8 @@ type File struct {
 type Composer interface {
 	GetUpdateFiles() [](*File)
 	GetType() string
-	ComposeHeader(tw *tar.Writer) error
-	ComposeData(tw *tar.Writer) error
+	ComposeHeader(tw *tar.Writer, no int) error
+	ComposeData(tw *tar.Writer, no int) error
 }
 
 type Updates struct {
@@ -57,7 +57,7 @@ type Installer interface {
 	GetUpdateFiles() [](*File)
 	GetType() string
 	Copy() Installer
-	SetFromHeader(r io.Reader, name string) error
+	SetFromHeader(r io.Reader, path string) error
 	Install(r io.Reader, f os.FileInfo) error
 }
 

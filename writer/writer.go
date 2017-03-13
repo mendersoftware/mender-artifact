@@ -26,34 +26,22 @@ import (
 )
 
 // Writer provides on the fly writing of artifacts metadata file used by
-// Mender client and server.
-// Call Write to start writing artifacts file.
+// the Mender client and the server.
 type Writer struct {
-	format            string
-	version           int
-	compatibleDevices []string
-	artifactName      string
-
-	// determine if artifact should be signed or not
-	signed bool
-
-	w io.Writer
+	w      io.Writer // underlying writer
+	signed bool      // determine if artifact should be signed or no
 }
 
 func NewWriter(w io.Writer) *Writer {
 	return &Writer{
-		format:  "mender",
-		version: 1,
-		w:       w,
+		w: w,
 	}
 }
 
 func NewWriterSigned(w io.Writer) *Writer {
 	return &Writer{
-		format:  "mender",
-		version: 1,
-		w:       w,
-		signed:  true,
+		w:      w,
+		signed: true,
 	}
 }
 
@@ -171,170 +159,6 @@ func (aw *Writer) WriteArtifact(format string, version int,
 	return nil
 }
 
-// func (av *Writer) write(updates []parser.UpdateData) error {
-// 	av.availableUpdates = updates
-//
-// 	// write temporary header (we need to know the size before storing in tar)
-// 	if err := av.WriteHeader(); err != nil {
-// 		return err
-// 	}
-//
-// 	// archive info
-// 	info := av.getInfo()
-// 	ia := archiver.NewMetadataArchiver(&info, "version")
-// 	if err := ia.Archive(av.aArchiver); err != nil {
-// 		return errors.Wrapf(err, "writer: error archiving info")
-// 	}
-//
-// 	// archive signatures
-// 	if av.signed {
-//
-// 	}
-//
-// 	// archive header
-// 	ha := archiver.NewFileArchiver(av.hTmpFile.Name(), "header.tar.gz")
-// 	if err := ha.Archive(av.aArchiver); err != nil {
-// 		return errors.Wrapf(err, "writer: error archiving header")
-// 	}
-// 	// archive data
-// 	if err := av.WriteData(); err != nil {
-// 		return err
-// 	}
-// 	// we've been storing everything in temporary file
-// 	if err := av.aArchiver.Close(); err != nil {
-// 		return errors.New("writer: error closing archive")
-// 	}
-// 	// prevent from closing archiver twice
-// 	av.aArchiver = nil
-//
-// 	if err := av.aTmpFile.Close(); err != nil {
-// 		return errors.New("writer: error closing archive temporary file")
-// 	}
-// 	return os.Rename(av.aTmpFile.Name(), av.aName)
-// }
-//
-// func (av *Writer) Write(updateDir, atrifactName string) error {
-// 	if err := av.init(atrifactName); err != nil {
-// 		return err
-// 	}
-// 	defer av.deinit()
-//
-// 	updates, err := av.ScanUpdateDirs(updateDir)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	return av.write(updates)
-// }
-//
-// func (av *Writer) WriteKnown(updates []parser.UpdateData, atrifactName string) error {
-// 	if err := av.init(atrifactName); err != nil {
-// 		return err
-// 	}
-// 	defer av.deinit()
-//
-// 	return av.write(updates)
-// }
-
-// // This reads `type-info` file in provided directory location.
-// func getTypeInfo(dir string) (*metadata.TypeInfo, error) {
-// 	iPath := filepath.Join(dir, "type-info")
-// 	f, err := os.Open(iPath)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer f.Close()
-//
-// 	info := new(metadata.TypeInfo)
-// 	_, err = io.Copy(info, f)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-//
-// 	if err = info.Validate(); err != nil {
-// 		return nil, err
-// 	}
-// 	return info, nil
-// }
-//
-// func getDataFiles(dir string) ([]string, error) {
-// 	info, err := os.Stat(dir)
-// 	if os.IsNotExist(err) {
-// 		// we have no data file(s) associated with given header
-// 		return nil, nil
-// 	} else if err != nil {
-// 		return nil, errors.Wrapf(err, "writer: error reading data directory")
-// 	}
-// 	if info.IsDir() {
-// 		updFiles, err := ioutil.ReadDir(dir)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		var updates []string
-// 		for _, f := range updFiles {
-// 			updates = append(updates, filepath.Join(dir, f.Name()))
-// 		}
-// 		return updates, nil
-// 	}
-// 	return nil, errors.New("writer: broken data directory")
-// }
-//
-// func (av *Writer) readDirContent(dir, cur string) (*parser.UpdateData, error) {
-// 	tInfo, err := getTypeInfo(filepath.Join(dir, cur))
-// 	if err != nil {
-// 		return nil, os.ErrInvalid
-// 	}
-// 	p, err := av.ParseManager.GetRegistered(tInfo.Type)
-// 	if err != nil {
-// 		return nil, errors.Wrapf(err, "writer: error finding parser for [%v]", tInfo.Type)
-// 	}
-//
-// 	data, err := getDataFiles(filepath.Join(dir, cur, "data"))
-// 	if err != nil {
-// 		return nil, err
-// 	}
-//
-// 	upd := parser.UpdateData{
-// 		Path:      filepath.Join(dir, cur),
-// 		DataFiles: data,
-// 		Type:      tInfo.Type,
-// 		P:         p,
-// 	}
-// 	return &upd, nil
-// }
-//
-// func (av *Writer) ScanUpdateDirs(dir string) ([]parser.UpdateData, error) {
-// 	// first check  if we have update in current directory
-// 	upd, err := av.readDirContent(dir, "")
-// 	if err == nil {
-// 		return []parser.UpdateData{*upd}, nil
-// 	} else if err != os.ErrInvalid {
-// 		return nil, err
-// 	}
-//
-// 	dirs, err := ioutil.ReadDir(dir)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-//
-// 	updates := make([]parser.UpdateData, 0, len(dirs))
-// 	for _, uDir := range dirs {
-// 		if uDir.IsDir() {
-// 			upd, err := av.readDirContent(dir, uDir.Name())
-// 			if err == os.ErrInvalid {
-// 				continue
-// 			} else if err != nil {
-// 				return nil, err
-// 			}
-// 			updates = append(updates, *upd)
-// 		}
-// 	}
-//
-// 	if len(updates) == 0 {
-// 		return nil, errors.New("writer: no update data detected")
-// 	}
-// 	return updates, nil
-// }
-
 func (aw *Writer) writeHeader(tw *tar.Writer, devices []string, name string,
 	updates *artifact.Updates) error {
 	// store header info
@@ -356,8 +180,8 @@ func (aw *Writer) writeHeader(tw *tar.Writer, devices []string, name string,
 		return errors.New("writer: can not store header-info")
 	}
 
-	for _, upd := range updates.U {
-		if err := upd.ComposeHeader(tw); err != nil {
+	for i, upd := range updates.U {
+		if err := upd.ComposeHeader(tw, i); err != nil {
 			return errors.Wrapf(err, "writer: error processing update directory")
 		}
 	}
@@ -365,8 +189,8 @@ func (aw *Writer) writeHeader(tw *tar.Writer, devices []string, name string,
 }
 
 func (aw *Writer) writeData(tw *tar.Writer, updates *artifact.Updates) error {
-	for _, upd := range updates.U {
-		if err := upd.ComposeData(tw); err != nil {
+	for i, upd := range updates.U {
+		if err := upd.ComposeData(tw, i); err != nil {
 			return errors.Wrapf(err, "writer: error writing data files")
 		}
 	}

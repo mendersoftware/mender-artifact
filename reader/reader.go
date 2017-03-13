@@ -177,7 +177,6 @@ func (ar *Reader) RegisterHandler(handler artifact.Installer) error {
 	return nil
 }
 
-// TODO:
 func (ar *Reader) GetInstallers() map[int]artifact.Installer {
 	return ar.installers
 }
@@ -277,15 +276,13 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType) error {
 			}
 			return errors.New("reader: invalid worker for given update type")
 		}
-
 		// if not just set installer for given update type
 		if w, ok := ar.handlers[update.Type]; ok {
 			ar.installers[i] = w.Copy()
 			continue
 		}
-
 		// if nothing else worked set generic installer for given update
-		ar.installers[i] = handlers.NewGeneric()
+		ar.installers[i] = handlers.NewGeneric(update.Type)
 	}
 	return nil
 }
