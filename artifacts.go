@@ -17,6 +17,8 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 
 	"github.com/mendersoftware/mender-artifact/reader"
@@ -76,7 +78,12 @@ func read(aPath string) (*areader.Reader, error) {
 	if ar == nil {
 		return nil, errors.New("Can not read artifact file.")
 	}
+
 	inst := update.NewRootfsInstaller()
+	inst.InstallHandler = func(r io.Reader, f *update.File) error {
+		io.Copy(ioutil.Discard, r)
+		return nil
+	}
 	ar.RegisterHandler(inst)
 
 	if err = ar.ReadArtifact(); err != nil {

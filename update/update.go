@@ -24,10 +24,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/mendersoftware/mender-artifact/archiver"
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/metadata"
 	"github.com/pkg/errors"
 )
@@ -110,8 +110,9 @@ func NewRootfsInstaller() *Rootfs {
 
 func (rp *Rootfs) Copy() Installer {
 	return &Rootfs{
-		version: rp.version,
-		update:  new(File),
+		version:        rp.version,
+		update:         new(File),
+		InstallHandler: rp.InstallHandler,
 	}
 }
 
@@ -123,6 +124,14 @@ func parseFiles(r io.Reader) (*metadata.Files, error) {
 	return files, nil
 }
 
+func match(pattern, name string) bool {
+	match, err := filepath.Match(pattern, name)
+	if err != nil {
+		return false
+	}
+	return match
+}
+
 func (rp *Rootfs) SetFromHeader(r io.Reader, path string) error {
 	switch {
 	case filepath.Base(path) == "files":
@@ -131,21 +140,20 @@ func (rp *Rootfs) SetFromHeader(r io.Reader, path string) error {
 		if err != nil {
 			return err
 		}
-		// TODO:
 		rp.update.Name = files.FileList[0]
 	case filepath.Base(path) == "type-info":
 		// TODO:
 
 	case filepath.Base(path) == "meta-data":
 		// TODO:
-	case strings.HasPrefix(path, "checksums"):
+	case match(headerDirectory+"/*/checksums/*", path):
 		buf := bytes.NewBuffer(nil)
 		if _, err := io.Copy(buf, r); err != nil {
 			return errors.Wrapf(err, "update: error reading checksum")
 		}
 		rp.update.Checksum = buf.Bytes()
-	case strings.HasPrefix(path, "signatures"):
-	case strings.HasPrefix(path, "scripts"):
+	case match(headerDirectory+"/*/signatres/*", path):
+	case match(headerDirectory+"/*/scripts/*/*", path):
 
 	default:
 		return errors.Errorf("update: unsupported file: %v", path)
@@ -173,7 +181,8 @@ func ReadAndInstall(r io.Reader, i Installer) error {
 		} else if err != nil {
 			return errors.Wrap(err, "update: error reading update file header")
 		}
-		if err := i.Install(r, hdr.FileInfo()); i != nil {
+
+		if err := i.Install(tar, hdr.FileInfo()); i != nil {
 			return errors.Wrapf(err, "update: can not install update: %v", hdr)
 		}
 	}
@@ -185,10 +194,18 @@ func (rfs *Rootfs) Install(r io.Reader, info os.FileInfo) error {
 	rfs.update.Date = info.ModTime()
 	rfs.update.Size = info.Size()
 
-	// TODO: check checksum
+	// check checksum
+	ch := artifact.NewReaderChecksum(r)
 
 	if rfs.InstallHandler != nil {
-		return rfs.InstallHandler(r, rfs.update)
+		if err := rfs.InstallHandler(ch, rfs.update); err != nil {
+			return errors.Wrap(err, "update: can not install")
+		}
+		checksum := ch.Checksum()
+		if bytes.Compare(rfs.update.Checksum, checksum) != 0 {
+			return errors.Errorf("update: invalid data file [%s] checksum (%s) -> (%s)",
+				rfs.update.Name, rfs.update.Checksum, checksum)
+		}
 	}
 	return nil
 }

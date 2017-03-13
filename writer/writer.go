@@ -17,15 +17,12 @@ package awriter
 import (
 	"archive/tar"
 	"compress/gzip"
-	"crypto/sha256"
-	"encoding/hex"
-	"hash"
 	"io"
 	"io/ioutil"
 	"os"
-	"syscall"
 
 	"github.com/mendersoftware/mender-artifact/archiver"
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/metadata"
 	"github.com/mendersoftware/mender-artifact/update"
 	"github.com/pkg/errors"
@@ -63,50 +60,6 @@ func NewWriterSigned(w io.Writer) *Writer {
 	}
 }
 
-type Checksum struct {
-	w io.Writer // underlying writer
-	r io.Reader
-	h hash.Hash
-	c []byte // checksum
-}
-
-func NewWriterChecksum(w io.Writer) *Checksum {
-	h := sha256.New()
-	return &Checksum{
-		w: io.MultiWriter(h, w),
-		h: h,
-	}
-}
-
-func NewReaderChecksum(r io.Reader) *Checksum {
-	h := sha256.New()
-	return &Checksum{
-		r: io.TeeReader(r, h),
-		h: h,
-	}
-}
-
-func (c *Checksum) Write(p []byte) (int, error) {
-	if c.w == nil {
-		return 0, syscall.EBADF
-	}
-	return c.w.Write(p)
-}
-
-func (c *Checksum) Read(p []byte) (int, error) {
-	if c.r == nil {
-		return 0, syscall.EBADF
-	}
-	return c.r.Read(p)
-}
-
-func (c *Checksum) Checksum() []byte {
-	sum := c.h.Sum(nil)
-	checksum := make([]byte, hex.EncodedLen(len(sum)))
-	hex.Encode(checksum, c.h.Sum(nil))
-	return checksum
-}
-
 func (aw *Writer) WriteArtifact(format string, version int,
 	devices []string, name string, upd *update.Updates) error {
 
@@ -123,7 +76,7 @@ func (aw *Writer) WriteArtifact(format string, version int,
 	for _, u := range upd.U {
 
 		for _, f := range u.GetUpdateFiles() {
-			ch := NewWriterChecksum(ioutil.Discard)
+			ch := artifact.NewWriterChecksum(ioutil.Discard)
 			df, err := os.Open(f.Name)
 			if err != nil {
 				return errors.Wrapf(err, "writer: can not open data file: %v", f)
@@ -139,8 +92,8 @@ func (aw *Writer) WriteArtifact(format string, version int,
 	}
 
 	// write temporary header (we need to know the size before storing in tar)
-	if hChecksum, err := func() (*Checksum, error) {
-		ch := NewWriterChecksum(f)
+	if hChecksum, err := func() (*artifact.Checksum, error) {
+		ch := artifact.NewWriterChecksum(f)
 		gz := gzip.NewWriter(ch)
 		defer gz.Close()
 
@@ -167,7 +120,7 @@ func (aw *Writer) WriteArtifact(format string, version int,
 	var ch io.Writer
 	// only calculate version checksum if artifact must be signed
 	if aw.signed {
-		ch = NewWriterChecksum(tw)
+		ch = artifact.NewWriterChecksum(tw)
 	} else {
 		ch = tw
 	}
@@ -181,7 +134,7 @@ func (aw *Writer) WriteArtifact(format string, version int,
 	}
 
 	if aw.signed {
-		checksums["version"] = ch.(*Checksum).Checksum()
+		checksums["version"] = ch.(*artifact.Checksum).Checksum()
 	}
 
 	switch version {

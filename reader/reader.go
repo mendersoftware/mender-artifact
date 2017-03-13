@@ -28,8 +28,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/metadata"
 	"github.com/mendersoftware/mender-artifact/update"
 	"github.com/pkg/errors"
@@ -113,7 +113,7 @@ func (ar *Reader) ReadHeader() error {
 	defer gz.Close()
 
 	var tr *tar.Reader
-	ch := NewReaderChecksum(gz)
+	ch := artifact.NewReaderChecksum(gz)
 
 	// If artifact is signed we need to calculate header checksum to be
 	// able to validate it later.
@@ -168,50 +168,6 @@ func readVersion(tr *tar.Reader) (*metadata.Info, []byte, error) {
 		return nil, nil, err
 	}
 	return info, sum, nil
-}
-
-type Checksum struct {
-	w io.Writer // underlying writer
-	r io.Reader
-	h hash.Hash
-	c []byte // checksum
-}
-
-func NewWriterChecksum(w io.Writer) *Checksum {
-	h := sha256.New()
-	return &Checksum{
-		w: io.MultiWriter(h, w),
-		h: h,
-	}
-}
-
-func NewReaderChecksum(r io.Reader) *Checksum {
-	h := sha256.New()
-	return &Checksum{
-		r: io.TeeReader(r, h),
-		h: h,
-	}
-}
-
-func (c *Checksum) Write(p []byte) (int, error) {
-	if c.w == nil {
-		return 0, syscall.EBADF
-	}
-	return c.w.Write(p)
-}
-
-func (c *Checksum) Read(p []byte) (int, error) {
-	if c.r == nil {
-		return 0, syscall.EBADF
-	}
-	return c.r.Read(p)
-}
-
-func (c *Checksum) Checksum() []byte {
-	sum := c.h.Sum(nil)
-	checksum := make([]byte, hex.EncodedLen(len(sum)))
-	hex.Encode(checksum, c.h.Sum(nil))
-	return checksum
 }
 
 func (ar *Reader) RegisterHandler(handler update.Installer) error {
@@ -329,19 +285,9 @@ func (ar *Reader) setInstallers(upd []metadata.UpdateType) error {
 			continue
 		}
 
+		// TODO:
 		// if nothing else worked set generic installer for given update
 		//ar.installers[i] =
-
-		// par, err := p.GetRegistered(update.Type)
-		// if err != nil {
-		// 	// if there is no registered one; check if we can use generic
-		// 	par = p.GetGeneric(update.Type)
-		// 	if par == nil {
-		// 		return errors.Wrapf(err,
-		// 			"reader: can not find parser for update type: [%v]", update.Type)
-		// 	}
-		// }
-		// p.PushWorker(par, fmt.Sprintf("%04d", cnt))
 	}
 	return nil
 }
@@ -379,7 +325,9 @@ func (ar *Reader) readHeader(tr *tar.Reader) error {
 		if !ok {
 			return errors.Errorf("reader: can not find parser for update: %v", hdr.Name)
 		}
-		return inst.SetFromHeader(tr, hdr.Name)
+		if err := inst.SetFromHeader(tr, hdr.Name); err != nil {
+			return errors.Wrap(err, "reader: can not read header")
+		}
 	}
 }
 
