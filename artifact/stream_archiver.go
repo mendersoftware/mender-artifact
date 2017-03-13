@@ -16,9 +16,7 @@ package artifact
 
 import (
 	"archive/tar"
-	"bytes"
 	"encoding/json"
-	"io"
 
 	"github.com/pkg/errors"
 )
@@ -35,22 +33,13 @@ func ToStream(m WriteValidator) []byte {
 }
 
 type StreamArchiver struct {
-	archPath string
-	*bytes.Reader
-	//io.Writer
 	*tar.Writer
 }
 
-// NewStreamArchiver creates streamArchiver used for storing plain text files
-// inside tar archive.
-// data is the plain data that will be stored in archive file
-// archivePath is the relatve path inside the archive (see tar.Header.Name)
-func NewStreamArchiver(data []byte, archivePath string) *StreamArchiver {
-	return &StreamArchiver{archivePath, bytes.NewReader(data), nil}
-}
-
 func NewWriterStream(w *tar.Writer) *StreamArchiver {
-	return &StreamArchiver{"", nil, w}
+	return &StreamArchiver{
+		Writer: w,
+	}
 }
 
 func (str *StreamArchiver) WriteHeader(d []byte,
@@ -62,28 +51,6 @@ func (str *StreamArchiver) WriteHeader(d []byte,
 	}
 	if err := str.Writer.WriteHeader(hdr); err != nil {
 		return errors.Wrapf(err, "arch: can not write header")
-	}
-	return nil
-}
-
-func (str *StreamArchiver) Archive(tw *tar.Writer) error {
-	if len(str.archPath) == 0 || str.Reader == nil {
-		return errors.New("arch: trying to call archive on uninitialized archiver")
-	}
-
-	hdr := &tar.Header{
-		Name: str.archPath,
-		Mode: 0600,
-		Size: int64(str.Len()),
-	}
-
-	if err := tw.WriteHeader(hdr); err != nil {
-		return errors.Wrapf(err, "arch: can not write header")
-	}
-
-	_, err := io.Copy(tw, str.Reader)
-	if err != nil {
-		return errors.Wrapf(err, "arch: can not write body")
 	}
 	return nil
 }

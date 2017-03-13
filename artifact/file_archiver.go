@@ -16,26 +16,13 @@ package artifact
 
 import (
 	"archive/tar"
-	"io"
 	"os"
 
 	"github.com/pkg/errors"
 )
 
 type FileArchiver struct {
-	path        string
-	archivePath string
-	//*os.File
-
 	*tar.Writer
-}
-
-// NewFileArchiver creates fileArchiver used for storing plain files
-// inside tar archive.
-// path is the absolute path to the file that will be archived and
-// archivePath is the relatve path inside the archive (see tar.Header.Name)
-func NewFileArchiver(path, archivePath string) *FileArchiver {
-	return &FileArchiver{path, archivePath, nil}
 }
 
 func NewWriterFile(tw *tar.Writer) *FileArchiver {
@@ -57,34 +44,6 @@ func (fa *FileArchiver) WriteHeader(f string, archivePath string) error {
 	hdr.Name = archivePath
 	if err = fa.Writer.WriteHeader(hdr); err != nil {
 		return errors.Wrapf(err, "arch: error writing header")
-	}
-	return nil
-}
-
-func (f *FileArchiver) Archive(tw *tar.Writer) error {
-	info, err := os.Stat(f.path)
-	if err != nil {
-		return err
-	}
-	hdr, err := tar.FileInfoHeader(info, "")
-	if err != nil {
-		return errors.Wrapf(err, "arch: invalid file info header")
-	}
-
-	fd, err := os.Open(f.path)
-	if err != nil {
-		return errors.Wrapf(err, "arch: can not open file")
-	}
-	defer fd.Close()
-
-	hdr.Name = f.archivePath
-	if err = tw.WriteHeader(hdr); err != nil {
-		return errors.Wrapf(err, "arch: error writing header")
-	}
-
-	_, err = io.Copy(tw, fd)
-	if err != nil {
-		return errors.Wrapf(err, "arch: error writing archive data")
 	}
 	return nil
 }
