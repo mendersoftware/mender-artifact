@@ -16,13 +16,8 @@ package areader
 
 import (
 	"archive/tar"
-	"bufio"
 	"bytes"
 	"compress/gzip"
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
-	"hash"
 	"io"
 	"os"
 	"path/filepath"
@@ -61,71 +56,28 @@ func (ar *Reader) isSigned() bool {
 	return ar.signed
 }
 
-// TODO: implement me
-func verifySignature(sig []byte) error {
-	return nil
-}
+func (ar *Reader) ReadHeader() ([]byte, error) {
 
-type checksums map[string]([]byte)
-
-func readChecksums(r *tar.Reader) (checksums, []byte, error) {
-	buf := bytes.NewBuffer(nil)
-
-	sum, err := readNextWithChecksum(r, buf, "checksums")
-	if err != nil {
-		return nil, nil, err
+	var r io.Reader
+	if ar.isSigned() {
+		// If artifact is signed we need to calculate header checksum to be
+		// able to validate it later.
+		r = artifact.NewReaderChecksum(ar.tReader)
+	} else {
+		r = ar.tReader
 	}
-
-	// we should have at least version, checksums, header and data files
-	chs := make(checksums, 4)
-
-	s := bufio.NewScanner(buf)
-	for s.Scan() {
-		l := strings.Split(s.Text(), " ")
-		if len(l) != 2 {
-			return nil, nil, errors.New("")
-		}
-		// add element to map
-		chs[l[0]] = []byte(l[1])
-	}
-
-	if err := s.Err(); err != nil {
-		return nil, nil, err
-	}
-	return chs, sum, nil
-}
-
-func (ar *Reader) ReadHeader() error {
-	hdr, err := getNext(ar.tReader)
-	if err != nil {
-		return errors.New("reader: error reading header")
-	}
-	if !strings.HasPrefix(hdr.Name, "header.tar.") {
-		return errors.New("reader: invalid header name or elemet out of order")
-	}
-
 	// header MUST be compressed
-	gz, err := gzip.NewReader(ar.tReader)
+	gz, err := gzip.NewReader(r)
 	if err != nil {
-		return errors.Wrapf(err, "reader: error opening compressed header")
+		return nil, errors.Wrapf(err, "reader: error opening compressed header")
 	}
 	defer gz.Close()
-
-	var tr *tar.Reader
-	ch := artifact.NewReaderChecksum(gz)
-
-	// If artifact is signed we need to calculate header checksum to be
-	// able to validate it later.
-	if ar.isSigned() {
-		tr = tar.NewReader(ch)
-	} else {
-		tr = tar.NewReader(gz)
-	}
+	tr := tar.NewReader(gz)
 
 	// first part of header must always be header-info
 	hInfo := new(artifact.HeaderInfo)
 	if err = readNext(tr, hInfo, "header-info"); err != nil {
-		return err
+		return nil, err
 	}
 	// TODO:
 	ar.hInfo = hInfo
@@ -133,29 +85,27 @@ func (ar *Reader) ReadHeader() error {
 	// after reading header-info we can check device compatibility
 	if ar.CompatibleDevicesCallback != nil {
 		if err = ar.CompatibleDevicesCallback(hInfo.CompatibleDevices); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	// Next step is setting correct installers based on update types being
 	// part of the artifact.
 	if err = ar.setInstallers(hInfo.Updates); err != nil {
-		return err
+		return nil, err
 	}
 
 	// At the end read rest of the header using correct installers.
 	if err := ar.readHeader(tr); err != nil {
-		return err
+		return nil, err
 	}
 
 	// calculate whole header checksum
 	if ar.isSigned() {
-		sum := ch.Checksum()
-		// TODO:
-		fmt.Printf("have sum: %s\n", sum)
+		sum := r.(*artifact.Checksum).Checksum()
+		return sum, nil
 	}
-
-	return nil
+	return nil, nil
 }
 
 func readVersion(tr *tar.Reader) (*artifact.Info, []byte, error) {
@@ -183,10 +133,11 @@ func (ar *Reader) GetInstallers() map[int]artifact.Installer {
 
 func (ar *Reader) ReadArtifact() error {
 	// each artifact is tar archive
+	// TODO: do we need ar.tReader
 	ar.tReader = tar.NewReader(ar.r)
 
 	// first file inside the artifact MUST be version
-	ver, _, err := readVersion(ar.tReader)
+	ver, vsum, err := readVersion(ar.tReader)
 	if err != nil {
 		return err
 	}
@@ -194,21 +145,33 @@ func (ar *Reader) ReadArtifact() error {
 
 	switch ver.Version {
 	case 1:
-		if err = ar.ReadHeader(); err != nil {
+		hdr, err := getNext(ar.tReader)
+		if err != nil {
+			return errors.New("reader: error reading header")
+		}
+		if !strings.HasPrefix(hdr.Name, "header.tar.") {
+			return errors.Errorf("reader: invalid header element: %v", hdr.Name)
+		}
+
+		if _, err = ar.ReadHeader(); err != nil {
 			return err
 		}
 
 	case 2:
 		// first file after version MUST contains all the checksums
-		//chcksums, sum, err := readChecksums(ar.tReader)
-		_, _, err := readChecksums(ar.tReader)
-		if err != nil {
-			return err
+		hdr, err := getNext(ar.tReader)
+		if err != nil || hdr.Name != "manifest" {
+			return errors.Wrapf(err, "reader: error reading manifest header")
+		}
+
+		manifest := artifact.NewReaderManifest(ar.tReader)
+		if err := manifest.ReadAll(); err != nil {
+			return errors.Wrap(err, "reader: can not read manifest")
 		}
 
 		// check what is the next file in the artifact
 		// depending if artifact is signed or not we can have header or signature
-		hdr, err := getNext(ar.tReader)
+		hdr, err = getNext(ar.tReader)
 		if err != nil {
 			return errors.Wrapf(err, "reader: error reading file after checksums")
 		}
@@ -221,23 +184,50 @@ func (ar *Reader) ReadArtifact() error {
 
 			// first read signature...
 			sig := bytes.NewBuffer(nil)
-			if err = readNext(ar.tReader, sig, "signature"); err != nil {
+			if _, err := io.Copy(sig, ar.tReader); err != nil {
 				return errors.Wrapf(err, "reader: can not read signature file")
 			}
 
-			// here we can varify signature and the checksum of header
-			if err = verifySignature(sig.Bytes()); err != nil {
-				return err
+			// verify signature
+			if err = artifact.VerifySignature(sig.Bytes()); err != nil {
+				return errors.Wrap(err, "reader: invalid signature")
 			}
 
-			// verify checksums of the checksums file and the header
+			// verify checksums of version
+			vc, err := manifest.GetChecksum("version")
+			if err != nil {
+				return err
+			}
+			if bytes.Compare(vc, vsum) != 0 {
+				return errors.Errorf("reader: invalid 'version' checksum [%s]:[%s]",
+					vc, vsum)
+			}
 
 			// ...and then header
+			hdr, err := getNext(ar.tReader)
+			if err != nil {
+				return errors.New("reader: error reading header")
+			}
+			if !strings.HasPrefix(hdr.Name, "header.tar.") {
+				return errors.Errorf("reader: invalid header element: %v", hdr.Name)
+			}
 			fallthrough
 
 		case strings.HasPrefix(fName, "header.tar."):
-			if err = ar.ReadHeader(); err != nil {
+			hSum, err := ar.ReadHeader()
+			if err != nil {
 				return err
+			}
+			if hSum != nil {
+				// verify checksums of header
+				hc, err := manifest.GetChecksum("header.tar.gz")
+				if err != nil {
+					return err
+				}
+				if bytes.Compare(hc, hSum) != 0 {
+					return errors.Errorf("reader: invalid 'version' checksum [%s]:[%s]",
+						hc, hSum)
+				}
 			}
 
 		default:
@@ -360,6 +350,7 @@ func (ar *Reader) ReadData() error {
 	return nil
 }
 
+// TODO: refactor
 func readNext(tr *tar.Reader, w io.Writer, elem string) error {
 	_, err := readNextElem(tr, w, elem, false)
 	return err
@@ -380,25 +371,19 @@ func readNextElem(tr *tar.Reader, w io.Writer, elem string,
 		return nil, err
 	}
 	if strings.HasPrefix(hdr.Name, elem) {
-		var h hash.Hash
+		var ch io.Reader
 		if getSum {
-			h = sha256.New()
-			// use tee reader to pass read data for checksum calculation
-			teer := io.TeeReader(tr, h)
-			_, err = io.Copy(w, teer)
+			ch = artifact.NewReaderChecksum(tr)
 		} else {
-			_, err = io.Copy(w, tr)
+			ch = tr
 		}
 
-		if err != nil {
+		if _, err := io.Copy(w, ch); err != nil {
 			return nil, errors.Wrapf(err, "reader: error reading")
 		}
 
 		if getSum {
-			sum := h.Sum(nil)
-			hSum := make([]byte, hex.EncodedLen(len(sum)))
-			hex.Encode(hSum, h.Sum(nil))
-			return hSum, nil
+			return ch.(*artifact.Checksum).Checksum(), nil
 		}
 		return nil, nil
 	}

@@ -16,6 +16,7 @@ package artifact
 
 import (
 	"archive/tar"
+	"io"
 	"os"
 
 	"github.com/pkg/errors"
@@ -25,15 +26,15 @@ type FileArchiver struct {
 	*tar.Writer
 }
 
-func NewWriterFile(tw *tar.Writer) *FileArchiver {
+func NewTarWriterFile(tw *tar.Writer) *FileArchiver {
 	w := FileArchiver{
 		Writer: tw,
 	}
 	return &w
 }
 
-func (fa *FileArchiver) WriteHeader(f string, archivePath string) error {
-	info, err := os.Stat(f)
+func (fa *FileArchiver) Write(f *os.File, archivePath string) error {
+	info, err := f.Stat()
 	if err != nil {
 		return err
 	}
@@ -44,6 +45,10 @@ func (fa *FileArchiver) WriteHeader(f string, archivePath string) error {
 	hdr.Name = archivePath
 	if err = fa.Writer.WriteHeader(hdr); err != nil {
 		return errors.Wrapf(err, "arch: error writing header")
+	}
+
+	if _, err := io.Copy(fa.Writer, f); err != nil {
+		return errors.Wrapf(err, "writer: can not tar header")
 	}
 	return nil
 }

@@ -169,18 +169,16 @@ func (rfs *Rootfs) ComposeData(tw *tar.Writer, no int) error {
 		tarw := tar.NewWriter(gz)
 		defer tarw.Close()
 
-		fw := artifact.NewWriterFile(tarw)
-
-		if err := fw.WriteHeader(rfs.update.Name,
-			filepath.Base(rfs.update.Name)); err != nil {
-			return errors.Wrapf(err, "update: can not tar temp data header: %v", rfs.update)
-		}
 		df, err := os.Open(rfs.update.Name)
 		if err != nil {
 			return errors.Wrapf(err, "update: can not open data file: %v", rfs.update)
 		}
-		if _, err := io.Copy(fw, df); err != nil {
-			return errors.Wrapf(err, "update: can not store temp data file: %v", rfs.update)
+		defer df.Close()
+
+		fw := artifact.NewTarWriterFile(tarw)
+		if err := fw.Write(df, filepath.Base(rfs.update.Name)); err != nil {
+			return errors.Wrapf(err,
+				"update: can not tar temp data header: %v", rfs.update)
 		}
 		return nil
 	}()
@@ -189,17 +187,13 @@ func (rfs *Rootfs) ComposeData(tw *tar.Writer, no int) error {
 		return err
 	}
 
-	dfw := artifact.NewWriterFile(tw)
-	if err = dfw.WriteHeader(f.Name(), updateDataPath(no)); err != nil {
-		return errors.Wrapf(err, "update: can not tar data header: %v", rfs.update)
-	}
-
 	if _, err = f.Seek(0, 0); err != nil {
 		return errors.Wrapf(err, "update: can not read data file: %v", rfs.update)
 	}
-	if _, err := io.Copy(dfw, f); err != nil {
-		return errors.Wrapf(err, "update: can not store data file: %v", rfs.update)
-	}
 
+	dfw := artifact.NewTarWriterFile(tw)
+	if err = dfw.Write(f, updateDataPath(no)); err != nil {
+		return errors.Wrapf(err, "update: can not tar data header: %v", rfs.update)
+	}
 	return nil
 }

@@ -30,7 +30,7 @@ import (
 	. "github.com/mendersoftware/mender-artifact/test_utils"
 )
 
-func WriteRootfsImageArchive(dir string) error {
+func WriteRootfsImageArchive(dir string, version int, signed bool) error {
 	if err := MakeFakeUpdateDir(dir,
 		[]TestDirEntry{
 			{
@@ -48,19 +48,120 @@ func WriteRootfsImageArchive(dir string) error {
 	}
 	defer f.Close()
 
-	aw := awriter.NewWriter(f)
-	u := handlers.NewRootfsV1(filepath.Join(dir, "update.ext4"))
+	var aw *awriter.Writer
+	if !signed {
+		aw = awriter.NewWriter(f)
+	} else {
+		aw = awriter.NewWriterSigned(f)
+	}
+	var u artifact.Composer
+	switch version {
+	case 1:
+		u = handlers.NewRootfsV1(filepath.Join(dir, "update.ext4"))
+	case 2:
+		u = handlers.NewRootfsV1(filepath.Join(dir, "update.ext4"))
+	}
 	updates := &artifact.Updates{U: []artifact.Composer{u}}
-	return aw.WriteArtifact("mender", 1, []string{"vexpress"},
+	return aw.WriteArtifact("mender", version, []string{"vexpress"},
 		"mender-1.1", updates)
 }
 
-func TestReadArchive(t *testing.T) {
+func TestReadArtifact(t *testing.T) {
 	// first create archive, that we will be able to read
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	err := WriteRootfsImageArchive(updateTestDir)
+	err := WriteRootfsImageArchive(updateTestDir, 1, false)
+	assert.NoError(t, err)
+
+	// open archive file
+	f, err := os.Open(filepath.Join(updateTestDir, "artifact.mender"))
+	assert.NoError(t, err)
+	assert.NotNil(t, f)
+
+	defer f.Close()
+
+	// open file to write data to
+	df, err := os.Create(path.Join(updateTestDir, "my_update"))
+	assert.NoError(t, err)
+
+	aReader := NewReader(f)
+
+	h := handlers.NewRootfsInstaller()
+	h.InstallHandler = func(r io.Reader, f *artifact.File) error {
+		_, cErr := io.Copy(df, r)
+		return cErr
+	}
+	aReader.RegisterHandler(h)
+
+	err = aReader.ReadArtifact()
+	assert.NoError(t, err)
+
+	df.Close()
+	inst := aReader.GetInstallers()
+	assert.Len(t, inst, 1)
+	_, ok := inst[0].(*handlers.Rootfs)
+	assert.True(t, ok)
+	assert.Len(t, aReader.GetCompatibleDevices(), 1)
+	assert.Equal(t, "vexpress", aReader.GetCompatibleDevices()[0])
+
+	data, err := ioutil.ReadFile(path.Join(updateTestDir, "my_update"))
+	assert.NoError(t, err)
+	assert.Equal(t, "my first update", string(data))
+	assert.Equal(t, "vexpress", aReader.GetCompatibleDevices()[0])
+}
+
+func TestReadArtifactV2(t *testing.T) {
+	// first create archive, that we will be able to read
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	err := WriteRootfsImageArchive(updateTestDir, 2, false)
+	assert.NoError(t, err)
+
+	// open archive file
+	f, err := os.Open(filepath.Join(updateTestDir, "artifact.mender"))
+	assert.NoError(t, err)
+	assert.NotNil(t, f)
+
+	defer f.Close()
+
+	// open file to write data to
+	df, err := os.Create(path.Join(updateTestDir, "my_update"))
+	assert.NoError(t, err)
+
+	aReader := NewReader(f)
+
+	h := handlers.NewRootfsInstaller()
+	h.InstallHandler = func(r io.Reader, f *artifact.File) error {
+		_, cErr := io.Copy(df, r)
+		return cErr
+	}
+	aReader.RegisterHandler(h)
+
+	err = aReader.ReadArtifact()
+	assert.NoError(t, err)
+
+	df.Close()
+	inst := aReader.GetInstallers()
+	assert.Len(t, inst, 1)
+	_, ok := inst[0].(*handlers.Rootfs)
+	assert.True(t, ok)
+	assert.Len(t, aReader.GetCompatibleDevices(), 1)
+	assert.Equal(t, "vexpress", aReader.GetCompatibleDevices()[0])
+
+	data, err := ioutil.ReadFile(path.Join(updateTestDir, "my_update"))
+	assert.NoError(t, err)
+	assert.Equal(t, "my first update", string(data))
+	assert.Equal(t, "vexpress", aReader.GetCompatibleDevices()[0])
+}
+
+func TestReadArtifactSignedV2(t *testing.T) {
+	// first create archive, that we will be able to read
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	err := WriteRootfsImageArchive(updateTestDir, 2, true)
 	assert.NoError(t, err)
 
 	// open archive file

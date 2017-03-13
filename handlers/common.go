@@ -29,6 +29,10 @@ func updateHeaderPath(no int) string {
 	return filepath.Join(artifact.HeaderDirectory, fmt.Sprintf("%04d", no))
 }
 
+func UpdatePath(no int) string {
+	return fmt.Sprintf("%04d", no)
+}
+
 func updateDataPath(no int) string {
 	return filepath.Join(artifact.DataDirectory, fmt.Sprintf("%04d.tar.gz", no))
 }
@@ -54,13 +58,11 @@ func writeFiles(tw *tar.Writer, updFiles []string, dir string) error {
 	for _, u := range updFiles {
 		files.FileList = append(files.FileList, u)
 	}
-	fs := artifact.ToStream(files)
-	sa := artifact.NewWriterStream(tw)
-	if err := sa.WriteHeader(fs, filepath.Join(dir, "files")); err != nil {
+
+	sa := artifact.NewTarWriterStream(tw)
+	if err := sa.Write(artifact.ToStream(files),
+		filepath.Join(dir, "files")); err != nil {
 		return errors.Wrapf(err, "writer: can not tar files")
-	}
-	if n, err := sa.Write(fs); err != nil || n != len(fs) {
-		return errors.New("writer: can not store files")
 	}
 	return nil
 }
@@ -72,25 +74,19 @@ func writeTypeInfo(tw *tar.Writer, updateType string, dir string) error {
 		return errors.Wrapf(err, "update: can not create type-info")
 	}
 
-	w := artifact.NewWriterStream(tw)
-	if err := w.WriteHeader(info, filepath.Join(dir, "type-info")); err != nil {
+	w := artifact.NewTarWriterStream(tw)
+	if err := w.Write(info, filepath.Join(dir, "type-info")); err != nil {
 		return errors.Wrapf(err, "update: can not tar type-info")
-	}
-	if n, err := w.Write(info); err != nil || n != len(info) {
-		return errors.New("update: can not store type-info")
 	}
 	return nil
 }
 
 func writeChecksums(tw *tar.Writer, files [](*artifact.File), dir string) error {
 	for _, f := range files {
-		w := artifact.NewWriterStream(tw)
-		if err := w.WriteHeader(f.Checksum,
+		w := artifact.NewTarWriterStream(tw)
+		if err := w.Write(f.Checksum,
 			filepath.Join(dir, filepath.Base(f.Name)+".sha256sum")); err != nil {
 			return errors.Wrapf(err, "update: can not tar checksum for %v", f)
-		}
-		if n, err := w.Write(f.Checksum); err != nil || n != len(f.Checksum) {
-			return errors.Wrapf(err, "update: can not store checksum for: %v", f)
 		}
 	}
 	return nil

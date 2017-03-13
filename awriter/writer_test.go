@@ -35,7 +35,8 @@ func TestWriteArtifact(t *testing.T) {
 	assert.NoError(t, err)
 
 	f, _ := ioutil.TempFile("", "update")
-	io.Copy(f, buf)
+	_, err = io.Copy(f, buf)
+	assert.NoError(t, err)
 
 	os.Remove(f.Name())
 }
@@ -56,9 +57,10 @@ func TestWriteArtifactWithUpdates(t *testing.T) {
 	assert.NoError(t, err)
 
 	f, _ := ioutil.TempFile("", "update")
-	io.Copy(f, buf)
+	_, err = io.Copy(f, buf)
+	assert.NoError(t, err)
 
-	f.Close()
+	os.Remove(f.Name())
 }
 
 func TestWriteMultipleUpdates(t *testing.T) {
@@ -78,9 +80,32 @@ func TestWriteMultipleUpdates(t *testing.T) {
 	assert.NoError(t, err)
 
 	f, _ := ioutil.TempFile("", "update")
-	io.Copy(f, buf)
+	_, err = io.Copy(f, buf)
+	assert.NoError(t, err)
 
-	f.Close()
+	os.Remove(f.Name())
+}
+
+func TestWriteArtifactV2(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	w := NewWriterSigned(buf)
+
+	df, _ := ioutil.TempFile("", "update_data")
+	defer os.Remove(df.Name())
+	df.WriteString("this is a fake update")
+	df.Close()
+
+	u := handlers.NewRootfsV2(df.Name())
+	updates := &artifact.Updates{U: []artifact.Composer{u}}
+
+	err := w.WriteArtifact("mender", 2, []string{"asd"}, "name", updates)
+	assert.NoError(t, err)
+
+	f, _ := ioutil.TempFile("", "update")
+	_, err = io.Copy(f, buf)
+	assert.NoError(t, err)
+
+	//os.Remove(f.Name())
 }
 
 //import . "github.com/mendersoftware/mender-artifact/test_utils"

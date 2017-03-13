@@ -36,21 +36,24 @@ type StreamArchiver struct {
 	*tar.Writer
 }
 
-func NewWriterStream(w *tar.Writer) *StreamArchiver {
+func NewTarWriterStream(w *tar.Writer) *StreamArchiver {
 	return &StreamArchiver{
 		Writer: w,
 	}
 }
 
-func (str *StreamArchiver) WriteHeader(d []byte,
-	archivePath string) error {
+func (str *StreamArchiver) Write(data []byte, archivePath string) error {
 	hdr := &tar.Header{
 		Name: archivePath,
 		Mode: 0600,
-		Size: int64(len(d)),
+		Size: int64(len(data)),
 	}
 	if err := str.Writer.WriteHeader(hdr); err != nil {
-		return errors.Wrapf(err, "arch: can not write header")
+		return errors.Wrapf(err, "arch: can not write stream header")
+	}
+	_, err := str.Writer.Write(data)
+	if err != nil {
+		return errors.Wrapf(err, "arch: can not write stream data")
 	}
 	return nil
 }
