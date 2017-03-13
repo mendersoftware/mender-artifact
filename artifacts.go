@@ -47,12 +47,16 @@ func writeArtifact(c *cli.Context) error {
 	}
 	defer f.Close()
 
+	// TODO:
 	u := update.NewRootfsV1(c.String("update"))
+	upd := &update.Updates{
+		U: []update.Composer{u},
+	}
 
 	aw := awriter.NewWriter(f)
 	//"mender", c.Int("version"), devices, c.String("artifact-name"), false
 	return aw.WriteArtifact("mender", c.Int("version"),
-		devices, c.String("artifact-name"), &update.Updates{u})
+		devices, c.String("artifact-name"), upd)
 }
 
 func read(aPath string) (*areader.Reader, error) {
@@ -68,12 +72,14 @@ func read(aPath string) (*areader.Reader, error) {
 	}
 	defer f.Close()
 
-	ar := areader.NewReader()
+	ar := areader.NewReader(f)
 	if ar == nil {
 		return nil, errors.New("Can not read artifact file.")
 	}
+	inst := update.NewRootfsInstaller()
+	ar.RegisterHandler(inst)
 
-	if err = ar.Read(f); err != nil {
+	if err = ar.ReadArtifact(); err != nil {
 		return nil, err
 	}
 
@@ -91,7 +97,7 @@ func readArtifact(c *cli.Context) error {
 		return err
 	}
 
-	parsers := r.GetWorkers()
+	inst := r.GetInstallers()
 	info := r.GetInfo()
 
 	fmt.Printf("Mender artifact:\n")
@@ -102,9 +108,9 @@ func readArtifact(c *cli.Context) error {
 
 	fmt.Printf("\nUpdates:\n")
 
-	for k, p := range parsers {
-		fmt.Printf("  %s\n", k)
-		fmt.Printf("  Type: '%s'\n", p.GetUpdateType().Type)
+	for k, p := range inst {
+		fmt.Printf("  %04d\n", k)
+		fmt.Printf("  Type: '%s'\n", p.GetType())
 		for _, f := range p.GetUpdateFiles() {
 			fmt.Printf("  Files:\n")
 			fmt.Printf("    %s\n", f.Name)

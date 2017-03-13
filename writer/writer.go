@@ -19,7 +19,6 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"hash"
 	"io"
 	"io/ioutil"
@@ -121,12 +120,7 @@ func (aw *Writer) WriteArtifact(format string, version int,
 	// we need this regardless of which artifact version we are writing
 	checksums := make(map[string]([]byte), 1)
 
-	upd.Reset()
-	for {
-		u, err := upd.Next()
-		if err == io.EOF {
-			break
-		}
+	for _, u := range upd.U {
 
 		for _, f := range u.GetUpdateFiles() {
 			ch := NewWriterChecksum(ioutil.Discard)
@@ -142,7 +136,6 @@ func (aw *Writer) WriteArtifact(format string, version int,
 			// TODO:
 			checksums[f.Name] = ch.Checksum()
 		}
-		fmt.Printf("blah: %v\n\n", err)
 	}
 
 	// write temporary header (we need to know the size before storing in tar)
@@ -397,12 +390,7 @@ func (aw *Writer) writeHeader(tw *tar.Writer, devices []string, name string,
 	// store header info
 	hInfo := new(metadata.HeaderInfo)
 
-	updates.Reset()
-	for {
-		upd, err := updates.Next()
-		if err == io.EOF {
-			break
-		}
+	for _, upd := range updates.U {
 		hInfo.Updates =
 			append(hInfo.Updates, metadata.UpdateType{Type: upd.GetType()})
 	}
@@ -418,12 +406,7 @@ func (aw *Writer) writeHeader(tw *tar.Writer, devices []string, name string,
 		return errors.New("writer: can not store header-info")
 	}
 
-	updates.Reset()
-	for {
-		upd, err := updates.Next()
-		if err == io.EOF {
-			break
-		}
+	for _, upd := range updates.U {
 		if err := upd.ComposeHeader(tw); err != nil {
 			return errors.Wrapf(err, "writer: error processing update directory")
 		}
@@ -432,12 +415,7 @@ func (aw *Writer) writeHeader(tw *tar.Writer, devices []string, name string,
 }
 
 func (aw *Writer) writeData(tw *tar.Writer, updates *update.Updates) error {
-	updates.Reset()
-	for {
-		upd, err := updates.Next()
-		if err == io.EOF {
-			break
-		}
+	for _, upd := range updates.U {
 		if err := upd.ComposeData(tw); err != nil {
 			return errors.Wrapf(err, "writer: error writing data files")
 		}

@@ -58,38 +58,11 @@ type Composer interface {
 }
 
 type Updates struct {
-	no  int
-	upd []Composer
-}
-
-func NewUpdates() *Updates {
-	return &Updates{}
-}
-
-func (u *Updates) Add(update Composer) error {
-	// TODO: set num for given composer
-
-	u.upd = append(u.upd, update)
-	return nil
-}
-
-func (u *Updates) Next() (Composer, error) {
-	fmt.Printf("have update: [%v] %d\n", u.upd, u.no)
-	if u.upd == nil {
-		return nil, io.EOF
-	}
-	if len(u.upd) > u.no {
-		defer func() { u.no++ }()
-		return u.upd[u.no], nil
-	}
-	return nil, io.EOF
-}
-
-func (u *Updates) Reset() {
-	u.no = 0
+	U []Composer
 }
 
 type Installer interface {
+	GetUpdateFiles() [](*File)
 	GetType() string
 	Copy() Installer
 	SetFromHeader(r io.Reader, name string) error
@@ -126,9 +99,17 @@ func NewRootfsV2(updFile string) *Rootfs {
 	}
 }
 
+// TODO:
+func NewRootfsInstaller() *Rootfs {
+	return &Rootfs{
+		update: new(File),
+	}
+}
+
 func (rp *Rootfs) Copy() Installer {
 	return &Rootfs{
 		version: rp.version,
+		update:  new(File),
 	}
 }
 
@@ -142,16 +123,18 @@ func parseFiles(r io.Reader) (*metadata.Files, error) {
 
 func (rp *Rootfs) SetFromHeader(r io.Reader, path string) error {
 	switch {
-	case path == filepath.Base("files"):
+	case filepath.Base(path) == "files":
+
 		files, err := parseFiles(r)
 		if err != nil {
 			return err
 		}
+		// TODO:
 		rp.update.Name = files.FileList[0]
-	case path == filepath.Base("type-info"):
+	case filepath.Base(path) == "type-info":
 		// TODO:
 
-	case path == filepath.Base("meta-data"):
+	case filepath.Base(path) == "meta-data":
 		// TODO:
 	case strings.HasPrefix(path, "checksums"):
 		buf := bytes.NewBuffer(nil)
@@ -312,8 +295,6 @@ func (rfs *Rootfs) ComposeData(tw *tar.Writer) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("kalsdfjlajsdfklajsdflkjalsdkjfalksdjfalksjdflkajsd")
 
 	dfw := archiver.NewWriterFile(tw)
 	if err = dfw.WriteHeader(f.Name(), rfs.updateDataPath()); err != nil {

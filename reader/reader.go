@@ -31,14 +31,11 @@ import (
 	"syscall"
 
 	"github.com/mendersoftware/mender-artifact/metadata"
-	"github.com/mendersoftware/mender-artifact/parser"
 	"github.com/mendersoftware/mender-artifact/update"
 	"github.com/pkg/errors"
 )
 
 type Reader struct {
-	*parser.ParseManager
-
 	CompatibleDevicesCallback func([]string) error
 
 	tReader *tar.Reader
@@ -55,8 +52,9 @@ type Reader struct {
 
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
-		r:            r,
-		ParseManager: parser.NewParseManager(),
+		r:          r,
+		handlers:   make(map[string]update.Installer, 1),
+		installers: make(map[int]update.Installer, 1),
 	}
 }
 
@@ -222,6 +220,11 @@ func (ar *Reader) RegisterHandler(handler update.Installer) error {
 	}
 	ar.handlers[handler.GetType()] = handler
 	return nil
+}
+
+// TODO:
+func (ar *Reader) GetInstallers() map[int]update.Installer {
+	return ar.installers
 }
 
 func (ar *Reader) ReadArtifact() error {
