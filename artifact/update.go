@@ -16,9 +16,12 @@ package artifact
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/pkg/errors"
@@ -58,10 +61,28 @@ type Installer interface {
 	GetType() string
 	Copy() Installer
 	SetFromHeader(r io.Reader, path string) error
-	Install(r io.Reader, f os.FileInfo) error
+	Install(r io.Reader, info *ChecksumInfo) error
 }
 
-func ReadAndInstall(r io.Reader, i Installer) error {
+type ChecksumInfo struct {
+	os.FileInfo
+	Checksum []byte
+}
+
+func UpdatePath(no int) string {
+	return fmt.Sprintf("%04d", no)
+}
+
+func UpdateHeaderPath(no int) string {
+	return filepath.Join(HeaderDirectory, fmt.Sprintf("%04d", no))
+}
+
+func UpdateDataPath(no int) string {
+	return filepath.Join(DataDirectory, fmt.Sprintf("%04d.tar.gz", no))
+}
+
+func ReadAndInstall(r io.Reader, i Installer,
+	manifest *Manifest, no int) error {
 	// each data file is stored in tar.gz format
 	gz, err := gzip.NewReader(r)
 	if err != nil {
@@ -82,8 +103,30 @@ func ReadAndInstall(r io.Reader, i Installer) error {
 			return errors.Wrap(err, "update: error reading update file header")
 		}
 
-		if err := i.Install(tar, hdr.FileInfo()); i != nil {
+		// check checksum
+		ch := NewReaderChecksum(tar)
+		var check []byte
+
+		if manifest != nil {
+			check, err = manifest.GetChecksum(filepath.Join(UpdatePath(no), hdr.FileInfo().Name()))
+			if err != nil {
+				return errors.Wrapf(err, "update: checksum missing")
+			}
+		}
+
+		info := &ChecksumInfo{
+			FileInfo: hdr.FileInfo(),
+			Checksum: check,
+		}
+
+		if err := i.Install(ch, info); i != nil {
 			return errors.Wrapf(err, "update: can not install update: %v", hdr)
+		}
+
+		checksum := ch.Checksum()
+		if bytes.Compare(info.Checksum, checksum) != 0 {
+			return errors.Errorf("update: invalid data file [%s] checksum (%s) -> (%s)",
+				info.Name(), info.Checksum, checksum)
 		}
 	}
 	return nil

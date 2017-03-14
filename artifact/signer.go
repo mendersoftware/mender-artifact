@@ -24,6 +24,8 @@ type Verifier interface {
 
 // TODO:
 type DummySigner struct {
+	PrivKey []byte
+	PubKey  []byte
 }
 
 func (d *DummySigner) Sign(message []byte) ([]byte, error) {

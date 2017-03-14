@@ -143,6 +143,8 @@ func (ar *Reader) ReadArtifact() error {
 	}
 	ar.info = ver
 
+	var manifest *artifact.Manifest
+
 	switch ver.Version {
 	case 1:
 		hdr, err := getNext(ar.tReader)
@@ -165,12 +167,12 @@ func (ar *Reader) ReadArtifact() error {
 		}
 
 		manifestBuf := bytes.NewBuffer(nil)
-		if _, err := io.Copy(manifestBuf, ar.tReader); err != nil {
+		manifest = artifact.NewReaderManifest(manifestBuf)
+
+		if _, err = io.Copy(manifestBuf, ar.tReader); err != nil {
 			return errors.Wrap(err, "reader: can not buffer manifest")
 		}
-
-		mr := artifact.NewReaderManifest(manifestBuf)
-		if err := mr.ReadAll(); err != nil {
+		if err = manifest.ReadAll(); err != nil {
 			return errors.Wrap(err, "reader: can not read manifest")
 		}
 
@@ -189,7 +191,7 @@ func (ar *Reader) ReadArtifact() error {
 
 			// first read signature...
 			sig := bytes.NewBuffer(nil)
-			if _, err := io.Copy(sig, ar.tReader); err != nil {
+			if _, err = io.Copy(sig, ar.tReader); err != nil {
 				return errors.Wrapf(err, "reader: can not read signature file")
 			}
 
@@ -201,7 +203,7 @@ func (ar *Reader) ReadArtifact() error {
 			}
 
 			// verify checksums of version
-			vc, err := mr.GetChecksum("version")
+			vc, err := manifest.GetChecksum("version")
 			if err != nil {
 				return err
 			}
@@ -227,7 +229,7 @@ func (ar *Reader) ReadArtifact() error {
 			}
 			if hSum != nil {
 				// verify checksums of header
-				hc, err := mr.GetChecksum("header.tar.gz")
+				hc, err := manifest.GetChecksum("header.tar.gz")
 				if err != nil {
 					return err
 				}
@@ -245,7 +247,7 @@ func (ar *Reader) ReadArtifact() error {
 		return errors.Errorf("reader: unsupported version: %d", ver.Version)
 	}
 
-	if err := ar.ReadData(); err != nil {
+	if err := ar.ReadData(manifest); err != nil {
 		return err
 	}
 
@@ -323,7 +325,8 @@ func (ar *Reader) readHeader(tr *tar.Reader) error {
 	}
 }
 
-func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
+func (ar *Reader) readNextDataFile(tr *tar.Reader,
+	manifest *artifact.Manifest) error {
 	hdr, err := getNext(tr)
 	if err == io.EOF {
 		return io.EOF
@@ -342,12 +345,12 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
 		return errors.Wrapf(err,
 			"reader: can not find parser for parsing data file [%v]", hdr.Name)
 	}
-	return artifact.ReadAndInstall(tr, inst)
+	return artifact.ReadAndInstall(tr, inst, manifest, updNo)
 }
 
-func (ar *Reader) ReadData() error {
+func (ar *Reader) ReadData(manifest *artifact.Manifest) error {
 	for {
-		err := ar.readNextDataFile(ar.tReader)
+		err := ar.readNextDataFile(ar.tReader, manifest)
 		if err == io.EOF {
 			break
 		} else if err != nil {

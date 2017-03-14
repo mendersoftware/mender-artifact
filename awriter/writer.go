@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
-	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
 )
 
@@ -50,6 +49,10 @@ func NewWriterSigned(w io.Writer, s artifact.Signer) *Writer {
 
 func (aw *Writer) WriteArtifact(format string, version int,
 	devices []string, name string, upd *artifact.Updates) error {
+
+	if version == 1 && aw.signer != nil {
+		return errors.New("writer: can not create version 1 signed artifact")
+	}
 
 	f, ferr := ioutil.TempFile("", "header")
 	if ferr != nil {
@@ -79,7 +82,7 @@ func (aw *Writer) WriteArtifact(format string, version int,
 			sum := ch.Checksum()
 			f.Checksum = sum
 
-			mw.AddChecksum(filepath.Join(handlers.UpdatePath(i), filepath.Base(f.Name)), sum)
+			mw.AddChecksum(filepath.Join(artifact.UpdatePath(i), filepath.Base(f.Name)), sum)
 		}
 	}
 

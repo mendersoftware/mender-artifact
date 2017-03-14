@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -101,16 +100,22 @@ func (g *Generic) SetFromHeader(r io.Reader, path string) error {
 	return nil
 }
 
-func (g *Generic) Install(r io.Reader, f os.FileInfo) error {
+func (g *Generic) Install(r io.Reader, info *artifact.ChecksumInfo) error {
 	if _, err := io.Copy(ioutil.Discard, r); err != nil {
 		return err
 	}
-	key := filepath.Base(f.Name())
+	key := filepath.Base(info.Name())
 	if _, ok := g.files[key]; !ok {
-		return errors.Errorf("generic handler: can not find data file: %v", key)
+		return errors.Errorf("generic handler: can not find data file info: %v", key)
 	}
-	g.files[key].Size = f.Size()
-	g.files[key].Date = f.ModTime()
+	g.files[key].Size = info.Size()
+	g.files[key].Date = info.ModTime()
+
+	if g.files[key].Checksum == nil {
+		g.files[key].Checksum = info.Checksum
+	} else {
+		info.Checksum = g.files[key].Checksum
+	}
 
 	return nil
 }

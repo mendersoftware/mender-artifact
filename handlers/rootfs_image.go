@@ -101,22 +101,20 @@ func (rp *Rootfs) SetFromHeader(r io.Reader, path string) error {
 	return nil
 }
 
-func (rfs *Rootfs) Install(r io.Reader, info os.FileInfo) error {
+func (rfs *Rootfs) Install(r io.Reader, info *artifact.ChecksumInfo) error {
 	// we have only one update file in rootfs-image type
 	rfs.update.Date = info.ModTime()
 	rfs.update.Size = info.Size()
 
-	// check checksum
-	ch := artifact.NewReaderChecksum(r)
+	if rfs.update.Checksum == nil {
+		rfs.update.Checksum = info.Checksum
+	} else {
+		info.Checksum = rfs.update.Checksum
+	}
 
 	if rfs.InstallHandler != nil {
-		if err := rfs.InstallHandler(ch, rfs.update); err != nil {
+		if err := rfs.InstallHandler(r, rfs.update); err != nil {
 			return errors.Wrap(err, "update: can not install")
-		}
-		checksum := ch.Checksum()
-		if bytes.Compare(rfs.update.Checksum, checksum) != 0 {
-			return errors.Errorf("update: invalid data file [%s] checksum (%s) -> (%s)",
-				rfs.update.Name, rfs.update.Checksum, checksum)
 		}
 	}
 	return nil
@@ -132,7 +130,7 @@ func (rfs *Rootfs) GetType() string {
 
 func (rfs *Rootfs) ComposeHeader(tw *tar.Writer, no int) error {
 
-	path := updateHeaderPath(no)
+	path := artifact.UpdateHeaderPath(no)
 
 	// first store files
 	if err := writeFiles(tw, []string{filepath.Base(rfs.update.Name)},
@@ -192,7 +190,7 @@ func (rfs *Rootfs) ComposeData(tw *tar.Writer, no int) error {
 	}
 
 	dfw := artifact.NewTarWriterFile(tw)
-	if err = dfw.Write(f, updateDataPath(no)); err != nil {
+	if err = dfw.Write(f, artifact.UpdateDataPath(no)); err != nil {
 		return errors.Wrapf(err, "update: can not tar data header: %v", rfs.update)
 	}
 	return nil

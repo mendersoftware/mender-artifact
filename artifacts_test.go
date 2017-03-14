@@ -105,6 +105,50 @@ func TestArtifactsWrite(t *testing.T) {
 	assert.False(t, fs.IsDir())
 }
 
+func TestArtifactsSigned(t *testing.T) {
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	err := artifact.MakeFakeUpdateDir(updateTestDir,
+		[]artifact.TestDirEntry{
+			{
+				Path:    "update.ext4",
+				Content: []byte("my update"),
+				IsDir:   false,
+			},
+			{
+				Path:    "private.key",
+				Content: []byte("0123456789"),
+				IsDir:   false,
+			},
+			{
+				Path:    "public.key",
+				Content: []byte("0123456789"),
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	// store named file
+	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender"),
+		"-s", filepath.Join(updateTestDir, "private.key")}
+	err = run()
+	assert.NoError(t, err)
+
+	fs, err := os.Stat(filepath.Join(updateTestDir, "artifact.mender"))
+	assert.NoError(t, err)
+	assert.False(t, fs.IsDir())
+
+	// verify
+	os.Args = []string{"mender-artifact", "read",
+		"-v", filepath.Join(updateTestDir, "public.key"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+	err = run()
+	assert.NoError(t, err)
+}
+
 func TestArtifactsValidate(t *testing.T) {
 	// first create archive, that we will be able to read
 	updateTestDir, _ := ioutil.TempDir("", "update")

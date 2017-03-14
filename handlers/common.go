@@ -17,25 +17,12 @@ package handlers
 import (
 	"archive/tar"
 	"encoding/json"
-	"fmt"
 	"io"
 	"path/filepath"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
 )
-
-func updateHeaderPath(no int) string {
-	return filepath.Join(artifact.HeaderDirectory, fmt.Sprintf("%04d", no))
-}
-
-func UpdatePath(no int) string {
-	return fmt.Sprintf("%04d", no)
-}
-
-func updateDataPath(no int) string {
-	return filepath.Join(artifact.DataDirectory, fmt.Sprintf("%04d.tar.gz", no))
-}
 
 func parseFiles(r io.Reader) (*artifact.Files, error) {
 	files := new(artifact.Files)

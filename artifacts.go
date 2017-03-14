@@ -15,8 +15,10 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/mendersoftware/mender-artifact/areader"
@@ -48,17 +50,39 @@ func writeArtifact(c *cli.Context) error {
 	}
 	defer f.Close()
 
-	u := handlers.NewRootfsV1(c.String("update"))
-	upd := &artifact.Updates{
-		U: []artifact.Composer{u},
-	}
+	if len(c.String("sign")) != 0 {
 
-	aw := awriter.NewWriter(f)
-	return aw.WriteArtifact("mender", c.Int("version"),
-		devices, c.String("artifact-name"), upd)
+		privateKey, err := getKey(c.String("sign"))
+		if err != nil {
+			return err
+		}
+		s := &artifact.DummySigner{
+			PrivKey: privateKey,
+		}
+		u := handlers.NewRootfsV2(c.String("update"))
+		upd := &artifact.Updates{
+			U: []artifact.Composer{u},
+		}
+		aw := awriter.NewWriterSigned(f, s)
+		// default version for signed artifact is 2
+		ver := 2
+		if c.IsSet("version") {
+			ver = c.Int("version")
+		}
+		return aw.WriteArtifact("mender", ver,
+			devices, c.String("artifact-name"), upd)
+	} else {
+		u := handlers.NewRootfsV1(c.String("update"))
+		upd := &artifact.Updates{
+			U: []artifact.Composer{u},
+		}
+		aw := awriter.NewWriter(f)
+		return aw.WriteArtifact("mender", c.Int("version"),
+			devices, c.String("artifact-name"), upd)
+	}
 }
 
-func read(aPath string) (*areader.Reader, error) {
+func read(aPath string, verify func(message, sig []byte) error) (*areader.Reader, error) {
 	_, err := os.Stat(aPath)
 	if err != nil {
 		return nil, errors.New("Pathspec '" + aPath +
@@ -76,6 +100,10 @@ func read(aPath string) (*areader.Reader, error) {
 		return nil, errors.New("Can not read artifact file.")
 	}
 
+	if verify != nil {
+		ar.VerifySignatureCallback = verify
+	}
+
 	if err = ar.ReadArtifact(); err != nil {
 		return nil, err
 	}
@@ -89,7 +117,20 @@ func readArtifact(c *cli.Context) error {
 			" to say 'artifacts read <pathspec>'?")
 	}
 
-	r, err := read(c.Args().First())
+	var verifyCallback func(message, sig []byte) error
+
+	if len(c.String("verify")) != 0 {
+		key, err := getKey(c.String("verify"))
+		if err != nil {
+			return err
+		}
+		s := artifact.DummySigner{
+			PubKey: key,
+		}
+		verifyCallback = s.Verify
+	}
+
+	r, err := read(c.Args().First(), verifyCallback)
 	if err != nil {
 		return err
 	}
@@ -119,13 +160,40 @@ func readArtifact(c *cli.Context) error {
 	return nil
 }
 
+func getKey(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, errors.New("Invialid key path.")
+	}
+	defer f.Close()
+
+	key := bytes.NewBuffer(nil)
+	if _, err := io.Copy(key, f); err != nil {
+		return nil, errors.New("Error reading key.")
+	}
+	return key.Bytes(), nil
+}
+
 func validateArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return errors.New("Nothing specified, nothing validated. \nMaybe you wanted" +
 			" to say 'artifacts validate <pathspec>'?")
 	}
 
-	_, err := read(c.Args().First())
+	var verifyCallback func(message, sig []byte) error
+
+	if len(c.String("verify")) != 0 {
+		key, err := getKey(c.String("verify"))
+		if err != nil {
+			return err
+		}
+		s := artifact.DummySigner{
+			PubKey: key,
+		}
+		verifyCallback = s.Verify
+	}
+
+	_, err := read(c.Args().First(), verifyCallback)
 	if err != nil {
 		return err
 	}
@@ -175,6 +243,10 @@ func run() error {
 			Usage: "Version of the artifact.",
 			Value: 1,
 		},
+		cli.StringFlag{
+			Name:  "sign, s",
+			Usage: "Full path to the private key that will be used to sign the artifact.",
+		},
 	}
 
 	write := cli.Command{
@@ -183,6 +255,12 @@ func run() error {
 		Subcommands: []cli.Command{
 			writeRootfs,
 		},
+	}
+
+	unsign := cli.StringFlag{
+		Name: "verify, v",
+		Usage: "Full path to the public key that will be used to verify " +
+			"the artifact signature.",
 	}
 
 	//
@@ -195,6 +273,9 @@ func run() error {
 		UsageText:   "mender-artifact validate [options] <pathspec>",
 		Description: "This command validates artifact file provided by pathspec.",
 	}
+	validate.Flags = []cli.Flag{
+		unsign,
+	}
 
 	//
 	// read
@@ -205,6 +286,10 @@ func run() error {
 		Action:      readArtifact,
 		UsageText:   "mender-artifact read [options] <pathspec>",
 		Description: "This command validates artifact file provided by pathspec.",
+	}
+
+	read.Flags = []cli.Flag{
+		unsign,
 	}
 
 	app.Commands = []cli.Command{
