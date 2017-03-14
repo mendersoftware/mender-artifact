@@ -11,6 +11,10 @@ restrictions on ordering of the files, described in the "Ordering" section.
   |
   +---version
   |
+  +---manifest
+  |
+  +---manifest.sig
+  |
   +---header.tar.gz (tar format)
   |    |
   |    +---header-info
@@ -24,16 +28,6 @@ restrictions on ordering of the files, described in the "Ordering" section.
   |         |    +---type-info
   |         |    |
   |         |    +---meta-data
-  |         |    |
-  |         |    +---checksums
-  |         |    |    +--<image file.sha25sum>
-  |         |    |    +--<binary delta.sha256sum>
-  |         |    |    `--...
-  |         |    |
-  |         |    +---signatures
-  |         |    |    +--<image file.sig>
-  |         |    |    +--<binary delta.sig>
-  |         |    |    `--...
   |         |    |
   |         |    `---scripts
   |         |         |
@@ -93,6 +87,38 @@ The `format` value is to confirm that this is indeed a Mender update file, and
 the `version` value is a way to extend/change the format later if needed.
 Currently there is only version 1, but this document may describe later versions
 if they are created.
+
+
+manifest
+----
+
+Format: text
+
+Contains the below content exactly:
+
+```
+Version: 2
+Date: 2017-03-13 20:15:40.800231486 +0100 CET
+SHA256:
+ 1d0b820130ae028ce8a79b7e217fe505a765ac394718e795d454941487c53d32 0000/update.ext4
+ 4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619 header.tar.gz
+ 52c76ab66947278a897c2a6df8b4d77badfa343fec7ba3b2983c2ecbbb041a35 version
+```
+
+The manifest file contains checksums of compressed header, version and all
+data files being a part of the artifact.
+It contains also version information which is the same as the artifact
+version and date and time of creation of the file.
+
+
+manifest.sig
+----
+
+Format: TBD
+
+File containing the signature of `manifest`.
+
+It is legal for an artifact not to have signature file.
 
 
 header.tar.gz
@@ -192,45 +218,6 @@ be empty.
 For other package types this file can contain for example number of files in the
 `data` directory, if the update contains more than one. Or it can contain
 network address(es) and credentials if Mender is to do a proxy update.
-
-
-### checksums
-
-Format: Directory containing one checksum file for each file listed in the
-`files` header.
-
-It is legal for an update not to have any checksums.
-
-#### Checksum file
-
-Format: Checksum
-
-Each file must match the name of a file in `data` exactly, plus an appended
-suffix which determines the type of checksum. For maximum compatibility, there
-is only one checksum in each file. Currently, there is only one type of
-checksum, `sha256`, which follows the format of the `sha256sum` tool. For
-example:
-
-```
-b6207e04cbdd57b12f22591cca02c774463fe1fac2cb593f99b38a9e07cf050f
-```
-
-
-### signatures
-
-Format: Directory containing one signature file for each file listed in the
-`files` header.
-
-It is legal for an update not to have any signatures.
-
-#### Signature file
-
-Format: TBD
-
-Each file must match the name of a file in `data` exactly, plus an appended
-suffix which determines the type of signature. For maximum compatibility, there
-is only one signature in each file. Currently there are no signature types, this
-still needs to be decided.
 
 
 ### scripts
