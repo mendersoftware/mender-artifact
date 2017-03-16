@@ -33,12 +33,9 @@ type Reader struct {
 	CompatibleDevicesCallback func([]string) error
 	VerifySignatureCallback   func(message, sig []byte) error
 
-	tReader *tar.Reader
-	signed  bool
-
-	hInfo *artifact.HeaderInfo
-	info  *artifact.Info
-
+	signed     bool
+	hInfo      *artifact.HeaderInfo
+	info       *artifact.Info
 	r          io.Reader
 	handlers   map[string]artifact.Installer
 	installers map[int]artifact.Installer
@@ -56,15 +53,15 @@ func (ar *Reader) isSigned() bool {
 	return ar.signed
 }
 
-func (ar *Reader) ReadHeader() ([]byte, error) {
+func (ar *Reader) ReadHeader(tReader io.Reader) ([]byte, error) {
 
 	var r io.Reader
 	if ar.isSigned() {
 		// If artifact is signed we need to calculate header checksum to be
 		// able to validate it later.
-		r = artifact.NewReaderChecksum(ar.tReader)
+		r = artifact.NewReaderChecksum(tReader)
 	} else {
-		r = ar.tReader
+		r = tReader
 	}
 	// header MUST be compressed
 	gz, err := gzip.NewReader(r)
@@ -133,11 +130,10 @@ func (ar *Reader) GetInstallers() map[int]artifact.Installer {
 
 func (ar *Reader) ReadArtifact() error {
 	// each artifact is tar archive
-	// TODO: do we need ar.tReader
-	ar.tReader = tar.NewReader(ar.r)
+	tReader := tar.NewReader(ar.r)
 
 	// first file inside the artifact MUST be version
-	ver, vsum, err := readVersion(ar.tReader)
+	ver, vsum, err := readVersion(tReader)
 	if err != nil {
 		return err
 	}
@@ -147,7 +143,7 @@ func (ar *Reader) ReadArtifact() error {
 
 	switch ver.Version {
 	case 1:
-		hdr, err := getNext(ar.tReader)
+		hdr, err := getNext(tReader)
 		if err != nil {
 			return errors.New("reader: error reading header")
 		}
@@ -155,13 +151,13 @@ func (ar *Reader) ReadArtifact() error {
 			return errors.Errorf("reader: invalid header element: %v", hdr.Name)
 		}
 
-		if _, err = ar.ReadHeader(); err != nil {
+		if _, err = ar.ReadHeader(tReader); err != nil {
 			return err
 		}
 
 	case 2:
 		// first file after version MUST contains all the checksums
-		hdr, err := getNext(ar.tReader)
+		hdr, err := getNext(tReader)
 		if err != nil || hdr.Name != "manifest" {
 			return errors.Wrapf(err, "reader: error reading manifest header")
 		}
@@ -169,7 +165,7 @@ func (ar *Reader) ReadArtifact() error {
 		manifestBuf := bytes.NewBuffer(nil)
 		manifest = artifact.NewReaderManifest(manifestBuf)
 
-		if _, err = io.Copy(manifestBuf, ar.tReader); err != nil {
+		if _, err = io.Copy(manifestBuf, tReader); err != nil {
 			return errors.Wrap(err, "reader: can not buffer manifest")
 		}
 		if err = manifest.ReadAll(); err != nil {
@@ -178,7 +174,7 @@ func (ar *Reader) ReadArtifact() error {
 
 		// check what is the next file in the artifact
 		// depending if artifact is signed or not we can have header or signature
-		hdr, err = getNext(ar.tReader)
+		hdr, err = getNext(tReader)
 		if err != nil {
 			return errors.Wrapf(err, "reader: error reading file after checksums")
 		}
@@ -191,7 +187,7 @@ func (ar *Reader) ReadArtifact() error {
 
 			// first read signature...
 			sig := bytes.NewBuffer(nil)
-			if _, err = io.Copy(sig, ar.tReader); err != nil {
+			if _, err = io.Copy(sig, tReader); err != nil {
 				return errors.Wrapf(err, "reader: can not read signature file")
 			}
 
@@ -213,7 +209,7 @@ func (ar *Reader) ReadArtifact() error {
 			}
 
 			// ...and then header
-			hdr, err := getNext(ar.tReader)
+			hdr, err := getNext(tReader)
 			if err != nil {
 				return errors.New("reader: error reading header")
 			}
@@ -223,7 +219,7 @@ func (ar *Reader) ReadArtifact() error {
 			fallthrough
 
 		case strings.HasPrefix(fName, "header.tar."):
-			hSum, err := ar.ReadHeader()
+			hSum, err := ar.ReadHeader(tReader)
 			if err != nil {
 				return err
 			}
@@ -247,7 +243,7 @@ func (ar *Reader) ReadArtifact() error {
 		return errors.Errorf("reader: unsupported version: %d", ver.Version)
 	}
 
-	if err := ar.ReadData(manifest); err != nil {
+	if err := ar.ReadData(tReader, manifest); err != nil {
 		return err
 	}
 
@@ -348,9 +344,9 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader,
 	return artifact.ReadAndInstall(tr, inst, manifest, updNo)
 }
 
-func (ar *Reader) ReadData(manifest *artifact.Manifest) error {
+func (ar *Reader) ReadData(tr *tar.Reader, manifest *artifact.Manifest) error {
 	for {
-		err := ar.readNextDataFile(ar.tReader, manifest)
+		err := ar.readNextDataFile(tr, manifest)
 		if err == io.EOF {
 			break
 		} else if err != nil {
