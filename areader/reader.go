@@ -29,9 +29,12 @@ import (
 	"github.com/pkg/errors"
 )
 
+type SignatureVerifyFn func(message, sig []byte) error
+type DevicesCompatibleFn func([]string) error
+
 type Reader struct {
-	CompatibleDevicesCallback func([]string) error
-	VerifySignatureCallback   func(message, sig []byte) error
+	CompatibleDevicesCallback DevicesCompatibleFn
+	VerifySignatureCallback   SignatureVerifyFn
 
 	signed     bool
 	hInfo      *artifact.HeaderInfo
@@ -356,7 +359,6 @@ func (ar *Reader) ReadData(tr *tar.Reader, manifest *artifact.Manifest) error {
 	return nil
 }
 
-// TODO: refactor
 func readNext(tr *tar.Reader, w io.Writer, elem string) error {
 	_, err := readNextElem(tr, w, elem, false)
 	return err
