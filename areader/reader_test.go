@@ -96,7 +96,7 @@ func TestReadArtifact(t *testing.T) {
 	assert.NoError(t, err)
 
 	df.Close()
-	inst := aReader.GetInstallers()
+	inst := aReader.GetHandlers()
 	assert.Len(t, inst, 1)
 	_, ok := inst[0].(*handlers.Rootfs)
 	assert.True(t, ok)
@@ -141,7 +141,7 @@ func TestReadArtifactV2(t *testing.T) {
 	assert.NoError(t, err)
 
 	df.Close()
-	inst := aReader.GetInstallers()
+	inst := aReader.GetHandlers()
 	assert.Len(t, inst, 1)
 	_, ok := inst[0].(*handlers.Rootfs)
 	assert.True(t, ok)
@@ -189,7 +189,7 @@ func TestReadArtifactSignedV2(t *testing.T) {
 	assert.NoError(t, err)
 
 	df.Close()
-	inst := aReader.GetInstallers()
+	inst := aReader.GetHandlers()
 	assert.Len(t, inst, 1)
 	_, ok := inst[0].(*handlers.Rootfs)
 	assert.True(t, ok)

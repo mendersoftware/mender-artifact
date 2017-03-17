@@ -62,7 +62,7 @@ func stripSum(path string) string {
 	return strings.TrimSuffix(bName, filepath.Ext(bName))
 }
 
-func (g *Generic) SetFromHeader(r io.Reader, path string) error {
+func (g *Generic) ReadHeader(r io.Reader, path string) error {
 	switch {
 	case filepath.Base(path) == "files":
 		files, err := parseFiles(r)
@@ -100,7 +100,7 @@ func (g *Generic) SetFromHeader(r io.Reader, path string) error {
 	return nil
 }
 
-func (g *Generic) Install(r io.Reader, info *artifact.ChecksumInfo) error {
+func (g *Generic) Install(r io.Reader, info *artifact.FileInfoChecksum) error {
 	if _, err := io.Copy(ioutil.Discard, r); err != nil {
 		return err
 	}

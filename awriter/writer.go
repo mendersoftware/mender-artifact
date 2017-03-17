@@ -16,7 +16,6 @@ package awriter
 
 import (
 	"archive/tar"
-	"bytes"
 	"compress/gzip"
 	"io"
 	"io/ioutil"
@@ -47,28 +46,8 @@ func NewWriterSigned(w io.Writer, s artifact.Signer) *Writer {
 	}
 }
 
-func (aw *Writer) WriteArtifact(format string, version int,
-	devices []string, name string, upd *artifact.Updates) error {
-
-	if version == 1 && aw.signer != nil {
-		return errors.New("writer: can not create version 1 signed artifact")
-	}
-
-	f, ferr := ioutil.TempFile("", "header")
-	if ferr != nil {
-		return errors.New("writer: can not create temporary header file")
-	}
-	defer os.Remove(f.Name())
-
-	// mender archive writer
-	tw := tar.NewWriter(aw.w)
-	defer tw.Close()
-
-	manifestBuf := bytes.NewBuffer(nil)
-	mw := artifact.NewWriterManifest(manifestBuf)
-
-	// calculate checksums of all data files
-	// we need this regardless of which artifact version we are writing
+// Iterate through all data files inside `upd` and calculate checksums.
+func calcDataHash(s *artifact.ChecksumStore, upd *artifact.Updates) error {
 	for i, u := range upd.U {
 		for _, f := range u.GetUpdateFiles() {
 			ch := artifact.NewWriterChecksum(ioutil.Discard)
@@ -81,29 +60,85 @@ func (aw *Writer) WriteArtifact(format string, version int,
 			}
 			sum := ch.Checksum()
 			f.Checksum = sum
-
-			mw.AddChecksum(filepath.Join(artifact.UpdatePath(i), filepath.Base(f.Name)), sum)
+			s.Add(filepath.Join(artifact.UpdatePath(i), filepath.Base(f.Name)), sum)
 		}
 	}
+	return nil
+}
 
-	// write temporary header (we need to know the size before storing in tar)
-	if hChecksum, err := func() (*artifact.Checksum, error) {
-		ch := artifact.NewWriterChecksum(f)
+func writeTempHeader(s *artifact.ChecksumStore, devices []string, name string,
+	upd *artifact.Updates) (*os.File, error) {
+	// create temporary header file
+	f, err := ioutil.TempFile("", "header")
+	if err != nil {
+		return nil, errors.New("writer: can not create temporary header file")
+	}
+
+	ch := artifact.NewWriterChecksum(f)
+	// use function to make sure to close gz and tar before
+	// calculating checksum
+	err = func() error {
 		gz := gzip.NewWriter(ch)
 		defer gz.Close()
 
 		htw := tar.NewWriter(gz)
 		defer htw.Close()
 
-		if err := aw.writeHeader(htw, devices, name, upd); err != nil {
-			return nil, errors.Wrapf(err, "writer: error writing header")
+		if err = writeHeader(htw, devices, name, upd); err != nil {
+			return errors.Wrapf(err, "writer: error writing header")
 		}
-		return ch, nil
-	}(); err != nil {
-		return err
-	} else if aw.signer != nil {
-		mw.AddChecksum("header.tar.gz", hChecksum.Checksum())
+		return nil
+	}()
+
+	if err != nil {
+		return nil, err
 	}
+	s.Add("header.tar.gz", ch.Checksum())
+
+	return f, nil
+}
+
+func writeSignature(tw *tar.Writer, message []byte,
+	signer artifact.Signer) error {
+	if signer == nil {
+		return nil
+	}
+
+	sig, err := signer.Sign(message)
+	if err != nil {
+		return errors.Wrap(err, "writer: can not sign artifact")
+	}
+	sw := artifact.NewTarWriterStream(tw)
+	if err := sw.Write(sig, "manifest.sig"); err != nil {
+		return errors.Wrapf(err, "writer: can not tar signature")
+	}
+	return nil
+}
+
+func (aw *Writer) WriteArtifact(format string, version int,
+	devices []string, name string, upd *artifact.Updates) error {
+
+	if version == 1 && aw.signer != nil {
+		return errors.New("writer: can not create version 1 signed artifact")
+	}
+
+	s := artifact.NewChecksumStore()
+	// calculate checksums of all data files
+	// we need this regardless of which artifact version we are writing
+	if err := calcDataHash(s, upd); err != nil {
+		return err
+	}
+
+	// write temporary header (we need to know the size before storing in tar)
+	tmpHdr, err := writeTempHeader(s, devices, name, upd)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmpHdr.Name())
+
+	// mender archive writer
+	tw := tar.NewWriter(aw.w)
+	defer tw.Close()
 
 	// write version file
 	inf := artifact.ToStream(&artifact.Info{Version: version, Format: format})
@@ -112,61 +147,48 @@ func (aw *Writer) WriteArtifact(format string, version int,
 		return errors.Wrapf(err, "writer: can not write version tar header")
 	}
 
+	// add checksum of `version`
 	if aw.signer != nil {
 		ch := artifact.NewWriterChecksum(ioutil.Discard)
 		ch.Write(inf)
-		mw.AddChecksum("version", ch.Checksum())
+		s.Add("version", ch.Checksum())
 	}
 
 	switch version {
 	case 2:
-		// write manifest file
-		if err := mw.WriteAll("2.0"); err != nil {
-			return errors.Wrapf(err, "writer: can not buffer manifest stream")
-		}
+		// write `manifest` file
 		sw := artifact.NewTarWriterStream(tw)
-		if err := sw.Write(manifestBuf.Bytes(), "manifest"); err != nil {
+		if err := sw.Write(s.GetRaw(), "manifest"); err != nil {
 			return errors.Wrapf(err, "writer: can not write manifest stream")
 		}
 
-		if aw.signer != nil {
-			// write signature
-			sig, err := aw.signer.Sign(manifestBuf.Bytes())
-			if err != nil {
-				return errors.Wrap(err, "writer: can not sign artifact")
-			}
-			sw := artifact.NewTarWriterStream(tw)
-			if err := sw.Write(sig, "signature"); err != nil {
-				return errors.Wrapf(err, "writer: can not tar signature")
-			}
-
+		// write signature
+		if err := writeSignature(tw, s.GetRaw(), aw.signer); err != nil {
+			return err
 		}
-		fallthrough
+		// write header
 
 	case 1:
-		// write header
-		if _, err := f.Seek(0, 0); err != nil {
-			return errors.Wrapf(err, "writer: error opening tmp header for reading")
-		}
-
-		fw := artifact.NewTarWriterFile(tw)
-		if err := fw.Write(f, "header.tar.gz"); err != nil {
-			return errors.Wrapf(err, "writer: can not tar header")
-		}
+		// write header later on
 
 	default:
 		return errors.New("writer: unsupported artifact version")
 	}
 
-	// write data files
-	if err := aw.writeData(tw, upd); err != nil {
-		return err
+	// write header
+	if _, err := tmpHdr.Seek(0, 0); err != nil {
+		return errors.Wrapf(err, "writer: error preparing tmp header for writing")
+	}
+	fw := artifact.NewTarWriterFile(tw)
+	if err := fw.Write(tmpHdr, "header.tar.gz"); err != nil {
+		return errors.Wrapf(err, "writer: can not tar header")
 	}
 
-	return nil
+	// write data files
+	return writeData(tw, upd)
 }
 
-func (aw *Writer) writeHeader(tw *tar.Writer, devices []string, name string,
+func writeHeader(tw *tar.Writer, devices []string, name string,
 	updates *artifact.Updates) error {
 	// store header info
 	hInfo := new(artifact.HeaderInfo)
@@ -191,7 +213,7 @@ func (aw *Writer) writeHeader(tw *tar.Writer, devices []string, name string,
 	return nil
 }
 
-func (aw *Writer) writeData(tw *tar.Writer, updates *artifact.Updates) error {
+func writeData(tw *tar.Writer, updates *artifact.Updates) error {
 	for i, upd := range updates.U {
 		if err := upd.ComposeData(tw, i); err != nil {
 			return errors.Wrapf(err, "writer: error writing data files")

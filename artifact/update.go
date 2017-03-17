@@ -60,11 +60,11 @@ type Installer interface {
 	GetUpdateFiles() [](*File)
 	GetType() string
 	Copy() Installer
-	SetFromHeader(r io.Reader, path string) error
-	Install(r io.Reader, info *ChecksumInfo) error
+	ReadHeader(r io.Reader, path string) error
+	Install(r io.Reader, info *FileInfoChecksum) error
 }
 
-type ChecksumInfo struct {
+type FileInfoChecksum struct {
 	os.FileInfo
 	Checksum []byte
 }
@@ -82,7 +82,7 @@ func UpdateDataPath(no int) string {
 }
 
 func ReadAndInstall(r io.Reader, i Installer,
-	manifest *Manifest, no int) error {
+	manifest *ChecksumStore, no int) error {
 	// each data file is stored in tar.gz format
 	gz, err := gzip.NewReader(r)
 	if err != nil {
@@ -108,13 +108,13 @@ func ReadAndInstall(r io.Reader, i Installer,
 		var check []byte
 
 		if manifest != nil {
-			check, err = manifest.GetChecksum(filepath.Join(UpdatePath(no), hdr.FileInfo().Name()))
+			check, err = manifest.Get(filepath.Join(UpdatePath(no), hdr.FileInfo().Name()))
 			if err != nil {
 				return errors.Wrapf(err, "update: checksum missing")
 			}
 		}
 
-		info := &ChecksumInfo{
+		info := &FileInfoChecksum{
 			FileInfo: hdr.FileInfo(),
 			Checksum: check,
 		}

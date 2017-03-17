@@ -135,7 +135,7 @@ func readArtifact(c *cli.Context) error {
 		return err
 	}
 
-	inst := r.GetInstallers()
+	inst := r.GetHandlers()
 	info := r.GetInfo()
 
 	fmt.Printf("Mender artifact:\n")

@@ -72,7 +72,7 @@ func (rp *Rootfs) Copy() artifact.Installer {
 	}
 }
 
-func (rp *Rootfs) SetFromHeader(r io.Reader, path string) error {
+func (rp *Rootfs) ReadHeader(r io.Reader, path string) error {
 	switch {
 	case filepath.Base(path) == "files":
 
@@ -101,7 +101,7 @@ func (rp *Rootfs) SetFromHeader(r io.Reader, path string) error {
 	return nil
 }
 
-func (rfs *Rootfs) Install(r io.Reader, info *artifact.ChecksumInfo) error {
+func (rfs *Rootfs) Install(r io.Reader, info *artifact.FileInfoChecksum) error {
 	// we have only one update file in rootfs-image type
 	rfs.update.Date = info.ModTime()
 	rfs.update.Size = info.Size()
