@@ -34,7 +34,7 @@ const (
 
 // File represents the minimum set of attributes each update file
 // must contain. Some of those might be empty though for specific update types.
-type File struct {
+type DataFile struct {
 	// name of the update file
 	Name string
 	// size of the update file
@@ -46,7 +46,7 @@ type File struct {
 }
 
 type Composer interface {
-	GetUpdateFiles() [](*File)
+	GetUpdateFiles() [](*DataFile)
 	GetType() string
 	ComposeHeader(tw *tar.Writer, no int) error
 	ComposeData(tw *tar.Writer, no int) error
@@ -57,7 +57,7 @@ type Updates struct {
 }
 
 type Installer interface {
-	GetUpdateFiles() [](*File)
+	GetUpdateFiles() [](*DataFile)
 	GetType() string
 	Copy() Installer
 	ReadHeader(r io.Reader, path string) error

@@ -68,7 +68,7 @@ func writeTypeInfo(tw *tar.Writer, updateType string, dir string) error {
 	return nil
 }
 
-func writeChecksums(tw *tar.Writer, files [](*artifact.File), dir string) error {
+func writeChecksums(tw *tar.Writer, files [](*artifact.DataFile), dir string) error {
 	for _, f := range files {
 		w := artifact.NewTarWriterStream(tw)
 		if err := w.Write(f.Checksum,

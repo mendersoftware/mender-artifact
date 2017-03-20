@@ -27,18 +27,18 @@ import (
 
 type Generic struct {
 	updateType string
-	files      map[string](*artifact.File)
+	files      map[string](*artifact.DataFile)
 }
 
 func NewGeneric(t string) *Generic {
 	return &Generic{
 		updateType: t,
-		files:      make(map[string](*artifact.File)),
+		files:      make(map[string](*artifact.DataFile)),
 	}
 }
 
-func (g *Generic) GetUpdateFiles() [](*artifact.File) {
-	list := make([](*artifact.File), len(g.files))
+func (g *Generic) GetUpdateFiles() [](*artifact.DataFile) {
+	list := make([](*artifact.DataFile), len(g.files))
 	i := 0
 	for _, f := range g.files {
 		list[i] = f
@@ -70,7 +70,7 @@ func (g *Generic) ReadHeader(r io.Reader, path string) error {
 			return err
 		}
 		for _, f := range files.FileList {
-			g.files[filepath.Base(f)] = &artifact.File{
+			g.files[filepath.Base(f)] = &artifact.DataFile{
 				Name: f,
 			}
 		}
