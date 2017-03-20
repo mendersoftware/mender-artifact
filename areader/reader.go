@@ -119,6 +119,9 @@ func readVersion(tr *tar.Reader) (*artifact.Info, []byte, error) {
 }
 
 func (ar *Reader) RegisterHandler(handler artifact.Installer) error {
+	if handler == nil {
+		return errors.New("reader: invalid handler")
+	}
 	if _, ok := ar.handlers[handler.GetType()]; ok {
 		return os.ErrExist
 	}
@@ -319,6 +322,7 @@ func getUpdateNoFromHeaderPath(path string) (int, error) {
 	return strconv.Atoi(split[1])
 }
 
+// should be 0000.tar.gz
 func getUpdateNoFromDataPath(path string) (int, error) {
 	no := strings.TrimSuffix(filepath.Base(path), ".tar.gz")
 	return strconv.Atoi(no)

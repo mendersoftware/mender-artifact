@@ -15,6 +15,7 @@
 package artifact
 
 import (
+	"io/ioutil"
 	"os"
 	"path"
 )
@@ -23,6 +24,20 @@ type TestDirEntry struct {
 	Path    string
 	Content []byte
 	IsDir   bool
+}
+
+func MakeFakeUpdate(data string) (string, error) {
+	f, err := ioutil.TempFile("", "test_update")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	if len(data) > 0 {
+		if _, err := f.WriteString(data); err != nil {
+			return "", err
+		}
+	}
+	return f.Name(), nil
 }
 
 func MakeFakeUpdateDir(updateDir string, elements []TestDirEntry) error {
