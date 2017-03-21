@@ -103,17 +103,7 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string) error {
 	return nil
 }
 
-func (rfs *Rootfs) Install(r io.Reader, info *artifact.FileInfoChecksum) error {
-	// we have only one update file in rootfs-image type
-	rfs.update.Date = info.ModTime()
-	rfs.update.Size = info.Size()
-
-	if rfs.update.Checksum == nil {
-		rfs.update.Checksum = info.Checksum
-	} else {
-		info.Checksum = rfs.update.Checksum
-	}
-
+func (rfs *Rootfs) Install(r io.Reader, info *os.FileInfo) error {
 	if rfs.InstallHandler != nil {
 		if err := rfs.InstallHandler(r, rfs.update); err != nil {
 			return errors.Wrap(err, "update: can not install")

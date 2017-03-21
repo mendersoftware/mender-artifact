@@ -209,17 +209,17 @@ func (ar *Reader) readHeaderV2(tReader *tar.Reader,
 	case "manifest.sig":
 		// firs read and verify signature
 		ar.signed = true
-		if err := signartureReadAndVerify(tReader, manifest.GetRaw(),
+		if err = signartureReadAndVerify(tReader, manifest.GetRaw(),
 			ar.VerifySignatureCallback); err != nil {
 			return nil, err
 		}
 		// verify checksums of version
-		if err := verifyVersion(vsum, manifest); err != nil {
+		if err = verifyVersion(vsum, manifest); err != nil {
 			return nil, err
 		}
 
 		// ...and then header
-		hdr, err := getNext(tReader)
+		hdr, err = getNext(tReader)
 		if err != nil {
 			return nil, errors.New("reader: error reading header")
 		}
@@ -254,6 +254,9 @@ func (ar *Reader) readHeaderV2(tReader *tar.Reader,
 
 func (ar *Reader) ReadArtifact() error {
 	// each artifact is tar archive
+	if ar.r == nil {
+		return errors.New("reader: read artifact called on invalid stream")
+	}
 	tReader := tar.NewReader(ar.r)
 
 	// first file inside the artifact MUST be version

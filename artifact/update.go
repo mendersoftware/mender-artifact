@@ -61,12 +61,7 @@ type Installer interface {
 	GetType() string
 	Copy() Installer
 	ReadHeader(r io.Reader, path string) error
-	Install(r io.Reader, info *FileInfoChecksum) error
-}
-
-type FileInfoChecksum struct {
-	os.FileInfo
-	Checksum []byte
+	Install(r io.Reader, info *os.FileInfo) error
 }
 
 func UpdatePath(no int) string {
@@ -79,6 +74,15 @@ func UpdateHeaderPath(no int) string {
 
 func UpdateDataPath(no int) string {
 	return filepath.Join(DataDirectory, fmt.Sprintf("%04d.tar.gz", no))
+}
+
+func getDataFile(i Installer, name string) *DataFile {
+	for _, file := range i.GetUpdateFiles() {
+		if name == file.Name {
+			return file
+		}
+	}
+	return nil
 }
 
 func ReadAndInstall(r io.Reader, i Installer,
@@ -94,9 +98,6 @@ func ReadAndInstall(r io.Reader, i Installer,
 
 	for {
 		hdr, err := tar.Next()
-		if err != nil {
-			return errors.Wrapf(err, "update: error reading archive")
-		}
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -105,28 +106,39 @@ func ReadAndInstall(r io.Reader, i Installer,
 
 		// check checksum
 		ch := NewReaderChecksum(tar)
-		var check []byte
 
+		df := getDataFile(i, hdr.Name)
+		if df == nil {
+			return errors.Errorf("update: can not find data file: %s", hdr.Name)
+		}
+
+		// fill in needed data
+		info := hdr.FileInfo()
+		df.Size = info.Size()
+		df.Date = info.ModTime()
+
+		// we need to have a checksum either in manifest file (v2 artifact)
+		// or it needs to be pre-filled after reading header
 		if manifest != nil {
-			check, err = manifest.Get(filepath.Join(UpdatePath(no), hdr.FileInfo().Name()))
+			df.Checksum, err = manifest.Get(filepath.Join(UpdatePath(no), hdr.FileInfo().Name()))
 			if err != nil {
 				return errors.Wrapf(err, "update: checksum missing")
 			}
 		}
 
-		info := &FileInfoChecksum{
-			FileInfo: hdr.FileInfo(),
-			Checksum: check,
+		if df.Checksum == nil {
+			return errors.Errorf("update: checksum missing for file: %s", hdr.Name)
 		}
 
-		if err := i.Install(ch, info); i != nil {
+		if err := i.Install(ch, &info); err != nil {
 			return errors.Wrapf(err, "update: can not install update: %v", hdr)
 		}
 
 		checksum := ch.Checksum()
-		if bytes.Compare(info.Checksum, checksum) != 0 {
-			return errors.Errorf("update: invalid data file [%s] checksum (%s) -> (%s)",
-				info.Name(), info.Checksum, checksum)
+		if bytes.Compare(df.Checksum, checksum) != 0 {
+			return errors.Errorf("update: invalid data file checksum: %s; "+
+				"actual:[%s], expected:[%s]",
+				info.Name(), checksum, df.Checksum)
 		}
 	}
 	return nil

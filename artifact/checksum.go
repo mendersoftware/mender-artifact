@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"os"
 	"strings"
 	"syscall"
 
@@ -35,6 +36,10 @@ type Checksum struct {
 }
 
 func NewWriterChecksum(w io.Writer) *Checksum {
+	if w == nil {
+		return new(Checksum)
+	}
+
 	h := sha256.New()
 	return &Checksum{
 		w: io.MultiWriter(h, w),
@@ -43,6 +48,10 @@ func NewWriterChecksum(w io.Writer) *Checksum {
 }
 
 func NewReaderChecksum(r io.Reader) *Checksum {
+	if r == nil {
+		return new(Checksum)
+	}
+
 	h := sha256.New()
 	return &Checksum{
 		r: io.TeeReader(r, h),
@@ -65,6 +74,9 @@ func (c *Checksum) Read(p []byte) (int, error) {
 }
 
 func (c *Checksum) Checksum() []byte {
+	if c.h == nil {
+		return nil
+	}
 	sum := c.h.Sum(nil)
 	checksum := make([]byte, hex.EncodedLen(len(sum)))
 	hex.Encode(checksum, c.h.Sum(nil))
@@ -84,6 +96,10 @@ func NewChecksumStore() *ChecksumStore {
 }
 
 func (c *ChecksumStore) Add(file string, sum []byte) error {
+	if _, ok := c.sums[file]; ok {
+		return os.ErrExist
+	}
+
 	c.sums[file] = sum
 	_, err := c.raw.WriteString(fmt.Sprintf("%s  %s\n", sum, file))
 	return err
@@ -92,7 +108,7 @@ func (c *ChecksumStore) Add(file string, sum []byte) error {
 func (c *ChecksumStore) Get(file string) ([]byte, error) {
 	sum, ok := c.sums[file]
 	if !ok {
-		return nil, errors.Errorf("checksum: can not find chacksum for: '%s'", file)
+		return nil, errors.Errorf("checksum: checksum missing for file: '%s'", file)
 	}
 	return sum, nil
 }
@@ -102,15 +118,15 @@ func (c *ChecksumStore) GetRaw() []byte {
 }
 
 func (c *ChecksumStore) ReadRaw(data []byte) error {
-	c.raw = bytes.NewBuffer(data)
+	raw := bytes.NewBuffer(data)
 	for {
-		line, err := c.raw.ReadString('\n')
+		line, err := raw.ReadString('\n')
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			return errors.Wrap(err, "checksum: can not read raw")
 		}
-		if err := c.readChecksums(line); err != nil {
+		if err = c.readChecksums(line); err != nil {
 			return err
 		}
 	}
@@ -123,6 +139,5 @@ func (c *ChecksumStore) readChecksums(line string) error {
 		return errors.Errorf("checksum: malformed checksum line: '%s'", line)
 	}
 	// add element to map
-	c.sums[l[1]] = []byte(l[0])
-	return nil
+	return c.Add(l[1], []byte(l[0]))
 }

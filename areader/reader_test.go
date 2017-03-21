@@ -124,6 +124,18 @@ func TestReadArtifact(t *testing.T) {
 	}
 }
 
+func TestRegisterMultipleHandlers(t *testing.T) {
+	aReader := NewReader(nil)
+	err := aReader.RegisterHandler(handlers.NewRootfsInstaller())
+	assert.NoError(t, err)
+
+	err = aReader.RegisterHandler(handlers.NewRootfsInstaller())
+	assert.Error(t, err)
+
+	err = aReader.RegisterHandler(nil)
+	assert.Error(t, err)
+}
+
 func TestReadNoHandler(t *testing.T) {
 	art, err := MakeRootfsImageArtifact(1, false)
 	assert.NoError(t, err)
@@ -142,5 +154,9 @@ func TestReadBroken(t *testing.T) {
 
 	aReader := NewReader(buf)
 	err := aReader.ReadArtifact()
+	assert.Error(t, err)
+
+	aReader = NewReader(nil)
+	err = aReader.ReadArtifact()
 	assert.Error(t, err)
 }
