@@ -75,11 +75,6 @@ func (g *Generic) ReadHeader(r io.Reader, path string) error {
 				Name: f,
 			}
 		}
-	case filepath.Base(path) == "type-info":
-		// TODO:
-
-	case filepath.Base(path) == "meta-data":
-		// TODO:
 
 	case match(artifact.HeaderDirectory+"/*/checksums/*", path):
 		buf := bytes.NewBuffer(nil)
@@ -92,9 +87,15 @@ func (g *Generic) ReadHeader(r io.Reader, path string) error {
 		}
 		g.files[key].Checksum = buf.Bytes()
 
-	case match(artifact.HeaderDirectory+"/*/signatres/*", path):
-	case match(artifact.HeaderDirectory+"/*/scripts/*/*", path):
-
+	case filepath.Base(path) == "type-info",
+		filepath.Base(path) == "meta-data",
+		match(artifact.HeaderDirectory+"/*/signatres/*", path),
+		match(artifact.HeaderDirectory+"/*/scripts/pre/*", path),
+		match(artifact.HeaderDirectory+"/*/scripts/post/*", path),
+		match(artifact.HeaderDirectory+"/*/scripts/check/*", path):
+		if _, err := io.Copy(ioutil.Discard, r); err != nil {
+			return errors.Wrapf(err, "generic handler: error reading file: %s", path)
+		}
 	default:
 		return errors.Errorf("update: unsupported file: %v", path)
 	}
