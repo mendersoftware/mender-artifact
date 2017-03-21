@@ -33,16 +33,37 @@ import (
 var Version = "unknown"
 
 func writeArtifact(c *cli.Context) error {
-	if len(c.StringSlice("device-type")) == 0 || len(c.String("artifact-name")) == 0 ||
+	if len(c.StringSlice("device-type")) == 0 ||
+		len(c.String("artifact-name")) == 0 ||
 		len(c.String("update")) == 0 {
 		return errors.New("must provide `device-type`, `artifact-name` and `update`")
 	}
 
-	name := "mender.tar.gz"
+	// set default name
+	name := "artifact.mender"
 	if len(c.String("output-path")) > 0 {
 		name = c.String("output-path")
 	}
-	devices := c.StringSlice("device-type")
+	version := c.Int("version")
+	// set version to 2 if artifact is signed and version
+	// is not set explicitly
+	if !c.IsSet("version") && len(c.String("sign")) != 0 {
+		version = 2
+	}
+
+	var h *handlers.Rootfs
+	switch version {
+	case 1:
+		h = handlers.NewRootfsV1(c.String("update"))
+	case 2:
+		h = handlers.NewRootfsV2(c.String("update"))
+	default:
+		return errors.New("unsupported artifact version")
+	}
+
+	upd := &artifact.Updates{
+		U: []artifact.Composer{h},
+	}
 
 	f, err := os.Create(name)
 	if err != nil {
@@ -50,8 +71,9 @@ func writeArtifact(c *cli.Context) error {
 	}
 	defer f.Close()
 
-	if len(c.String("sign")) != 0 {
+	var aw *awriter.Writer
 
+	if len(c.String("sign")) != 0 {
 		privateKey, err := getKey(c.String("sign"))
 		if err != nil {
 			return err
@@ -59,27 +81,12 @@ func writeArtifact(c *cli.Context) error {
 		s := &artifact.DummySigner{
 			PrivKey: privateKey,
 		}
-		u := handlers.NewRootfsV2(c.String("update"))
-		upd := &artifact.Updates{
-			U: []artifact.Composer{u},
-		}
-		aw := awriter.NewWriterSigned(f, s)
-		// default version for signed artifact is 2
-		ver := 2
-		if c.IsSet("version") {
-			ver = c.Int("version")
-		}
-		return aw.WriteArtifact("mender", ver,
-			devices, c.String("artifact-name"), upd)
+		aw = awriter.NewWriterSigned(f, s)
 	} else {
-		u := handlers.NewRootfsV1(c.String("update"))
-		upd := &artifact.Updates{
-			U: []artifact.Composer{u},
-		}
-		aw := awriter.NewWriter(f)
-		return aw.WriteArtifact("mender", c.Int("version"),
-			devices, c.String("artifact-name"), upd)
+		aw = awriter.NewWriter(f)
 	}
+	return aw.WriteArtifact("mender", version,
+		c.StringSlice("device-type"), c.String("artifact-name"), upd)
 }
 
 func read(aPath string, verify func(message, sig []byte) error) (*areader.Reader, error) {

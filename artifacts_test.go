@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli"
 
@@ -103,6 +104,13 @@ func TestArtifactsWrite(t *testing.T) {
 	fs, err := os.Stat(filepath.Join(updateTestDir, "art.mender"))
 	assert.NoError(t, err)
 	assert.False(t, fs.IsDir())
+
+	// store named file
+	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-o", filepath.Join(updateTestDir, "art.mender"), "-v", "3"}
+	err = run()
+	assert.Error(t, err)
 }
 
 func TestArtifactsSigned(t *testing.T) {
@@ -129,6 +137,15 @@ func TestArtifactsSigned(t *testing.T) {
 		})
 	assert.NoError(t, err)
 
+	// invalid private key
+	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender"),
+		"-s", filepath.Join(updateTestDir, "non-existing-private.key")}
+	err = run()
+	assert.Error(t, err)
+	assert.Equal(t, "Invialid key path.", errors.Cause(err).Error())
+
 	// store named file
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
 		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
@@ -136,17 +153,39 @@ func TestArtifactsSigned(t *testing.T) {
 		"-s", filepath.Join(updateTestDir, "private.key")}
 	err = run()
 	assert.NoError(t, err)
-
 	fs, err := os.Stat(filepath.Join(updateTestDir, "artifact.mender"))
 	assert.NoError(t, err)
 	assert.False(t, fs.IsDir())
 
-	// verify
+	// read
 	os.Args = []string{"mender-artifact", "read",
 		"-v", filepath.Join(updateTestDir, "public.key"),
 		filepath.Join(updateTestDir, "artifact.mender")}
 	err = run()
 	assert.NoError(t, err)
+
+	// read invalid key
+	os.Args = []string{"mender-artifact", "read",
+		"-v", filepath.Join(updateTestDir, "non-existing-public.key"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+	err = run()
+	assert.Error(t, err)
+	assert.Equal(t, "Invialid key path.", errors.Cause(err).Error())
+
+	// validate
+	os.Args = []string{"mender-artifact", "validate",
+		"-v", filepath.Join(updateTestDir, "public.key"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+	err = run()
+	assert.NoError(t, err)
+
+	// validate invalid key
+	os.Args = []string{"mender-artifact", "validate",
+		"-v", filepath.Join(updateTestDir, "non-existing-public.key"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+	err = run()
+	assert.Error(t, err)
+	assert.Equal(t, "Invialid key path.", errors.Cause(err).Error())
 }
 
 func TestArtifactsValidate(t *testing.T) {
@@ -156,6 +195,12 @@ func TestArtifactsValidate(t *testing.T) {
 
 	err := WriteRootfsImageArchive(updateTestDir)
 	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "validate"}
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, errors.Cause(err).Error(),
+		"Nothing specified, nothing validated.")
 
 	os.Args = []string{"mender-artifact", "validate",
 		filepath.Join(updateTestDir, "artifact.mender")}
@@ -178,6 +223,12 @@ func TestArtifactsRead(t *testing.T) {
 
 	err := WriteRootfsImageArchive(updateTestDir)
 	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "read"}
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, errors.Cause(err).Error(),
+		"Nothing specified, nothing read.")
 
 	os.Args = []string{"mender-artifact", "read",
 		filepath.Join(updateTestDir, "artifact.mender")}

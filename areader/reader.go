@@ -262,7 +262,7 @@ func (ar *Reader) ReadArtifact() error {
 	// first file inside the artifact MUST be version
 	ver, vsum, err := readVersion(tReader)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "reader: can not read version file")
 	}
 	ar.info = ver
 
