@@ -21,12 +21,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli"
 
-	"github.com/mendersoftware/mender-artifact/parser"
-	. "github.com/mendersoftware/mender-artifact/test_utils"
-	"github.com/mendersoftware/mender-artifact/writer"
+	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/mendersoftware/mender-artifact/awriter"
+	"github.com/mendersoftware/mender-artifact/handlers"
 )
 
 var (
@@ -42,19 +43,29 @@ func init() {
 	cli.ErrWriter = fakeErrWriter
 }
 
-func WriteRootfsImageArchive(dir string, dirStruct []TestDirEntry) (path string, err error) {
-	err = MakeFakeUpdateDir(dir, dirStruct)
-	if err != nil {
-		return
+func WriteRootfsImageArchive(dir string) error {
+	if err := artifact.MakeFakeUpdateDir(dir,
+		[]artifact.TestDirEntry{
+			{
+				Path:    "update.ext4",
+				Content: []byte("my update"),
+				IsDir:   false,
+			},
+		}); err != nil {
+		return err
 	}
 
-	aw := awriter.NewWriter("mender", 1, []string{"vexpress"}, "mender-1.1")
-	rp := &parser.RootfsParser{}
-	aw.Register(rp)
+	f, err := os.Create(filepath.Join(dir, "artifact.mender"))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
 
-	path = filepath.Join(dir, "artifact.tar.gz")
-	err = aw.Write(dir, path)
-	return
+	aw := awriter.NewWriter(f)
+	u := handlers.NewRootfsV1(filepath.Join(dir, "update.ext4"))
+	updates := &artifact.Updates{U: []artifact.Composer{u}}
+	return aw.WriteArtifact("mender", 1, []string{"vexpress"},
+		"mender-1.1", updates)
 }
 
 func TestArtifactsWrite(t *testing.T) {
@@ -73,8 +84,8 @@ func TestArtifactsWrite(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	err = MakeFakeUpdateDir(updateTestDir,
-		[]TestDirEntry{
+	err = artifact.MakeFakeUpdateDir(updateTestDir,
+		[]artifact.TestDirEntry{
 			{
 				Path:    "update.ext4",
 				Content: []byte("my update"),
@@ -93,6 +104,88 @@ func TestArtifactsWrite(t *testing.T) {
 	fs, err := os.Stat(filepath.Join(updateTestDir, "art.mender"))
 	assert.NoError(t, err)
 	assert.False(t, fs.IsDir())
+
+	// store named file
+	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-o", filepath.Join(updateTestDir, "art.mender"), "-v", "3"}
+	err = run()
+	assert.Error(t, err)
+}
+
+func TestArtifactsSigned(t *testing.T) {
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	err := artifact.MakeFakeUpdateDir(updateTestDir,
+		[]artifact.TestDirEntry{
+			{
+				Path:    "update.ext4",
+				Content: []byte("my update"),
+				IsDir:   false,
+			},
+			{
+				Path:    "private.key",
+				Content: []byte("0123456789"),
+				IsDir:   false,
+			},
+			{
+				Path:    "public.key",
+				Content: []byte("0123456789"),
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	// invalid private key
+	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender"),
+		"-s", filepath.Join(updateTestDir, "non-existing-private.key")}
+	err = run()
+	assert.Error(t, err)
+	assert.Equal(t, "Invialid key path.", errors.Cause(err).Error())
+
+	// store named file
+	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender"),
+		"-s", filepath.Join(updateTestDir, "private.key")}
+	err = run()
+	assert.NoError(t, err)
+	fs, err := os.Stat(filepath.Join(updateTestDir, "artifact.mender"))
+	assert.NoError(t, err)
+	assert.False(t, fs.IsDir())
+
+	// read
+	os.Args = []string{"mender-artifact", "read",
+		"-v", filepath.Join(updateTestDir, "public.key"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+	err = run()
+	assert.NoError(t, err)
+
+	// read invalid key
+	os.Args = []string{"mender-artifact", "read",
+		"-v", filepath.Join(updateTestDir, "non-existing-public.key"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+	err = run()
+	assert.Error(t, err)
+	assert.Equal(t, "Invialid key path.", errors.Cause(err).Error())
+
+	// validate
+	os.Args = []string{"mender-artifact", "validate",
+		"-v", filepath.Join(updateTestDir, "public.key"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+	err = run()
+	assert.NoError(t, err)
+
+	// validate invalid key
+	os.Args = []string{"mender-artifact", "validate",
+		"-v", filepath.Join(updateTestDir, "non-existing-public.key"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+	err = run()
+	assert.Error(t, err)
+	assert.Equal(t, "Invialid key path.", errors.Cause(err).Error())
 }
 
 func TestArtifactsValidate(t *testing.T) {
@@ -100,12 +193,17 @@ func TestArtifactsValidate(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	archive, err := WriteRootfsImageArchive(updateTestDir, RootfsImageStructOK)
+	err := WriteRootfsImageArchive(updateTestDir)
 	assert.NoError(t, err)
-	assert.NotEqual(t, "", archive)
+
+	os.Args = []string{"mender-artifact", "validate"}
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, errors.Cause(err).Error(),
+		"Nothing specified, nothing validated.")
 
 	os.Args = []string{"mender-artifact", "validate",
-		filepath.Join(updateTestDir, "artifact.tar.gz")}
+		filepath.Join(updateTestDir, "artifact.mender")}
 	err = run()
 	assert.NoError(t, err)
 
@@ -123,12 +221,17 @@ func TestArtifactsRead(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	archive, err := WriteRootfsImageArchive(updateTestDir, RootfsImageStructOK)
+	err := WriteRootfsImageArchive(updateTestDir)
 	assert.NoError(t, err)
-	assert.NotEqual(t, "", archive)
+
+	os.Args = []string{"mender-artifact", "read"}
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, errors.Cause(err).Error(),
+		"Nothing specified, nothing read.")
 
 	os.Args = []string{"mender-artifact", "read",
-		filepath.Join(updateTestDir, "artifact.tar.gz")}
+		filepath.Join(updateTestDir, "artifact.mender")}
 	err = run()
 	assert.NoError(t, err)
 
