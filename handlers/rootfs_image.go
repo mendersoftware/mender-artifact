@@ -83,20 +83,20 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string) error {
 			return err
 		}
 		rp.update.Name = files.FileList[0]
-	case filepath.Base(path) == "type-info":
+	case filepath.Base(path) == "type-info",
+		filepath.Base(path) == "meta-data",
+		match(artifact.HeaderDirectory+"/*/signatres/*", path),
+		match(artifact.HeaderDirectory+"/*/scripts/*/*", path):
 		// TODO:
-
-	case filepath.Base(path) == "meta-data":
-		// TODO:
+		if _, err := io.Copy(ioutil.Discard, r); err != nil {
+			return errors.Wrapf(err, "rootfs handler: error reading file: %s", path)
+		}
 	case match(artifact.HeaderDirectory+"/*/checksums/*", path):
 		buf := bytes.NewBuffer(nil)
 		if _, err := io.Copy(buf, r); err != nil {
 			return errors.Wrapf(err, "update: error reading checksum")
 		}
 		rp.update.Checksum = buf.Bytes()
-	case match(artifact.HeaderDirectory+"/*/signatres/*", path):
-	case match(artifact.HeaderDirectory+"/*/scripts/*/*", path):
-
 	default:
 		return errors.Errorf("update: unsupported file: %v", path)
 	}
