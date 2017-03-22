@@ -15,181 +15,127 @@
 package awriter
 
 import (
-	"io/ioutil"
+	"archive/tar"
+	"bytes"
+	"io"
 	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/mendersoftware/mender-artifact/metadata"
-	"github.com/mendersoftware/mender-artifact/parser"
+	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/mendersoftware/mender-artifact/handlers"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
-
-	. "github.com/mendersoftware/mender-artifact/test_utils"
 )
 
-var dirStructInvalid = []TestDirEntry{
-	{Path: "0000", IsDir: true},
-	{Path: "0000/data", IsDir: true},
-	{Path: "0000/type-info", IsDir: false},
-	{Path: "0000/signatures", IsDir: true},
-	{Path: "0000/signatures/update.ext4.sig", IsDir: false},
-	{Path: "0000/scripts", IsDir: true},
-	{Path: "0000/scripts/pre", IsDir: true},
-	{Path: "0000/scripts/post", IsDir: true},
-	{Path: "0000/scripts/check", IsDir: true},
-}
-
-func TestWriteArtifactBrokenDirStruct(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
-	err := MakeFakeUpdateDir(updateTestDir, dirStructInvalid)
-	assert.NoError(t, err)
-
-	aw := NewWriter("mender", 1, []string{"vexpress"}, "mender-1.0")
-	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact"))
-	assert.Error(t, err)
-}
-
-var dirStructOK = []TestDirEntry{
-	{Path: "0000", IsDir: true},
-	{Path: "0000/data", IsDir: true},
-	{Path: "0000/data/update.ext4", Content: []byte("first update"), IsDir: false},
-	{Path: "0000/type-info", Content: []byte(`{"type": "rootfs-image"}`), IsDir: false},
-	{Path: "0000/meta-data", Content: []byte(`{"DeviceType": "vexpress-qemu", "ImageID": "core-image-minimal-201608110900"}`), IsDir: false},
-	{Path: "0000/signatures", IsDir: true},
-	{Path: "0000/signatures/update.ext4.sig", IsDir: false},
-	{Path: "0000/scripts", IsDir: true},
-	{Path: "0000/scripts/pre", IsDir: true},
-	{Path: "0000/scripts/pre/0000_install.sh", Content: []byte("run me!"), IsDir: false},
-	{Path: "0000/scripts/post", IsDir: true},
-	{Path: "0000/scripts/check", IsDir: true},
-}
-
-var dirStructOKAfterWriting = metadata.ArtifactHeader{
-	".":                                {Path: ".", IsDir: true, Required: true},
-	"0000/data":                        {Path: "0000/data", IsDir: true, Required: true},
-	"0000/data/update.ext4":            {Path: "0000/data/update.ext4", IsDir: false, Required: true},
-	"artifact.tar.gz":                  {Path: "artifact.tar.gz", IsDir: false, Required: true},
-	"0000":                             {Path: "0000", IsDir: true, Required: true},
-	"0000/type-info":                   {Path: "0000/type-info", IsDir: false, Required: true},
-	"0000/meta-data":                   {Path: "0000/meta-data", IsDir: false, Required: true},
-	"0000/signatures":                  {Path: "0000/signatures", IsDir: true, Required: true},
-	"0000/signatures/update.ext4.sig":  {Path: "0000/signatures/update.ext4.sig", IsDir: false, Required: true},
-	"0000/scripts":                     {Path: "0000/scripts", IsDir: true, Required: true},
-	"0000/scripts/pre":                 {Path: "0000/scripts/pre", IsDir: true, Required: true},
-	"0000/scripts/pre/0000_install.sh": {Path: "0000/scripts/pre/0000_install.sh", IsDir: false, Required: true},
-	"0000/scripts/post":                {Path: "0000/scripts/post", IsDir: true, Required: true},
-	"0000/scripts/check":               {Path: "0000/scripts/check", IsDir: true, Required: true},
-}
-
-func TestWriteArtifactFile(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
-	err := MakeFakeUpdateDir(updateTestDir, dirStructOK)
-	assert.NoError(t, err)
-
-	aw := NewWriter("mender", 1, []string{"vexpress"}, "mender-1.0")
-
-	rp := &parser.RootfsParser{}
-	aw.Register(rp)
-
-	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact.tar.gz"))
-	assert.NoError(t, err)
-
-	// check is dir structure is correct
-	err = dirStructOKAfterWriting.CheckHeaderStructure(updateTestDir)
-	assert.NoError(t, err)
-}
-
-var dirStructOKSingle = []TestDirEntry{
-	{Path: "data", IsDir: true},
-	{Path: "data/update.ext4", Content: []byte("first update"), IsDir: false},
-	{Path: "type-info", Content: []byte(`{"type": "rootfs-image"}`), IsDir: false},
-	{Path: "meta-data", Content: []byte(`{"DeviceType": "vexpress-qemu", "ImageID": "core-image-minimal-201608110900"}`), IsDir: false},
-}
-
-func TestWriteSingleArtifactFile(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
-	err := MakeFakeUpdateDir(updateTestDir, dirStructOKSingle)
-	assert.NoError(t, err)
-
-	aw := NewWriter("mender", 1, []string{"vexpress"}, "mender-1.0")
-
-	rp := &parser.RootfsParser{}
-	aw.Register(rp)
-
-	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact.tar.gz"))
-	assert.NoError(t, err)
-}
-
-func TestWriteMultiple(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
-	err := MakeFakeUpdateDir(updateTestDir, RootfsImageStructMultiple)
-	assert.NoError(t, err)
-
-	aw := NewWriter("mender", 1, []string{"vexpress"}, "mender-1.0")
-
-	rp := &parser.RootfsParser{}
-	aw.Register(rp)
-
-	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact.tar.gz"))
-	assert.NoError(t, err)
-}
-
-var dirStructBroken = []TestDirEntry{
-	{Path: "0000", IsDir: true},
-	{Path: "0000/data", IsDir: true},
-	{Path: "0000/data/update.ext4", IsDir: false},
-	{Path: "0000/data/update_next.ext3", IsDir: false},
-	{Path: "0000/type-info", IsDir: false},
-	{Path: "0000/meta-data", IsDir: false},
-	{Path: "0000/signatures", IsDir: true},
-	{Path: "0000/signatures/update.ext4.sig", IsDir: false},
-	// signature for one file is missing
-	// {Path: "0000/signatures/update_next.ext3.sig", IsDir: false},
-	{Path: "0000/scripts", IsDir: true},
-	{Path: "0000/scripts/pre", IsDir: true},
-	{Path: "0000/scripts/post", IsDir: true},
-	{Path: "0000/scripts/check", IsDir: true},
-}
-
-func TestWriteBrokenArtifact(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
-	err := MakeFakeUpdateDir(updateTestDir, dirStructBroken)
-	assert.NoError(t, err)
-
-	aw := NewWriter("mender", 1, []string{"vexpress"}, "mender-1.0")
-
-	err = aw.Write(updateTestDir, filepath.Join(updateTestDir, "artifact.tar.gz"))
-	assert.Error(t, err)
-}
-
-var dirStructCustom = []TestDirEntry{
-	{Path: "update.ext4", Content: []byte("first update"), IsDir: false},
-}
-
-func TestWriteCustom(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
-	err := MakeFakeUpdateDir(updateTestDir, dirStructCustom)
-	assert.NoError(t, err)
-
-	aw := NewWriter("mender", 1, []string{"vexpress"}, "mender-1.0")
-
-	he := &parser.HeaderElems{
-		Metadata: []byte(`{"deviceType": "my-device", "imageId": "image-id"}`),
+func checkTarElemsnts(r io.Reader, expected int) error {
+	tr := tar.NewReader(r)
+	i := 0
+	for ; ; i++ {
+		_, err := tr.Next()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
 	}
-	ud := parser.UpdateData{
-		P:         &parser.RootfsParser{},
-		DataFiles: []string{filepath.Join(updateTestDir, "update.ext4")},
-		Type:      "rootfs-image",
-		Data:      he,
+	if i != expected {
+		return errors.Errorf("invalid number of elements; expecting %d, atual %d",
+			expected, i)
 	}
+	return nil
+}
 
-	err = aw.WriteKnown([]parser.UpdateData{ud},
-		filepath.Join(updateTestDir, "mender.tar.gz"))
+func TestWriteArtifact(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	w := NewWriter(buf)
+
+	err := w.WriteArtifact("mender", 1, []string{"asd"}, "name", &artifact.Updates{})
 	assert.NoError(t, err)
+
+	assert.NoError(t, checkTarElemsnts(buf, 2))
+}
+
+func TestWriteArtifactWithUpdates(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	w := NewWriter(buf)
+
+	upd, err := artifact.MakeFakeUpdate("my test update")
+	assert.NoError(t, err)
+	defer os.Remove(upd)
+
+	u := handlers.NewRootfsV1(upd)
+	updates := &artifact.Updates{U: []artifact.Composer{u}}
+
+	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates)
+	assert.NoError(t, err)
+
+	assert.NoError(t, checkTarElemsnts(buf, 3))
+}
+
+func TestWriteMultipleUpdates(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	w := NewWriter(buf)
+
+	upd, err := artifact.MakeFakeUpdate("my test update")
+	assert.NoError(t, err)
+	defer os.Remove(upd)
+
+	u1 := handlers.NewRootfsV1(upd)
+	u2 := handlers.NewRootfsV1(upd)
+	updates := &artifact.Updates{U: []artifact.Composer{u1, u2}}
+
+	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates)
+	assert.NoError(t, err)
+
+	assert.NoError(t, checkTarElemsnts(buf, 4))
+}
+
+func TestWriteArtifactV2(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	w := NewWriterSigned(buf, new(artifact.DummySigner))
+
+	upd, err := artifact.MakeFakeUpdate("my test update")
+	assert.NoError(t, err)
+	defer os.Remove(upd)
+
+	u := handlers.NewRootfsV2(upd)
+	updates := &artifact.Updates{U: []artifact.Composer{u}}
+
+	err = w.WriteArtifact("mender", 2, []string{"asd"}, "name", updates)
+	assert.NoError(t, err)
+	assert.NoError(t, checkTarElemsnts(buf, 5))
+	buf.Reset()
+
+	// error creating v1 signed artifact
+	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates)
+	assert.Error(t, err)
+	assert.Equal(t, "writer: can not create version 1 signed artifact",
+		err.Error())
+	buf.Reset()
+
+	// error creating v3 artifact
+	err = w.WriteArtifact("mender", 3, []string{"asd"}, "name", updates)
+	assert.Error(t, err)
+	assert.Equal(t, "writer: unsupported artifact version",
+		err.Error())
+	buf.Reset()
+
+	// write empty artifact
+	err = w.WriteArtifact("", 2, []string{}, "", &artifact.Updates{})
+	assert.NoError(t, err)
+	assert.NoError(t, checkTarElemsnts(buf, 4))
+	buf.Reset()
+
+	w = NewWriterSigned(buf, nil)
+	err = w.WriteArtifact("mender", 2, []string{"asd"}, "name", updates)
+	assert.NoError(t, err)
+	assert.NoError(t, checkTarElemsnts(buf, 4))
+	buf.Reset()
+
+	// error writing non-existing
+	u = handlers.NewRootfsV2("non-existing")
+	updates = &artifact.Updates{U: []artifact.Composer{u}}
+	err = w.WriteArtifact("mender", 3, []string{"asd"}, "name", updates)
+	assert.Error(t, err)
+	buf.Reset()
 }
