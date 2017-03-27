@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"io/ioutil"
 	"os"
 	"testing"
 
@@ -32,7 +33,7 @@ const (
 )
 
 func MakeRootfsImageArtifact(version int, signed bool) (io.Reader, error) {
-	upd, err := artifact.MakeFakeUpdate(TestUpdateFileContent)
+	upd, err := MakeFakeUpdate(TestUpdateFileContent)
 	if err != nil {
 		return nil, err
 	}
@@ -159,4 +160,18 @@ func TestReadBroken(t *testing.T) {
 	aReader = NewReader(nil)
 	err = aReader.ReadArtifact()
 	assert.Error(t, err)
+}
+
+func MakeFakeUpdate(data string) (string, error) {
+	f, err := ioutil.TempFile("", "test_update")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	if len(data) > 0 {
+		if _, err := f.WriteString(data); err != nil {
+			return "", err
+		}
+	}
+	return f.Name(), nil
 }

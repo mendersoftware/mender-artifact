@@ -30,9 +30,10 @@ import (
 
 type Checksum struct {
 	w io.Writer // underlying writer
+	h hash.Hash // writer calculated hash
+
 	r io.Reader
-	h hash.Hash
-	c []byte // checksum
+	c []byte // reader pre-loaded checksum
 }
 
 func NewWriterChecksum(w io.Writer) *Checksum {
@@ -47,7 +48,7 @@ func NewWriterChecksum(w io.Writer) *Checksum {
 	}
 }
 
-func NewReaderChecksum(r io.Reader) *Checksum {
+func NewReaderChecksum(r io.Reader, sum []byte) *Checksum {
 	if r == nil {
 		return new(Checksum)
 	}
@@ -55,6 +56,7 @@ func NewReaderChecksum(r io.Reader) *Checksum {
 	h := sha256.New()
 	return &Checksum{
 		r: io.TeeReader(r, h),
+		c: sum,
 		h: h,
 	}
 }
@@ -66,11 +68,24 @@ func (c *Checksum) Write(p []byte) (int, error) {
 	return c.w.Write(p)
 }
 
+// Do not call Read directly; use io.Copy instead as we are
+// calculating checksum only after receiving io.EOF.
 func (c *Checksum) Read(p []byte) (int, error) {
 	if c.r == nil {
 		return 0, syscall.EBADF
 	}
-	return c.r.Read(p)
+	n, err := c.r.Read(p)
+	if err == io.EOF {
+		// verify checksum
+		sum := c.h.Sum(nil)
+		checksum := make([]byte, hex.EncodedLen(len(sum)))
+		hex.Encode(checksum, c.h.Sum(nil))
+		if !bytes.Equal(c.c, checksum) {
+			return 0, errors.Errorf("invalid checksum; expected: [%s]; actual: [%s]",
+				c.c, checksum)
+		}
+	}
+	return n, err
 }
 
 func (c *Checksum) Checksum() []byte {
@@ -84,7 +99,12 @@ func (c *Checksum) Checksum() []byte {
 }
 
 type ChecksumStore struct {
-	raw  *bytes.Buffer
+	// raw is storing raw data that is read from manifest file;
+	// we need to keep raw data as iterating over sums map may produce
+	// different result each time map is traversed
+	raw *bytes.Buffer
+	// sums is a map of all files and its checksums;
+	// key is the name of the file and value is the checksum
 	sums map[string]([]byte)
 }
 
@@ -134,10 +154,10 @@ func (c *ChecksumStore) ReadRaw(data []byte) error {
 }
 
 func (c *ChecksumStore) readChecksums(line string) error {
-	l := strings.Split(strings.TrimSpace(line), "  ")
-	if len(l) != 2 {
+	chunks := strings.Split(strings.TrimSpace(line), "  ")
+	if len(chunks) != 2 {
 		return errors.Errorf("checksum: malformed checksum line: '%s'", line)
 	}
 	// add element to map
-	return c.Add(l[1], []byte(l[0]))
+	return c.Add(chunks[1], []byte(chunks[0]))
 }

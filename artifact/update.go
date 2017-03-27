@@ -16,7 +16,6 @@ package artifact
 
 import (
 	"archive/tar"
-	"bytes"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -32,7 +31,7 @@ const (
 	DataDirectory   = "data"
 )
 
-// File represents the minimum set of attributes each update file
+// DataFile represents the minimum set of attributes each update file
 // must contain. Some of those might be empty though for specific update types.
 type DataFile struct {
 	// name of the update file
@@ -65,7 +64,7 @@ type Installer interface {
 }
 
 func UpdatePath(no int) string {
-	return fmt.Sprintf("%04d", no)
+	return filepath.Join(DataDirectory, fmt.Sprintf("%04d", no))
 }
 
 func UpdateHeaderPath(no int) string {
@@ -104,9 +103,6 @@ func ReadAndInstall(r io.Reader, i Installer,
 			return errors.Wrap(err, "update: error reading update file header")
 		}
 
-		// check checksum
-		ch := NewReaderChecksum(tar)
-
 		df := getDataFile(i, hdr.Name)
 		if df == nil {
 			return errors.Errorf("update: can not find data file: %s", hdr.Name)
@@ -119,26 +115,24 @@ func ReadAndInstall(r io.Reader, i Installer,
 
 		// we need to have a checksum either in manifest file (v2 artifact)
 		// or it needs to be pre-filled after reading header
+		// all the names of the data files in manifest are written with the
+		// archive relative path: data/0000/update.ext4
 		if manifest != nil {
-			df.Checksum, err = manifest.Get(filepath.Join(UpdatePath(no), hdr.FileInfo().Name()))
+			df.Checksum, err = manifest.Get(filepath.Join(UpdatePath(no),
+				hdr.FileInfo().Name()))
 			if err != nil {
 				return errors.Wrapf(err, "update: checksum missing")
 			}
 		}
-
 		if df.Checksum == nil {
 			return errors.Errorf("update: checksum missing for file: %s", hdr.Name)
 		}
 
+		// check checksum
+		ch := NewReaderChecksum(tar, df.Checksum)
+
 		if err := i.Install(ch, &info); err != nil {
 			return errors.Wrapf(err, "update: can not install update: %v", hdr)
-		}
-
-		checksum := ch.Checksum()
-		if bytes.Compare(df.Checksum, checksum) != 0 {
-			return errors.Errorf("update: invalid data file checksum: %s; "+
-				"actual:[%s], expected:[%s]",
-				info.Name(), checksum, df.Checksum)
 		}
 	}
 	return nil

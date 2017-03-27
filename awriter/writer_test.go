@@ -18,7 +18,9 @@ import (
 	"archive/tar"
 	"bytes"
 	"io"
+	"io/ioutil"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -59,7 +61,7 @@ func TestWriteArtifactWithUpdates(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	w := NewWriter(buf)
 
-	upd, err := artifact.MakeFakeUpdate("my test update")
+	upd, err := MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
 	defer os.Remove(upd)
 
@@ -76,7 +78,7 @@ func TestWriteMultipleUpdates(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	w := NewWriter(buf)
 
-	upd, err := artifact.MakeFakeUpdate("my test update")
+	upd, err := MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
 	defer os.Remove(upd)
 
@@ -94,7 +96,7 @@ func TestWriteArtifactV2(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	w := NewWriterSigned(buf, new(artifact.DummySigner))
 
-	upd, err := artifact.MakeFakeUpdate("my test update")
+	upd, err := MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
 	defer os.Remove(upd)
 
@@ -138,4 +140,46 @@ func TestWriteArtifactV2(t *testing.T) {
 	err = w.WriteArtifact("mender", 3, []string{"asd"}, "name", updates)
 	assert.Error(t, err)
 	buf.Reset()
+}
+
+type TestDirEntry struct {
+	Path    string
+	Content []byte
+	IsDir   bool
+}
+
+func MakeFakeUpdate(data string) (string, error) {
+	f, err := ioutil.TempFile("", "test_update")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	if len(data) > 0 {
+		if _, err := f.WriteString(data); err != nil {
+			return "", err
+		}
+	}
+	return f.Name(), nil
+}
+
+func MakeFakeUpdateDir(updateDir string, elements []TestDirEntry) error {
+	for _, elem := range elements {
+		if elem.IsDir {
+			if err := os.MkdirAll(path.Join(updateDir, elem.Path), os.ModeDir|os.ModePerm); err != nil {
+				return err
+			}
+		} else {
+			f, err := os.Create(path.Join(updateDir, elem.Path))
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			if len(elem.Content) > 0 {
+				if _, err = f.Write(elem.Content); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }

@@ -27,7 +27,7 @@ import (
 func parseFiles(r io.Reader) (*artifact.Files, error) {
 	files := new(artifact.Files)
 	if _, err := io.Copy(files, r); err != nil {
-		return nil, errors.Wrapf(err, "update: error reading files")
+		return nil, errors.Wrap(err, "update: error reading files")
 	}
 	if err := files.Validate(); err != nil {
 		return nil, err

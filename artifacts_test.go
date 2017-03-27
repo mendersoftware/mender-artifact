@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"testing"
 
@@ -44,8 +45,8 @@ func init() {
 }
 
 func WriteRootfsImageArchive(dir string) error {
-	if err := artifact.MakeFakeUpdateDir(dir,
-		[]artifact.TestDirEntry{
+	if err := MakeFakeUpdateDir(dir,
+		[]TestDirEntry{
 			{
 				Path:    "update.ext4",
 				Content: []byte("my update"),
@@ -84,8 +85,8 @@ func TestArtifactsWrite(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	err = artifact.MakeFakeUpdateDir(updateTestDir,
-		[]artifact.TestDirEntry{
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
 			{
 				Path:    "update.ext4",
 				Content: []byte("my update"),
@@ -117,8 +118,8 @@ func TestArtifactsSigned(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	err := artifact.MakeFakeUpdateDir(updateTestDir,
-		[]artifact.TestDirEntry{
+	err := MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
 			{
 				Path:    "update.ext4",
 				Content: []byte("my update"),
@@ -242,4 +243,32 @@ func TestArtifactsRead(t *testing.T) {
 	assert.Equal(t, 1, lastExitCode)
 	assert.Equal(t, "Pathspec 'non-existing' does not match any files.\n",
 		fakeErrWriter.String())
+}
+
+type TestDirEntry struct {
+	Path    string
+	Content []byte
+	IsDir   bool
+}
+
+func MakeFakeUpdateDir(updateDir string, elements []TestDirEntry) error {
+	for _, elem := range elements {
+		if elem.IsDir {
+			if err := os.MkdirAll(path.Join(updateDir, elem.Path), os.ModeDir|os.ModePerm); err != nil {
+				return err
+			}
+		} else {
+			f, err := os.Create(path.Join(updateDir, elem.Path))
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			if len(elem.Content) > 0 {
+				if _, err = f.Write(elem.Content); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }

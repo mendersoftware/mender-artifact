@@ -7,71 +7,6 @@ Depending on the version of the artifact the format might be as a tree below.
 Note that there are some restrictions on ordering of the files, described
 in the "Ordering" section.
 
-### version 1
-
-```
--artifact.mender (tar format)
-  |
-  +---version
-  |
-  +---header.tar.gz (tar format)
-  |    |
-  |    +---header-info
-  |    |
-  |    `---headers
-  |         |
-  |         +---0000
-  |         |    |
-  |         |    +---files
-  |         |    |
-  |         |    +---type-info
-  |         |    |
-  |         |    +---meta-data
-  |         |    |
-  |         |    +---checksums
-  |         |    |    +--<image file.sha25sum>
-  |         |    |    +--<binary delta.sha256sum>
-  |         |    |    `--...
-  |         |    |
-  |         |    `---scripts
-  |         |         |
-  |         |         +---pre
-  |         |         |    +--01_do_this
-  |         |         |    +--02_do_that
-  |         |         |    `--xx_ ...
-  |         |         |
-  |         |         +---post
-  |         |         |    +--01_do_this
-  |         |         |    +--02_do_that
-  |         |         |    `--xx_ ...
-  |         |         |
-  |         |         `---check
-  |         |              +--01_check_this
-  |         |              +--02_check_that
-  |         |              `--xx_ ...
-  |         |
-  |         +---0001
-  |         |    |
-  |         |    `---<more headers>
-  |         |
-  |         `---000n ...
-  |
-  `---data
-       |
-       +---0000.tar.gz
-       |    +--<image-file (ext4)>
-       |    +--<binary delta, etc>
-       |    `--...
-       |
-       +---0001.tar.gz
-       |    +--<image-file (ext4)>
-       |    +--<binary delta, etc>
-       |    `--...
-       |
-       +---000n.tar.gz ...
-            `--...
-```
-
 
 ### version 2
 
@@ -138,6 +73,72 @@ in the "Ordering" section.
 ```
 
 
+### version 1
+
+```
+-artifact.mender (tar format)
+  |
+  +---version
+  |
+  +---header.tar.gz (tar format)
+  |    |
+  |    +---header-info
+  |    |
+  |    `---headers
+  |         |
+  |         +---0000
+  |         |    |
+  |         |    +---files
+  |         |    |
+  |         |    +---type-info
+  |         |    |
+  |         |    +---meta-data
+  |         |    |
+  |         |    +---checksums
+  |         |    |    +--<image file.sha25sum>
+  |         |    |    +--<binary delta.sha256sum>
+  |         |    |    `--...
+  |         |    |
+  |         |    `---scripts
+  |         |         |
+  |         |         +---pre
+  |         |         |    +--01_do_this
+  |         |         |    +--02_do_that
+  |         |         |    `--xx_ ...
+  |         |         |
+  |         |         +---post
+  |         |         |    +--01_do_this
+  |         |         |    +--02_do_that
+  |         |         |    `--xx_ ...
+  |         |         |
+  |         |         `---check
+  |         |              +--01_check_this
+  |         |              +--02_check_that
+  |         |              `--xx_ ...
+  |         |
+  |         +---0001
+  |         |    |
+  |         |    `---<more headers>
+  |         |
+  |         `---000n ...
+  |
+  `---data
+       |
+       +---0000.tar.gz
+       |    +--<image-file (ext4)>
+       |    +--<binary delta, etc>
+       |    `--...
+       |
+       +---0001.tar.gz
+       |    +--<image-file (ext4)>
+       |    +--<binary delta, etc>
+       |    `--...
+       |
+       +---000n.tar.gz ...
+            `--...
+```
+
+
 version
 ----
 
@@ -148,7 +149,7 @@ Contains the below content exactly:
 ```
 {
   "format": "mender",
-  "version": 1
+  "version": 2
 }
 ```
 
@@ -161,11 +162,12 @@ manifest
 ----
 
 Format: text
+Version: Exists only in version 2 and later
 
-Contains the below content exactly:
+Contains the file checksums, formatted exactly like below:
 
 ```
-1d0b820130ae028ce8a79b7e217fe505a765ac394718e795d454941487c53d32  0000/update.ext4
+1d0b820130ae028ce8a79b7e217fe505a765ac394718e795d454941487c53d32  data/0000/update.ext4
 4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619  header.tar.gz
 52c76ab66947278a897c2a6df8b4d77badfa343fec7ba3b2983c2ecbbb041a35  version
 ```
@@ -180,6 +182,7 @@ manifest.sig
 ----
 
 Format: TBD
+Version: Exists only in version 2 and later
 
 File containing the signature of `manifest`.
 
@@ -295,6 +298,7 @@ It is legal for an update not to have any checksums.
 #### Checksum file
 
 Format: Checksum
+Version: Exists only in version 1
 
 Each file must match the name of a file in `data` exactly, plus an appended
 suffix which determines the type of checksum. For maximum compatibility, there

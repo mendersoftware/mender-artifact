@@ -55,6 +55,7 @@ func calcDataHash(s *artifact.ChecksumStore, upd *artifact.Updates) error {
 			if err != nil {
 				return errors.Wrapf(err, "writer: can not open data file: %v", f)
 			}
+			defer df.Close()
 			if _, err := io.Copy(ch, df); err != nil {
 				return errors.Wrapf(err, "writer: can not calculate checksum: %v", f)
 			}
@@ -110,7 +111,7 @@ func writeSignature(tw *tar.Writer, message []byte,
 	}
 	sw := artifact.NewTarWriterStream(tw)
 	if err := sw.Write(sig, "manifest.sig"); err != nil {
-		return errors.Wrapf(err, "writer: can not tar signature")
+		return errors.Wrap(err, "writer: can not tar signature")
 	}
 	return nil
 }
@@ -166,10 +167,10 @@ func (aw *Writer) WriteArtifact(format string, version int,
 		if err := writeSignature(tw, s.GetRaw(), aw.signer); err != nil {
 			return err
 		}
-		// write header
+		// header is written later on
 
 	case 1:
-		// write header later on
+		// header is written later on
 
 	default:
 		return errors.New("writer: unsupported artifact version")

@@ -69,7 +69,7 @@ func TestReadHeader(t *testing.T) {
 		{data: "", name: "headers/0000/scripts/pre/my_script", shouldErr: false},
 		{data: "", name: "headers/0000/scripts/post/my_script", shouldErr: false},
 		{data: "", name: "headers/0000/scripts/check/my_script", shouldErr: false},
-		{data: "", name: "headers/0000/signatres/update.sig", shouldErr: false},
+		{data: "", name: "headers/0000/signatures/update.sig", shouldErr: false},
 	}
 
 	for _, test := range tc {

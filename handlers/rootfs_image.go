@@ -85,16 +85,13 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string) error {
 		rp.update.Name = files.FileList[0]
 	case filepath.Base(path) == "type-info",
 		filepath.Base(path) == "meta-data",
-		match(artifact.HeaderDirectory+"/*/signatres/*", path),
+		match(artifact.HeaderDirectory+"/*/signatures/*", path),
 		match(artifact.HeaderDirectory+"/*/scripts/*/*", path):
-		// TODO:
-		if _, err := io.Copy(ioutil.Discard, r); err != nil {
-			return errors.Wrapf(err, "rootfs handler: error reading file: %s", path)
-		}
+		// TODO: implement when needed
 	case match(artifact.HeaderDirectory+"/*/checksums/*", path):
 		buf := bytes.NewBuffer(nil)
 		if _, err := io.Copy(buf, r); err != nil {
-			return errors.Wrapf(err, "update: error reading checksum")
+			return errors.Wrap(err, "update: error reading checksum")
 		}
 		rp.update.Checksum = buf.Bytes()
 	default:
@@ -168,7 +165,7 @@ func (rfs *Rootfs) ComposeData(tw *tar.Writer, no int) error {
 		fw := artifact.NewTarWriterFile(tarw)
 		if err := fw.Write(df, filepath.Base(rfs.update.Name)); err != nil {
 			return errors.Wrapf(err,
-				"update: can not tar temp data header: %v", rfs.update)
+				"update: can not write tar temp data header: %v", rfs.update)
 		}
 		return nil
 	}()
@@ -183,7 +180,7 @@ func (rfs *Rootfs) ComposeData(tw *tar.Writer, no int) error {
 
 	dfw := artifact.NewTarWriterFile(tw)
 	if err = dfw.Write(f, artifact.UpdateDataPath(no)); err != nil {
-		return errors.Wrapf(err, "update: can not tar data header: %v", rfs.update)
+		return errors.Wrapf(err, "update: can not write tar data header: %v", rfs.update)
 	}
 	return nil
 }

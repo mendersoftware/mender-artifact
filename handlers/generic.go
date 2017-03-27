@@ -89,13 +89,11 @@ func (g *Generic) ReadHeader(r io.Reader, path string) error {
 
 	case filepath.Base(path) == "type-info",
 		filepath.Base(path) == "meta-data",
-		match(artifact.HeaderDirectory+"/*/signatres/*", path),
+		match(artifact.HeaderDirectory+"/*/signatures/*", path),
 		match(artifact.HeaderDirectory+"/*/scripts/pre/*", path),
 		match(artifact.HeaderDirectory+"/*/scripts/post/*", path),
 		match(artifact.HeaderDirectory+"/*/scripts/check/*", path):
-		if _, err := io.Copy(ioutil.Discard, r); err != nil {
-			return errors.Wrapf(err, "generic handler: error reading file: %s", path)
-		}
+		// TODO: implement when needed
 	default:
 		return errors.Errorf("update: unsupported file: %v", path)
 	}
