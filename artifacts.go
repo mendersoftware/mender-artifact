@@ -61,8 +61,8 @@ func writeArtifact(c *cli.Context) error {
 		return errors.New("unsupported artifact version")
 	}
 
-	upd := &artifact.Updates{
-		U: []artifact.Composer{h},
+	upd := &awriter.Updates{
+		U: []handlers.Composer{h},
 	}
 
 	f, err := os.Create(name)

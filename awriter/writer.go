@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
 )
 
@@ -46,8 +47,12 @@ func NewWriterSigned(w io.Writer, s artifact.Signer) *Writer {
 	}
 }
 
+type Updates struct {
+	U []handlers.Composer
+}
+
 // Iterate through all data files inside `upd` and calculate checksums.
-func calcDataHash(s *artifact.ChecksumStore, upd *artifact.Updates) error {
+func calcDataHash(s *artifact.ChecksumStore, upd *Updates) error {
 	for i, u := range upd.U {
 		for _, f := range u.GetUpdateFiles() {
 			ch := artifact.NewWriterChecksum(ioutil.Discard)
@@ -68,7 +73,7 @@ func calcDataHash(s *artifact.ChecksumStore, upd *artifact.Updates) error {
 }
 
 func writeTempHeader(s *artifact.ChecksumStore, devices []string, name string,
-	upd *artifact.Updates) (*os.File, error) {
+	upd *Updates) (*os.File, error) {
 	// create temporary header file
 	f, err := ioutil.TempFile("", "header")
 	if err != nil {
@@ -117,7 +122,7 @@ func writeSignature(tw *tar.Writer, message []byte,
 }
 
 func (aw *Writer) WriteArtifact(format string, version int,
-	devices []string, name string, upd *artifact.Updates) error {
+	devices []string, name string, upd *Updates) error {
 
 	if version == 1 && aw.signer != nil {
 		return errors.New("writer: can not create version 1 signed artifact")
@@ -190,7 +195,7 @@ func (aw *Writer) WriteArtifact(format string, version int,
 }
 
 func writeHeader(tw *tar.Writer, devices []string, name string,
-	updates *artifact.Updates) error {
+	updates *Updates) error {
 	// store header info
 	hInfo := new(artifact.HeaderInfo)
 
@@ -214,7 +219,7 @@ func writeHeader(tw *tar.Writer, devices []string, name string,
 	return nil
 }
 
-func writeData(tw *tar.Writer, updates *artifact.Updates) error {
+func writeData(tw *tar.Writer, updates *Updates) error {
 	for i, upd := range updates.U {
 		if err := upd.ComposeData(tw, i); err != nil {
 			return errors.Wrapf(err, "writer: error writing data files")

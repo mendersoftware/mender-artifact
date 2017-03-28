@@ -41,15 +41,15 @@ type Reader struct {
 	hInfo      *artifact.HeaderInfo
 	info       *artifact.Info
 	r          io.Reader
-	handlers   map[string]artifact.Installer
-	installers map[int]artifact.Installer
+	handlers   map[string]handlers.Installer
+	installers map[int]handlers.Installer
 }
 
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
 		r:          r,
-		handlers:   make(map[string]artifact.Installer, 1),
-		installers: make(map[int]artifact.Installer, 1),
+		handlers:   make(map[string]handlers.Installer, 1),
+		installers: make(map[int]handlers.Installer, 1),
 	}
 }
 
@@ -113,7 +113,7 @@ func readVersion(tr *tar.Reader) (*artifact.Info, []byte, error) {
 	return info, raw, nil
 }
 
-func (ar *Reader) RegisterHandler(handler artifact.Installer) error {
+func (ar *Reader) RegisterHandler(handler handlers.Installer) error {
 	if handler == nil {
 		return errors.New("reader: invalid handler")
 	}
@@ -124,7 +124,7 @@ func (ar *Reader) RegisterHandler(handler artifact.Installer) error {
 	return nil
 }
 
-func (ar *Reader) GetHandlers() map[int]artifact.Installer {
+func (ar *Reader) GetHandlers() map[int]handlers.Installer {
 	return ar.installers
 }
 
@@ -357,7 +357,7 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader,
 		return errors.Wrapf(err,
 			"reader: can not find parser for parsing data file [%v]", hdr.Name)
 	}
-	return artifact.ReadAndInstall(tr, inst, manifest, updNo)
+	return readAndInstall(tr, inst, manifest, updNo)
 }
 
 func (ar *Reader) readData(tr *tar.Reader, manifest *artifact.ChecksumStore) error {
@@ -398,4 +398,67 @@ func getNext(tr *tar.Reader) (*tar.Header, error) {
 		}
 		return hdr, nil
 	}
+}
+
+func getDataFile(i handlers.Installer, name string) *handlers.DataFile {
+	for _, file := range i.GetUpdateFiles() {
+		if name == file.Name {
+			return file
+		}
+	}
+	return nil
+}
+
+func readAndInstall(r io.Reader, i handlers.Installer,
+	manifest *artifact.ChecksumStore, no int) error {
+	// each data file is stored in tar.gz format
+	gz, err := gzip.NewReader(r)
+	if err != nil {
+		return errors.Wrapf(err, "update: can not open gz for reading data")
+	}
+	defer gz.Close()
+
+	tar := tar.NewReader(gz)
+
+	for {
+		hdr, err := tar.Next()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return errors.Wrap(err, "update: error reading update file header")
+		}
+
+		df := getDataFile(i, hdr.Name)
+		if df == nil {
+			return errors.Errorf("update: can not find data file: %s", hdr.Name)
+		}
+
+		// fill in needed data
+		info := hdr.FileInfo()
+		df.Size = info.Size()
+		df.Date = info.ModTime()
+
+		// we need to have a checksum either in manifest file (v2 artifact)
+		// or it needs to be pre-filled after reading header
+		// all the names of the data files in manifest are written with the
+		// archive relative path: data/0000/update.ext4
+		if manifest != nil {
+			df.Checksum, err = manifest.Get(filepath.Join(artifact.UpdatePath(no),
+				hdr.FileInfo().Name()))
+			if err != nil {
+				return errors.Wrapf(err, "update: checksum missing")
+			}
+		}
+		if df.Checksum == nil {
+			return errors.Errorf("update: checksum missing for file: %s", hdr.Name)
+		}
+
+		// check checksum
+		ch := artifact.NewReaderChecksum(tar, df.Checksum)
+
+		if err := i.Install(ch, &info); err != nil {
+			return errors.Wrapf(err, "update: can not install update: %v", hdr)
+		}
+	}
+	return nil
 }

@@ -28,18 +28,18 @@ import (
 
 type Generic struct {
 	updateType string
-	files      map[string](*artifact.DataFile)
+	files      map[string](*DataFile)
 }
 
 func NewGeneric(t string) *Generic {
 	return &Generic{
 		updateType: t,
-		files:      make(map[string](*artifact.DataFile)),
+		files:      make(map[string](*DataFile)),
 	}
 }
 
-func (g *Generic) GetUpdateFiles() [](*artifact.DataFile) {
-	list := make([](*artifact.DataFile), len(g.files))
+func (g *Generic) GetUpdateFiles() [](*DataFile) {
+	list := make([](*DataFile), len(g.files))
 	i := 0
 	for _, f := range g.files {
 		list[i] = f
@@ -54,7 +54,7 @@ func (g *Generic) GetType() string {
 
 // Copy is implemented only to satisfy Installer interface.
 // Generic parser is not supposed to be copied.
-func (g *Generic) Copy() artifact.Installer {
+func (g *Generic) Copy() Installer {
 	return nil
 }
 
@@ -71,7 +71,7 @@ func (g *Generic) ReadHeader(r io.Reader, path string) error {
 			return err
 		}
 		for _, f := range files.FileList {
-			g.files[filepath.Base(f)] = &artifact.DataFile{
+			g.files[filepath.Base(f)] = &DataFile{
 				Name: f,
 			}
 		}

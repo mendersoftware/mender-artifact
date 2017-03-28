@@ -32,13 +32,13 @@ import (
 // `DataFunc` (user provided callback that handlers the update data stream).
 type Rootfs struct {
 	version int
-	update  *artifact.DataFile
+	update  *DataFile
 
-	InstallHandler func(io.Reader, *artifact.DataFile) error
+	InstallHandler func(io.Reader, *DataFile) error
 }
 
 func NewRootfsV1(updFile string) *Rootfs {
-	uf := &artifact.DataFile{
+	uf := &DataFile{
 		Name: updFile,
 	}
 	return &Rootfs{
@@ -48,7 +48,7 @@ func NewRootfsV1(updFile string) *Rootfs {
 }
 
 func NewRootfsV2(updFile string) *Rootfs {
-	uf := &artifact.DataFile{
+	uf := &DataFile{
 		Name: updFile,
 	}
 	return &Rootfs{
@@ -61,15 +61,15 @@ func NewRootfsV2(updFile string) *Rootfs {
 // rootfs-image update type.
 func NewRootfsInstaller() *Rootfs {
 	return &Rootfs{
-		update: new(artifact.DataFile),
+		update: new(DataFile),
 	}
 }
 
 // Copy creates a new instance of Rootfs handler from the existing one.
-func (rp *Rootfs) Copy() artifact.Installer {
+func (rp *Rootfs) Copy() Installer {
 	return &Rootfs{
 		version:        rp.version,
-		update:         new(artifact.DataFile),
+		update:         new(DataFile),
 		InstallHandler: rp.InstallHandler,
 	}
 }
@@ -109,8 +109,8 @@ func (rfs *Rootfs) Install(r io.Reader, info *os.FileInfo) error {
 	return nil
 }
 
-func (rfs *Rootfs) GetUpdateFiles() [](*artifact.DataFile) {
-	return [](*artifact.DataFile){rfs.update}
+func (rfs *Rootfs) GetUpdateFiles() [](*DataFile) {
+	return [](*DataFile){rfs.update}
 }
 
 func (rfs *Rootfs) GetType() string {
@@ -134,7 +134,7 @@ func (rfs *Rootfs) ComposeHeader(tw *tar.Writer, no int) error {
 
 	if rfs.version == 1 {
 		// store checksums
-		if err := writeChecksums(tw, [](*artifact.DataFile){rfs.update},
+		if err := writeChecksums(tw, [](*DataFile){rfs.update},
 			filepath.Join(path, "checksums")); err != nil {
 			return err
 		}

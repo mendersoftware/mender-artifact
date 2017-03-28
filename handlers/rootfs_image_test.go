@@ -22,7 +22,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,7 +32,7 @@ func TestHandlerRootfs(t *testing.T) {
 	assert.Equal(t, "rootfs-image", r.GetType())
 
 	// test get update files
-	r.update = &artifact.DataFile{Name: "update.ext4"}
+	r.update = &DataFile{Name: "update.ext4"}
 	assert.Equal(t, "update.ext4", r.GetUpdateFiles()[0].Name)
 	assert.Equal(t, 1, r.version)
 
@@ -41,7 +40,7 @@ func TestHandlerRootfs(t *testing.T) {
 	assert.Equal(t, "rootfs-image", r.GetType())
 
 	// test get update files
-	r.update = &artifact.DataFile{Name: "update_next.ext4"}
+	r.update = &DataFile{Name: "update_next.ext4"}
 	assert.Equal(t, "update_next.ext4", r.GetUpdateFiles()[0].Name)
 	assert.Equal(t, 2, r.version)
 
@@ -137,7 +136,7 @@ func TestRootfsReadData(t *testing.T) {
 	assert.NoError(t, err)
 
 	data := bytes.NewBuffer(nil)
-	r.InstallHandler = func(r io.Reader, df *artifact.DataFile) error {
+	r.InstallHandler = func(r io.Reader, df *DataFile) error {
 		_, err := io.Copy(data, r)
 		return err
 	}

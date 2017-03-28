@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
@@ -34,7 +33,7 @@ func TestHandlerGeneric(t *testing.T) {
 	assert.Nil(t, g.Copy())
 
 	// test get update files
-	g.files["custom"] = &artifact.DataFile{Name: "update.ext4"}
+	g.files["custom"] = &DataFile{Name: "update.ext4"}
 	assert.Len(t, g.GetUpdateFiles(), 1)
 	assert.Equal(t, "update.ext4", g.GetUpdateFiles()[0].Name)
 }

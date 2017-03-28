@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
 )
@@ -64,7 +63,7 @@ func WriteRootfsImageArchive(dir string) error {
 
 	aw := awriter.NewWriter(f)
 	u := handlers.NewRootfsV1(filepath.Join(dir, "update.ext4"))
-	updates := &artifact.Updates{U: []artifact.Composer{u}}
+	updates := &awriter.Updates{U: []handlers.Composer{u}}
 	return aw.WriteArtifact("mender", 1, []string{"vexpress"},
 		"mender-1.1", updates)
 }

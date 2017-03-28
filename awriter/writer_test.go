@@ -51,7 +51,7 @@ func TestWriteArtifact(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	w := NewWriter(buf)
 
-	err := w.WriteArtifact("mender", 1, []string{"asd"}, "name", &artifact.Updates{})
+	err := w.WriteArtifact("mender", 1, []string{"asd"}, "name", &Updates{})
 	assert.NoError(t, err)
 
 	assert.NoError(t, checkTarElemsnts(buf, 2))
@@ -66,7 +66,7 @@ func TestWriteArtifactWithUpdates(t *testing.T) {
 	defer os.Remove(upd)
 
 	u := handlers.NewRootfsV1(upd)
-	updates := &artifact.Updates{U: []artifact.Composer{u}}
+	updates := &Updates{U: []handlers.Composer{u}}
 
 	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates)
 	assert.NoError(t, err)
@@ -84,7 +84,7 @@ func TestWriteMultipleUpdates(t *testing.T) {
 
 	u1 := handlers.NewRootfsV1(upd)
 	u2 := handlers.NewRootfsV1(upd)
-	updates := &artifact.Updates{U: []artifact.Composer{u1, u2}}
+	updates := &Updates{U: []handlers.Composer{u1, u2}}
 
 	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates)
 	assert.NoError(t, err)
@@ -101,7 +101,7 @@ func TestWriteArtifactV2(t *testing.T) {
 	defer os.Remove(upd)
 
 	u := handlers.NewRootfsV2(upd)
-	updates := &artifact.Updates{U: []artifact.Composer{u}}
+	updates := &Updates{U: []handlers.Composer{u}}
 
 	err = w.WriteArtifact("mender", 2, []string{"asd"}, "name", updates)
 	assert.NoError(t, err)
@@ -123,7 +123,7 @@ func TestWriteArtifactV2(t *testing.T) {
 	buf.Reset()
 
 	// write empty artifact
-	err = w.WriteArtifact("", 2, []string{}, "", &artifact.Updates{})
+	err = w.WriteArtifact("", 2, []string{}, "", &Updates{})
 	assert.NoError(t, err)
 	assert.NoError(t, checkTarElemsnts(buf, 4))
 	buf.Reset()
@@ -136,7 +136,7 @@ func TestWriteArtifactV2(t *testing.T) {
 
 	// error writing non-existing
 	u = handlers.NewRootfsV2("non-existing")
-	updates = &artifact.Updates{U: []artifact.Composer{u}}
+	updates = &Updates{U: []handlers.Composer{u}}
 	err = w.WriteArtifact("mender", 3, []string{"asd"}, "name", updates)
 	assert.Error(t, err)
 	buf.Reset()

@@ -15,53 +15,14 @@
 package artifact
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
-	"time"
-
-	"github.com/pkg/errors"
 )
 
 const (
 	HeaderDirectory = "headers"
 	DataDirectory   = "data"
 )
-
-// DataFile represents the minimum set of attributes each update file
-// must contain. Some of those might be empty though for specific update types.
-type DataFile struct {
-	// name of the update file
-	Name string
-	// size of the update file
-	Size int64
-	// last modification time
-	Date time.Time
-	// checksum of the update file
-	Checksum []byte
-}
-
-type Composer interface {
-	GetUpdateFiles() [](*DataFile)
-	GetType() string
-	ComposeHeader(tw *tar.Writer, no int) error
-	ComposeData(tw *tar.Writer, no int) error
-}
-
-type Updates struct {
-	U []Composer
-}
-
-type Installer interface {
-	GetUpdateFiles() [](*DataFile)
-	GetType() string
-	Copy() Installer
-	ReadHeader(r io.Reader, path string) error
-	Install(r io.Reader, info *os.FileInfo) error
-}
 
 func UpdatePath(no int) string {
 	return filepath.Join(DataDirectory, fmt.Sprintf("%04d", no))
@@ -73,67 +34,4 @@ func UpdateHeaderPath(no int) string {
 
 func UpdateDataPath(no int) string {
 	return filepath.Join(DataDirectory, fmt.Sprintf("%04d.tar.gz", no))
-}
-
-func getDataFile(i Installer, name string) *DataFile {
-	for _, file := range i.GetUpdateFiles() {
-		if name == file.Name {
-			return file
-		}
-	}
-	return nil
-}
-
-func ReadAndInstall(r io.Reader, i Installer,
-	manifest *ChecksumStore, no int) error {
-	// each data file is stored in tar.gz format
-	gz, err := gzip.NewReader(r)
-	if err != nil {
-		return errors.Wrapf(err, "update: can not open gz for reading data")
-	}
-	defer gz.Close()
-
-	tar := tar.NewReader(gz)
-
-	for {
-		hdr, err := tar.Next()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return errors.Wrap(err, "update: error reading update file header")
-		}
-
-		df := getDataFile(i, hdr.Name)
-		if df == nil {
-			return errors.Errorf("update: can not find data file: %s", hdr.Name)
-		}
-
-		// fill in needed data
-		info := hdr.FileInfo()
-		df.Size = info.Size()
-		df.Date = info.ModTime()
-
-		// we need to have a checksum either in manifest file (v2 artifact)
-		// or it needs to be pre-filled after reading header
-		// all the names of the data files in manifest are written with the
-		// archive relative path: data/0000/update.ext4
-		if manifest != nil {
-			df.Checksum, err = manifest.Get(filepath.Join(UpdatePath(no),
-				hdr.FileInfo().Name()))
-			if err != nil {
-				return errors.Wrapf(err, "update: checksum missing")
-			}
-		}
-		if df.Checksum == nil {
-			return errors.Errorf("update: checksum missing for file: %s", hdr.Name)
-		}
-
-		// check checksum
-		ch := NewReaderChecksum(tar, df.Checksum)
-
-		if err := i.Install(ch, &info); err != nil {
-			return errors.Wrapf(err, "update: can not install update: %v", hdr)
-		}
-	}
-	return nil
 }
