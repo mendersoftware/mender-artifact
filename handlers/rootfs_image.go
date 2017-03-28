@@ -132,6 +132,13 @@ func (rfs *Rootfs) ComposeHeader(tw *tar.Writer, no int) error {
 		return err
 	}
 
+	// store empty meta-data
+	// the file needs to be a part of artifact even if this one is empty
+	sw := artifact.NewTarWriterStream(tw)
+	if err := sw.Write(nil, filepath.Join(path, "meta-data")); err != nil {
+		return errors.Wrap(err, "update: can not store meta-data")
+	}
+
 	if rfs.version == 1 {
 		// store checksums
 		if err := writeChecksums(tw, [](*DataFile){rfs.update},
