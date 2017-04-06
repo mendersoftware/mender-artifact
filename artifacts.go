@@ -47,7 +47,7 @@ func writeArtifact(c *cli.Context) error {
 	version := c.Int("version")
 	// set version to 2 if artifact is signed and version
 	// is not set explicitly
-	if !c.IsSet("version") && len(c.String("sign")) != 0 {
+	if !c.IsSet("version") && len(c.String("key")) != 0 {
 		version = 2
 	}
 
@@ -73,15 +73,12 @@ func writeArtifact(c *cli.Context) error {
 
 	var aw *awriter.Writer
 
-	if len(c.String("sign")) != 0 {
-		privateKey, err := getKey(c.String("sign"))
+	if len(c.String("key")) != 0 {
+		privateKey, err := getKey(c.String("key"))
 		if err != nil {
 			return err
 		}
-		s := &artifact.DummySigner{
-			PrivKey: privateKey,
-		}
-		aw = awriter.NewWriterSigned(f, s)
+		aw = awriter.NewWriterSigned(f, artifact.NewSigner(privateKey))
 	} else {
 		aw = awriter.NewWriter(f)
 	}
@@ -124,20 +121,34 @@ func readArtifact(c *cli.Context) error {
 			" to say 'artifacts read <pathspec>'?")
 	}
 
-	var verifyCallback func(message, sig []byte) error
+	var verifyCallback areader.SignatureVerifyFn
 
-	if len(c.String("verify")) != 0 {
-		key, err := getKey(c.String("verify"))
+	if len(c.String("key")) != 0 {
+		key, err := getKey(c.String("key"))
 		if err != nil {
 			return err
 		}
-		s := artifact.DummySigner{
-			PubKey: key,
-		}
+		s := artifact.NewVerifier(key)
 		verifyCallback = s.Verify
 	}
 
-	r, err := read(c.Args().First(), verifyCallback)
+	// if key is not provided just continue reading artifact returning
+	// info that signature can not be verified
+	sigInfo := "no signature"
+	ver := func(message, sig []byte) error {
+		sigInfo = "signed; no key for verification provided"
+		if verifyCallback != nil {
+			err := verifyCallback(message, sig)
+			if err != nil {
+				sigInfo = "signed; verification using provided key failed"
+			} else {
+				sigInfo = "signed and verified correctly"
+			}
+		}
+		return nil
+	}
+
+	r, err := read(c.Args().First(), ver)
 	if err != nil {
 		return err
 	}
@@ -149,8 +160,8 @@ func readArtifact(c *cli.Context) error {
 	fmt.Printf("  Name: %s\n", r.GetArtifactName())
 	fmt.Printf("  Format: %s\n", info.Format)
 	fmt.Printf("  Version: %d\n", info.Version)
+	fmt.Printf("  Signature: %s\n", sigInfo)
 	fmt.Printf("  Compatible devices: '%s'\n", r.GetCompatibleDevices())
-
 	fmt.Printf("\nUpdates:\n")
 
 	for k, p := range inst {
@@ -187,25 +198,41 @@ func validateArtifact(c *cli.Context) error {
 			" to say 'artifacts validate <pathspec>'?")
 	}
 
-	var verifyCallback func(message, sig []byte) error
+	var verifyCallback areader.SignatureVerifyFn
 
-	if len(c.String("verify")) != 0 {
-		key, err := getKey(c.String("verify"))
+	if len(c.String("key")) != 0 {
+		key, err := getKey(c.String("key"))
 		if err != nil {
 			return err
 		}
-		s := artifact.DummySigner{
-			PubKey: key,
-		}
+		s := artifact.NewVerifier(key)
 		verifyCallback = s.Verify
 	}
 
-	_, err := read(c.Args().First(), verifyCallback)
+	// do not return error if we can not validate signature;
+	// just continue checking consistency and return info if
+	// signature verification failed
+	valid := true
+	ver := func(message, sig []byte) error {
+		if verifyCallback != nil {
+			if err := verifyCallback(message, sig); err != nil {
+				valid = false
+			}
+		}
+		return nil
+	}
+
+	_, err := read(c.Args().First(), ver)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Artifact file '" + c.Args().First() + "' validated successfully")
+	if !valid {
+		fmt.Println("Artifact file '" + c.Args().First() +
+			"' formatted correctly, but error validating signature.")
+	} else {
+		fmt.Println("Artifact file '" + c.Args().First() + "' validated successfully")
+	}
 	return nil
 }
 
@@ -251,7 +278,7 @@ func run() error {
 			Value: 1,
 		},
 		cli.StringFlag{
-			Name:  "sign, s",
+			Name:  "key, k",
 			Usage: "Full path to the private key that will be used to sign the artifact.",
 		},
 	}
@@ -265,7 +292,7 @@ func run() error {
 	}
 
 	unsign := cli.StringFlag{
-		Name: "verify, v",
+		Name: "key, k",
 		Usage: "Full path to the public key that will be used to verify " +
 			"the artifact signature.",
 	}
