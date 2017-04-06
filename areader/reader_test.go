@@ -280,8 +280,8 @@ func TestReadAndInstall(t *testing.T) {
 	}
 	r = writeDataFile(t, "update.ext4", "data")
 	err = readAndInstall(r, i, nil, 1)
-	// assert.Error(t, err)
-	// assert.Contains(t, errors.Cause(err).Error(), "invalid checksum")
+	assert.Error(t, err)
+	assert.Contains(t, errors.Cause(err).Error(), "invalid checksum")
 
 	// test with manifest
 	err = m.Add("update.ext4", []byte("3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7"))
