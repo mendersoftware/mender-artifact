@@ -209,7 +209,9 @@ func TestECDSA(t *testing.T) {
 	// use invalid signature
 	v = NewVerifier([]byte(PublicECDSAKey))
 	// change the first byte of the signature
-	sig[0]++
+	sig, err = s.Sign([]byte("this is a different message"))
+	assert.NoError(t, err)
+
 	err = v.Verify(msg, sig)
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(), "verification failed")
