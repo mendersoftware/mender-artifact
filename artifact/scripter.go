@@ -1,0 +1,58 @@
+// Copyright 2016 Mender Software AS
+//
+//    Licensed under the Apache License, Version 2.0 (the "License");
+//    you may not use this file except in compliance with the License.
+//    You may obtain a copy of the License at
+//
+//        http://www.apache.org/licenses/LICENSE-2.0
+//
+//    Unless required by applicable law or agreed to in writing, software
+//    distributed under the License is distributed on an "AS IS" BASIS,
+//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//    See the License for the specific language governing permissions and
+//    limitations under the License.
+
+package artifact
+
+import (
+	"path/filepath"
+	"regexp"
+
+	"github.com/pkg/errors"
+)
+
+type Scripts struct {
+	names []string
+}
+
+var availableScriptType = map[string]bool{
+	"Idle":                true,
+	"Sync":                true,
+	"ArtifactDownload":    true,
+	"ArtifactPreinstall":  true,
+	"ArtifactInstall":     true,
+	"Reboot":              true,
+	"ArtifactPostinstall": true,
+	"ArtifactCommit":      true,
+}
+
+func (s *Scripts) Add(path string) error {
+	name := filepath.Base(path)
+
+	// all scripts must be formated like `10_ArtifactDownload.Enter.ask-user`
+	re := regexp.MustCompile(`[0-9][0-9]_([A-Za-z]+)\.(Enter|Leave)(\.\S+)?`)
+
+	// `matches` should contain a slice of string of match of regex;
+	// the first element should be the whole matched name of the script and
+	// the second one shold be the name of the state
+	matches := re.FindStringSubmatch(name)
+	if matches == nil || len(matches) < 3 {
+		return errors.Errorf("scripter: invalid script: %s", name)
+	}
+	if found, _ := availableScriptType[matches[1]]; !found {
+		return errors.Errorf("scripter: unsupported script state: %s", matches[1])
+	}
+
+	s.names = append(s.names, path)
+	return nil
+}
