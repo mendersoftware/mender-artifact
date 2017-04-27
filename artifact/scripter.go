@@ -56,3 +56,7 @@ func (s *Scripts) Add(path string) error {
 	s.names = append(s.names, path)
 	return nil
 }
+
+func (s *Scripts) Get() []string {
+	return s.names
+}

@@ -83,7 +83,7 @@ func writeArtifact(c *cli.Context) error {
 		aw = awriter.NewWriter(f)
 	}
 	return aw.WriteArtifact("mender", version,
-		c.StringSlice("device-type"), c.String("artifact-name"), upd)
+		c.StringSlice("device-type"), c.String("artifact-name"), upd, nil)
 }
 
 func read(aPath string, verify func(message, sig []byte) error) (*areader.Reader, error) {

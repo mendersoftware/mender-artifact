@@ -24,25 +24,30 @@ func TestAdding(t *testing.T) {
 	s := new(Scripts)
 	err := s.Add(`10_ArtifactDownload.Enter.ask-user`)
 	assert.NoError(t, err)
+	assert.Len(t, s.names, 1)
 
 	err = s.Add(`10_ArtifactDownload.Leave`)
 	assert.NoError(t, err)
+	assert.Len(t, s.names, 2)
 
 	err = s.Add(`/some_directory/10_ArtifactDownload.Leave`)
 	assert.NoError(t, err)
+	assert.Len(t, s.names, 3)
 
 	// non existing state
 	err = s.Add(`10_InvalidState.Enter`)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported script state")
+	assert.Len(t, s.names, 3)
 
 	// bad formatting
 	err = s.Add(`10_ArtifactDownload.Bad`)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid script")
+	assert.Len(t, s.names, 3)
 
 	err = s.Add(`ArtifactDownload.Enter`)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid script")
-
+	assert.Len(t, s.names, 3)
 }

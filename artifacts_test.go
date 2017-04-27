@@ -69,7 +69,7 @@ func WriteRootfsImageArchive(dir string) error {
 	u := handlers.NewRootfsV1(filepath.Join(dir, "update.ext4"))
 	updates := &awriter.Updates{U: []handlers.Composer{u}}
 	return aw.WriteArtifact("mender", 1, []string{"vexpress"},
-		"mender-1.1", updates)
+		"mender-1.1", updates, nil)
 }
 
 func TestArtifactsWrite(t *testing.T) {

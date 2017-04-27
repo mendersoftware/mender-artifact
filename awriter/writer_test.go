@@ -51,7 +51,7 @@ func TestWriteArtifact(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	w := NewWriter(buf)
 
-	err := w.WriteArtifact("mender", 1, []string{"asd"}, "name", &Updates{})
+	err := w.WriteArtifact("mender", 1, []string{"asd"}, "name", &Updates{}, nil)
 	assert.NoError(t, err)
 
 	assert.NoError(t, checkTarElemsnts(buf, 2))
@@ -68,7 +68,7 @@ func TestWriteArtifactWithUpdates(t *testing.T) {
 	u := handlers.NewRootfsV1(upd)
 	updates := &Updates{U: []handlers.Composer{u}}
 
-	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates)
+	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates, nil)
 	assert.NoError(t, err)
 
 	assert.NoError(t, checkTarElemsnts(buf, 3))
@@ -86,7 +86,7 @@ func TestWriteMultipleUpdates(t *testing.T) {
 	u2 := handlers.NewRootfsV1(upd)
 	updates := &Updates{U: []handlers.Composer{u1, u2}}
 
-	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates)
+	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates, nil)
 	assert.NoError(t, err)
 
 	assert.NoError(t, checkTarElemsnts(buf, 4))
@@ -122,33 +122,33 @@ func TestWriteArtifactV2(t *testing.T) {
 	u := handlers.NewRootfsV2(upd)
 	updates := &Updates{U: []handlers.Composer{u}}
 
-	err = w.WriteArtifact("mender", 2, []string{"asd"}, "name", updates)
+	err = w.WriteArtifact("mender", 2, []string{"asd"}, "name", updates, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, checkTarElemsnts(buf, 5))
 	buf.Reset()
 
 	// error creating v1 signed artifact
-	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates)
+	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates, nil)
 	assert.Error(t, err)
 	assert.Equal(t, "writer: can not create version 1 signed artifact",
 		err.Error())
 	buf.Reset()
 
 	// error creating v3 artifact
-	err = w.WriteArtifact("mender", 3, []string{"asd"}, "name", updates)
+	err = w.WriteArtifact("mender", 3, []string{"asd"}, "name", updates, nil)
 	assert.Error(t, err)
 	assert.Equal(t, "writer: unsupported artifact version",
 		err.Error())
 	buf.Reset()
 
 	// write empty artifact
-	err = w.WriteArtifact("", 2, []string{}, "", &Updates{})
+	err = w.WriteArtifact("", 2, []string{}, "", &Updates{}, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, checkTarElemsnts(buf, 4))
 	buf.Reset()
 
 	w = NewWriterSigned(buf, nil)
-	err = w.WriteArtifact("mender", 2, []string{"asd"}, "name", updates)
+	err = w.WriteArtifact("mender", 2, []string{"asd"}, "name", updates, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, checkTarElemsnts(buf, 4))
 	buf.Reset()
@@ -156,9 +156,32 @@ func TestWriteArtifactV2(t *testing.T) {
 	// error writing non-existing
 	u = handlers.NewRootfsV2("non-existing")
 	updates = &Updates{U: []handlers.Composer{u}}
-	err = w.WriteArtifact("mender", 3, []string{"asd"}, "name", updates)
+	err = w.WriteArtifact("mender", 3, []string{"asd"}, "name", updates, nil)
 	assert.Error(t, err)
 	buf.Reset()
+}
+
+func TestWithScripts(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	w := NewWriter(buf)
+
+	upd, err := MakeFakeUpdate("my test update")
+	assert.NoError(t, err)
+	defer os.Remove(upd)
+
+	u := handlers.NewRootfsV1(upd)
+	updates := &Updates{U: []handlers.Composer{u}}
+
+	scr, err := ioutil.TempFile("", "10_ArtifactDownload.Enter.")
+	assert.NoError(t, err)
+	s := new(artifact.Scripts)
+	err = s.Add(scr.Name())
+	assert.NoError(t, err)
+
+	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates, s)
+	assert.NoError(t, err)
+
+	assert.NoError(t, checkTarElemsnts(buf, 3))
 }
 
 type TestDirEntry struct {
