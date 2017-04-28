@@ -32,6 +32,39 @@ import (
 // Version of the mender-artifact CLI tool
 var Version = "unknown"
 
+func version(c *cli.Context) int {
+	version := c.Int("version")
+	// set version to 2 if artifact is signed and version
+	// is not set explicitly
+	if !c.IsSet("version") && len(c.String("key")) != 0 {
+		version = 2
+	}
+	return version
+}
+
+func artifactWriter(f *os.File, c *cli.Context) (*awriter.Writer, error) {
+	if len(c.String("key")) != 0 {
+		privateKey, err := getKey(c.String("key"))
+		if err != nil {
+			return nil, err
+		}
+		return awriter.NewWriterSigned(f, artifact.NewSigner(privateKey)), nil
+	}
+	return awriter.NewWriter(f), nil
+}
+
+func scripts(c *cli.Context) (*artifact.Scripts, error) {
+	scr := artifact.Scripts{}
+	if len(c.StringSlice("script")) > 0 {
+		for _, script := range c.StringSlice("script") {
+			if err := scr.Add(script); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return &scr, nil
+}
+
 func writeArtifact(c *cli.Context) error {
 	if len(c.StringSlice("device-type")) == 0 ||
 		len(c.String("artifact-name")) == 0 ||
@@ -44,12 +77,7 @@ func writeArtifact(c *cli.Context) error {
 	if len(c.String("output-path")) > 0 {
 		name = c.String("output-path")
 	}
-	version := c.Int("version")
-	// set version to 2 if artifact is signed and version
-	// is not set explicitly
-	if !c.IsSet("version") && len(c.String("key")) != 0 {
-		version = 2
-	}
+	version := version(c)
 
 	var h *handlers.Rootfs
 	switch version {
@@ -71,29 +99,18 @@ func writeArtifact(c *cli.Context) error {
 	}
 	defer f.Close()
 
-	var aw *awriter.Writer
-
-	if len(c.String("key")) != 0 {
-		privateKey, err := getKey(c.String("key"))
-		if err != nil {
-			return err
-		}
-		aw = awriter.NewWriterSigned(f, artifact.NewSigner(privateKey))
-	} else {
-		aw = awriter.NewWriter(f)
+	aw, err := artifactWriter(f, c)
+	if err != nil {
+		return err
 	}
 
-	scr := artifact.Scripts{}
-	if len(c.StringSlice("script")) > 0 {
-		for _, script := range c.StringSlice("script") {
-			if err := scr.Add(script); err != nil {
-				return err
-			}
-		}
+	scr, err := scripts(c)
+	if err != nil {
+		return err
 	}
 
 	return aw.WriteArtifact("mender", version,
-		c.StringSlice("device-type"), c.String("artifact-name"), upd, &scr)
+		c.StringSlice("device-type"), c.String("artifact-name"), upd, scr)
 }
 
 func read(aPath string, verify areader.SignatureVerifyFn,
