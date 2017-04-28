@@ -174,6 +174,8 @@ func TestWithScripts(t *testing.T) {
 
 	scr, err := ioutil.TempFile("", "10_ArtifactDownload.Enter.")
 	assert.NoError(t, err)
+	defer os.Remove(scr.Name())
+
 	s := new(artifact.Scripts)
 	err = s.Add(scr.Name())
 	assert.NoError(t, err)
