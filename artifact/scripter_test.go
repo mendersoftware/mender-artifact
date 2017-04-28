@@ -21,7 +21,7 @@ import (
 )
 
 func TestAdding(t *testing.T) {
-	s := new(Scripts)
+	s := Scripts{}
 	err := s.Add(`10_ArtifactDownload.Enter.ask-user`)
 	assert.NoError(t, err)
 	assert.Len(t, s.names, 1)
@@ -30,8 +30,14 @@ func TestAdding(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, s.names, 2)
 
-	err = s.Add(`/some_directory/10_ArtifactDownload.Leave`)
+	err = s.Add(`/some_directory/11_ArtifactDownload.Enter`)
 	assert.NoError(t, err)
+	assert.Len(t, s.names, 3)
+
+	// script already exists
+	err = s.Add(`11_ArtifactDownload.Enter`)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "script already exists")
 	assert.Len(t, s.names, 3)
 
 	// non existing state

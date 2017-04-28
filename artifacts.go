@@ -82,11 +82,22 @@ func writeArtifact(c *cli.Context) error {
 	} else {
 		aw = awriter.NewWriter(f)
 	}
+
+	scr := artifact.Scripts{}
+	if len(c.StringSlice("script")) > 0 {
+		for _, script := range c.StringSlice("script") {
+			if err := scr.Add(script); err != nil {
+				return err
+			}
+		}
+	}
+
 	return aw.WriteArtifact("mender", version,
-		c.StringSlice("device-type"), c.String("artifact-name"), upd, nil)
+		c.StringSlice("device-type"), c.String("artifact-name"), upd, &scr)
 }
 
-func read(aPath string, verify func(message, sig []byte) error) (*areader.Reader, error) {
+func read(aPath string, verify areader.SignatureVerifyFn,
+	readScripts areader.ScriptsReadFn) (*areader.Reader, error) {
 	_, err := os.Stat(aPath)
 	if err != nil {
 		return nil, errors.New("Pathspec '" + aPath +
@@ -106,6 +117,9 @@ func read(aPath string, verify func(message, sig []byte) error) (*areader.Reader
 
 	if verify != nil {
 		ar.VerifySignatureCallback = verify
+	}
+	if readScripts != nil {
+		ar.ScriptsReadCallback = readScripts
 	}
 
 	if err = ar.ReadArtifact(); err != nil {
@@ -148,7 +162,13 @@ func readArtifact(c *cli.Context) error {
 		return nil
 	}
 
-	r, err := read(c.Args().First(), ver)
+	var scripts []string
+	readScripts := func(r io.Reader, info os.FileInfo) error {
+		scripts = append(scripts, info.Name())
+		return nil
+	}
+
+	r, err := read(c.Args().First(), ver, readScripts)
 	if err != nil {
 		return err
 	}
@@ -162,6 +182,12 @@ func readArtifact(c *cli.Context) error {
 	fmt.Printf("  Version: %d\n", info.Version)
 	fmt.Printf("  Signature: %s\n", sigInfo)
 	fmt.Printf("  Compatible devices: '%s'\n", r.GetCompatibleDevices())
+	if len(scripts) > 0 {
+		fmt.Printf("  State scripts:\n")
+	}
+	for _, scr := range scripts {
+		fmt.Printf("    %s\n", scr)
+	}
 	fmt.Printf("\nUpdates:\n")
 
 	for k, p := range inst {
@@ -222,7 +248,7 @@ func validateArtifact(c *cli.Context) error {
 		return nil
 	}
 
-	_, err := read(c.Args().First(), ver)
+	_, err := read(c.Args().First(), ver, nil)
 	if err != nil {
 		return err
 	}
@@ -280,6 +306,11 @@ func run() error {
 		cli.StringFlag{
 			Name:  "key, k",
 			Usage: "Full path to the private key that will be used to sign the artifact.",
+		},
+		cli.StringSliceFlag{
+			Name: "script, s",
+			Usage: "Full path to the state script(s). You can specify multiple " +
+				"scripts providing this parameter multiple times.",
 		},
 	}
 

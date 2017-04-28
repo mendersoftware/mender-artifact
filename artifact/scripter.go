@@ -22,7 +22,7 @@ import (
 )
 
 type Scripts struct {
-	names []string
+	names map[string]string
 }
 
 var availableScriptType = map[string]bool{
@@ -37,6 +37,10 @@ var availableScriptType = map[string]bool{
 }
 
 func (s *Scripts) Add(path string) error {
+	if s.names == nil {
+		s.names = make(map[string]string)
+	}
+
 	name := filepath.Base(path)
 
 	// all scripts must be formated like `10_ArtifactDownload.Enter.ask-user`
@@ -49,14 +53,22 @@ func (s *Scripts) Add(path string) error {
 	if matches == nil || len(matches) < 3 {
 		return errors.Errorf("scripter: invalid script: %s", name)
 	}
-	if found, _ := availableScriptType[matches[1]]; !found {
+	if _, found := availableScriptType[matches[1]]; !found {
 		return errors.Errorf("scripter: unsupported script state: %s", matches[1])
 	}
 
-	s.names = append(s.names, path)
+	if _, exists := s.names[name]; exists {
+		return errors.Errorf("scripter: script already exists: %s", name)
+	}
+
+	s.names[name] = path
 	return nil
 }
 
 func (s *Scripts) Get() []string {
-	return s.names
+	scr := make([]string, 0, len(s.names))
+	for _, script := range s.names {
+		scr = append(scr, script)
+	}
+	return scr
 }
