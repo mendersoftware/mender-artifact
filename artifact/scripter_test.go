@@ -26,6 +26,10 @@ func TestAdding(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, s.names, 1)
 
+	list := s.Get()
+	assert.Len(t, list, 1)
+	assert.Equal(t, "10_ArtifactDownload.Enter.ask-user", list[0])
+
 	err = s.Add(`10_ArtifactDownload.Leave`)
 	assert.NoError(t, err)
 	assert.Len(t, s.names, 2)

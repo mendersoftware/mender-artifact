@@ -55,10 +55,6 @@ func NewReader(r io.Reader) *Reader {
 	}
 }
 
-func (ar *Reader) isSigned() bool {
-	return ar.signed
-}
-
 func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 
 	var r io.Reader
