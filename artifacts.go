@@ -34,16 +34,22 @@ var Version = "unknown"
 
 func version(c *cli.Context) int {
 	version := c.Int("version")
-	// set version to 2 if artifact is signed and version
+	// set version to 2 if artifact is signed or scripts are provided and version
 	// is not set explicitly
-	if !c.IsSet("version") && len(c.String("key")) != 0 {
+	if !c.IsSet("version") &&
+		(len(c.String("key")) != 0 || len(c.StringSlice("script")) > 0) {
 		version = 2
 	}
 	return version
 }
 
-func artifactWriter(f *os.File, c *cli.Context) (*awriter.Writer, error) {
+func artifactWriter(f *os.File, c *cli.Context,
+	ver int) (*awriter.Writer, error) {
 	if len(c.String("key")) != 0 {
+		if ver == 1 {
+			// check if we are having correct version
+			return nil, errors.New("can not use signed artifact with version 1")
+		}
 		privateKey, err := getKey(c.String("key"))
 		if err != nil {
 			return nil, err
@@ -55,11 +61,9 @@ func artifactWriter(f *os.File, c *cli.Context) (*awriter.Writer, error) {
 
 func scripts(c *cli.Context) (*artifact.Scripts, error) {
 	scr := artifact.Scripts{}
-	if len(c.StringSlice("script")) > 0 {
-		for _, script := range c.StringSlice("script") {
-			if err := scr.Add(script); err != nil {
-				return nil, err
-			}
+	for _, script := range c.StringSlice("script") {
+		if err := scr.Add(script); err != nil {
+			return nil, err
 		}
 	}
 	return &scr, nil
@@ -99,7 +103,7 @@ func writeArtifact(c *cli.Context) error {
 	}
 	defer f.Close()
 
-	aw, err := artifactWriter(f, c)
+	aw, err := artifactWriter(f, c, version)
 	if err != nil {
 		return err
 	}
@@ -107,6 +111,9 @@ func writeArtifact(c *cli.Context) error {
 	scr, err := scripts(c)
 	if err != nil {
 		return err
+	} else if len(scr.Get()) != 0 && version == 1 {
+		// check if we are having correct version
+		return errors.New("can not use scripts artifact with version 1")
 	}
 
 	return aw.WriteArtifact("mender", version,

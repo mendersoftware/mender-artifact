@@ -218,6 +218,18 @@ func TestArtifactsSigned(t *testing.T) {
 	err = run()
 	assert.Error(t, err)
 	assert.Equal(t, "Invialid key path.", errors.Cause(err).Error())
+
+	// invalid version
+	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender"),
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		"-v", "1"}
+	fakeErrWriter.Reset()
+	err = run()
+	assert.Error(t, err)
+	assert.Equal(t, "can not use signed artifact with version 1\n",
+		fakeErrWriter.String())
 }
 
 func TestArtifactsValidateError(t *testing.T) {
@@ -316,6 +328,18 @@ func TestWithScripts(t *testing.T) {
 		filepath.Join(updateTestDir, "artifact.mender")}
 	err = run()
 	assert.NoError(t, err)
+
+	// write artifact vith invalid version
+	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender"),
+		"-s", filepath.Join(updateTestDir, "99_ArtifactDownload.Enter"),
+		"-v", "1"}
+	fakeErrWriter.Reset()
+	err = run()
+	assert.Error(t, err)
+	assert.Equal(t, "can not use scripts artifact with version 1\n",
+		fakeErrWriter.String())
 }
 
 type TestDirEntry struct {

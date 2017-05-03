@@ -34,6 +34,9 @@ var availableScriptType = map[string]bool{
 	"Reboot":              true,
 	"ArtifactPostinstall": true,
 	"ArtifactCommit":      true,
+	"Rollback":            true,
+	"RollbackReboot":      true,
+	"ArtifactFailure":     true,
 }
 
 func (s *Scripts) Add(path string) error {
