@@ -231,13 +231,13 @@ func readArtifact(c *cli.Context) error {
 func getKey(path string) ([]byte, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, errors.New("Invialid key path.")
+		return nil, fmt.Errorf("Invalid key path: %s", path)
 	}
 	defer f.Close()
 
 	key := bytes.NewBuffer(nil)
 	if _, err := io.Copy(key, f); err != nil {
-		return nil, errors.New("Error reading key.")
+		return nil, fmt.Errorf("Error reading key: %s", path)
 	}
 	return key.Bytes(), nil
 }
