@@ -32,14 +32,11 @@ import (
 // Version of the mender-artifact CLI tool
 var Version = "unknown"
 
+// Latest version of the format, which is also what we default to.
+const LatestFormatVersion = 2
+
 func version(c *cli.Context) int {
 	version := c.Int("version")
-	// set version to 2 if artifact is signed or scripts are provided and version
-	// is not set explicitly
-	if !c.IsSet("version") &&
-		(len(c.String("key")) != 0 || len(c.StringSlice("script")) > 0) {
-		version = 2
-	}
 	return version
 }
 
@@ -325,7 +322,7 @@ func run() error {
 		cli.IntFlag{
 			Name:  "version, v",
 			Usage: "Version of the artifact.",
-			Value: 1,
+			Value: LatestFormatVersion,
 		},
 		cli.StringFlag{
 			Name:  "key, k",
