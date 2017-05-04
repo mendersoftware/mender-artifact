@@ -32,6 +32,43 @@ import (
 // Version of the mender-artifact CLI tool
 var Version = "unknown"
 
+func version(c *cli.Context) int {
+	version := c.Int("version")
+	// set version to 2 if artifact is signed or scripts are provided and version
+	// is not set explicitly
+	if !c.IsSet("version") &&
+		(len(c.String("key")) != 0 || len(c.StringSlice("script")) > 0) {
+		version = 2
+	}
+	return version
+}
+
+func artifactWriter(f *os.File, c *cli.Context,
+	ver int) (*awriter.Writer, error) {
+	if len(c.String("key")) != 0 {
+		if ver == 1 {
+			// check if we are having correct version
+			return nil, errors.New("can not use signed artifact with version 1")
+		}
+		privateKey, err := getKey(c.String("key"))
+		if err != nil {
+			return nil, err
+		}
+		return awriter.NewWriterSigned(f, artifact.NewSigner(privateKey)), nil
+	}
+	return awriter.NewWriter(f), nil
+}
+
+func scripts(c *cli.Context) (*artifact.Scripts, error) {
+	scr := artifact.Scripts{}
+	for _, script := range c.StringSlice("script") {
+		if err := scr.Add(script); err != nil {
+			return nil, err
+		}
+	}
+	return &scr, nil
+}
+
 func writeArtifact(c *cli.Context) error {
 	if len(c.StringSlice("device-type")) == 0 ||
 		len(c.String("artifact-name")) == 0 ||
@@ -44,12 +81,7 @@ func writeArtifact(c *cli.Context) error {
 	if len(c.String("output-path")) > 0 {
 		name = c.String("output-path")
 	}
-	version := c.Int("version")
-	// set version to 2 if artifact is signed and version
-	// is not set explicitly
-	if !c.IsSet("version") && len(c.String("key")) != 0 {
-		version = 2
-	}
+	version := version(c)
 
 	var h *handlers.Rootfs
 	switch version {
@@ -71,22 +103,25 @@ func writeArtifact(c *cli.Context) error {
 	}
 	defer f.Close()
 
-	var aw *awriter.Writer
-
-	if len(c.String("key")) != 0 {
-		privateKey, err := getKey(c.String("key"))
-		if err != nil {
-			return err
-		}
-		aw = awriter.NewWriterSigned(f, artifact.NewSigner(privateKey))
-	} else {
-		aw = awriter.NewWriter(f)
+	aw, err := artifactWriter(f, c, version)
+	if err != nil {
+		return err
 	}
+
+	scr, err := scripts(c)
+	if err != nil {
+		return err
+	} else if len(scr.Get()) != 0 && version == 1 {
+		// check if we are having correct version
+		return errors.New("can not use scripts artifact with version 1")
+	}
+
 	return aw.WriteArtifact("mender", version,
-		c.StringSlice("device-type"), c.String("artifact-name"), upd)
+		c.StringSlice("device-type"), c.String("artifact-name"), upd, scr)
 }
 
-func read(aPath string, verify func(message, sig []byte) error) (*areader.Reader, error) {
+func read(aPath string, verify areader.SignatureVerifyFn,
+	readScripts areader.ScriptsReadFn) (*areader.Reader, error) {
 	_, err := os.Stat(aPath)
 	if err != nil {
 		return nil, errors.New("Pathspec '" + aPath +
@@ -106,6 +141,9 @@ func read(aPath string, verify func(message, sig []byte) error) (*areader.Reader
 
 	if verify != nil {
 		ar.VerifySignatureCallback = verify
+	}
+	if readScripts != nil {
+		ar.ScriptsReadCallback = readScripts
 	}
 
 	if err = ar.ReadArtifact(); err != nil {
@@ -148,7 +186,13 @@ func readArtifact(c *cli.Context) error {
 		return nil
 	}
 
-	r, err := read(c.Args().First(), ver)
+	var scripts []string
+	readScripts := func(r io.Reader, info os.FileInfo) error {
+		scripts = append(scripts, info.Name())
+		return nil
+	}
+
+	r, err := read(c.Args().First(), ver, readScripts)
 	if err != nil {
 		return err
 	}
@@ -162,6 +206,12 @@ func readArtifact(c *cli.Context) error {
 	fmt.Printf("  Version: %d\n", info.Version)
 	fmt.Printf("  Signature: %s\n", sigInfo)
 	fmt.Printf("  Compatible devices: '%s'\n", r.GetCompatibleDevices())
+	if len(scripts) > 0 {
+		fmt.Printf("  State scripts:\n")
+	}
+	for _, scr := range scripts {
+		fmt.Printf("    %s\n", scr)
+	}
 	fmt.Printf("\nUpdates:\n")
 
 	for k, p := range inst {
@@ -222,7 +272,7 @@ func validateArtifact(c *cli.Context) error {
 		return nil
 	}
 
-	_, err := read(c.Args().First(), ver)
+	_, err := read(c.Args().First(), ver, nil)
 	if err != nil {
 		return err
 	}
@@ -280,6 +330,11 @@ func run() error {
 		cli.StringFlag{
 			Name:  "key, k",
 			Usage: "Full path to the private key that will be used to sign the artifact.",
+		},
+		cli.StringSliceFlag{
+			Name: "script, s",
+			Usage: "Full path to the state script(s). You can specify multiple " +
+				"scripts providing this parameter multiple times.",
 		},
 	}
 

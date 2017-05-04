@@ -63,7 +63,8 @@ XwaUNml5EhW79AdibBXZiZt8fMhCjUd/4ce3rLNjnbIn1o9L6pzV4CcVJ8+iNhne
 -----END PUBLIC KEY-----`
 )
 
-func MakeRootfsImageArtifact(version int, signed bool) (io.Reader, error) {
+func MakeRootfsImageArtifact(version int, signed bool,
+	hasScripts bool) (io.Reader, error) {
 	upd, err := MakeFakeUpdate(TestUpdateFileContent)
 	if err != nil {
 		return nil, err
@@ -85,9 +86,25 @@ func MakeRootfsImageArtifact(version int, signed bool) (io.Reader, error) {
 	case 2:
 		u = handlers.NewRootfsV2(upd)
 	}
+
+	scr := artifact.Scripts{}
+	if hasScripts {
+		s, err := ioutil.TempFile("", "10_ArtifactDownload.Enter.")
+		if err != nil {
+			return nil, err
+		}
+		defer os.Remove(s.Name())
+
+		_, err = io.WriteString(s, "execute me!")
+
+		if err := scr.Add(s.Name()); err != nil {
+			return nil, err
+		}
+	}
+
 	updates := &awriter.Updates{U: []handlers.Composer{u}}
 	err = aw.WriteArtifact("mender", version, []string{"vexpress"},
-		"mender-1.1", updates)
+		"mender-1.1", updates, &scr)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +140,7 @@ func TestReadArtifact(t *testing.T) {
 
 	// first create archive, that we will be able to read
 	for _, test := range tc {
-		art, err := MakeRootfsImageArtifact(test.version, test.signed)
+		art, err := MakeRootfsImageArtifact(test.version, test.signed, false)
 		assert.NoError(t, err)
 
 		aReader := NewReader(art)
@@ -171,7 +188,7 @@ func TestRegisterMultipleHandlers(t *testing.T) {
 }
 
 func TestReadNoHandler(t *testing.T) {
-	art, err := MakeRootfsImageArtifact(1, false)
+	art, err := MakeRootfsImageArtifact(1, false, false)
 	assert.NoError(t, err)
 
 	aReader := NewReader(art)
@@ -193,6 +210,30 @@ func TestReadBroken(t *testing.T) {
 	aReader = NewReader(nil)
 	err = aReader.ReadArtifact()
 	assert.Error(t, err)
+}
+
+func TestReadWithScripts(t *testing.T) {
+	art, err := MakeRootfsImageArtifact(2, false, true)
+	assert.NoError(t, err)
+
+	aReader := NewReader(art)
+
+	noExec := 0
+	aReader.ScriptsReadCallback = func(r io.Reader, info os.FileInfo) error {
+		noExec++
+
+		assert.Contains(t, info.Name(), "10_ArtifactDownload.Enter.")
+
+		buf := bytes.NewBuffer(nil)
+		_, err = io.Copy(buf, r)
+		assert.NoError(t, err)
+		assert.Equal(t, "execute me!", buf.String())
+		return nil
+	}
+
+	err = aReader.ReadArtifact()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, noExec)
 }
 
 func MakeFakeUpdate(data string) (string, error) {

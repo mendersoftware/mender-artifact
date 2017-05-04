@@ -32,9 +32,11 @@ import (
 
 type SignatureVerifyFn func(message, sig []byte) error
 type DevicesCompatibleFn func([]string) error
+type ScriptsReadFn func(io.Reader, os.FileInfo) error
 
 type Reader struct {
 	CompatibleDevicesCallback DevicesCompatibleFn
+	ScriptsReadCallback       ScriptsReadFn
 	VerifySignatureCallback   SignatureVerifyFn
 
 	signed     bool
@@ -51,10 +53,6 @@ func NewReader(r io.Reader) *Reader {
 		handlers:   make(map[string]handlers.Installer, 1),
 		installers: make(map[int]handlers.Installer, 1),
 	}
-}
-
-func (ar *Reader) isSigned() bool {
-	return ar.signed
 }
 
 func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
@@ -89,6 +87,28 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 		}
 	}
 
+	// Next we need to read and process state scripts.
+	var hdr *tar.Header
+	for {
+		hdr, err = getNext(tr)
+		if err == io.EOF {
+			return nil
+		} else if err != nil {
+			return errors.Wrapf(err,
+				"reader: error reading artifact header file: %v", hdr)
+		}
+		if filepath.Dir(hdr.Name) == "scripts" {
+			if ar.ScriptsReadCallback != nil {
+				if err = ar.ScriptsReadCallback(tr, hdr.FileInfo()); err != nil {
+					return err
+				}
+			}
+		} else {
+			// if there are no more scripts to read leave the loop
+			break
+		}
+	}
+
 	// Next step is setting correct installers based on update types being
 	// part of the artifact.
 	if err = ar.setInstallers(hInfo.Updates); err != nil {
@@ -96,7 +116,7 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 	}
 
 	// At the end read rest of the header using correct installers.
-	return ar.readHeaderUpdate(tr)
+	return ar.readHeaderUpdate(tr, hdr)
 }
 
 func readVersion(tr *tar.Reader) (*artifact.Info, []byte, error) {
@@ -312,16 +332,8 @@ func getUpdateNoFromDataPath(path string) (int, error) {
 	return strconv.Atoi(no)
 }
 
-func (ar *Reader) readHeaderUpdate(tr *tar.Reader) error {
+func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header) error {
 	for {
-		hdr, err := getNext(tr)
-
-		if err == io.EOF {
-			return nil
-		} else if err != nil {
-			return errors.Wrapf(err,
-				"reader: can not read artifact header file: %v", hdr)
-		}
 		updNo, err := getUpdateNoFromHeaderPath(hdr.Name)
 		if err != nil {
 			return errors.Wrapf(err, "reader: error getting header update number")
@@ -333,6 +345,14 @@ func (ar *Reader) readHeaderUpdate(tr *tar.Reader) error {
 		}
 		if err := inst.ReadHeader(tr, hdr.Name); err != nil {
 			return errors.Wrap(err, "reader: can not read header")
+		}
+
+		hdr, err = getNext(tr)
+		if err == io.EOF {
+			return nil
+		} else if err != nil {
+			return errors.Wrapf(err,
+				"reader: can not read artifact header file: %v", hdr)
 		}
 	}
 }
