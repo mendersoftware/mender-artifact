@@ -134,8 +134,8 @@ func TestReadArtifact(t *testing.T) {
 		{2, true, rfh, artifact.NewVerifier([]byte(PublicKey)), nil},
 		{2, true, rfh, artifact.NewVerifier([]byte(PublicKeyError)),
 			errors.New("reader: invalid signature: crypto/rsa: verification error")},
-		// test that we need a verifier for signed artifact
-		{2, true, rfh, nil, errors.New("reader: verify signature callback not registered")},
+		// // test that we do not need a verifier for signed artifact
+		{2, true, rfh, nil, nil},
 	}
 
 	// first create archive, that we will be able to read
@@ -173,6 +173,30 @@ func TestReadArtifact(t *testing.T) {
 		// clean the buffer
 		updFileContent.Reset()
 	}
+}
+
+func TestReadSigned(t *testing.T) {
+	art, err := MakeRootfsImageArtifact(2, true, false)
+	assert.NoError(t, err)
+	aReader := NewReaderSigned(art)
+	err = aReader.ReadArtifact()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(),
+		"reader: verify signature callback not registered")
+
+	art, err = MakeRootfsImageArtifact(2, false, false)
+	assert.NoError(t, err)
+	aReader = NewReaderSigned(art)
+	err = aReader.ReadArtifact()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(),
+		"reader: expecting signed artifact, but no signature file found")
+
+	art, err = MakeRootfsImageArtifact(2, true, false)
+	assert.NoError(t, err)
+	aReader = NewReader(art)
+	err = aReader.ReadArtifact()
+	assert.NoError(t, err)
 }
 
 func TestRegisterMultipleHandlers(t *testing.T) {

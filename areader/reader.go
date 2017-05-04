@@ -55,6 +55,15 @@ func NewReader(r io.Reader) *Reader {
 	}
 }
 
+func NewReaderSigned(r io.Reader) *Reader {
+	return &Reader{
+		r:          r,
+		signed:     true,
+		handlers:   make(map[string]handlers.Installer, 1),
+		installers: make(map[int]handlers.Installer, 1),
+	}
+}
+
 func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 
 	var r io.Reader
@@ -176,18 +185,21 @@ func readManifest(tReader *tar.Reader) (*artifact.ChecksumStore, error) {
 }
 
 func signatureReadAndVerify(tReader *tar.Reader, message []byte,
-	verify SignatureVerifyFn) error {
-	// first read signature...
-	sig := bytes.NewBuffer(nil)
-	if _, err := io.Copy(sig, tReader); err != nil {
-		return errors.Wrapf(err, "reader: can not read signature file")
-	}
+	verify SignatureVerifyFn, signed bool) error {
 
 	// verify signature
-	if verify == nil {
+	if verify == nil && signed {
 		return errors.New("reader: verify signature callback not registered")
-	} else if err := verify(message, sig.Bytes()); err != nil {
-		return errors.Wrap(err, "reader: invalid signature")
+	} else if verify != nil {
+		// first read signature...
+		sig := bytes.NewBuffer(nil)
+		if _, err := io.Copy(sig, tReader); err != nil {
+			return errors.Wrapf(err, "reader: can not read signature file")
+		}
+
+		if err := verify(message, sig.Bytes()); err != nil {
+			return errors.Wrap(err, "reader: invalid signature")
+		}
 	}
 	return nil
 }
@@ -219,12 +231,17 @@ func (ar *Reader) readHeaderV2(tReader *tar.Reader,
 		return nil, errors.Wrapf(err, "reader: error reading file after manifest")
 	}
 
+	// we are expecting to have a signed artifact, but the signature is missing
+	if ar.signed && (hdr.FileInfo().Name() != "manifest.sig") {
+		return nil,
+			errors.New("reader: expecting signed artifact, but no signature file found")
+	}
+
 	switch hdr.FileInfo().Name() {
 	case "manifest.sig":
 		// firs read and verify signature
-		ar.signed = true
 		if err = signatureReadAndVerify(tReader, manifest.GetRaw(),
-			ar.VerifySignatureCallback); err != nil {
+			ar.VerifySignatureCallback, ar.signed); err != nil {
 			return nil, err
 		}
 		// verify checksums of version
