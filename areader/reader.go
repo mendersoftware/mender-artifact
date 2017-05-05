@@ -158,6 +158,10 @@ func (ar *Reader) GetHandlers() map[int]handlers.Installer {
 }
 
 func (ar *Reader) readHeaderV1(tReader *tar.Reader) error {
+	if ar.signed {
+		return errors.New("reader: expecting signed artifact; " +
+			"v1 is not supporting signatures")
+	}
 	hdr, err := getNext(tReader)
 	if err != nil {
 		return errors.New("reader: error reading header")

@@ -197,6 +197,14 @@ func TestReadSigned(t *testing.T) {
 	aReader = NewReader(art)
 	err = aReader.ReadArtifact()
 	assert.NoError(t, err)
+
+	art, err = MakeRootfsImageArtifact(1, false, false)
+	assert.NoError(t, err)
+	aReader = NewReaderSigned(art)
+	err = aReader.ReadArtifact()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(),
+		"reader: expecting signed artifact")
 }
 
 func TestRegisterMultipleHandlers(t *testing.T) {
