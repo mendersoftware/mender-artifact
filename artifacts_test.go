@@ -169,7 +169,7 @@ func TestArtifactsSigned(t *testing.T) {
 		"-k", "non-existing-private.key"}
 	err = run()
 	assert.Error(t, err)
-	assert.Equal(t, "Invialid key path.", errors.Cause(err).Error())
+	assert.Contains(t, errors.Cause(err).Error(), "Invalid key path")
 
 	// store named file
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
@@ -202,7 +202,7 @@ func TestArtifactsSigned(t *testing.T) {
 		filepath.Join(updateTestDir, "artifact.mender")}
 	err = run()
 	assert.Error(t, err)
-	assert.Equal(t, "Invialid key path.", errors.Cause(err).Error())
+	assert.Contains(t, errors.Cause(err).Error(), "Invalid key path")
 
 	// validate
 	os.Args = []string{"mender-artifact", "validate",
@@ -217,7 +217,7 @@ func TestArtifactsSigned(t *testing.T) {
 		filepath.Join(updateTestDir, "artifact.mender")}
 	err = run()
 	assert.Error(t, err)
-	assert.Equal(t, "Invialid key path.", errors.Cause(err).Error())
+	assert.Contains(t, errors.Cause(err).Error(), "Invalid key path")
 
 	// invalid version
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
