@@ -70,7 +70,7 @@ func writeArtifact(c *cli.Context) error {
 	if len(c.StringSlice("device-type")) == 0 ||
 		len(c.String("artifact-name")) == 0 ||
 		len(c.String("update")) == 0 {
-		return errors.New("must provide `device-type`, `artifact-name` and `update`")
+		return cli.NewExitError("must provide `device-type`, `artifact-name` and `update`", 1)
 	}
 
 	// set default name
@@ -87,7 +87,7 @@ func writeArtifact(c *cli.Context) error {
 	case 2:
 		h = handlers.NewRootfsV2(c.String("update"))
 	default:
-		return errors.New("unsupported artifact version")
+		return cli.NewExitError("unsupported artifact version", 1)
 	}
 
 	upd := &awriter.Updates{
@@ -96,25 +96,29 @@ func writeArtifact(c *cli.Context) error {
 
 	f, err := os.Create(name)
 	if err != nil {
-		return errors.New("can not create artifact file")
+		return cli.NewExitError("can not create artifact file", 1)
 	}
 	defer f.Close()
 
 	aw, err := artifactWriter(f, c, version)
 	if err != nil {
-		return err
+		return cli.NewExitError(err.Error(), 1)
 	}
 
 	scr, err := scripts(c)
 	if err != nil {
-		return err
+		return cli.NewExitError(err.Error(), 1)
 	} else if len(scr.Get()) != 0 && version == 1 {
 		// check if we are having correct version
-		return errors.New("can not use scripts artifact with version 1")
+		return cli.NewExitError("can not use scripts artifact with version 1", 1)
 	}
 
-	return aw.WriteArtifact("mender", version,
+	err = aw.WriteArtifact("mender", version,
 		c.StringSlice("device-type"), c.String("artifact-name"), upd, scr)
+	if err != nil {
+		return cli.NewExitError(err.Error(), 1)
+	}
+	return nil
 }
 
 func read(aPath string, verify areader.SignatureVerifyFn,
@@ -152,8 +156,8 @@ func read(aPath string, verify areader.SignatureVerifyFn,
 
 func readArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
-		return errors.New("Nothing specified, nothing read. \nMaybe you wanted" +
-			" to say 'artifacts read <pathspec>'?")
+		return cli.NewExitError("Nothing specified, nothing read. \nMaybe you wanted"+
+			" to say 'artifacts read <pathspec>'?", 1)
 	}
 
 	var verifyCallback areader.SignatureVerifyFn
@@ -161,7 +165,7 @@ func readArtifact(c *cli.Context) error {
 	if len(c.String("key")) != 0 {
 		key, err := getKey(c.String("key"))
 		if err != nil {
-			return err
+			return cli.NewExitError(err.Error(), 1)
 		}
 		s := artifact.NewVerifier(key)
 		verifyCallback = s.Verify
@@ -191,7 +195,7 @@ func readArtifact(c *cli.Context) error {
 
 	r, err := read(c.Args().First(), ver, readScripts)
 	if err != nil {
-		return err
+		return cli.NewExitError(err.Error(), 1)
 	}
 
 	inst := r.GetHandlers()
@@ -241,8 +245,8 @@ func getKey(path string) ([]byte, error) {
 
 func validateArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
-		return errors.New("Nothing specified, nothing validated. \nMaybe you wanted" +
-			" to say 'artifacts validate <pathspec>'?")
+		return cli.NewExitError("Nothing specified, nothing validated. \nMaybe you wanted"+
+			" to say 'artifacts validate <pathspec>'?", 1)
 	}
 
 	var verifyCallback areader.SignatureVerifyFn
@@ -250,7 +254,7 @@ func validateArtifact(c *cli.Context) error {
 	if len(c.String("key")) != 0 {
 		key, err := getKey(c.String("key"))
 		if err != nil {
-			return err
+			return cli.NewExitError(err.Error(), 1)
 		}
 		s := artifact.NewVerifier(key)
 		verifyCallback = s.Verify
@@ -271,7 +275,7 @@ func validateArtifact(c *cli.Context) error {
 
 	_, err := read(c.Args().First(), ver, nil)
 	if err != nil {
-		return err
+		return cli.NewExitError(err.Error(), 1)
 	}
 
 	if !valid {
