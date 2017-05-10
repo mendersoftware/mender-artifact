@@ -94,11 +94,16 @@ func writeArtifact(c *cli.Context) error {
 		U: []handlers.Composer{h},
 	}
 
-	f, err := os.Create(name)
+	f, err := os.Create(name + ".tmp")
 	if err != nil {
 		return cli.NewExitError("can not create artifact file", 1)
 	}
-	defer f.Close()
+	defer func() {
+		f.Close()
+		// in case of success `.tmp` suffix will be removed and below
+		// will not remove valid artifact
+		os.Remove(name + ".tmp")
+	}()
 
 	aw, err := artifactWriter(f, c, version)
 	if err != nil {
@@ -115,6 +120,12 @@ func writeArtifact(c *cli.Context) error {
 
 	err = aw.WriteArtifact("mender", version,
 		c.StringSlice("device-type"), c.String("artifact-name"), upd, scr)
+	if err != nil {
+		return cli.NewExitError(err.Error(), 1)
+	}
+
+	f.Close()
+	err = os.Rename(name+".tmp", name)
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
