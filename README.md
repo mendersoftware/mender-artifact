@@ -1,5 +1,5 @@
-[![Build Status](https://travis-ci.org/mendersoftware/mender-artifact.svg?branch=master)](https://travis-ci.org/mendersoftware/mender-artifact)
-[![codecov](https://codecov.io/gh/mendersoftware/mender-artifact/branch/master/graph/badge.svg)](https://codecov.io/gh/mendersoftware/mender-artifact)
+[![Build Status](https://travis-ci.org/mendersoftware/mender-artifact.svg?branch=1.1.x)](https://travis-ci.org/mendersoftware/mender-artifact)
+[![codecov](https://codecov.io/gh/mendersoftware/mender-artifact/branch/1.1.x/graph/badge.svg)](https://codecov.io/gh/mendersoftware/mender-artifact)
 [![Go Report Card](https://goreportcard.com/badge/github.com/mendersoftware/mender-artifact)](https://goreportcard.com/report/github.com/mendersoftware/mender-artifact)
 
 Mender Artifacts Library
