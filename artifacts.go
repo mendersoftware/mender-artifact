@@ -344,11 +344,6 @@ func run() error {
 			Name:  "key, k",
 			Usage: "Full path to the private key that will be used to sign the artifact.",
 		},
-		cli.StringSliceFlag{
-			Name: "script, s",
-			Usage: "Full path to the state script(s). You can specify multiple " +
-				"scripts providing this parameter multiple times.",
-		},
 	}
 
 	write := cli.Command{
