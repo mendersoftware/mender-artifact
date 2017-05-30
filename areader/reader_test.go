@@ -89,7 +89,7 @@ func MakeRootfsImageArtifact(version int, signed bool,
 
 	scr := artifact.Scripts{}
 	if hasScripts {
-		s, err := ioutil.TempFile("", "10_ArtifactDownload.Enter.")
+		s, err := ioutil.TempFile("", "ArtifactDownload_Enter_10_")
 		if err != nil {
 			return nil, err
 		}
@@ -254,7 +254,7 @@ func TestReadWithScripts(t *testing.T) {
 	aReader.ScriptsReadCallback = func(r io.Reader, info os.FileInfo) error {
 		noExec++
 
-		assert.Contains(t, info.Name(), "10_ArtifactDownload.Enter.")
+		assert.Contains(t, info.Name(), "ArtifactDownload_Enter_10_")
 
 		buf := bytes.NewBuffer(nil)
 		_, err = io.Copy(buf, r)
