@@ -290,58 +290,6 @@ func TestArtifactsRead(t *testing.T) {
 		fakeErrWriter.String())
 }
 
-func TestWithScripts(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
-
-	err := MakeFakeUpdateDir(updateTestDir,
-		[]TestDirEntry{
-			{
-				Path:    "update.ext4",
-				Content: []byte("my update"),
-				IsDir:   false,
-			},
-			{
-				Path:    "99_ArtifactDownload.Enter",
-				Content: []byte("this is first enter script"),
-				IsDir:   false,
-			},
-			{
-				Path:    "01_ArtifactPreinstall.Leave",
-				Content: []byte("this is leave script"),
-				IsDir:   false,
-			},
-		})
-	assert.NoError(t, err)
-
-	// write artifact
-	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
-		"-o", filepath.Join(updateTestDir, "artifact.mender"),
-		"-s", filepath.Join(updateTestDir, "99_ArtifactDownload.Enter"),
-		"-s", filepath.Join(updateTestDir, "01_ArtifactPreinstall.Leave")}
-	err = run()
-	assert.NoError(t, err)
-
-	// read artifact
-	os.Args = []string{"mender-artifact", "read",
-		filepath.Join(updateTestDir, "artifact.mender")}
-	err = run()
-	assert.NoError(t, err)
-
-	// write artifact vith invalid version
-	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
-		"-o", filepath.Join(updateTestDir, "artifact.mender"),
-		"-s", filepath.Join(updateTestDir, "99_ArtifactDownload.Enter"),
-		"-v", "1"}
-	fakeErrWriter.Reset()
-	err = run()
-	assert.Error(t, err)
-	assert.Equal(t, "can not use scripts artifact with version 1\n",
-		fakeErrWriter.String())
-}
-
 type TestDirEntry struct {
 	Path    string
 	Content []byte
