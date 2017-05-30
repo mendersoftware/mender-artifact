@@ -22,41 +22,41 @@ import (
 
 func TestAdding(t *testing.T) {
 	s := Scripts{}
-	err := s.Add(`10_ArtifactDownload.Enter.ask-user`)
+	err := s.Add(`ArtifactDownload_Enter_10_ask-user`)
 	assert.NoError(t, err)
 	assert.Len(t, s.names, 1)
 
 	list := s.Get()
 	assert.Len(t, list, 1)
-	assert.Equal(t, "10_ArtifactDownload.Enter.ask-user", list[0])
+	assert.Equal(t, "ArtifactDownload_Enter_10_ask-user", list[0])
 
-	err = s.Add(`10_ArtifactDownload.Leave`)
+	err = s.Add(`ArtifactDownload_Leave_10`)
 	assert.NoError(t, err)
 	assert.Len(t, s.names, 2)
 
-	err = s.Add(`/some_directory/11_ArtifactDownload.Enter`)
+	err = s.Add(`/some_directory/ArtifactDownload_Enter_11`)
 	assert.NoError(t, err)
 	assert.Len(t, s.names, 3)
 
 	// script already exists
-	err = s.Add(`11_ArtifactDownload.Enter`)
+	err = s.Add(`ArtifactDownload_Enter_11`)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "script already exists")
 	assert.Len(t, s.names, 3)
 
 	// non existing state
-	err = s.Add(`10_InvalidState.Enter`)
+	err = s.Add(`InvalidState_Enter_10`)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported script state")
 	assert.Len(t, s.names, 3)
 
 	// bad formatting
-	err = s.Add(`10_ArtifactDownload.Bad`)
+	err = s.Add(`ArtifactDownload_Bad_10`)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid script")
 	assert.Len(t, s.names, 3)
 
-	err = s.Add(`ArtifactDownload.Enter`)
+	err = s.Add(`ArtifactDownload_Enter`)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid script")
 	assert.Len(t, s.names, 3)
