@@ -302,7 +302,7 @@ func TestWithScripts(t *testing.T) {
 				IsDir:   false,
 			},
 			{
-				Path:    "ArtifactDownload_Enter_99",
+				Path:    "ArtifactInstall_Enter_99",
 				Content: []byte("this is first enter script"),
 				IsDir:   false,
 			},
@@ -318,7 +318,7 @@ func TestWithScripts(t *testing.T) {
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
 		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
-		"-s", filepath.Join(updateTestDir, "ArtifactDownload_Enter_99"),
+		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Enter_99"),
 		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Leave_01")}
 	err = run()
 	assert.NoError(t, err)
@@ -333,7 +333,7 @@ func TestWithScripts(t *testing.T) {
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
 		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
-		"-s", filepath.Join(updateTestDir, "ArtifactDownload_Enter_99"),
+		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Enter_99"),
 		"-v", "1"}
 	fakeErrWriter.Reset()
 	err = run()
