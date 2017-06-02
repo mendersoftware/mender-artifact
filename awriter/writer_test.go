@@ -172,7 +172,7 @@ func TestWithScripts(t *testing.T) {
 	u := handlers.NewRootfsV1(upd)
 	updates := &Updates{U: []handlers.Composer{u}}
 
-	scr, err := ioutil.TempFile("", "ArtifactDownload_Enter_10_")
+	scr, err := ioutil.TempFile("", "ArtifactInstall_Enter_10_")
 	assert.NoError(t, err)
 	defer os.Remove(scr.Name())
 

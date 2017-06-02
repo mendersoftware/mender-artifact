@@ -22,24 +22,24 @@ import (
 
 func TestAdding(t *testing.T) {
 	s := Scripts{}
-	err := s.Add(`ArtifactDownload_Enter_10_ask-user`)
+	err := s.Add(`ArtifactCommit_Enter_10_ask-user`)
 	assert.NoError(t, err)
 	assert.Len(t, s.names, 1)
 
 	list := s.Get()
 	assert.Len(t, list, 1)
-	assert.Equal(t, "ArtifactDownload_Enter_10_ask-user", list[0])
+	assert.Equal(t, "ArtifactCommit_Enter_10_ask-user", list[0])
 
-	err = s.Add(`ArtifactDownload_Leave_10`)
+	err = s.Add(`ArtifactCommit_Leave_10`)
 	assert.NoError(t, err)
 	assert.Len(t, s.names, 2)
 
-	err = s.Add(`/some_directory/ArtifactDownload_Enter_11`)
+	err = s.Add(`/some_directory/ArtifactCommit_Enter_11`)
 	assert.NoError(t, err)
 	assert.Len(t, s.names, 3)
 
 	// script already exists
-	err = s.Add(`ArtifactDownload_Enter_11`)
+	err = s.Add(`ArtifactCommit_Enter_11`)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "script already exists")
 	assert.Len(t, s.names, 3)
@@ -51,12 +51,12 @@ func TestAdding(t *testing.T) {
 	assert.Len(t, s.names, 3)
 
 	// bad formatting
-	err = s.Add(`ArtifactDownload_Bad_10`)
+	err = s.Add(`ArtifactCommit_Bad_10`)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid script")
 	assert.Len(t, s.names, 3)
 
-	err = s.Add(`ArtifactDownload_Enter`)
+	err = s.Add(`ArtifactCommit_Enter`)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid script")
 	assert.Len(t, s.names, 3)
