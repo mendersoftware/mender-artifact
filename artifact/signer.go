@@ -227,5 +227,5 @@ func getKeyAndSignMethod(keyPEM []byte) (*SigningMethod, error) {
 	if err == nil {
 		return &SigningMethod{key: ecdsaKey, method: new(ECDSA256)}, nil
 	}
-	return nil, errors.New("signer: unsupported private key type or error occured")
+	return nil, errors.Wrap(err, "signer: unsupported private key type or error occured")
 }
