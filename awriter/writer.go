@@ -199,7 +199,7 @@ func writeScripts(tw *tar.Writer, scr *artifact.Scripts) error {
 	for _, script := range scr.Get() {
 		f, err := os.Open(script)
 		if err != nil {
-			return errors.Errorf("writer: can not open script file: %s", script)
+			return errors.Wrapf(err, "writer: can not open script file: %s", script)
 		}
 		defer f.Close()
 
