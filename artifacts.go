@@ -16,15 +16,17 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
+	"github.com/pkg/errors"
 
 	"github.com/urfave/cli"
 )
@@ -58,9 +60,27 @@ func artifactWriter(f *os.File, c *cli.Context,
 
 func scripts(c *cli.Context) (*artifact.Scripts, error) {
 	scr := artifact.Scripts{}
-	for _, script := range c.StringSlice("script") {
-		if err := scr.Add(script); err != nil {
-			return nil, err
+	for _, scriptArg := range c.StringSlice("script") {
+		statInfo, err := os.Stat(scriptArg)
+		if err != nil {
+			return nil, errors.Wrapf(err, "can not stat script file: %s", scriptArg)
+		}
+
+		// Read either a directory, or add the script file directly.
+		if statInfo.IsDir() {
+			fileList, err := ioutil.ReadDir(scriptArg)
+			if err != nil {
+				return nil, errors.Wrapf(err, "can not list directory contents of: %s", scriptArg)
+			}
+			for _, nameInfo := range fileList {
+				if err := scr.Add(filepath.Join(scriptArg, nameInfo.Name())); err != nil {
+					return nil, err
+				}
+			}
+		} else {
+			if err := scr.Add(scriptArg); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return &scr, nil
