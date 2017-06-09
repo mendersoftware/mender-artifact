@@ -35,20 +35,9 @@ in the "Ordering" section.
   |         |    |
   |         |    `---scripts
   |         |         |
-  |         |         +---pre
-  |         |         |    +--01_do_this
-  |         |         |    +--02_do_that
-  |         |         |    `--xx_ ...
-  |         |         |
-  |         |         +---post
-  |         |         |    +--01_do_this
-  |         |         |    +--02_do_that
-  |         |         |    `--xx_ ...
-  |         |         |
-  |         |         `---check
-  |         |              +--01_check_this
-  |         |              +--02_check_that
-  |         |              `--xx_ ...
+  |         |         +---State.Enter
+  |         |         +---State.Leave
+  |         |         `---<more scripts>
   |         |
   |         +---0001
   |         |    |
@@ -312,74 +301,45 @@ b6207e04cbdd57b12f22591cca02c774463fe1fac2cb593f99b38a9e07cf050f
 
 ### scripts
 
-Format: Directory containing three subdirectories, `pre`, `post` and `check`.
-
-Either or all of the subdirectories can be missing, if there is no script of
-that type.
-
-#### scripts/pre
-
 Format: Directory containing script files.
 
-The script files must start with two digits following by an underscore, for
-example `10_`, and are executed in numerically ascending order. Scripts that do
-not follow this naming convention will cause the update to be interrupted with a
-failure result.
+Any script, or even the whole directory, can be missing if there are no scripts
+of that type, or at all.
 
-##### scripts/pre files
+Each script corresponds to a Mender state according to the script API, and
+consists of up to two events, `Enter` and `Leave`, which are executed before the
+state is entered, and before leaving the state for another one, respectively.
 
-Format: Any executable
+The complete script API consists of the following scripts:
 
-Is run by Mender before the update begins. The script should not reboot nor
-disrupt network connectivity, since at this point Mender will still be connected
-to the server, expecting to receive the rest of the update contents,
-particularly the `data` files.
+* `(Idle.Enter)`
+* `(Idle.Leave)`
+* `(Syncing.Enter)`
+* `(Syncing.Leave)`
+* `ArtifactDownload.Enter`
+* `ArtifactDownload.Leave`
+* `ArtifactPreinstall.Enter`
+* `ArtifactPreinstall.Leave`
+* `ArtifactInstall.Enter`
+* `ArtifactInstall.Leave`
+* `Reboot.Enter`
+* `Reboot.Leave`
+* `ArtifactPostinstall.Enter`
+* `ArtifactPostinstall.Leave`
+* `ArtifactCommit.Enter`
+* `ArtifactCommit.Leave`
+* `Rollback.Enter`
+* `Rollback.Leave`
+* `RollbackReboot.Enter`
+* `RollbackReboot.Leave`
+* `ArtifactFailure.Enter`
+* `ArtifactFailure.Leave`
 
-The executable will run with `/` as the current directory, and if any script
-returns a non-zero return code the update will stop and be marked as failed.
+States in parentheses are states that are supported as scripts on the
+filesystem, but are not included in the artifact format.
 
-#### scripts/post
-
-Format: Directory containing script files.
-
-The script files must start with two digits following by an underscore, for
-example `10_`, and are executed in numerically ascending order. Scripts that do
-not follow this naming convention will cause the update to be interrupted with a
-failure result.
-
-##### scripts/post files
-
-Format: Any executable
-
-Is run by Mender after the update has been applied, but before the `check`
-scripts. This implies that the script will run using the updated system. The
-scripts are allowed to make changes to the system.
-
-The executable will run with `/` as the current directory, and if any script
-returns a non-zero return code the update will be marked as a failure and Mender
-will roll back to the previous image.
-
-#### scripts/check
-
-Format: Directory containing script files.
-
-The script files must start with two digits following by an underscore, for
-example `10_`, and are executed in numerically ascending order. Scripts that do
-not follow this naming convention will cause the update to be interrupted with a
-failure result.
-
-##### scripts/check files
-
-Format: Any executable
-
-Is run by Mender after the `post` scripts, but before the update has been marked
-as a success. This implies that the script will run using the updated
-system. Unlike the `post` scripts, `check` scripts should not make any changes
-to the system, only verify acceptance conditions for the update.
-
-The executable will run with `/` as the current directory, and if any script
-returns a non-zero return code the update will be marked as a failure and Mender
-will roll back to the previous image.
+For more information about the script and state API, see the official Mender
+documentation.
 
 
 data
@@ -435,9 +395,6 @@ For the embedded `header.tar.gz` file:
 | `meta-data`     | After `type-info`             |
 | `checksums`     | After `type-info` (v1)        |
 | `scripts`       | After `type-info`             |
-| `scripts/pre`   | No rules                      |
-| `scripts/post`  | No rules                      |
-| `scripts/check` | No rules                      |
 
 The fact that many files/directories inside `header.tar.gz` have ambiguous rules
 (`checksums` can be before or after `signatures`) implies that the order is not
