@@ -311,6 +311,26 @@ func TestWithScripts(t *testing.T) {
 				Content: []byte("this is leave script"),
 				IsDir:   false,
 			},
+			{
+				Path:    "script-dir",
+				Content: []byte(""),
+				IsDir:   true,
+			},
+			{
+				Path:    "script-dir/ArtifactReboot_Enter_99",
+				Content: []byte("this is reboot enter script"),
+				IsDir:   false,
+			},
+			{
+				Path:    "script-dir/ArtifactReboot_Leave_01",
+				Content: []byte("this is reboot leave script"),
+				IsDir:   false,
+			},
+			{
+				Path:    "InvalidScript",
+				Content: []byte("this is invalid script"),
+				IsDir:   false,
+			},
 		})
 	assert.NoError(t, err)
 
@@ -319,7 +339,8 @@ func TestWithScripts(t *testing.T) {
 		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Enter_99"),
-		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Leave_01")}
+		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Leave_01"),
+		"-s", filepath.Join(updateTestDir, "script-dir")}
 	err = run()
 	assert.NoError(t, err)
 
@@ -339,6 +360,17 @@ func TestWithScripts(t *testing.T) {
 	err = run()
 	assert.Error(t, err)
 	assert.Equal(t, "can not use scripts artifact with version 1\n",
+		fakeErrWriter.String())
+
+	// write artifact vith invalid script name
+	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender"),
+		"-s", filepath.Join(updateTestDir, "InvalidScript")}
+	fakeErrWriter.Reset()
+	err = run()
+	assert.Error(t, err)
+	assert.Equal(t, "scripter: invalid script: InvalidScript\n",
 		fakeErrWriter.String())
 }
 
