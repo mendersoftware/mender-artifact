@@ -21,13 +21,14 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
-	"github.com/pkg/errors"
 
+	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )
 
@@ -292,7 +293,7 @@ func validateArtifact(c *cli.Context) error {
 		verifyCallback = s.Verify
 	}
 
-	// do not return error if we can not validate signature;
+	// do not return error immediately if we can not validate signature;
 	// just continue checking consistency and return info if
 	// signature verification failed
 	valid := true
@@ -311,10 +312,199 @@ func validateArtifact(c *cli.Context) error {
 	}
 
 	if !valid {
-		fmt.Println("Artifact file '" + c.Args().First() +
-			"' formatted correctly, but error validating signature.")
+		return cli.NewExitError("Artifact file '"+c.Args().First()+
+			"' formatted correctly, but error validating signature.", 1)
 	} else {
 		fmt.Println("Artifact file '" + c.Args().First() + "' validated successfully")
+	}
+	return nil
+}
+
+func createSignature(raw *artifact.Raw, w *awriter.Writer, key []byte) error {
+	s := artifact.NewSigner(key)
+	buf := bytes.NewBuffer(nil)
+	_, err := io.Copy(buf, raw.Data)
+	if err != nil {
+		return errors.Wrap(err, "Can not copy manifest data for signing")
+	}
+	signed, sErr := s.Sign(buf.Bytes())
+	if sErr != nil {
+		return sErr
+	}
+
+	// first write orifinal "manifest" file
+	if err :=
+		w.WriteRaw(artifact.NewRaw("manifest", raw.Size, buf)); err != nil {
+		return err
+	}
+	// then, write "manifest.sig"
+	if err :=
+		w.WriteRaw(
+			artifact.NewRaw("manifest.sig",
+				int64(len(signed)), bytes.NewBuffer(signed))); err != nil {
+		return err
+	}
+	return nil
+}
+
+func processHeader(r *areader.Reader, w *awriter.Writer,
+	key []byte, force bool) error {
+	// simple list with the header element name and the flag uses as
+	// indicator if element is optional or required
+	artifactHeaderElems := []struct {
+		name     string
+		required bool
+	}{
+		{"manifest", true},
+		{"manifest.sig", false},
+		{"header.", true},
+	}
+
+	getNext := true
+	var raw *artifact.Raw = nil
+	var err error = nil
+
+	// read header elements first
+	for _, elem := range artifactHeaderElems {
+		// get element form the artifact
+		if getNext {
+			raw, err = r.ReadRaw()
+			if err != nil {
+				return err
+			}
+		}
+		getNext = true
+
+		// check if we are not having element out of order
+		if elem.required && !strings.HasPrefix(raw.Name, elem.name) {
+			return errors.Errorf("Invalid artifact, should contain '%s' "+
+				"file , but contains '%s'", elem.name, raw.Name)
+		} else if !elem.required && !strings.HasPrefix(raw.Name, elem.name) {
+			// we have missing optional element; move on to the next one
+			getNext = false
+			continue
+		}
+
+		// check if we are having "manifest" file, which we need to sign
+		if raw.Name == "manifest" {
+			if err = createSignature(raw, w, key); err != nil {
+				return err
+			}
+			continue
+
+		} else if raw.Name == "manifest.sig" && !force {
+			// we are re-signing the artifact; return error by default
+			return errors.New("Trying to sign already signed artifact; " +
+				"please use force option")
+		} else if raw.Name == "manifest.sig" && force {
+			// just continue here as new signature is already part of tmp artifact
+			continue
+		}
+
+		if err = w.WriteRaw(raw); err != nil {
+			return errors.Wrap(err, "Can not write artifact")
+		}
+	}
+	return nil
+}
+
+func signArtifact(r *areader.Reader, w *awriter.Writer,
+	rawVer *artifact.Raw, key []byte, force bool) error {
+	// first we need to store version in new artifact we are trying to sign
+	if err := w.WriteRaw(rawVer); err != nil {
+		return err
+	}
+
+	if err := processHeader(r, w, key, force); err != nil {
+		return err
+	}
+
+	// read the rest of the artifact
+	for {
+		raw, err := r.ReadRaw()
+		if err != nil && errors.Cause(err) == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		if err = w.WriteRaw(raw); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeTemp(aName string, key []byte, force bool) (string, error) {
+
+	f, err := os.Open(aName)
+	if err != nil {
+		return "", errors.Wrapf(err, "Can not open: %s", aName)
+	}
+	defer f.Close()
+
+	// initialize raw reader and writer
+	aReader := areader.NewReader(f)
+	ver, data, err := aReader.ReadRawVersion()
+	if err != nil {
+		return "", err
+	}
+
+	// we are supporting only v2 signing for now
+	switch ver {
+	case 1:
+		return "", errors.New("Can not sign v1 artifact")
+	case 2:
+		tFile, err := ioutil.TempFile("", "mender-artifact")
+		if err != nil {
+			return "", errors.Wrap(err,
+				"Can not create temporary file for storing artifact")
+		}
+		aWriter := awriter.NewWriterRaw(tFile)
+		defer aWriter.CloseRaw()
+
+		err = signArtifact(aReader, aWriter, data, key, force)
+		if err != nil {
+			os.Remove(tFile.Name())
+			return "", err
+		}
+
+		tFile.Close()
+		return tFile.Name(), nil
+	default:
+		return "", errors.New("Unsupported version of artifact file: " + string(ver))
+	}
+}
+
+func signExisting(c *cli.Context) error {
+	if c.NArg() == 0 {
+		return cli.NewExitError("Nothing specified, nothing signed. \nMaybe you wanted"+
+			" to say 'artifacts sign <pathspec>'?", 1)
+	}
+
+	if len(c.String("key")) == 0 {
+		return cli.NewExitError("Missing signing key; "+
+			"please use `-k` parameter for providing one", 1)
+	}
+
+	privateKey, err := getKey(c.String("key"))
+	if err != nil {
+		return cli.NewExitError("Can not use signing key provided: "+err.Error(), 1)
+	}
+
+	tmp, err := writeTemp(c.Args().First(), privateKey, c.Bool("force"))
+	if err != nil {
+		return cli.NewExitError("Can not read/write artifact: "+err.Error(), 1)
+	}
+
+	name := c.Args().First()
+	if len(c.String("output-path")) > 0 {
+		name = c.String("output-path")
+	}
+
+	err = os.Rename(tmp, name)
+	if err != nil {
+		os.Remove(tmp)
+		return cli.NewExitError("Can not store signed artifact: "+err.Error(), 1)
 	}
 	return nil
 }
@@ -379,7 +569,7 @@ func run() error {
 		},
 	}
 
-	unsign := cli.StringFlag{
+	key := cli.StringFlag{
 		Name: "key, k",
 		Usage: "Full path to the public key that will be used to verify " +
 			"the artifact signature.",
@@ -396,7 +586,7 @@ func run() error {
 		Description: "This command validates artifact file provided by pathspec.",
 	}
 	validate.Flags = []cli.Flag{
-		unsign,
+		key,
 	}
 
 	//
@@ -411,13 +601,37 @@ func run() error {
 	}
 
 	read.Flags = []cli.Flag{
-		unsign,
+		key,
+	}
+
+	//
+	// sign
+	//
+	sign := cli.Command{
+		Name:        "sign",
+		Usage:       "Signs existing artifact file.",
+		Action:      signExisting,
+		UsageText:   "mender-artifact sign [options] <pathspec>",
+		Description: "This command signs artifact file provided by pathspec.",
+	}
+	sign.Flags = []cli.Flag{
+		key,
+		cli.StringFlag{
+			Name: "output-path, o",
+			Usage: "Full path to output signed artifact file; " +
+				"if none is provided existing artifact will be replaced with signed one",
+		},
+		cli.BoolFlag{
+			Name:  "force, f",
+			Usage: "Force creating new signature if the artifact is already signed",
+		},
 	}
 
 	app.Commands = []cli.Command{
 		write,
 		read,
 		validate,
+		sign,
 	}
 	return app.Run(os.Args)
 }

@@ -47,15 +47,20 @@ func init() {
 	cli.ErrWriter = fakeErrWriter
 }
 
-func WriteRootfsImageArchive(dir string) error {
-	if err := MakeFakeUpdateDir(dir,
-		[]TestDirEntry{
-			{
-				Path:    "update.ext4",
-				Content: []byte("my update"),
-				IsDir:   false,
-			},
-		}); err != nil {
+func WriteArtifact(dir string, ver int) error {
+	if err := func() error {
+		uFile, err := os.Create(filepath.Join(dir, "update.ext4"))
+		if err != nil {
+			return err
+		}
+		defer uFile.Close()
+
+		_, err = uFile.WriteString("my update")
+		if err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
 		return err
 	}
 
@@ -65,10 +70,18 @@ func WriteRootfsImageArchive(dir string) error {
 	}
 	defer f.Close()
 
-	aw := awriter.NewWriter(f)
 	u := handlers.NewRootfsV1(filepath.Join(dir, "update.ext4"))
+
+	aw := awriter.NewWriter(f)
+	switch ver {
+	case 1:
+		// we are alrady having v1 handlers; do nothing
+	case 2:
+		u = handlers.NewRootfsV2(filepath.Join(dir, "update.ext4"))
+	}
+
 	updates := &awriter.Updates{U: []handlers.Composer{u}}
-	return aw.WriteArtifact("mender", 1, []string{"vexpress"},
+	return aw.WriteArtifact("mender", ver, []string{"vexpress"},
 		"mender-1.1", updates, nil)
 }
 
@@ -117,29 +130,40 @@ func TestArtifactsWrite(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestArtifactsSigned(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
-
+func generateKeys() ([]byte, []byte, error) {
 	// key size needs to be 512 bits to handle message length
 	priv, err := rsa.GenerateKey(rand.Reader, 512)
-	assert.NoError(t, err)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	pub, err := x509.MarshalPKIXPublicKey(priv.Public())
-	assert.NoError(t, err)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	pubSer := &bytes.Buffer{}
 	err = pem.Encode(pubSer, &pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: pub,
 	})
-	assert.NoError(t, err)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	privSer := &bytes.Buffer{}
 	err = pem.Encode(privSer, &pem.Block{
 		Type:  "PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(priv),
 	})
+	return privSer.Bytes(), pubSer.Bytes(), nil
+}
+
+func TestArtifactsSigned(t *testing.T) {
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	priv, pub, err := generateKeys()
 	assert.NoError(t, err)
 
 	err = MakeFakeUpdateDir(updateTestDir,
@@ -151,12 +175,12 @@ func TestArtifactsSigned(t *testing.T) {
 			},
 			{
 				Path:    "private.key",
-				Content: privSer.Bytes(),
+				Content: priv,
 				IsDir:   false,
 			},
 			{
 				Path:    "public.key",
-				Content: pubSer.Bytes(),
+				Content: pub,
 				IsDir:   false,
 			},
 		})
@@ -232,6 +256,100 @@ func TestArtifactsSigned(t *testing.T) {
 		fakeErrWriter.String())
 }
 
+func TestSignExistingV1(t *testing.T) {
+	// first create archive, that we will be able to read
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	priv, pub, err := generateKeys()
+	assert.NoError(t, err)
+
+	err = WriteArtifact(updateTestDir, 1)
+	assert.NoError(t, err)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "private.key",
+				Content: priv,
+				IsDir:   false,
+			},
+			{
+				Path:    "public.key",
+				Content: pub,
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "sign",
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Can not sign v1 artifact")
+}
+
+func TestSignExistingV2(t *testing.T) {
+	// first create archive, that we will be able to read
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	priv, pub, err := generateKeys()
+	assert.NoError(t, err)
+
+	err = WriteArtifact(updateTestDir, 2)
+	assert.NoError(t, err)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "private.key",
+				Content: priv,
+				IsDir:   false,
+			},
+			{
+				Path:    "public.key",
+				Content: pub,
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "sign",
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender.sig"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+
+	err = run()
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "validate",
+		"-k", filepath.Join(updateTestDir, "public.key"),
+		filepath.Join(updateTestDir, "artifact.mender.sig")}
+
+	err = run()
+	assert.NoError(t, err)
+
+	// now check if signing already signed will fail
+	os.Args = []string{"mender-artifact", "sign",
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender.sig"),
+		filepath.Join(updateTestDir, "artifact.mender.sig")}
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Trying to sign already signed artifact")
+
+	// and the same as above with force option
+	os.Args = []string{"mender-artifact", "sign",
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender.sig"), "-f",
+		filepath.Join(updateTestDir, "artifact.mender.sig")}
+	err = run()
+	assert.NoError(t, err)
+}
+
 func TestArtifactsValidateError(t *testing.T) {
 	os.Args = []string{"mender-artifact", "validate"}
 	err := run()
@@ -253,7 +371,7 @@ func TestArtifactsValidate(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	err := WriteRootfsImageArchive(updateTestDir)
+	err := WriteArtifact(updateTestDir, 1)
 	assert.NoError(t, err)
 
 	os.Args = []string{"mender-artifact", "validate",
@@ -267,7 +385,7 @@ func TestArtifactsRead(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	err := WriteRootfsImageArchive(updateTestDir)
+	err := WriteArtifact(updateTestDir, 1)
 	assert.NoError(t, err)
 
 	os.Args = []string{"mender-artifact", "read"}
