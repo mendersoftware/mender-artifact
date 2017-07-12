@@ -9,10 +9,7 @@ case "$1" in
         ;;
 esac
 
-if [ -n "$1" ]
-then
-    COMMIT_RANGE="$1"
-elif [ -n "$TRAVIS_BRANCH" ]
+if [ -n "$TRAVIS_BRANCH" ]
 then
     COMMIT_RANGE="$TRAVIS_BRANCH..HEAD"
 else
@@ -20,15 +17,28 @@ else
     COMMIT_RANGE=HEAD~1..HEAD
 fi
 
-echo "Checking range: ${COMMIT_RANGE}:"
-git log "$COMMIT_RANGE"
-
-commits="$(git rev-list --no-merges "$COMMIT_RANGE")"
+if [ -n "$1" ]
+then
+    echo "Checking range: $@:"
+    git --no-pager log "$@"
+    commits="$(git rev-list --no-merges "$@")"
+else
+    echo "Checking range: ${COMMIT_RANGE}:"
+    git --no-pager log "$COMMIT_RANGE"
+    commits="$(git rev-list --no-merges "$COMMIT_RANGE")"
+fi
 notvalid=
 for i in $commits
 do
     COMMIT_MSG="$(git show -s --format=%B "$i")"
     COMMIT_USER_EMAIL="$(git show -s --format="%an <%ae>" "$i")"
+
+    # Ignore commits that have git-subtree tags in them. They are a PITA both
+    # to sign and add changelogs to, and signing should anyway be present in the
+    # original repository.
+    if echo "$COMMIT_MSG" | egrep "^git-subtree-[^:]+:" >/dev/null; then
+        continue
+    fi
 
     # Check that Signed-off-by tags are present.
     if ! echo "$COMMIT_MSG" | grep -F "Signed-off-by: ${COMMIT_USER_EMAIL}" >/dev/null; then
