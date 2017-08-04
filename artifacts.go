@@ -20,8 +20,6 @@ import (
 	"os"
 
 	"github.com/mendersoftware/mender-artifact/parser"
-	"github.com/mendersoftware/mender-artifact/reader"
-	"github.com/mendersoftware/mender-artifact/writer"
 
 	"github.com/urfave/cli"
 )
@@ -216,5 +214,7 @@ func run() error {
 }
 
 func main() {
-	run()
+	if err := run(); err != nil {
+		os.Exit(1)
+	}
 }
