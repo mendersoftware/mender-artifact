@@ -111,6 +111,13 @@ func TestArtifactsWrite(t *testing.T) {
 		})
 	assert.NoError(t, err)
 
+	// no whitespace allowed in artifact-name
+	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+		"-n", "mender-1. 1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-o", filepath.Join(updateTestDir, "art.mender")}
+	err = run()
+	assert.Equal(t, "whitespace is not allowed in the artifact-name", err.Error())
+
 	// store named file
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
 		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
