@@ -69,11 +69,6 @@ func scripts(c *cli.Context) (*artifact.Scripts, error) {
 }
 
 func writeArtifact(c *cli.Context) error {
-	if len(c.StringSlice("device-type")) == 0 ||
-		len(c.String("artifact-name")) == 0 ||
-		len(c.String("update")) == 0 {
-		return cli.NewExitError("must provide `device-type`, `artifact-name` and `update`", 1)
-	}
 
 	// set default name
 	name := "artifact.mender"
@@ -504,8 +499,18 @@ func run() error {
 	// write
 	//
 	writeRootfs := cli.Command{
-		Name:   "rootfs-image",
-		Action: writeArtifact,
+		Name: "rootfs-image",
+		Action: func(c *cli.Context) error {
+			if len(c.StringSlice("device-type")) == 0 ||
+				len(c.String("artifact-name")) == 0 ||
+				len(c.String("update")) == 0 {
+				return cli.NewExitError("must provide `device-type`, `artifact-name` and `update`", 1)
+			}
+			if len(strings.Fields(c.String("artifact-name"))) > 1 { // check for whitespace in artifact-name
+				return cli.NewExitError("whitespace is not allowed in the artifact-name", 1)
+			}
+			return writeArtifact(c)
+		},
 	}
 
 	writeRootfs.Flags = []cli.Flag{
