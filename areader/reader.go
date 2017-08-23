@@ -45,6 +45,8 @@ type Reader struct {
 	r          io.Reader
 	handlers   map[string]handlers.Installer
 	installers map[int]handlers.Installer
+
+	rawReader *tar.Reader
 }
 
 func NewReader(r io.Reader) *Reader {
@@ -281,6 +283,41 @@ func (ar *Reader) readHeaderV2(tReader *tar.Reader,
 	return manifest, nil
 }
 
+func (ar *Reader) ReadRaw() (*artifact.Raw, error) {
+	// each artifact is tar archive
+	if ar.r == nil {
+		return nil, errors.New("reader: read raw called on invalid stream")
+	}
+	if ar.rawReader == nil {
+		ar.rawReader = tar.NewReader(ar.r)
+	}
+	hdr, err := getNext(ar.rawReader)
+	if err != nil {
+		return nil, errors.Wrap(err, "reader: error reading raw data")
+	}
+	return artifact.NewRaw(hdr.Name, hdr.Size, ar.rawReader), nil
+}
+
+func (ar *Reader) ReadRawVersion() (int, *artifact.Raw, error) {
+	// each artifact is tar archive
+	if ar.r == nil {
+		return 0, nil,
+			errors.New("reader: read raw version called on invalid stream")
+	}
+
+	// check if reader is initialized
+	if ar.rawReader == nil {
+		ar.rawReader = tar.NewReader(ar.r)
+	}
+
+	ver, vRaw, err := readVersion(ar.rawReader)
+	if err != nil {
+		return 0, nil, errors.Wrapf(err, "reader: can not read version file")
+	}
+	return ver.Version,
+		artifact.NewRaw("version", int64(len(vRaw)), bytes.NewBuffer(vRaw)), nil
+}
+
 func (ar *Reader) ReadArtifact() error {
 	// each artifact is tar archive
 	if ar.r == nil {
@@ -289,7 +326,7 @@ func (ar *Reader) ReadArtifact() error {
 	tReader := tar.NewReader(ar.r)
 
 	// first file inside the artifact MUST be version
-	ver, raw, err := readVersion(tReader)
+	ver, vRaw, err := readVersion(tReader)
 	if err != nil {
 		return errors.Wrapf(err, "reader: can not read version file")
 	}
@@ -303,7 +340,7 @@ func (ar *Reader) ReadArtifact() error {
 			return err
 		}
 	case 2:
-		s, err = ar.readHeaderV2(tReader, raw)
+		s, err = ar.readHeaderV2(tReader, vRaw)
 		if err != nil {
 			return err
 		}
@@ -364,8 +401,8 @@ func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header) error {
 		if !ok {
 			return errors.Errorf("reader: can not find parser for update: %v", hdr.Name)
 		}
-		if err := inst.ReadHeader(tr, hdr.Name); err != nil {
-			return errors.Wrap(err, "reader: can not read header")
+		if hErr := inst.ReadHeader(tr, hdr.Name); hErr != nil {
+			return errors.Wrap(hErr, "reader: can not read header")
 		}
 
 		hdr, err = getNext(tr)
