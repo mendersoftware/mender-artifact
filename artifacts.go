@@ -642,5 +642,7 @@ func run() error {
 }
 
 func main() {
-	run()
+	if err := run(); err != nil {
+		os.Exit(1)
+	}
 }
