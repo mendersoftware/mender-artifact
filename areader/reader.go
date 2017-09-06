@@ -127,7 +127,18 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 	}
 
 	// At the end read rest of the header using correct installers.
-	return ar.readHeaderUpdate(tr, hdr)
+	if err = ar.readHeaderUpdate(tr, hdr); err != nil {
+		return err
+	}
+
+	// Check if header checksum is correct.
+	if cr, ok := r.(*artifact.Checksum); ok {
+		if err = cr.Verify(); err != nil {
+			return errors.Wrap(err, "reader: reading header error")
+		}
+	}
+
+	return nil
 }
 
 func readVersion(tr *tar.Reader) (*artifact.Info, []byte, error) {
@@ -534,8 +545,12 @@ func readAndInstall(r io.Reader, i handlers.Installer,
 		// check checksum
 		ch := artifact.NewReaderChecksum(tar, df.Checksum)
 
-		if err := i.Install(ch, &info); err != nil {
+		if err = i.Install(ch, &info); err != nil {
 			return errors.Wrapf(err, "update: can not install update: %v", hdr)
+		}
+
+		if err = ch.Verify(); err != nil {
+			return errors.Wrap(err, "reader: error reading data")
 		}
 	}
 	return nil
