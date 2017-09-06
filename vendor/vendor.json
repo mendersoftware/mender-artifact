@@ -11,6 +11,12 @@
 			"revision": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d"
 		},
 		{
+			"checksumSHA1": "04axpAkA95nevuW87QSw6WAhnZg=",
+			"path": "github.com/godbus/dbus",
+			"revision": "7f21b8d03d62063e35a1088c6d675e7de3f4fe0d",
+			"revisionTime": "2017-08-29T22:28:00Z"
+		},
+		{
 			"checksumSHA1": "FLmqfKOP+8V5+LJm1568MwJf4gk=",
 			"path": "github.com/mendersoftware/mendertesting",
 			"revision": "731be57371e8c3dde8fff60dd0d7d8171ad7f472",
