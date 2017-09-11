@@ -66,16 +66,46 @@ func NewReaderSigned(r io.Reader) *Reader {
 	}
 }
 
-func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
+func getReader(tReader io.Reader, headerSum []byte) io.Reader {
 
-	var r io.Reader
 	if headerSum != nil {
 		// If artifact is signed we need to calculate header checksum to be
 		// able to validate it later.
-		r = artifact.NewReaderChecksum(tReader, headerSum)
+		return artifact.NewReaderChecksum(tReader, headerSum)
 	} else {
-		r = tReader
+		return tReader
 	}
+}
+
+func readStateScripts(tr *tar.Reader, header *tar.Header, cb ScriptsReadFn) error {
+
+	for {
+		hdr, err := getNext(tr)
+		if err == io.EOF {
+			return nil
+		} else if err != nil {
+			return errors.Wrapf(err,
+				"reader: error reading artifact header file: %v", hdr)
+		}
+		if filepath.Dir(hdr.Name) == "scripts" {
+			if cb != nil {
+				if err = cb(tr, hdr.FileInfo()); err != nil {
+					return err
+				}
+			}
+		} else {
+			// if there are no more scripts to read leave the loop
+			*header = *hdr
+			break
+		}
+	}
+
+	return nil
+}
+
+func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
+
+	r := getReader(tReader, headerSum)
 	// header MUST be compressed
 	gz, err := gzip.NewReader(r)
 	if err != nil {
@@ -98,26 +128,11 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 		}
 	}
 
+	var hdr tar.Header
+
 	// Next we need to read and process state scripts.
-	var hdr *tar.Header
-	for {
-		hdr, err = getNext(tr)
-		if err == io.EOF {
-			return nil
-		} else if err != nil {
-			return errors.Wrapf(err,
-				"reader: error reading artifact header file: %v", hdr)
-		}
-		if filepath.Dir(hdr.Name) == "scripts" {
-			if ar.ScriptsReadCallback != nil {
-				if err = ar.ScriptsReadCallback(tr, hdr.FileInfo()); err != nil {
-					return err
-				}
-			}
-		} else {
-			// if there are no more scripts to read leave the loop
-			break
-		}
+	if err = readStateScripts(tr, &hdr, ar.ScriptsReadCallback); err != nil {
+		return err
 	}
 
 	// Next step is setting correct installers based on update types being
@@ -127,7 +142,7 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 	}
 
 	// At the end read rest of the header using correct installers.
-	if err = ar.readHeaderUpdate(tr, hdr); err != nil {
+	if err = ar.readHeaderUpdate(tr, &hdr); err != nil {
 		return err
 	}
 
