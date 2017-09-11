@@ -22,7 +22,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
+	"github.com/godbus/dbus"
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
@@ -504,6 +506,76 @@ func signExisting(c *cli.Context) error {
 	return nil
 }
 
+func getDevices(msg *dbus.Signal) error {
+	if strings.HasSuffix(msg.Name, "InterfacesAdded") {
+		for _, v := range msg.Body {
+			if data, ok := v.(dbus.ObjectPath); ok {
+				if strings.Contains(string(data), "block_device") {
+					// TODO:
+					fmt.Printf("dev: %v\n", string(data))
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func modifyArtifact(c *cli.Context) error {
+	if c.NArg() == 0 {
+		return cli.NewExitError("Nothing specified, nothing will be modified. \n"+
+			"Maybe you wanted to say 'artifacts read <pathspec>'?", 1)
+	}
+
+	// start connection with dbus
+	conn, err := dbus.SystemBus()
+	if err != nil {
+		return cli.NewExitError("Failed to connect to dbus: "+err.Error(), 1)
+	}
+	defer conn.Close()
+
+	if !conn.SupportsUnixFDs() {
+		return cli.NewExitError("Connection does not support unix fsd; exiting", 1)
+	}
+
+	file, err := os.OpenFile(c.Args().First(), os.O_RDWR, 0)
+	if err != nil {
+		return cli.NewExitError("Can not open file: "+err.Error(), 1)
+	}
+	defer file.Close()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	ch := make(chan *dbus.Signal)
+
+	if err = registerDeviceCallback(conn, ch, &wg, getDevices); err != nil {
+		return cli.NewExitError("Can not register dbus callback: "+err.Error(), 1)
+	}
+
+	// wait for the callback to be completed
+	defer func() {
+		close(ch)
+		wg.Wait()
+	}()
+
+	loopDevice, err := mountFile(conn, dbus.UnixFD(file.Fd()))
+	if err != nil {
+		return cli.NewExitError("Can not loop mount file: "+err.Error(), 1)
+	}
+	// TODO:
+	fmt.Printf("Loop device mounted: %s\n", loopDevice)
+
+	prop, err := getDeviceProperties(conn, loopDevice,
+		[]string{"IdUUID", "ReadOnly", "MountPoints"})
+	if err != nil {
+		return cli.NewExitError("Can not get device properties: "+err.Error(), 1)
+	}
+	// TODO
+	fmt.Printf("Received device properties: %v\n", prop)
+
+	return nil
+}
+
 func run() error {
 	app := cli.NewApp()
 	app.Name = "mender-artifact"
@@ -632,11 +704,23 @@ func run() error {
 		},
 	}
 
+	//
+	// modify existing
+	//
+	modify := cli.Command{
+		Name:        "modify",
+		Usage:       "Modifies image or artifact file.",
+		Action:      modifyArtifact,
+		UsageText:   "mender-artifact modify [options] <pathspec>",
+		Description: "This command modifies existing image or artifact file provided by pathspec.",
+	}
+
 	app.Commands = []cli.Command{
 		write,
 		read,
 		validate,
 		sign,
+		modify,
 	}
 	return app.Run(os.Args)
 }
