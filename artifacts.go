@@ -651,15 +651,16 @@ type partition struct {
 }
 
 func processSdimg(image string) ([]partition, error) {
-	out, err := exec.Command("partx", "-sgb", image).Output()
+	out, err := exec.Command("parted", image, "unit s", "print").Output()
 	if err != nil {
-		return nil, errors.Wrap(err, "can not execute `partx` command; make sure"+
-			"it is available in your system and is in the $PATH")
+		return nil, errors.Wrap(err, "can not execute `parted` command or image is broken; "+
+			"make sure parted is available in your system and is in the $PATH")
 	}
 
+	fmt.Printf("parted result: %s\n", string(out))
 	partitions := make([]partition, 0)
 
-	reg := regexp.MustCompile(`(?m)^[[:blank:]][0-9]+[[:blank:]]+([0-9]+)[[:blank:]]+[0-9]+[[:blank:]]+([0-9]+)`)
+	reg := regexp.MustCompile(`(?m)^[[:blank:]][0-9]+[[:blank:]]+([0-9]+)s[[:blank:]]+[0-9]+s[[:blank:]]+([0-9]+)s`)
 	partitionMatch := reg.FindAllStringSubmatch(string(out), -1)
 
 	// IMPORTANT: we are assuming standard Mender formating here:
@@ -670,7 +671,7 @@ func processSdimg(image string) ([]partition, error) {
 			single := partitionMatch[i]
 			partitions = append(partitions, partition{offset: single[1], size: single[2]})
 		}
-		if err := mountSdimg(partitions, image); err != nil {
+		if err = mountSdimg(partitions, image); err != nil {
 			return nil, err
 		}
 		return partitions, nil
@@ -735,8 +736,10 @@ func modifyArtifact(c *cli.Context) error {
 			return cli.NewExitError("Can not process image file: "+err.Error(), 1)
 		}
 		modifyCandidates = append(modifyCandidates, parts...)
-		for _, mc := range modifyCandidates {
-			defer os.Remove(mc.path)
+		if len(modifyCandidates) > 1 {
+			for _, mc := range modifyCandidates {
+				defer os.Remove(mc.path)
+			}
 		}
 	}
 
