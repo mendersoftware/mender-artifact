@@ -657,7 +657,6 @@ func processSdimg(image string) ([]partition, error) {
 			"make sure parted is available in your system and is in the $PATH")
 	}
 
-	fmt.Printf("parted result: %s\n", string(out))
 	partitions := make([]partition, 0)
 
 	reg := regexp.MustCompile(`(?m)^[[:blank:]][0-9]+[[:blank:]]+([0-9]+)s[[:blank:]]+[0-9]+s[[:blank:]]+([0-9]+)s`)
@@ -745,7 +744,8 @@ func modifyArtifact(c *cli.Context) error {
 
 	for _, toModify := range modifyCandidates {
 		if err := modifyExisting(c, toModify.path); err != nil {
-			fmt.Printf("Error modifying artifact[%s]: %s\n", toModify, err.Error())
+			return cli.NewExitError("Error modifying artifact["+toModify.path+"]: "+
+				err.Error(), 1)
 		}
 	}
 
