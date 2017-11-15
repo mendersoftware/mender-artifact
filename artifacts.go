@@ -16,11 +16,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/mendersoftware/mender-artifact/areader"
@@ -388,9 +391,49 @@ func signExisting(c *cli.Context) error {
 	return nil
 }
 
-func tempStoreScripts(dir string) func(io.Reader, os.FileInfo) error {
-	return func(r io.Reader, info os.FileInfo) error {
-		sLocation := filepath.Join(dir, info.Name())
+func unpackArtifact(name string) (string, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return "", errors.Wrapf(err, "Can not open: %s", name)
+	}
+	defer f.Close()
+
+	// initialize raw reader and writer
+	aReader := areader.NewReader(f)
+	rootfs := handlers.NewRootfsInstaller()
+
+	tmp, err := ioutil.TempFile("", "mender-artifact")
+	if err != nil {
+		return "", err
+	}
+	defer tmp.Close()
+
+	rootfs.InstallHandler = func(r io.Reader, df *handlers.DataFile) error {
+		_, err = io.Copy(tmp, r)
+		return err
+	}
+
+	if err = aReader.RegisterHandler(rootfs); err != nil {
+		return "", errors.Wrap(err, "failed to register install handler")
+	}
+
+	err = aReader.ReadArtifact()
+	if err != nil {
+		return "", err
+	}
+	return tmp.Name(), nil
+}
+
+func repack(from io.Reader, to io.Writer, key []byte,
+	newName string, dataFile string) (*areader.Reader, error) {
+	sDir, err := ioutil.TempDir("", "mender")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(sDir)
+
+	storeScripts := func(r io.Reader, info os.FileInfo) error {
+		sLocation := filepath.Join(sDir, info.Name())
 		f, fileErr := os.OpenFile(sLocation, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0755)
 		if fileErr != nil {
 			return errors.Wrapf(fileErr,
@@ -398,7 +441,7 @@ func tempStoreScripts(dir string) func(io.Reader, os.FileInfo) error {
 		}
 		defer f.Close()
 
-		_, err := io.Copy(f, r)
+		_, err = io.Copy(f, r)
 		if err != nil {
 			return errors.Wrapf(err,
 				"can not write script file: %v", sLocation)
@@ -406,17 +449,6 @@ func tempStoreScripts(dir string) func(io.Reader, os.FileInfo) error {
 		f.Sync()
 		return nil
 	}
-}
-
-func repack(from io.Reader, to io.Writer, key []byte,
-	newName string, dataFile string) (*areader.Reader, error) {
-
-	// create temp directory for storing content of the artifact
-	sDir, err := ioutil.TempDir("", "mender")
-	if err != nil {
-		return nil, err
-	}
-	defer os.Remove(sDir)
 
 	verify := func(message, sig []byte) error {
 		return nil
@@ -441,7 +473,7 @@ func repack(from io.Reader, to io.Writer, key []byte,
 		ar.RegisterHandler(rootfs)
 	}
 
-	r, err := read(ar, verify, tempStoreScripts(sDir))
+	r, err := read(ar, verify, storeScripts)
 	if err != nil {
 		return nil, err
 	}
@@ -482,7 +514,253 @@ func repack(from io.Reader, to io.Writer, key []byte,
 	return ar, err
 }
 
+// oblivious to whether the file exists beforehand
+func modifyName(name, image string) error {
+	data := fmt.Sprintf("artifact_name=%s\n", name)
+	tmpNameFile, err := ioutil.TempFile("", "mender-name")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmpNameFile.Name())
+
+	if _, err = tmpNameFile.WriteString(data); err != nil {
+		return err
+	}
+
+	if err = tmpNameFile.Close(); err != nil {
+		return err
+	}
+
+	return debugfsReplaceFile("/etc/mender/artifact_info",
+		tmpNameFile.Name(), image)
+}
+
+func modifyServerCert(newCert, image string) error {
+	_, err := os.Stat(newCert)
+	if err != nil {
+		return err
+	}
+	return debugfsReplaceFile("/etc/mender/server.crt", newCert, image)
+}
+
+func modifyVerificationKey(newKey, image string) error {
+	_, err := os.Stat(newKey)
+	if err != nil {
+		return err
+	}
+	return debugfsReplaceFile("/etc/mender/artifact-verify-key.pem", newKey, image)
+}
+
+func modifyMenderConfVar(confKey, confValue, image string) error {
+	confFile := "/etc/mender/mender.conf"
+	dir, err := debugfsCopyFile(confFile, image)
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+
+	raw, err := ioutil.ReadFile(filepath.Join(dir, filepath.Base(confFile)))
+	if err != nil {
+		return err
+	}
+
+	var rawData interface{}
+	if err = json.Unmarshal(raw, &rawData); err != nil {
+		return err
+	}
+	rawData.(map[string]interface{})[confKey] = confValue
+
+	data, err := json.Marshal(&rawData)
+	if err != nil {
+		return err
+	}
+
+	if err = ioutil.WriteFile(filepath.Join(dir, filepath.Base(confFile)), data, 0755); err != nil {
+		return err
+	}
+
+	return debugfsReplaceFile(confFile, filepath.Join(dir,
+		filepath.Base(confFile)), image)
+}
+
+func repackArtifact(artifact, rootfs, key, newName string) error {
+	art, err := os.Open(artifact)
+	if err != nil {
+		return err
+	}
+	defer art.Close()
+
+	tmp, err := ioutil.TempFile("", "mender-artifact")
+	if err != nil {
+		return err
+	}
+	defer tmp.Close()
+
+	var privateKey []byte
+	if key != "" {
+		privateKey, err = getKey(key)
+		if err != nil {
+			return cli.NewExitError("Can not use signing key provided: "+err.Error(), 1)
+		}
+	}
+
+	_, err = repack(art, tmp, privateKey, rootfs, newName)
+	return err
+}
+
+func modifyExisting(c *cli.Context, image string) error {
+	if c.String("name") != "" {
+		if err := modifyName(c.String("name"), image); err != nil {
+			return err
+		}
+	}
+
+	if c.String("server-uri") != "" {
+		if err := modifyMenderConfVar("ServerURL",
+			c.String("server-uri"), image); err != nil {
+			return err
+		}
+	}
+
+	if c.String("server-cert") != "" {
+		if err := modifyServerCert(c.String("server-cert"), image); err != nil {
+			return err
+		}
+	}
+
+	if c.String("verification-key") != "" {
+		if err := modifyVerificationKey(c.String("verification-key"), image); err != nil {
+			return err
+		}
+	}
+
+	if c.String("tenant-token") != "" {
+		if err := modifyMenderConfVar("TenantToken",
+			c.String("tenant-token"), image); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+type partition struct {
+	offset string
+	size   string
+	path   string
+}
+
+func processSdimg(image string) ([]partition, error) {
+	out, err := exec.Command("partx", "-sgb", image).Output()
+	if err != nil {
+		return nil, errors.Wrap(err, "can not execute `partx` command; make sure"+
+			"it is available in your system and is in the $PATH")
+	}
+
+	partitions := make([]partition, 0)
+
+	reg := regexp.MustCompile(`(?m)^[[:blank:]][0-9]+[[:blank:]]+([0-9]+)[[:blank:]]+[0-9]+[[:blank:]]+([0-9]+)`)
+	partitionMatch := reg.FindAllStringSubmatch(string(out), -1)
+
+	// IMPORTANT: we are assuming standard Mender formating here:
+	// only 2nd and 3rd partitions are rootfs we are going to modify
+	if len(partitionMatch) == 4 {
+		// we will have three groups per each entry in the partition table
+		for i := 1; i < 3; i++ {
+			single := partitionMatch[i]
+			partitions = append(partitions, partition{offset: single[1], size: single[2]})
+		}
+		if err := mountSdimg(partitions, image); err != nil {
+			return nil, err
+		}
+		return partitions, nil
+		// if we have single ext file there is no need to mount it
+	} else if len(partitionMatch) == 1 {
+		return []partition{{path: image}}, nil
+	}
+	return nil, errors.Wrapf(err, "invalid partition table: %s", string(out))
+}
+
+func mountSdimg(partitions []partition, image string) error {
+	for i, part := range partitions {
+		tmp, err := ioutil.TempFile("", "mender-modify-image")
+		if err != nil {
+			return errors.Wrap(err, "can not create temp file for storing image")
+		}
+		if err = tmp.Close(); err != nil {
+			return errors.Wrapf(err, "can not close temporary file: %s", tmp.Name())
+		}
+		cmd := exec.Command("dd", "if="+image, "of="+tmp.Name(),
+			"skip="+part.offset, "count="+part.size)
+		if err = cmd.Run(); err != nil {
+			return errors.Wrap(err, "can not extract image from sdimg")
+		}
+		partitions[i].path = tmp.Name()
+	}
+	return nil
+}
+
+func repackSdimg(partitions []partition, image string) error {
+	for _, part := range partitions {
+		if err := exec.Command("dd", "if="+part.path, "of="+image,
+			"seek="+part.offset, "count="+part.size,
+			"conv=notrunc").Run(); err != nil {
+			return errors.Wrap(err, "can not copy image back to sdimg")
+		}
+	}
+	return nil
+}
+
 func modifyArtifact(c *cli.Context) error {
+	if c.NArg() == 0 {
+		return cli.NewExitError("Nothing specified, nothing will be modified. \n"+
+			"Maybe you wanted to say 'artifacts read <pathspec>'?", 1)
+	}
+
+	isArtifact := false
+	modifyCandidates := make([]partition, 0)
+
+	// first we need to check  if we are having artifact or image file
+	if err := checkIfValid(c.Args().First(), c.String("key")); err == nil {
+		// we have VALID artifact, so we need to unpack it and store header
+		isArtifact = true
+		rawImage, err := unpackArtifact(c.Args().First())
+		if err != nil {
+			return cli.NewExitError("Can not process artifact: "+err.Error(), 1)
+		}
+		modifyCandidates = append(modifyCandidates, partition{path: rawImage})
+	} else {
+		parts, err := processSdimg(c.Args().First())
+		if err != nil {
+			return cli.NewExitError("Can not process image file: "+err.Error(), 1)
+		}
+		modifyCandidates = append(modifyCandidates, parts...)
+		for _, mc := range modifyCandidates {
+			defer os.Remove(mc.path)
+		}
+	}
+
+	for _, toModify := range modifyCandidates {
+		if err := modifyExisting(c, toModify.path); err != nil {
+			fmt.Printf("Error modifying artifact[%s]: %s\n", toModify, err.Error())
+		}
+	}
+
+	if len(modifyCandidates) > 1 {
+		// make modified images part of sdimg again
+		if err := repackSdimg(modifyCandidates, c.Args().First()); err != nil {
+			return cli.NewExitError("Can not recreate sdimg file: "+err.Error(), 1)
+		}
+		return nil
+	}
+
+	if isArtifact {
+		// re-create the artifact
+		err := repackArtifact(c.Args().First(), c.Args().First(), c.String("key"), c.String("name"))
+		if err != nil {
+			return cli.NewExitError("Can not recreate artifact: "+err.Error(), 1)
+		}
+	}
 	return nil
 }
 
