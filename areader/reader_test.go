@@ -268,34 +268,6 @@ func TestReadWithScripts(t *testing.T) {
 	assert.Equal(t, 1, noExec)
 }
 
-func TestReadRaw(t *testing.T) {
-	art, err := MakeRootfsImageArtifact(2, false, false)
-	assert.NoError(t, err)
-
-	aReader := NewReader(art)
-	noElems := 0
-
-	for {
-		_, err := aReader.ReadRaw()
-		noElems++
-		if err != nil && errors.Cause(err) == io.EOF {
-			break
-		}
-		assert.NoError(t, err)
-	}
-	assert.Equal(t, 5, noElems)
-}
-
-func TestReadRawVersion(t *testing.T) {
-	art, err := MakeRootfsImageArtifact(2, false, false)
-	assert.NoError(t, err)
-
-	aReader := NewReader(art)
-	v, _, err := aReader.ReadRawVersion()
-	assert.NoError(t, err)
-	assert.Equal(t, 2, v)
-}
-
 func MakeFakeUpdate(data string) (string, error) {
 	f, err := ioutil.TempFile("", "test_update")
 	if err != nil {

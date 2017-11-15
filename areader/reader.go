@@ -38,15 +38,14 @@ type Reader struct {
 	CompatibleDevicesCallback DevicesCompatibleFn
 	ScriptsReadCallback       ScriptsReadFn
 	VerifySignatureCallback   SignatureVerifyFn
+	IsSigned                  bool
 
-	signed     bool
-	hInfo      *artifact.HeaderInfo
-	info       *artifact.Info
-	r          io.Reader
-	handlers   map[string]handlers.Installer
-	installers map[int]handlers.Installer
-
-	rawReader *tar.Reader
+	shouldBeSigned bool
+	hInfo          *artifact.HeaderInfo
+	info           *artifact.Info
+	r              io.Reader
+	handlers       map[string]handlers.Installer
+	installers     map[int]handlers.Installer
 }
 
 func NewReader(r io.Reader) *Reader {
@@ -59,10 +58,10 @@ func NewReader(r io.Reader) *Reader {
 
 func NewReaderSigned(r io.Reader) *Reader {
 	return &Reader{
-		r:          r,
-		signed:     true,
-		handlers:   make(map[string]handlers.Installer, 1),
-		installers: make(map[int]handlers.Installer, 1),
+		r:              r,
+		shouldBeSigned: true,
+		handlers:       make(map[string]handlers.Installer, 1),
+		installers:     make(map[int]handlers.Installer, 1),
 	}
 }
 
@@ -186,7 +185,7 @@ func (ar *Reader) GetHandlers() map[int]handlers.Installer {
 }
 
 func (ar *Reader) readHeaderV1(tReader *tar.Reader) error {
-	if ar.signed {
+	if ar.shouldBeSigned {
 		return errors.New("reader: expecting signed artifact; " +
 			"v1 is not supporting signatures")
 	}
@@ -264,16 +263,17 @@ func (ar *Reader) readHeaderV2(tReader *tar.Reader,
 	}
 
 	// we are expecting to have a signed artifact, but the signature is missing
-	if ar.signed && (hdr.FileInfo().Name() != "manifest.sig") {
+	if ar.shouldBeSigned && (hdr.FileInfo().Name() != "manifest.sig") {
 		return nil,
 			errors.New("reader: expecting signed artifact, but no signature file found")
 	}
 
 	switch hdr.FileInfo().Name() {
 	case "manifest.sig":
+		ar.IsSigned = true
 		// firs read and verify signature
 		if err = signatureReadAndVerify(tReader, manifest.GetRaw(),
-			ar.VerifySignatureCallback, ar.signed); err != nil {
+			ar.VerifySignatureCallback, ar.shouldBeSigned); err != nil {
 			return nil, err
 		}
 		// verify checksums of version
@@ -307,41 +307,6 @@ func (ar *Reader) readHeaderV2(tReader *tar.Reader,
 			hdr.FileInfo().Name())
 	}
 	return manifest, nil
-}
-
-func (ar *Reader) ReadRaw() (*artifact.Raw, error) {
-	// each artifact is tar archive
-	if ar.r == nil {
-		return nil, errors.New("reader: read raw called on invalid stream")
-	}
-	if ar.rawReader == nil {
-		ar.rawReader = tar.NewReader(ar.r)
-	}
-	hdr, err := getNext(ar.rawReader)
-	if err != nil {
-		return nil, errors.Wrap(err, "reader: error reading raw data")
-	}
-	return artifact.NewRaw(hdr.Name, hdr.Size, ar.rawReader), nil
-}
-
-func (ar *Reader) ReadRawVersion() (int, *artifact.Raw, error) {
-	// each artifact is tar archive
-	if ar.r == nil {
-		return 0, nil,
-			errors.New("reader: read raw version called on invalid stream")
-	}
-
-	// check if reader is initialized
-	if ar.rawReader == nil {
-		ar.rawReader = tar.NewReader(ar.r)
-	}
-
-	ver, vRaw, err := readVersion(ar.rawReader)
-	if err != nil {
-		return 0, nil, errors.Wrapf(err, "reader: can not read version file")
-	}
-	return ver.Version,
-		artifact.NewRaw("version", int64(len(vRaw)), bytes.NewBuffer(vRaw)), nil
 }
 
 func (ar *Reader) ReadArtifact() error {
