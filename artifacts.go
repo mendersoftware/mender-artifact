@@ -426,11 +426,11 @@ func unpackArtifact(name string) (string, error) {
 
 func repack(from io.Reader, to io.Writer, key []byte,
 	newName string, dataFile string) (*areader.Reader, error) {
-	sDir, err := ioutil.TempDir("", "mender")
+	sDir, err := ioutil.TempDir("", "mender-repack")
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(sDir)
+	defer os.RemoveAll(sDir)
 
 	storeScripts := func(r io.Reader, info os.FileInfo) error {
 		sLocation := filepath.Join(sDir, info.Name())
@@ -458,17 +458,18 @@ func repack(from io.Reader, to io.Writer, key []byte,
 	ar := areader.NewReader(from)
 
 	if dataFile == "" {
-		tmpData, tmpErr := ioutil.TempFile("", "mender")
+		tmpData, tmpErr := ioutil.TempFile("", "mender-repack")
 		if tmpErr != nil {
 			return nil, tmpErr
 		}
-		defer tmpData.Close()
+		defer os.Remove(tmpData.Name())
 
 		rootfs := handlers.NewRootfsInstaller()
 		rootfs.InstallHandler = func(r io.Reader, df *handlers.DataFile) error {
 			_, err = io.Copy(tmpData, r)
 			return err
 		}
+
 		data = tmpData.Name()
 		ar.RegisterHandler(rootfs)
 	}
