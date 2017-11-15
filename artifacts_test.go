@@ -360,6 +360,79 @@ func TestSignExistingV2(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestSignExistingWithScripts(t *testing.T) {
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	priv, pub, err := generateKeys()
+	assert.NoError(t, err)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "private.key",
+				Content: priv,
+				IsDir:   false,
+			},
+			{
+				Path:    "public.key",
+				Content: pub,
+				IsDir:   false,
+			},
+			{
+				Path:    "update.ext4",
+				Content: []byte("my update"),
+				IsDir:   false,
+			},
+			{
+				Path:    "ArtifactInstall_Enter_99",
+				Content: []byte("this is first enter script"),
+				IsDir:   false,
+			},
+			{
+				Path:    "ArtifactInstall_Leave_01",
+				Content: []byte("this is leave script"),
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	// write artifact
+	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender"),
+		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Enter_99"),
+		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Leave_01")}
+	err = run()
+	assert.NoError(t, err)
+
+	// test sign exisiting
+	os.Args = []string{"mender-artifact", "sign",
+		"-k", "-o", filepath.Join(updateTestDir, "artifact.mender.sig"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+
+	err = run()
+	assert.Error(t, err)
+
+	// test sign exisiting
+	os.Args = []string{"mender-artifact", "sign",
+		"-o", filepath.Join(updateTestDir, "artifact.mender.sig"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+
+	err = run()
+	assert.Error(t, err)
+
+	// test sign exisiting
+	os.Args = []string{"mender-artifact", "sign",
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender.sig"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+
+	err = run()
+	assert.NoError(t, err)
+
+}
+
 func TestArtifactsValidateError(t *testing.T) {
 	os.Args = []string{"mender-artifact", "validate"}
 	err := run()
