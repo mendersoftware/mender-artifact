@@ -15,6 +15,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -90,6 +91,7 @@ func verify(image, file, expected string) bool {
 	if err != nil {
 		return false
 	}
+	fmt.Printf("expected: [%s]; actual: [%s]\n", expected, string(data))
 	return strings.Contains(string(data), expected)
 }
 
@@ -110,4 +112,13 @@ func TestModifyImage(t *testing.T) {
 
 	assert.True(t, verify(filepath.Join(tmp, "mender_test.img"),
 		"/etc/mender/artifact_info", "artifact_name=mender-1.1"))
+
+	os.Args = []string{"mender-artifact", "modify",
+		filepath.Join(tmp, "mender_test.img"),
+		"-u", "https://test-modified"}
+	err = run()
+	assert.NoError(t, err)
+
+	assert.True(t, verify(filepath.Join(tmp, "mender_test.img"),
+		"/etc/mender/mender.conf", "https://test-modified"))
 }

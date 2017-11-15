@@ -517,7 +517,7 @@ func repack(from io.Reader, to io.Writer, key []byte,
 
 // oblivious to whether the file exists beforehand
 func modifyName(name, image string) error {
-	data := fmt.Sprintf("artifact_name=%s\n", name)
+	data := fmt.Sprintf("artifact_name=%s", name)
 	tmpNameFile, err := ioutil.TempFile("", "mender-name")
 	if err != nil {
 		return err
