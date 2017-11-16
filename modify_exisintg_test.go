@@ -67,6 +67,8 @@ func TestDebugfs(t *testing.T) {
 	tFile, err := ioutil.TempFile("", "test-mender-debugfs")
 	assert.NoError(t, err)
 
+	defer os.Remove(tFile.Name())
+
 	_, err = io.WriteString(tFile, "my test data")
 	assert.NoError(t, err)
 
@@ -106,19 +108,61 @@ func TestModifyImage(t *testing.T) {
 
 	os.Args = []string{"mender-artifact", "modify",
 		filepath.Join(tmp, "mender_test.img"),
-		"-n", "mender-1.1"}
+		"-n", "release-1"}
 	err = run()
 	assert.NoError(t, err)
 
 	assert.True(t, verify(filepath.Join(tmp, "mender_test.img"),
-		"/etc/mender/artifact_info", "artifact_name=mender-1.1"))
+		"/etc/mender/artifact_info", "artifact_name=release-1"))
 
 	os.Args = []string{"mender-artifact", "modify",
 		filepath.Join(tmp, "mender_test.img"),
-		"-u", "https://test-modified"}
+		"-u", "https://docker.mender.io"}
 	err = run()
 	assert.NoError(t, err)
 
 	assert.True(t, verify(filepath.Join(tmp, "mender_test.img"),
-		"/etc/mender/mender.conf", "https://test-modified"))
+		"/etc/mender/mender.conf", "https://docker.mender.io"))
+}
+
+func TestModifySdimage(t *testing.T) {
+	tmp, err := ioutil.TempDir("", "mender-modify")
+	assert.NoError(t, err)
+
+	defer os.RemoveAll(tmp)
+
+	err = copyFile("mender_test.sdimg", filepath.Join(tmp, "mender_test.sdimg"))
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "modify",
+		filepath.Join(tmp, "mender_test.sdimg"),
+		"-n", "mender-test"}
+	err = run()
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "modify",
+		filepath.Join(tmp, "mender_test.sdimg"),
+		"-u", "https://docker.mender.io"}
+	err = run()
+	assert.NoError(t, err)
+
+}
+
+func TestModifyArtifact(t *testing.T) {
+	tmp, err := ioutil.TempDir("", "mender-modify")
+	assert.NoError(t, err)
+
+	defer os.RemoveAll(tmp)
+
+	err = copyFile("mender_test.img", filepath.Join(tmp, "mender_test.img"))
+	assert.NoError(t, err)
+
+	err = WriteArtifact(tmp, 2, filepath.Join(tmp, "mender_test.img"))
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "modify",
+		filepath.Join(tmp, "artifact.mender")}
+
+	err = run()
+	assert.NoError(t, err)
 }

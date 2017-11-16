@@ -47,8 +47,11 @@ func init() {
 	cli.ErrWriter = fakeErrWriter
 }
 
-func WriteArtifact(dir string, ver int) error {
+func WriteArtifact(dir string, ver int, update string) error {
 	if err := func() error {
+		if update != "" {
+			return nil
+		}
 		uFile, err := os.Create(filepath.Join(dir, "update.ext4"))
 		if err != nil {
 			return err
@@ -59,6 +62,7 @@ func WriteArtifact(dir string, ver int) error {
 		if err != nil {
 			return err
 		}
+		update = uFile.Name()
 		return nil
 	}(); err != nil {
 		return err
@@ -70,14 +74,14 @@ func WriteArtifact(dir string, ver int) error {
 	}
 	defer f.Close()
 
-	u := handlers.NewRootfsV1(filepath.Join(dir, "update.ext4"))
+	u := handlers.NewRootfsV1(update)
 
 	aw := awriter.NewWriter(f)
 	switch ver {
 	case 1:
 		// we are alrady having v1 handlers; do nothing
 	case 2:
-		u = handlers.NewRootfsV2(filepath.Join(dir, "update.ext4"))
+		u = handlers.NewRootfsV2(update)
 	}
 
 	updates := &awriter.Updates{U: []handlers.Composer{u}}
@@ -274,7 +278,7 @@ func TestSignExistingV1(t *testing.T) {
 	priv, pub, err := generateKeys()
 	assert.NoError(t, err)
 
-	err = WriteArtifact(updateTestDir, 1)
+	err = WriteArtifact(updateTestDir, 1, "")
 	assert.NoError(t, err)
 
 	err = MakeFakeUpdateDir(updateTestDir,
@@ -309,7 +313,7 @@ func TestSignExistingV2(t *testing.T) {
 	priv, pub, err := generateKeys()
 	assert.NoError(t, err)
 
-	err = WriteArtifact(updateTestDir, 2)
+	err = WriteArtifact(updateTestDir, 2, "")
 	assert.NoError(t, err)
 
 	err = MakeFakeUpdateDir(updateTestDir,
@@ -453,7 +457,7 @@ func TestArtifactsValidate(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	err := WriteArtifact(updateTestDir, 1)
+	err := WriteArtifact(updateTestDir, 1, "")
 	assert.NoError(t, err)
 
 	os.Args = []string{"mender-artifact", "validate",
@@ -467,7 +471,7 @@ func TestArtifactsRead(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	err := WriteArtifact(updateTestDir, 1)
+	err := WriteArtifact(updateTestDir, 1, "")
 	assert.NoError(t, err)
 
 	os.Args = []string{"mender-artifact", "read"}

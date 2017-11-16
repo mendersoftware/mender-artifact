@@ -595,7 +595,7 @@ func repackArtifact(artifact, rootfs, key, newName string) error {
 	if err != nil {
 		return err
 	}
-	defer tmp.Close()
+	defer os.Remove(tmp.Name())
 
 	var privateKey []byte
 	if key != "" {
@@ -679,7 +679,7 @@ func processSdimg(image string) ([]partition, error) {
 	} else if len(partitionMatch) == 1 {
 		return []partition{{path: image}}, nil
 	}
-	return nil, errors.Wrapf(err, "invalid partition table: %s", string(out))
+	return nil, errors.New("invalid partition table: " + string(out))
 }
 
 func mountSdimg(partitions []partition, image string) error {
@@ -729,6 +729,8 @@ func modifyArtifact(c *cli.Context) error {
 		if err != nil {
 			return cli.NewExitError("Can not process artifact: "+err.Error(), 1)
 		}
+		defer os.Remove(rawImage)
+
 		modifyCandidates = append(modifyCandidates, partition{path: rawImage})
 	} else {
 		parts, err := processSdimg(c.Args().First())
