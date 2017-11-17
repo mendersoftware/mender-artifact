@@ -217,7 +217,6 @@ func readManifest(tReader *tar.Reader) (*artifact.ChecksumStore, error) {
 
 func signatureReadAndVerify(tReader *tar.Reader, message []byte,
 	verify SignatureVerifyFn, signed bool) error {
-
 	// verify signature
 	if verify == nil && signed {
 		return errors.New("reader: verify signature callback not registered")

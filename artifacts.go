@@ -92,7 +92,6 @@ func scripts(scripts []string) (*artifact.Scripts, error) {
 }
 
 func writeArtifact(c *cli.Context) error {
-
 	// set default name
 	name := "artifact.mender"
 	if len(c.String("output-path")) > 0 {
