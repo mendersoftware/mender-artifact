@@ -349,6 +349,7 @@ func signExisting(c *cli.Context) error {
 			"Can not create temporary file for storing artifact")
 	}
 	defer os.Remove(tFile.Name())
+	defer tFile.Close()
 
 	f, err := os.Open(c.Args().First())
 	if err != nil {
@@ -384,7 +385,6 @@ func signExisting(c *cli.Context) error {
 
 	err = os.Rename(tFile.Name(), name)
 	if err != nil {
-		os.Remove(tFile.Name())
 		return cli.NewExitError("Can not store signed artifact: "+err.Error(), 1)
 	}
 	return nil
@@ -462,6 +462,7 @@ func repack(from io.Reader, to io.Writer, key []byte,
 			return nil, tmpErr
 		}
 		defer os.Remove(tmpData.Name())
+		defer tmpData.Close()
 
 		rootfs := handlers.NewRootfsInstaller()
 		rootfs.InstallHandler = func(r io.Reader, df *handlers.DataFile) error {
@@ -522,6 +523,7 @@ func modifyName(name, image string) error {
 		return err
 	}
 	defer os.Remove(tmpNameFile.Name())
+	defer tmpNameFile.Close()
 
 	if _, err = tmpNameFile.WriteString(data); err != nil {
 		return err
@@ -595,6 +597,7 @@ func repackArtifact(artifact, rootfs, key, newName string) error {
 		return err
 	}
 	defer os.Remove(tmp.Name())
+	defer tmp.Close()
 
 	var privateKey []byte
 	if key != "" {
@@ -674,7 +677,7 @@ func processSdimg(image string) ([]partition, error) {
 			single := partitionMatch[i]
 			partitions = append(partitions, partition{offset: single[1], size: single[2]})
 		}
-		if err = mountSdimg(partitions, image); err != nil {
+		if err = extractFromSdimg(partitions, image); err != nil {
 			return nil, err
 		}
 		return partitions, nil
@@ -685,7 +688,7 @@ func processSdimg(image string) ([]partition, error) {
 	return nil, fmt.Errorf("invalid partition table: %s", string(out))
 }
 
-func mountSdimg(partitions []partition, image string) error {
+func extractFromSdimg(partitions []partition, image string) error {
 	for i, part := range partitions {
 		tmp, err := ioutil.TempFile("", "mender-modify-image")
 		if err != nil {

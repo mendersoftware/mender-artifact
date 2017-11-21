@@ -47,6 +47,7 @@ func debugfsReplaceFile(imageFile, newFile, image string) error {
 		return errors.Wrap(err, "debugfs: create sync script file")
 	}
 	defer os.Remove(scr.Name())
+	defer scr.Close()
 
 	err = scr.Chmod(0755)
 	if err != nil {
