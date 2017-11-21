@@ -47,8 +47,11 @@ func init() {
 	cli.ErrWriter = fakeErrWriter
 }
 
-func WriteArtifact(dir string, ver int) error {
+func WriteArtifact(dir string, ver int, update string) error {
 	if err := func() error {
+		if update != "" {
+			return nil
+		}
 		uFile, err := os.Create(filepath.Join(dir, "update.ext4"))
 		if err != nil {
 			return err
@@ -59,6 +62,7 @@ func WriteArtifact(dir string, ver int) error {
 		if err != nil {
 			return err
 		}
+		update = uFile.Name()
 		return nil
 	}(); err != nil {
 		return err
@@ -70,14 +74,14 @@ func WriteArtifact(dir string, ver int) error {
 	}
 	defer f.Close()
 
-	u := handlers.NewRootfsV1(filepath.Join(dir, "update.ext4"))
+	u := handlers.NewRootfsV1(update)
 
 	aw := awriter.NewWriter(f)
 	switch ver {
 	case 1:
 		// we are alrady having v1 handlers; do nothing
 	case 2:
-		u = handlers.NewRootfsV2(filepath.Join(dir, "update.ext4"))
+		u = handlers.NewRootfsV2(update)
 	}
 
 	updates := &awriter.Updates{U: []handlers.Composer{u}}
@@ -163,6 +167,9 @@ func generateKeys() ([]byte, []byte, error) {
 		Type:  "PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(priv),
 	})
+	if err != nil {
+		return nil, nil, err
+	}
 	return privSer.Bytes(), pubSer.Bytes(), nil
 }
 
@@ -271,7 +278,7 @@ func TestSignExistingV1(t *testing.T) {
 	priv, pub, err := generateKeys()
 	assert.NoError(t, err)
 
-	err = WriteArtifact(updateTestDir, 1)
+	err = WriteArtifact(updateTestDir, 1, "")
 	assert.NoError(t, err)
 
 	err = MakeFakeUpdateDir(updateTestDir,
@@ -295,7 +302,7 @@ func TestSignExistingV1(t *testing.T) {
 
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Can not sign v1 artifact")
+	assert.Contains(t, err.Error(), "can not create version 1 signed artifact")
 }
 
 func TestSignExistingV2(t *testing.T) {
@@ -306,7 +313,7 @@ func TestSignExistingV2(t *testing.T) {
 	priv, pub, err := generateKeys()
 	assert.NoError(t, err)
 
-	err = WriteArtifact(updateTestDir, 2)
+	err = WriteArtifact(updateTestDir, 2, "")
 	assert.NoError(t, err)
 
 	err = MakeFakeUpdateDir(updateTestDir,
@@ -357,6 +364,79 @@ func TestSignExistingV2(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestSignExistingWithScripts(t *testing.T) {
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	priv, pub, err := generateKeys()
+	assert.NoError(t, err)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "private.key",
+				Content: priv,
+				IsDir:   false,
+			},
+			{
+				Path:    "public.key",
+				Content: pub,
+				IsDir:   false,
+			},
+			{
+				Path:    "update.ext4",
+				Content: []byte("my update"),
+				IsDir:   false,
+			},
+			{
+				Path:    "ArtifactInstall_Enter_99",
+				Content: []byte("this is first enter script"),
+				IsDir:   false,
+			},
+			{
+				Path:    "ArtifactInstall_Leave_01",
+				Content: []byte("this is leave script"),
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	// write artifact
+	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender"),
+		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Enter_99"),
+		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Leave_01")}
+	err = run()
+	assert.NoError(t, err)
+
+	// test sign exisiting
+	os.Args = []string{"mender-artifact", "sign",
+		"-k", "-o", filepath.Join(updateTestDir, "artifact.mender.sig"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+
+	err = run()
+	assert.Error(t, err)
+
+	// test sign exisiting
+	os.Args = []string{"mender-artifact", "sign",
+		"-o", filepath.Join(updateTestDir, "artifact.mender.sig"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+
+	err = run()
+	assert.Error(t, err)
+
+	// test sign exisiting
+	os.Args = []string{"mender-artifact", "sign",
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender.sig"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+
+	err = run()
+	assert.NoError(t, err)
+
+}
+
 func TestArtifactsValidateError(t *testing.T) {
 	os.Args = []string{"mender-artifact", "validate"}
 	err := run()
@@ -369,8 +449,7 @@ func TestArtifactsValidateError(t *testing.T) {
 	err = run()
 	assert.Error(t, err)
 	assert.Equal(t, 1, lastExitCode)
-	assert.Equal(t, "Pathspec 'non-existing' does not match any files.\n",
-		fakeErrWriter.String())
+	assert.Contains(t, fakeErrWriter.String(), "no such file")
 }
 
 func TestArtifactsValidate(t *testing.T) {
@@ -378,7 +457,7 @@ func TestArtifactsValidate(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	err := WriteArtifact(updateTestDir, 1)
+	err := WriteArtifact(updateTestDir, 1, "")
 	assert.NoError(t, err)
 
 	os.Args = []string{"mender-artifact", "validate",
@@ -392,7 +471,7 @@ func TestArtifactsRead(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	err := WriteArtifact(updateTestDir, 1)
+	err := WriteArtifact(updateTestDir, 1, "")
 	assert.NoError(t, err)
 
 	os.Args = []string{"mender-artifact", "read"}
@@ -411,8 +490,7 @@ func TestArtifactsRead(t *testing.T) {
 	err = run()
 	assert.Error(t, err)
 	assert.Equal(t, 1, lastExitCode)
-	assert.Equal(t, "Pathspec 'non-existing' does not match any files.\n",
-		fakeErrWriter.String())
+	assert.Contains(t, fakeErrWriter.String(), "no such file")
 }
 
 func TestWithScripts(t *testing.T) {

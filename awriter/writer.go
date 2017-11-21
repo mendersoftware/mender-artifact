@@ -30,9 +30,8 @@ import (
 // Writer provides on the fly writing of artifacts metadata file used by
 // the Mender client and the server.
 type Writer struct {
-	w         io.Writer // underlying writer
-	signer    artifact.Signer
-	rawWriter *tar.Writer
+	w      io.Writer // underlying writer
+	signer artifact.Signer
 }
 
 func NewWriter(w io.Writer) *Writer {
@@ -45,14 +44,6 @@ func NewWriterSigned(w io.Writer, s artifact.Signer) *Writer {
 	return &Writer{
 		w:      w,
 		signer: s,
-	}
-}
-
-func NewWriterRaw(w io.Writer) *Writer {
-	raw := tar.NewWriter(w)
-	return &Writer{
-		w:         w,
-		rawWriter: raw,
 	}
 }
 
@@ -111,26 +102,6 @@ func writeTempHeader(s *artifact.ChecksumStore, devices []string, name string,
 	s.Add("header.tar.gz", ch.Checksum())
 
 	return f, nil
-}
-
-func (aw *Writer) WriteRaw(raw *artifact.Raw) error {
-	hdr := &tar.Header{
-		Name: raw.Name,
-		Mode: 0600,
-		Size: raw.Size,
-	}
-	if err := aw.rawWriter.WriteHeader(hdr); err != nil {
-		return errors.Wrapf(err,
-			"writer: can not write stream header for: %s", raw.Name)
-	}
-	if _, err := io.Copy(aw.rawWriter, raw.Data); err != nil {
-		return errors.Wrapf(err, "writer: can not write data for: %s", raw.Name)
-	}
-	return nil
-}
-
-func (aw *Writer) CloseRaw() error {
-	return aw.rawWriter.Close()
 }
 
 func WriteSignature(tw *tar.Writer, message []byte,

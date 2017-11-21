@@ -58,6 +58,7 @@ extracheck:
 	echo "-- checking if code is gofmt'ed"
 	if [ -n "$$($(GOFMT) -d $(PKGFILES))" ]; then \
 		echo "-- gofmt check failed"; \
+		echo $GOFMT -d $PKGFILES \
 		/bin/false; \
 	fi
 	echo "-- checking with govet"
