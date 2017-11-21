@@ -161,8 +161,56 @@ func TestModifyArtifact(t *testing.T) {
 	assert.NoError(t, err)
 
 	os.Args = []string{"mender-artifact", "modify",
+		"-n", "release-1",
 		filepath.Join(tmp, "artifact.mender")}
 
+	err = run()
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "read",
+		filepath.Join(tmp, "artifact.mender")}
+
+	r, w, err := os.Pipe()
+	out := os.Stdout
+	defer func() {
+		os.Stdout = out
+	}()
+	os.Stdout = w
+
+	go func() {
+		err = run()
+		assert.NoError(t, err)
+		w.Close()
+	}()
+
+	data, _ := ioutil.ReadAll(r)
+	assert.Contains(t, string(data), "Name: release-1")
+}
+
+func TestModifyServerCert(t *testing.T) {
+	tmp, err := ioutil.TempDir("", "mender-modify")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tmp)
+
+	err = copyFile("mender_test.img", filepath.Join(tmp, "mender_test.img"))
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "modify",
+		"-c", "non-existing",
+		filepath.Join(tmp, "mender_test.img")}
+
+	fakeErrWriter.Reset()
+
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, fakeErrWriter.String(), "invalid server certificate")
+
+	tmpCert, err := ioutil.TempFile("", "mender-test-cert")
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "modify",
+		"-c", tmpCert.Name(),
+		filepath.Join(tmp, "mender_test.img")}
 	err = run()
 	assert.NoError(t, err)
 }

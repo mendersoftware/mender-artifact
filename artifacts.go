@@ -307,8 +307,8 @@ func checkIfValid(artifactPath, keyPath string) error {
 	}
 
 	if !valid {
-		return errors.New("Artifact file '" + artifactPath +
-			"' formatted correctly, but error validating signature.")
+		return fmt.Errorf("artifact file '%s' formatted correctly, but error validating signature",
+			artifactPath)
 	}
 	return nil
 }
@@ -323,7 +323,7 @@ func validateArtifact(c *cli.Context) error {
 		return cli.NewExitError(err.Error(), 1)
 	}
 
-	fmt.Println("Artifact file '" + c.Args().First() + "' validated successfully")
+	fmt.Printf("Artifact file '%s' validated successfully\n", c.Args().First())
 	return nil
 }
 
@@ -538,7 +538,7 @@ func modifyName(name, image string) error {
 func modifyServerCert(newCert, image string) error {
 	_, err := os.Stat(newCert)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "invalid server certificate")
 	}
 	return debugfsReplaceFile("/etc/mender/server.crt", newCert, image)
 }
@@ -546,7 +546,7 @@ func modifyServerCert(newCert, image string) error {
 func modifyVerificationKey(newKey, image string) error {
 	_, err := os.Stat(newKey)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "invalid verification key")
 	}
 	return debugfsReplaceFile("/etc/mender/artifact-verify-key.pem", newKey, image)
 }
@@ -600,12 +600,16 @@ func repackArtifact(artifact, rootfs, key, newName string) error {
 	if key != "" {
 		privateKey, err = getKey(key)
 		if err != nil {
-			return cli.NewExitError("Can not use signing key provided: "+err.Error(), 1)
+
+			return cli.NewExitError(fmt.Sprintf("Can not use signing key provided: %s", err.Error()), 1)
 		}
 	}
 
-	_, err = repack(art, tmp, privateKey, rootfs, newName)
-	return err
+	if _, err = repack(art, tmp, privateKey, newName, rootfs); err != nil {
+		return err
+	}
+
+	return os.Rename(tmp.Name(), artifact)
 }
 
 func modifyExisting(c *cli.Context, image string) error {
@@ -678,7 +682,7 @@ func processSdimg(image string) ([]partition, error) {
 	} else if len(partitionMatch) == 1 {
 		return []partition{{path: image}}, nil
 	}
-	return nil, errors.New("invalid partition table: " + string(out))
+	return nil, fmt.Errorf("invalid partition table: %s", string(out))
 }
 
 func mountSdimg(partitions []partition, image string) error {
@@ -715,6 +719,10 @@ func modifyArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return cli.NewExitError("Nothing specified, nothing will be modified. \n"+
 			"Maybe you wanted to say 'artifacts read <pathspec>'?", 1)
+	}
+
+	if _, err := os.Stat(c.Args().First()); err != nil && os.IsNotExist(err) {
+		return cli.NewExitError("File ["+c.Args().First()+"] does not exist.", 1)
 	}
 
 	isArtifact := false
@@ -761,7 +769,8 @@ func modifyArtifact(c *cli.Context) error {
 
 	if isArtifact {
 		// re-create the artifact
-		err := repackArtifact(c.Args().First(), c.Args().First(), c.String("key"), c.String("name"))
+		err := repackArtifact(c.Args().First(), modifyCandidates[0].path,
+			c.String("key"), c.String("name"))
 		if err != nil {
 			return cli.NewExitError("Can not recreate artifact: "+err.Error(), 1)
 		}
