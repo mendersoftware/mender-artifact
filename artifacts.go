@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -269,14 +270,21 @@ func getKey(path string) ([]byte, error) {
 	return key.Bytes(), nil
 }
 
-func checkIfValid(artifactPath, keyPath string) error {
-	var verifyCallback areader.SignatureVerifyFn
+type artifactError struct {
+	err          error
+	badSignature bool
+}
 
-	if keyPath != "" {
-		key, err := getKey(keyPath)
-		if err != nil {
-			return err
-		}
+func (ae *artifactError) Error() string {
+	return ae.err.Error()
+}
+
+func checkIfValid(artifactPath string, key []byte) *artifactError {
+	verifyCallback := func(message, sig []byte) error {
+		return errors.New("artifact is signed but no verification key was provided")
+	}
+
+	if key != nil {
 		s := artifact.NewVerifier(key)
 		verifyCallback = s.Verify
 	}
@@ -284,11 +292,11 @@ func checkIfValid(artifactPath, keyPath string) error {
 	// do not return error immediately if we can not validate signature;
 	// just continue checking consistency and return info if
 	// signature verification failed
-	valid := true
+	var validationError error
 	ver := func(message, sig []byte) error {
 		if verifyCallback != nil {
 			if err := verifyCallback(message, sig); err != nil {
-				valid = false
+				validationError = err
 			}
 		}
 		return nil
@@ -296,19 +304,22 @@ func checkIfValid(artifactPath, keyPath string) error {
 
 	f, err := os.Open(artifactPath)
 	if err != nil {
-		return err
+		return &artifactError{err: err}
 	}
 	defer f.Close()
 
 	ar := areader.NewReader(f)
 	_, err = read(ar, ver, nil)
 	if err != nil {
-		return err
+		return &artifactError{err: err}
 	}
 
-	if !valid {
-		return fmt.Errorf("artifact file '%s' formatted correctly, but error validating signature",
-			artifactPath)
+	if validationError != nil {
+		return &artifactError{
+			err: fmt.Errorf("artifact file '%s' formatted correctly, "+
+				"but error validating signature: %s", artifactPath, validationError),
+			badSignature: true,
+		}
 	}
 	return nil
 }
@@ -319,7 +330,16 @@ func validateArtifact(c *cli.Context) error {
 			" to say 'artifacts validate <pathspec>'?", 1)
 	}
 
-	if err := checkIfValid(c.Args().First(), c.String("key")); err != nil {
+	var key []byte
+	var err error
+	if c.String("key") != "" {
+		key, err = getKey(c.String("key"))
+		if err != nil {
+			return cli.NewExitError("Can not read key: "+err.Error(), 1)
+		}
+	}
+
+	if err := checkIfValid(c.Args().First(), key); err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
 
@@ -718,6 +738,56 @@ func repackSdimg(partitions []partition, image string) error {
 	return nil
 }
 
+func processModifyKey(keyPath string) ([]byte, error) {
+	// extract public key from it private counterpart
+	if keyPath != "" {
+		priv, err := getKey(keyPath)
+		if err != nil {
+			return nil, errors.Wrap(err, "can not get private key")
+		}
+		pubKeyRaw, err := artifact.GetPublic(priv)
+		if err != nil {
+			return nil, errors.Wrap(err, "can not get private key public counterpart")
+		}
+
+		buf := &bytes.Buffer{}
+		err = pem.Encode(buf, &pem.Block{
+			Type:  "PUBLIC KEY",
+			Bytes: pubKeyRaw,
+		})
+		if err != nil {
+			return nil, errors.Wrap(err, "can not encode public key")
+		}
+		return buf.Bytes(), nil
+	}
+	return nil, nil
+}
+
+func getCandidatesForModify(path string, key []byte) ([]partition, bool, error) {
+	isArtifact := false
+	modifyCandidates := make([]partition, 0)
+
+	// first we need to check  if we are having artifact or image file
+	if err := checkIfValid(path, key); err == nil {
+		// we have VALID artifact, so we need to unpack it and store header
+		isArtifact = true
+		rawImage, err := unpackArtifact(path)
+		if err != nil {
+			return nil, isArtifact, errors.Wrap(err, "can not process artifact")
+		}
+		modifyCandidates = append(modifyCandidates, partition{path: rawImage})
+	} else if err.badSignature {
+		return nil, isArtifact, err
+	} else {
+		parts, err := processSdimg(path)
+		if err != nil {
+			return nil, isArtifact, errors.Wrap(err, "can not process image file")
+		}
+		modifyCandidates = append(modifyCandidates, parts...)
+	}
+	return modifyCandidates, isArtifact, nil
+}
+
 func modifyArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return cli.NewExitError("Nothing specified, nothing will be modified. \n"+
@@ -728,30 +798,21 @@ func modifyArtifact(c *cli.Context) error {
 		return cli.NewExitError("File ["+c.Args().First()+"] does not exist.", 1)
 	}
 
-	isArtifact := false
-	modifyCandidates := make([]partition, 0)
+	pubKey, err := processModifyKey(c.String("key"))
+	if err != nil {
+		return cli.NewExitError("Error processing private key: "+err.Error(), 1)
+	}
 
-	// first we need to check  if we are having artifact or image file
-	if err := checkIfValid(c.Args().First(), c.String("key")); err == nil {
-		// we have VALID artifact, so we need to unpack it and store header
-		isArtifact = true
-		rawImage, err := unpackArtifact(c.Args().First())
-		if err != nil {
-			return cli.NewExitError("Can not process artifact: "+err.Error(), 1)
-		}
-		defer os.Remove(rawImage)
+	modifyCandidates, isArtifact, err :=
+		getCandidatesForModify(c.Args().First(), pubKey)
 
-		modifyCandidates = append(modifyCandidates, partition{path: rawImage})
-	} else {
-		parts, err := processSdimg(c.Args().First())
-		if err != nil {
-			return cli.NewExitError("Can not process image file: "+err.Error(), 1)
-		}
-		modifyCandidates = append(modifyCandidates, parts...)
-		if len(modifyCandidates) > 1 {
-			for _, mc := range modifyCandidates {
-				defer os.Remove(mc.path)
-			}
+	if err != nil {
+		return cli.NewExitError("Error selecting images for modification: "+err.Error(), 1)
+	}
+
+	if len(modifyCandidates) > 1 || isArtifact {
+		for _, mc := range modifyCandidates {
+			defer os.Remove(mc.path)
 		}
 	}
 
