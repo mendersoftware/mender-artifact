@@ -363,7 +363,13 @@ func signExisting(c *cli.Context) error {
 		return cli.NewExitError("Can not use signing key provided: "+err.Error(), 1)
 	}
 
-	tFile, err := ioutil.TempFile("", "mender-artifact")
+	cwd, err := os.Getwd()
+
+	if err != nil {
+		return err
+	}
+
+	tFile, err := ioutil.TempFile(cwd, "mender-artifact")
 	if err != nil {
 		return errors.Wrap(err,
 			"Can not create temporary file for storing artifact")
@@ -394,10 +400,6 @@ func signExisting(c *cli.Context) error {
 		return cli.NewExitError("Unsupported version of artifact file: "+string(ver), 1)
 	}
 
-	if err = tFile.Close(); err != nil {
-		return err
-	}
-
 	name := c.Args().First()
 	if len(c.String("output-path")) > 0 {
 		name = c.String("output-path")
@@ -421,7 +423,13 @@ func unpackArtifact(name string) (string, error) {
 	aReader := areader.NewReader(f)
 	rootfs := handlers.NewRootfsInstaller()
 
-	tmp, err := ioutil.TempFile("", "mender-artifact")
+	cwd, err := os.Getwd()
+
+	if err != nil {
+		return "", err
+	}
+
+	tmp, err := ioutil.TempFile(cwd, "mender-artifact")
 	if err != nil {
 		return "", err
 	}
@@ -445,10 +453,19 @@ func unpackArtifact(name string) (string, error) {
 
 func repack(from io.Reader, to io.Writer, key []byte,
 	newName string, dataFile string) (*areader.Reader, error) {
-	sDir, err := ioutil.TempDir("", "mender-repack")
+
+	dir, err := os.Getwd()
+
 	if err != nil {
 		return nil, err
 	}
+
+	sDir, err := ioutil.TempDir(dir, "mender-repack")
+
+	if err != nil {
+		return nil, err
+	}
+
 	defer os.RemoveAll(sDir)
 
 	storeScripts := func(r io.Reader, info os.FileInfo) error {
@@ -612,7 +629,13 @@ func repackArtifact(artifact, rootfs, key, newName string) error {
 	}
 	defer art.Close()
 
-	tmp, err := ioutil.TempFile("", "mender-artifact")
+	cwd, err := os.Getwd()
+
+	if err != nil {
+		return err
+	}
+
+	tmp, err := ioutil.TempFile(cwd, "mender-artifact")
 	if err != nil {
 		return err
 	}
@@ -791,7 +814,7 @@ func getCandidatesForModify(path string, key []byte) ([]partition, bool, error) 
 func modifyArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return cli.NewExitError("Nothing specified, nothing will be modified. \n"+
-			"Maybe you wanted to say 'artifacts read <pathspec>'?", 1)
+			"Maybe you wanted to say artifacts read <pathspec>'?", 1)
 	}
 
 	if _, err := os.Stat(c.Args().First()); err != nil && os.IsNotExist(err) {
