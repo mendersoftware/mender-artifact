@@ -421,7 +421,7 @@ func unpackArtifact(name string) (string, error) {
 	aReader := areader.NewReader(f)
 	rootfs := handlers.NewRootfsInstaller()
 
-	tmp, err := ioutil.TempFile("", "mender-artifact")
+	tmp, err := os.Create(filepath.Join(filepath.Dir(name), "modify-tmp.mender"))
 	if err != nil {
 		return "", err
 	}
@@ -791,7 +791,7 @@ func getCandidatesForModify(path string, key []byte) ([]partition, bool, error) 
 func modifyArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return cli.NewExitError("Nothing specified, nothing will be modified. \n"+
-			"Maybe you wanted to say 'artifacts read <pathspec>'?", 1)
+			"Maybe you wanted to say 'artifacts modify <pathspec>'?", 1)
 	}
 
 	if _, err := os.Stat(c.Args().First()); err != nil && os.IsNotExist(err) {
@@ -976,13 +976,18 @@ func run() error {
 	//
 	modify := cli.Command{
 		Name:        "modify",
-		Usage:       "Modifies image or artifact file.",
+		Usage:       "Modifies existing image or artifact file.",
 		Action:      modifyArtifact,
-		UsageText:   "mender-artifact modify [options] <pathspec>",
+		UsageText:   "mender-artifact modify [options] pathspec",
 		Description: "This command modifies existing image or artifact file provided by pathspec.",
 	}
 
 	modify.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name: "output-path, o",
+			Usage: "Full path to output modified artifact file; " +
+				"if none is provided existing artifact will be replaced with modified one",
+		},
 		cli.StringFlag{
 			Name:  "key, k",
 			Usage: "Full path to the private key that will be used to sign the artifact after modifying.",
