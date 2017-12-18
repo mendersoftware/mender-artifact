@@ -363,7 +363,13 @@ func signExisting(c *cli.Context) error {
 		return cli.NewExitError("Can not use signing key provided: "+err.Error(), 1)
 	}
 
-	tFile, err := ioutil.TempFile("", "mender-artifact")
+	f, err := os.Open(c.Args().First())
+	if err != nil {
+		return errors.Wrapf(err, "Can not open: %s", c.Args().First())
+	}
+	defer f.Close()
+
+	tFile, err := ioutil.TempFile(filepath.Dir(c.Args().First()), "mender-artifact")
 	if err != nil {
 		return errors.Wrap(err,
 			"Can not create temporary file for storing artifact")
@@ -371,13 +377,7 @@ func signExisting(c *cli.Context) error {
 	defer os.Remove(tFile.Name())
 	defer tFile.Close()
 
-	f, err := os.Open(c.Args().First())
-	if err != nil {
-		return errors.Wrapf(err, "Can not open: %s", c.Args().First())
-	}
-	defer f.Close()
-
-	reader, err := repack(f, tFile, privateKey, "", "")
+	reader, err := repack(c.Args().First(), f, tFile, privateKey, "", "")
 	if err != nil {
 		return err
 	}
@@ -421,7 +421,7 @@ func unpackArtifact(name string) (string, error) {
 	aReader := areader.NewReader(f)
 	rootfs := handlers.NewRootfsInstaller()
 
-	tmp, err := ioutil.TempFile("", "mender-artifact")
+	tmp, err := ioutil.TempFile(filepath.Dir(name), "mender-artifact")
 	if err != nil {
 		return "", err
 	}
@@ -443,9 +443,9 @@ func unpackArtifact(name string) (string, error) {
 	return tmp.Name(), nil
 }
 
-func repack(from io.Reader, to io.Writer, key []byte,
+func repack(artifactName string, from io.Reader, to io.Writer, key []byte,
 	newName string, dataFile string) (*areader.Reader, error) {
-	sDir, err := ioutil.TempDir("", "mender-repack")
+	sDir, err := ioutil.TempDir(filepath.Dir(artifactName), "mender-repack")
 	if err != nil {
 		return nil, err
 	}
@@ -612,7 +612,7 @@ func repackArtifact(artifact, rootfs, key, newName string) error {
 	}
 	defer art.Close()
 
-	tmp, err := ioutil.TempFile("", "mender-artifact")
+	tmp, err := ioutil.TempFile(filepath.Dir(artifact), "mender-artifact")
 	if err != nil {
 		return err
 	}
@@ -628,7 +628,7 @@ func repackArtifact(artifact, rootfs, key, newName string) error {
 		}
 	}
 
-	if _, err = repack(art, tmp, privateKey, newName, rootfs); err != nil {
+	if _, err = repack(artifact, art, tmp, privateKey, newName, rootfs); err != nil {
 		return err
 	}
 
