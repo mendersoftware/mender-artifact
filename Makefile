@@ -2,6 +2,9 @@ GO ?= go
 GOFMT ?= gofmt
 V ?=
 PKGS = $(shell go list ./... | grep -v vendor)
+BUILDFILES = $(shell find cli/mender-artifact \( -path ./vendor -o -path ./Godeps \) -prune \
+	                     -o -type f -name '*.go' -print |  tr ' ' '\n' | grep -v _test.go)
+PKGNAME = mender-artifact
 PKGFILES = $(shell find . \( -path ./vendor -o -path ./Godeps \) -prune \
 		-o -type f -name '*.go' -print)
 PKGFILES_notest = $(shell echo $(PKGFILES) | tr ' ' '\n' | grep -v _test.go)
@@ -34,7 +37,7 @@ BUILDTAGS = -tags '$(TAGS)'
 endif
 
 build:
-	$(GO) build $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
+	$(GO) build $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME) $(BUILDFILES)  
 
 install:
 	$(GO) install $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
