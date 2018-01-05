@@ -466,33 +466,6 @@ func TestArtifactsValidate(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestArtifactsRead(t *testing.T) {
-	// first create archive, that we will be able to read
-	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
-
-	err := WriteArtifact(updateTestDir, 1, "")
-	assert.NoError(t, err)
-
-	os.Args = []string{"mender-artifact", "read"}
-	err = run()
-	assert.Error(t, err)
-	assert.Contains(t, errors.Cause(err).Error(),
-		"Nothing specified, nothing read.")
-
-	os.Args = []string{"mender-artifact", "read",
-		filepath.Join(updateTestDir, "artifact.mender")}
-	err = run()
-	assert.NoError(t, err)
-
-	os.Args = []string{"mender-artifact", "validate", "non-existing"}
-	fakeErrWriter.Reset()
-	err = run()
-	assert.Error(t, err)
-	assert.Equal(t, 1, lastExitCode)
-	assert.Contains(t, fakeErrWriter.String(), "no such file")
-}
-
 func TestWithScripts(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)

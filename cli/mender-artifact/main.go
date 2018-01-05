@@ -27,6 +27,7 @@ const (
 	errArtifactInvalidParameters
 	errArtifactUnsupportedVersion
 	errArtifactCreate
+	errArtifactOpen
 )
 
 // Version of the mender-artifact CLI tool
@@ -73,9 +74,9 @@ func run() error {
 	//
 	writeRootfsCommand := cli.Command{
 		Name:      "rootfs-image",
-		Usage:     "asdfgh",
-		ArgsUsage: "ala ma kota",
 		Action:    writeRootfs,
+		Usage:     "Writes Mender artifact containing rootfs image",
+		ArgsUsage: "<image path>",
 	}
 
 	writeRootfsCommand.Flags = []cli.Flag{
@@ -143,16 +144,13 @@ func run() error {
 	//
 	// read
 	//
-	read := cli.Command{
+	readCommand := cli.Command{
 		Name:        "read",
 		Usage:       "Reads artifact file.",
+		ArgsUsage:   "<artifact path>",
 		Action:      readArtifact,
-		UsageText:   "mender-artifact read [options] <pathspec>",
 		Description: "This command validates artifact file provided by pathspec.",
-	}
-
-	read.Flags = []cli.Flag{
-		key,
+		Flags:       []cli.Flag{key},
 	}
 
 	//
@@ -221,7 +219,7 @@ func run() error {
 
 	app.Commands = []cli.Command{
 		writeCommand,
-		read,
+		readCommand,
 		validate,
 		sign,
 		modify,
