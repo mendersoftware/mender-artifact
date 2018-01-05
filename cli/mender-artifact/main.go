@@ -61,7 +61,7 @@ func main() {
 func run() error {
 	app := cli.NewApp()
 	app.Name = "mender-artifact"
-	app.Usage = "Mender artifact read/writer"
+	app.Usage = "interface for manipulating Mender artifacts"
 	app.UsageText = "mender-artifact [--version][--help] <command> [<args>]"
 	app.Version = Version
 
