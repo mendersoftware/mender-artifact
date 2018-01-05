@@ -35,11 +35,6 @@ import (
 	"github.com/urfave/cli"
 )
 
-func version(c *cli.Context) int {
-	version := c.Int("version")
-	return version
-}
-
 func artifactWriter(f *os.File, c *cli.Context,
 	ver int) (*awriter.Writer, error) {
 	if len(c.String("key")) != 0 {
@@ -82,66 +77,6 @@ func scripts(scripts []string) (*artifact.Scripts, error) {
 		}
 	}
 	return &scr, nil
-}
-
-func writeArtifact(c *cli.Context) error {
-	// set default name
-	name := "artifact.mender"
-	if len(c.String("output-path")) > 0 {
-		name = c.String("output-path")
-	}
-	version := version(c)
-
-	var h *handlers.Rootfs
-	switch version {
-	case 1:
-		h = handlers.NewRootfsV1(c.String("update"))
-	case 2:
-		h = handlers.NewRootfsV2(c.String("update"))
-	default:
-		return cli.NewExitError("unsupported artifact version", 1)
-	}
-
-	upd := &awriter.Updates{
-		U: []handlers.Composer{h},
-	}
-
-	f, err := os.Create(name + ".tmp")
-	if err != nil {
-		return cli.NewExitError("can not create artifact file", 1)
-	}
-	defer func() {
-		f.Close()
-		// in case of success `.tmp` suffix will be removed and below
-		// will not remove valid artifact
-		os.Remove(name + ".tmp")
-	}()
-
-	aw, err := artifactWriter(f, c, version)
-	if err != nil {
-		return cli.NewExitError(err.Error(), 1)
-	}
-
-	scr, err := scripts(c.StringSlice("script"))
-	if err != nil {
-		return cli.NewExitError(err.Error(), 1)
-	} else if len(scr.Get()) != 0 && version == 1 {
-		// check if we are having correct version
-		return cli.NewExitError("can not use scripts artifact with version 1", 1)
-	}
-
-	err = aw.WriteArtifact("mender", version,
-		c.StringSlice("device-type"), c.String("artifact-name"), upd, scr)
-	if err != nil {
-		return cli.NewExitError(err.Error(), 1)
-	}
-
-	f.Close()
-	err = os.Rename(name+".tmp", name)
-	if err != nil {
-		return cli.NewExitError(err.Error(), 1)
-	}
-	return nil
 }
 
 func read(ar *areader.Reader, verify areader.SignatureVerifyFn,

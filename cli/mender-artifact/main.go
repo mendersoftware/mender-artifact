@@ -71,22 +71,14 @@ func run() error {
 	//
 	// write
 	//
-	writeRootfs := cli.Command{
-		Name: "rootfs-image",
-		Action: func(c *cli.Context) error {
-			if len(c.StringSlice("device-type")) == 0 ||
-				len(c.String("artifact-name")) == 0 ||
-				len(c.String("update")) == 0 {
-				return cli.NewExitError("must provide `device-type`, `artifact-name` and `update`", errArtifactInvalidParameters)
-			}
-			if len(strings.Fields(c.String("artifact-name"))) > 1 { // check for whitespace in artifact-name
-				return cli.NewExitError("whitespace is not allowed in the artifact-name", errArtifactInvalidParameters)
-			}
-			return writeArtifact(c)
-		},
+	writeRootfsCommand := cli.Command{
+		Name:      "rootfs-image",
+		Usage:     "asdfgh",
+		ArgsUsage: "ala ma kota",
+		Action:    writeRootfs,
 	}
 
-	writeRootfs.Flags = []cli.Flag{
+	writeRootfsCommand.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:  "update, u",
 			Usage: "Update `FILE`.",
@@ -120,11 +112,11 @@ func run() error {
 		},
 	}
 
-	write := cli.Command{
+	writeCommand := cli.Command{
 		Name:  "write",
 		Usage: "Writes artifact file.",
 		Subcommands: []cli.Command{
-			writeRootfs,
+			writeRootfsCommand,
 		},
 	}
 
@@ -228,7 +220,7 @@ func run() error {
 	}
 
 	app.Commands = []cli.Command{
-		write,
+		writeCommand,
 		read,
 		validate,
 		sign,
