@@ -110,9 +110,27 @@ func (e *ECDSA256) Sign(message []byte, key interface{}) ([]byte, error) {
 	// half is the r and the other one s;
 	// as both values are ecdsa256curveBits size we need
 	// 2*ecdsa256keySize size slice to store both
+
+	// MEN-1740 In some cases the size of the r and s can be different
+	// than expected ecdsa256keySize. In this case we need to make sure
+	// we are serializing those using correct offset. We can use leading
+	// zeros easily as this has no impact on serializing and deserializing.
+	rSize := len(r.Bytes())
+	sSize := len(s.Bytes())
+	if rSize > ecdsa256keySize || sSize > ecdsa256keySize {
+		return nil,
+			errors.Errorf("signer: invalid size of ecdsa keys: r: %d; s: %d",
+				rSize, sSize)
+	}
+
+	// if the keys are shorter than expected we need to use correct offset
+	// while serializing
+	rOffset := ecdsa256keySize - rSize
+	sOffset := ecdsa256keySize - sSize
+
 	serialized := make([]byte, 2*ecdsa256keySize)
-	copy(serialized, r.Bytes())
-	copy(serialized[ecdsa256keySize:], s.Bytes())
+	copy(serialized[rOffset:], r.Bytes())
+	copy(serialized[ecdsa256keySize+sOffset:], s.Bytes())
 
 	return serialized, nil
 }
@@ -191,6 +209,7 @@ func (s *PKISigner) Verify(message, sig []byte) error {
 	if err != nil {
 		return errors.Wrap(err, "signer: error decoding signature")
 	}
+
 	return sm.method.Verify(message, dec[:decLen], sm.key)
 }
 
