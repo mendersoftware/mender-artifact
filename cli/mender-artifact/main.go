@@ -48,6 +48,7 @@ func (f *simpleFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 }
 
 func init() {
+	// init logger
 	Log = logrus.New()
 	Log.Out = os.Stdout
 	Log.Formatter = new(simpleFormatter)

@@ -39,14 +39,12 @@ func readArtifact(c *cli.Context) error {
 
 	var verifyCallback areader.SignatureVerifyFn
 
-	if len(c.String("key")) != 0 {
-		key, keyErr := getKey(c.String("key"))
-		if keyErr != nil {
-			return cli.NewExitError(keyErr.Error(), 0)
-		}
-		s := artifact.NewVerifier(key)
-		verifyCallback = s.Verify
+	key, err := getKey(c.String("key"))
+	if err != nil {
+		return cli.NewExitError(err.Error(), errArtifactInvalidParameters)
 	}
+	s := artifact.NewVerifier(key)
+	verifyCallback = s.Verify
 
 	// if key is not provided just continue reading artifact returning
 	// info that signature can not be verified

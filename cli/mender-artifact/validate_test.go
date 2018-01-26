@@ -22,7 +22,26 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/urfave/cli"
 )
+
+var validateTests = []struct {
+	input         []string
+	expectedOut   string
+	expectedError cli.ExitError
+}{
+	{nil, "", cli.ExitError{}},
+}
+
+func TestValidate(t *testing.T) {
+	art, err := WriteTestArtifact(1, "")
+	assert.NoError(t, err)
+
+	err = validate(art, nil)
+	// for _, test := range validateTests {
+	//
+	// }
+}
 
 func TestArtifactsValidate(t *testing.T) {
 	// first create archive, that we will be able to read
@@ -49,6 +68,6 @@ func TestArtifactsValidateError(t *testing.T) {
 	fakeErrWriter.Reset()
 	err = run()
 	assert.Error(t, err)
-	assert.Equal(t, 1, lastExitCode)
+	assert.Equal(t, errArtifactOpen, lastExitCode)
 	assert.Contains(t, fakeErrWriter.String(), "no such file")
 }
