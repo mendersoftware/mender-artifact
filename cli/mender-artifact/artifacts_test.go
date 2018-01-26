@@ -20,6 +20,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -45,6 +46,47 @@ var (
 func init() {
 	cli.OsExiter = fakeOsExiter
 	cli.ErrWriter = fakeErrWriter
+}
+
+func CreateFakeUpdate() (string, error) {
+	upd, err := ioutil.TempFile("", "mender-update")
+	if err != nil {
+		return "", err
+	}
+	_, err = upd.WriteString("my update")
+	return upd.Name(), nil
+}
+
+func WriteTestArtifact(version int, update string) (io.Reader, error) {
+	buff := bytes.NewBuffer(nil)
+	aw := awriter.NewWriter(buff)
+
+	var err error
+	if update == "" {
+		update, err = CreateFakeUpdate()
+		if err != nil {
+			return nil, nil
+		}
+	}
+
+	rfs := handlers.NewRootfsV1(update)
+
+	switch version {
+	case 1:
+		// we are alrady having v1 handlers; do nothing
+	case 2:
+		rfs = handlers.NewRootfsV2(update)
+	}
+
+	updates := &awriter.Updates{U: []handlers.Composer{rfs}}
+
+	err = aw.WriteArtifact("mender", version, []string{"vexpress"},
+		"mender-test", updates, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return buff, nil
 }
 
 func WriteArtifact(dir string, ver int, update string) error {
@@ -155,7 +197,7 @@ func TestArtifactsSigned(t *testing.T) {
 		"-k", "non-existing-private.key"}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, errors.Cause(err).Error(), "Invalid key path")
+	assert.Contains(t, errors.Cause(err).Error(), "Error reading key file")
 
 	// store named file
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
@@ -188,7 +230,7 @@ func TestArtifactsSigned(t *testing.T) {
 		filepath.Join(updateTestDir, "artifact.mender")}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, errors.Cause(err).Error(), "Invalid key path")
+	assert.Contains(t, errors.Cause(err).Error(), "Error reading key file")
 
 	// validate
 	os.Args = []string{"mender-artifact", "validate",
@@ -203,7 +245,7 @@ func TestArtifactsSigned(t *testing.T) {
 		filepath.Join(updateTestDir, "artifact.mender")}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, errors.Cause(err).Error(), "Invalid key path")
+	assert.Contains(t, errors.Cause(err).Error(), "Error reading key file")
 
 	// invalid version
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",

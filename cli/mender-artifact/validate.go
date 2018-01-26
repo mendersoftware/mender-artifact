@@ -15,31 +15,70 @@
 package main
 
 import (
-	"errors"
 	"fmt"
+	"io"
 	"os"
+
+	"github.com/pkg/errors"
 
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/urfave/cli"
 )
 
+func validate(art io.Reader, key []byte) error {
+	// do not return error immediately if we can not validate signature;
+	// just continue checking consistency and return info if
+	// signature verification failed
+	var validationError error
+	verify := func(message, sig []byte) error {
+		verifyCallback := func(message, sig []byte) error {
+			return errors.New("artifact is signed but no verification key was provided")
+		}
+		if key != nil {
+			fmt.Println("have some privete key")
+			s := artifact.NewVerifier(key)
+			verifyCallback = s.Verify
+		}
+
+		if verifyCallback != nil {
+			if err := verifyCallback(message, sig); err != nil {
+				validationError = err
+			}
+		}
+		return nil
+	}
+
+	ar := areader.NewReader(art)
+	ar.VerifySignatureCallback = verify
+	if err := ar.ReadArtifact(); err != nil {
+		return err
+	}
+	if validationError != nil {
+		return errors.Wrap(validationError,
+			"artifact file formatted correctly, but error validating signature")
+	}
+	return nil
+}
+
 func validateArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return cli.NewExitError("Nothing specified, nothing validated. \nMaybe you wanted"+
-			" to say 'artifacts validate <pathspec>'?", 1)
+			" to say 'artifacts validate <pathspec>'?", errArtifactInvalidParameters)
 	}
 
-	var key []byte
-	var err error
-	if c.String("key") != "" {
-		key, err = getKey(c.String("key"))
-		if err != nil {
-			return cli.NewExitError("Can not read key: "+err.Error(), 1)
-		}
+	key, err := getKey(c.String("key"))
+	if err != nil {
+		return cli.NewExitError(err.Error(), errArtifactInvalidParameters)
 	}
 
-	if err := checkIfValid(c.Args().First(), key); err != nil {
+	art, err := os.Open(c.Args().First())
+	if err != nil {
+		return cli.NewExitError("Can not open artifact: "+err.Error(), errArtifactOpen)
+	}
+	defer art.Close()
+
+	if err := validate(art, key); err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
 

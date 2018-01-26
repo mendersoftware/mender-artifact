@@ -47,6 +47,6 @@ func TestArtifactsRead(t *testing.T) {
 	fakeErrWriter.Reset()
 	err = run()
 	assert.Error(t, err)
-	assert.Equal(t, 1, lastExitCode)
+	assert.Equal(t, errArtifactOpen, lastExitCode)
 	assert.Contains(t, fakeErrWriter.String(), "no such file")
 }

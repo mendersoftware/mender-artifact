@@ -100,18 +100,16 @@ func read(ar *areader.Reader, verify areader.SignatureVerifyFn,
 	return ar, nil
 }
 
-func getKey(path string) ([]byte, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("Invalid key path: %s", path)
+func getKey(keyPath string) ([]byte, error) {
+	if keyPath == "" {
+		return nil, nil
 	}
-	defer f.Close()
 
-	key := bytes.NewBuffer(nil)
-	if _, err := io.Copy(key, f); err != nil {
-		return nil, fmt.Errorf("Error reading key: %s", path)
+	key, err := ioutil.ReadFile(keyPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error reading key file")
 	}
-	return key.Bytes(), nil
+	return key, nil
 }
 
 type artifactError struct {
