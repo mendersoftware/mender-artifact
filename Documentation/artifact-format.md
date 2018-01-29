@@ -8,6 +8,64 @@ Note that there are some restrictions on ordering of the files, described
 in the "Ordering" section.
 
 
+### version 3
+
+```
+-artifact.mender (tar format)
+  |
+  +---version
+  |
+  +---manifest
+  |
+  +---manifest.sig
+  |
+  +---manifest-augment
+  |
+  +---header.tar.gz (tar format)
+  |    |
+  |    +---header-info
+  |    |
+  |    +---scripts
+  |    |    |
+  |    |    +---State.Enter
+  |    |    +---State.Leave
+  |    |    +---State.Error
+  |    |    `---<more scripts>
+  |    |
+  |    `---headers
+  |         |
+  |         +---0000
+  |         |    |
+  |         |    +---files
+  |         |    |
+  |         |    +---type-info
+  |         |    |
+  |         |    +---meta-data
+  |         |
+  |         +---0001
+  |         |    |
+  |         |    `---<more headers>
+  |         |
+  |         `---000n ...
+  |
+  +---header-override.tar.gz (tar format)
+  |
+  `---data
+       |
+       +---0000.tar.gz
+       |    +--<image-file (ext4)>
+       |    +--<binary delta, etc>
+       |    `--...
+       |
+       +---0001.tar.gz
+       |    +--<image-file (ext4)>
+       |    +--<binary delta, etc>
+       |    `--...
+       |
+       +---000n.tar.gz ...
+            `--...
+```
+
 ### version 2
 
 ```
@@ -122,7 +180,7 @@ Contains the below content exactly:
 ```
 {
   "format": "mender",
-  "version": 2
+  "version": 3
 }
 ```
 
@@ -154,12 +212,38 @@ the two spaces.
 manifest.sig
 ----
 
-Format: TBD
+Format: base64 encoded ecdsa or rsa signature
 Version: Exists only in version 2 and later
 
 File containing the signature of `manifest`.
 
 It is legal for an artifact not to have signature file.
+
+manifest-augment
+----
+
+Format: text
+Version: Exists only in version 2 and later
+
+Contains the file checksums, formatted exactly like below:
+
+```
+4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619  header-override.tar.gz
+1d0b820130ae028ce8a79b7e217fe505a765ac394718e795d454941487c53d32  data/0000/update.delta
+```
+
+The manifest-augment file is needed only for certain type of the updates
+and contains the checksums of the files which are included in the data part
+of the artifact. Those checksums might be different from the ones
+present in the manifest file as the manifest file contains the checksums of the
+final image after the update is installed.
+One example might be a delta update, where manifest-augment file will contain
+the checksum of the delta file (the actual payload of the artifact) and the
+checksum in the manifest file is the final checksum of the image after the
+delta is applied.
+Also header-override.tar.gz checksum goes into this file as the signature
+placed in the `manifest.sig` file must not be affected by any changes
+added to header-override.tar.gz file.
 
 
 header.tar.gz
@@ -175,8 +259,85 @@ version is specified outside of `header.tar.gz`.
 
 Why is there a tar file inside a tar file? See the "Ordering" section.
 
+### header-info (version 3)
 
-### header-info
+Format: JSON
+
+`header-info` must be the first file within `header.tar.gz`. Its content is:
+
+```
+{
+  "updates": [
+    {
+      "type": "rootfs-image"
+    },
+    {
+      "type": "rootfs-image"
+    },
+    {
+      ...
+    }
+  ],
+  "artifact_provides": [
+          { "artifact_name": "name" },
+          { "artifact_group": "group-1" },
+          { "update_types_supported": ["rootfs-image"]},
+          { "provides_type": ["provides_value", "provides_value"] },
+      ],
+  "artifact_depends": [
+          { "device_type": ["vexpress-qemu", "beaglebone"] },
+          { "atrifact_name": ["rootfs-1"] },
+      ],
+  ],
+}
+```
+
+The `updates` parameter is as described in the
+section below (see the version 2 header-info description for the details).
+
+#### artifact_depends
+
+The `artifact_depends` contains a set of parameters that the current artifact
+depends on. It can contain zero or more elements (in most cases at least
+`device_type` should be present though).
+
+The given artifact will be installed, only if the device itself
+and the artifact currently installed on the device are providing a full set
+of matching parameters. The complete list contains following parameters:
+
+* `artifact_name` is the name of the artifact currently installed on the device
+* `rootfs_image_checksum` is the checksum of the image currently installed on the
+device
+* `device_type` is the type of the device (see `device_provides` below)
+* `artifact_group` is the group of the artifacts current artifact belongs to
+* `update_type_supported` is the list of the update types Mender agent installed
+on the device can handle
+* `artifact_versions_supported` is the list of the versions of the artifacts
+agent installed on the device can handle
+
+
+#### artifact_provides
+
+The `artifact_provides` is a set of parameters given artifact provides.
+For the detailed information see the description of the given parameter below.
+
+* `artifact_name` is the name of the artifact
+* `artifact_group` is the name of the group of artifacts given artifact
+belongs to
+* `update_types_supported` is the list of all the update types given Mender
+client can install
+
+#### device_provides
+
+There is also a set of parameters that are provided by the device itself,
+which are not a part of the artifact. Those are the values, that the device
+itself can read and send to the Mender server when needed. The full list of
+`device_provides` is as follows:
+
+* `device_type`
+
+
+### header-info (up to version 2 only)
 
 Format: JSON
 
@@ -232,8 +393,41 @@ or multiple files listed.  For example:
 { "files" : ["core-image-minimal-201608110900.ext4", "core-image-base-201608110900.ext4"]}
 ```
 
+### type-info (version 3)
 
-### type-info
+Format: JSON
+
+A file that provides information about the type of package contained within the
+tar file. The first and the only required entry is the type of the update
+corresponding to the type in `header-info` file.
+It can also contain some additional parameters complementing the global
+`artifact_provides` set of parameters specific for a given update type.
+
+```
+{
+  "type": "rootfs-image"
+  "artifact_provides": [
+          { "provides_type": ["provides_value", "provides_value"] },
+      ],
+}
+```
+
+### type-info (version 1 and version 2)
+
+Format: JSON
+
+A file that provides information about the type of package contained within the
+tar file. The first and the only required entry is the type of the update
+corresponding to the type in `header-info` file.
+
+```
+{
+  "type": "rootfs-image"
+
+}
+```
+
+### type-info (up to version 2 only)
 
 Format: JSON
 
@@ -366,13 +560,15 @@ Ordering
 Some ordering rules are enforced on the artifact tar file. For the outer tar
 file:
 
-| File/Directory  | Ordering rule                  |
-|-----------------|--------------------------------|
-| `version`       | First in `.mender` tar archive |
-| `manifest`      | After `version` (v2)           |
-| `manifest.sig`  | Optional after `manifest` (v2) |
-| `header.tar.gz` | After `info`                   |
-| `data`          | After `header.tar.gz`          |
+| File/Directory            | Ordering rule                       |
+|---------------------------|-------------------------------------|
+| `version`                 | First in `.mender` tar archive      |
+| `manifest`                | After `version` (v2)                |
+| `manifest.sig`            | Optional after `manifest` (v2)      |
+| `manifest-augment`        | Optional after `manifest.sig` (v3)  |
+| `header.tar.gz`           | After `info`                        |
+| `header-override.tar.gz`  | Optional after `header.tar.gz` (v3) |                   |
+| `data`                    | After `header.tar.gz`               |
 
 For the embedded `header.tar.gz` file:
 
