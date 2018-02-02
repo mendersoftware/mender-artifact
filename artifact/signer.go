@@ -23,9 +23,9 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
-	"math/big"
-
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/ed25519"
+	"math/big"
 )
 
 // Signer is returning a signature of the provided message.
@@ -164,6 +164,49 @@ func (e *ECDSA256) Verify(message, sig []byte, key interface{}) error {
 
 }
 
+//
+// ED25519 Crypto interface implementation
+//
+type ED25519 struct{}
+
+func (ed *ED25519) Sign(message []byte, key interface{}) ([]byte, error) {
+	var edPrivateKey *ed25519.PrivateKey
+	var ok bool
+	// validate key
+	if edPrivateKey, ok = key.(*ed25519.PrivateKey); !ok {
+		return nil, errors.New("signer: invalid ed25519 private key")
+	}
+
+	// need to check for privatekey size as ed25519.Sign will panic
+	// if it does not equal ed25519.PrivateKeySize
+	if len(*edPrivateKey) != ed25519.PrivateKeySize {
+		return nil, errors.New("signer: invalid ed25519 private key size")
+	}
+
+	return ed25519.Sign(*edPrivateKey, message), nil
+}
+
+func (ed *ED25519) Verify(message, sig []byte, key interface{}) error {
+	var edPublicKey *ed25519.PublicKey
+	var ok bool
+
+	// validate key
+	if edPublicKey, ok = key.(*ed25519.PublicKey); !ok {
+		return errors.New("signer: invalid ed25519 public key")
+	}
+
+	// check  public size as ed25519.Sign will panic
+	// if it does not equal ed25519.PublicKeySize
+	if len(*edPublicKey) != ed25519.PublicKeySize {
+		return errors.New("signer: invalid ed25519 public key size")
+	}
+	ok = ed25519.Verify(*edPublicKey, message, sig)
+	if !ok {
+		return errors.New("signer: verification failed (ed25519)")
+	}
+	return nil
+}
+
 type SigningMethod struct {
 	// key can be private or public depending if we want to sign or verify message
 	key    interface{}
@@ -263,5 +306,6 @@ func getKeyAndSignMethod(keyPEM []byte) (*SigningMethod, error) {
 		}
 		return &SigningMethod{key: ecdsaKey, public: pub, method: new(ECDSA256)}, nil
 	}
+
 	return nil, errors.Wrap(err, "signer: unsupported private key type or error occured")
 }
