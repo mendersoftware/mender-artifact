@@ -107,12 +107,9 @@ func Copy(c *cli.Context) (err error) {
 }
 
 func Append(c *cli.Context) error {
-	fmt.Println("Hello")
-
 	var r io.ReadCloser
-	// var w io.WriteCloser
 	var rwcp PartitionReadWriteClosePacker
-	var appendint = 3 // positive infinity
+	var appendint = 3
 	var readindex = 0
 	var err error
 
