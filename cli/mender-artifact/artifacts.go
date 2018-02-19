@@ -382,12 +382,6 @@ func modifyExisting(c *cli.Context, image string) error {
 	return nil
 }
 
-type partition struct {
-	offset string
-	size   string
-	path   string
-}
-
 func processSdimg(image string) ([]partition, error) {
 	out, err := exec.Command("parted", image, "unit s", "print").Output()
 	if err != nil {

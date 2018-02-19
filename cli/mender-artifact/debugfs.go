@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -33,9 +34,27 @@ func debugfsCopyFile(file, image string) (string, error) {
 	dumpCmd := fmt.Sprintf("dump %s %s", file,
 		filepath.Join(tmpDir, filepath.Base(file)))
 	cmd := exec.Command("debugfs", "-R", dumpCmd, image)
-	if err = cmd.Run(); err != nil {
+	ep, err := cmd.StderrPipe()
+	if err != nil {
+		return "", errors.Wrap(err, "failed to open stderr pipe of command")
+	}
+	if err = cmd.Start(); err != nil {
 		os.RemoveAll(tmpDir)
 		return "", errors.Wrap(err, "debugfs: run debugfs dump")
+	}
+	data, err := ioutil.ReadAll(ep)
+	if err != nil {
+		os.RemoveAll(tmpDir)
+		return "", errors.Wrap(err, "Failed to read from stderr-pipe")
+	}
+
+	if len(data) > 0 && strings.Contains(string(data), "File not found") {
+		os.RemoveAll(tmpDir)
+		return "", fmt.Errorf("file %s not found in image", file)
+	}
+	if err = cmd.Wait(); err != nil {
+		os.RemoveAll(tmpDir)
+		return "", errors.Wrap(err, "debugfs copy-file command failed")
 	}
 
 	return tmpDir, nil
@@ -64,10 +83,21 @@ func debugfsReplaceFile(imageFile, newFile, image string) error {
 	if err = scr.Close(); err != nil {
 		return errors.Wrap(err, "debugfs: close sync script")
 	}
-
 	cmd := exec.Command("debugfs", "-w", "-f", scr.Name(), image)
-	if err = cmd.Run(); err != nil {
+	ep, _ := cmd.StderrPipe()
+	if err = cmd.Start(); err != nil {
 		return errors.Wrap(err, "debugfs: run debugfs script")
+	}
+	data, err := ioutil.ReadAll(ep)
+	if err != nil {
+		return err
+	}
+	if len(data) != 0 && strings.Contains(string(data), "Filesystem not open") || strings.Contains(string(data), "cd: File not found") {
+		return errors.New("filesystem not open")
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return err
 	}
 
 	return nil

@@ -218,12 +218,29 @@ func run() error {
 		},
 	}
 
+	copy := cli.Command{
+		Name:        "cp",
+		Usage:       "cp <src> <dst>",
+		Description: "Copies a file into or out of a mender artifact, or sdimg",
+		UsageText:   "Copy from or into an artifact, or sdimg where either the <src> or <dst> has to be of the form [artifact|sdimg]:<filepath>",
+		Action:      Copy,
+	}
+
+	cat := cli.Command{
+		Name:        "cat",
+		Usage:       "cat [-|[artifact|sdimg]:<filepath>] [-|[artifact|sdimg]:<filepath>]",
+		Description: "Cat can either output a file from a mender artifact or mender image to stdout, or concatenate a single input (either a file or stdin) to either prepend or append to a file. The tool is not able to concatenate multiple files on an image.",
+		Action:      Cat,
+	}
+
 	app.Commands = []cli.Command{
 		writeCommand,
 		readCommand,
 		validate,
 		sign,
 		modify,
+		copy,
+		cat,
 	}
 	return app.Run(os.Args)
 }
