@@ -228,9 +228,16 @@ func run() error {
 
 	cat := cli.Command{
 		Name:        "cat",
-		Usage:       "cat [-|[artifact|sdimg]:<filepath>] [-|[artifact|sdimg]:<filepath>]",
-		Description: "Cat can either output a file from a mender artifact or mender image to stdout, or concatenate a single input (either a file or stdin) to either prepend or append to a file. The tool is not able to concatenate multiple files on an image.",
+		Usage:       "cat [artifact|sdimg]:<filepath>",
+		Description: "Cat can output a file from a mender artifact or mender image to stdout.",
 		Action:      Cat,
+	}
+
+	append := cli.Command{
+		Name:        "append",
+		Usage:       "append [artifact|sdimg]:<filepath> <src>",
+		Description: "append or prepend to  file on a mender artifact or sdimg, where the placement of the '-' decides the append or prepend functionality",
+		Action:      Append,
 	}
 
 	app.Commands = []cli.Command{
@@ -241,6 +248,7 @@ func run() error {
 		modify,
 		copy,
 		cat,
+		append,
 	}
 	return app.Run(os.Args)
 }
