@@ -15,10 +15,8 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 
@@ -28,6 +26,7 @@ const (
 	errArtifactUnsupportedVersion
 	errArtifactCreate
 	errArtifactOpen
+	errArtifactInvalid
 )
 
 // Version of the mender-artifact CLI tool
@@ -36,23 +35,6 @@ var Version = "unknown"
 // LatestFormatVersion is the latest version of the format, which is
 // also what we default to.
 const LatestFormatVersion = 2
-
-// Log is a global reference to our logger.
-var Log *logrus.Logger
-
-type simpleFormatter struct {
-}
-
-func (f *simpleFormatter) Format(entry *logrus.Entry) ([]byte, error) {
-	return []byte(fmt.Sprintf("%s: %s\n", entry.Level, entry.Message)), nil
-}
-
-func init() {
-	// init logger
-	Log = logrus.New()
-	Log.Out = os.Stdout
-	Log.Formatter = new(simpleFormatter)
-}
 
 func main() {
 	if err := run(); err != nil {

@@ -26,6 +26,8 @@ import (
 	"github.com/urfave/cli"
 )
 
+var ErrInvalidSignature = errors.New("error validating signature")
+
 func validate(art io.Reader, key []byte) error {
 	// do not return error immediately if we can not validate signature;
 	// just continue checking consistency and return info if
@@ -36,7 +38,6 @@ func validate(art io.Reader, key []byte) error {
 			return errors.New("artifact is signed but no verification key was provided")
 		}
 		if key != nil {
-			fmt.Println("have some privete key")
 			s := artifact.NewVerifier(key)
 			verifyCallback = s.Verify
 		}
@@ -55,8 +56,8 @@ func validate(art io.Reader, key []byte) error {
 		return err
 	}
 	if validationError != nil {
-		return errors.Wrap(validationError,
-			"artifact file formatted correctly, but error validating signature")
+		Log.Debug("error validating signature: %s", validationError.Error())
+		return ErrInvalidSignature
 	}
 	return nil
 }
@@ -79,54 +80,9 @@ func validateArtifact(c *cli.Context) error {
 	defer art.Close()
 
 	if err := validate(art, key); err != nil {
-		return cli.NewExitError(err.Error(), 1)
+		return cli.NewExitError(err.Error(), errArtifactInvalid)
 	}
 
 	fmt.Printf("Artifact file '%s' validated successfully\n", c.Args().First())
-	return nil
-}
-
-func checkIfValid(artifactPath string, key []byte) *artifactError {
-	verifyCallback := func(message, sig []byte) error {
-		return errors.New("artifact is signed but no verification key was provided")
-	}
-
-	if key != nil {
-		s := artifact.NewVerifier(key)
-		verifyCallback = s.Verify
-	}
-
-	// do not return error immediately if we can not validate signature;
-	// just continue checking consistency and return info if
-	// signature verification failed
-	var validationError error
-	ver := func(message, sig []byte) error {
-		if verifyCallback != nil {
-			if err := verifyCallback(message, sig); err != nil {
-				validationError = err
-			}
-		}
-		return nil
-	}
-
-	f, err := os.Open(artifactPath)
-	if err != nil {
-		return &artifactError{err: err}
-	}
-	defer f.Close()
-
-	ar := areader.NewReader(f)
-	_, err = read(ar, ver, nil)
-	if err != nil {
-		return &artifactError{err: err}
-	}
-
-	if validationError != nil {
-		return &artifactError{
-			err: fmt.Errorf("artifact file '%s' formatted correctly, "+
-				"but error validating signature: %s", artifactPath, validationError),
-			badSignature: true,
-		}
-	}
 	return nil
 }

@@ -35,22 +35,6 @@ import (
 	"github.com/urfave/cli"
 )
 
-func artifactWriter(f *os.File, c *cli.Context,
-	ver int) (*awriter.Writer, error) {
-	if len(c.String("key")) != 0 {
-		if ver == 1 {
-			// check if we are having correct version
-			return nil, errors.New("can not use signed artifact with version 1")
-		}
-		privateKey, err := getKey(c.String("key"))
-		if err != nil {
-			return nil, err
-		}
-		return awriter.NewWriterSigned(f, artifact.NewSigner(privateKey)), nil
-	}
-	return awriter.NewWriter(f), nil
-}
-
 func scripts(scripts []string) (*artifact.Scripts, error) {
 	scr := artifact.Scripts{}
 	for _, scriptArg := range scripts {
@@ -110,15 +94,6 @@ func getKey(keyPath string) ([]byte, error) {
 		return nil, errors.Wrap(err, "Error reading key file")
 	}
 	return key, nil
-}
-
-type artifactError struct {
-	err          error
-	badSignature bool
-}
-
-func (ae *artifactError) Error() string {
-	return ae.err.Error()
 }
 
 func unpackArtifact(name string) (string, error) {
@@ -473,7 +448,13 @@ func getCandidatesForModify(path string, key []byte) ([]partition, bool, error) 
 	modifyCandidates := make([]partition, 0)
 
 	// first we need to check  if we are having artifact or image file
-	if err := checkIfValid(path, key); err == nil {
+	art, err := os.Open(path)
+	if err != nil {
+		return nil, isArtifact, errors.Wrap(err, "can not open artifact")
+	}
+	defer art.Close()
+
+	if err = validate(art, key); err == nil {
 		// we have VALID artifact, so we need to unpack it and store header
 		isArtifact = true
 		rawImage, err := unpackArtifact(path)
@@ -481,7 +462,7 @@ func getCandidatesForModify(path string, key []byte) ([]partition, bool, error) 
 			return nil, isArtifact, errors.Wrap(err, "can not process artifact")
 		}
 		modifyCandidates = append(modifyCandidates, partition{path: rawImage})
-	} else if err.badSignature {
+	} else if err == ErrInvalidSignature {
 		return nil, isArtifact, err
 	} else {
 		parts, err := processSdimg(path)

@@ -20,6 +20,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -31,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli"
 
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
 )
@@ -57,9 +59,16 @@ func CreateFakeUpdate() (string, error) {
 	return upd.Name(), nil
 }
 
-func WriteTestArtifact(version int, update string) (io.Reader, error) {
+func WriteTestArtifact(version int, update string, key []byte) (io.Reader, error) {
 	buff := bytes.NewBuffer(nil)
-	aw := awriter.NewWriter(buff)
+
+	aw := new(awriter.Writer)
+	if key != nil {
+		aw = awriter.NewWriterSigned(buff, artifact.NewSigner(key))
+		fmt.Println("write signed artifact")
+	} else {
+		aw = awriter.NewWriter(buff)
+	}
 
 	var err error
 	if update == "" {
@@ -67,6 +76,7 @@ func WriteTestArtifact(version int, update string) (io.Reader, error) {
 		if err != nil {
 			return nil, nil
 		}
+		defer os.Remove(update)
 	}
 
 	rfs := handlers.NewRootfsV1(update)
@@ -256,7 +266,7 @@ func TestArtifactsSigned(t *testing.T) {
 	fakeErrWriter.Reset()
 	err = run()
 	assert.Error(t, err)
-	assert.Equal(t, "can not use signed artifact with version 1\n",
+	assert.Equal(t, "writer: can not create version 1 signed artifact\n",
 		fakeErrWriter.String())
 }
 

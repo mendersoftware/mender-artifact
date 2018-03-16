@@ -265,8 +265,7 @@ func TestModifySigned(t *testing.T) {
 
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(),
-		"artifact is signed but no verification key was provided")
+	assert.Contains(t, err.Error(), ErrInvalidSignature.Error())
 
 	os.Args = []string{"mender-artifact", "modify",
 		"-n", "release-2",

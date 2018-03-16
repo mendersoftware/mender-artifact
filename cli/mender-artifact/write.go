@@ -15,10 +15,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/urfave/cli"
@@ -86,7 +88,7 @@ func writeRootfs(c *cli.Context) error {
 		os.Remove(name + ".tmp")
 	}()
 
-	aw, err := artifactWriter(f, c, version)
+	aw, err := artifactWriter(f, c.String("key"), version)
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
@@ -111,4 +113,20 @@ func writeRootfs(c *cli.Context) error {
 		return cli.NewExitError(err.Error(), 1)
 	}
 	return nil
+}
+
+func artifactWriter(f *os.File, key string,
+	ver int) (*awriter.Writer, error) {
+	if key != "" {
+		if ver == 0 {
+			// check if we are having correct version
+			return nil, errors.New("can not use signed artifact with version 0")
+		}
+		privateKey, err := getKey(key)
+		if err != nil {
+			return nil, err
+		}
+		return awriter.NewWriterSigned(f, artifact.NewSigner(privateKey)), nil
+	}
+	return awriter.NewWriter(f), nil
 }
