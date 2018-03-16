@@ -52,7 +52,7 @@ func signExisting(c *cli.Context) error {
 	}
 	defer f.Close()
 
-	reader, err := repack(f, tFile, privateKey, "", "")
+	reader, err := repack(c.Args().First(), f, tFile, privateKey, "", "")
 	if err != nil {
 		return err
 	}
