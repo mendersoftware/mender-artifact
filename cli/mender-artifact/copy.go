@@ -40,46 +40,14 @@ func Cat(c *cli.Context) (err error) {
 }
 
 func Copy(c *cli.Context) (err error) {
-
 	var r io.ReadCloser
 	var w io.WriteCloser
 
 	var repack bool
-
-	switch parseCLIOptions(c) {
-	case copyin:
-		r, err = os.OpenFile(c.Args().First(), os.O_CREATE|os.O_RDWR, 0655)
-		if err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
-		}
-		w, err = NewPartitionWritePacker(c.Args().Get(1), c.String("key"))
-		if err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
-		}
-		repack = true
-	case copyinstdin:
-		r = os.Stdin
-		w, err = NewPartitionWritePacker(c.Args().First(), c.String("key"))
-		if err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
-		}
-		repack = true
-	case copyout:
-		r, err = NewPartitionReader(c.Args().First(), c.String("key"))
-		if err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
-		}
-		w, err = os.OpenFile(c.Args().Get(1), os.O_CREATE|os.O_RDWR, 0655)
-		if err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
-		}
-	case parseError:
-		return cli.NewExitError(fmt.Sprintln("no artifact or image provided"), 1)
-	case argerror:
-		return cli.NewExitError(fmt.Sprintf("got %d arguments, wants two", c.NArg()), 1)
-	default:
-		return cli.NewExitError("critical error", 1)
+	if err := doCopy(c, &repack, &r, &w); err != nil {
+		return err
 	}
+
 	_, err = io.Copy(w, r)
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
@@ -103,8 +71,49 @@ func Copy(c *cli.Context) (err error) {
 	return r.Close()
 }
 
+func doCopy(c *cli.Context, repack *bool, r *io.ReadCloser,
+	w *io.WriteCloser) error {
+
+	var err error
+
+	switch parseCLIOptions(c) {
+	case copyin:
+		*r, err = os.OpenFile(c.Args().First(), os.O_CREATE|os.O_RDWR, 0655)
+		if err != nil {
+			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+		}
+		*w, err = NewPartitionWritePacker(c.Args().Get(1), c.String("key"))
+		if err != nil {
+			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+		}
+		*repack = true
+	case copyinstdin:
+		*r = os.Stdin
+		*w, err = NewPartitionWritePacker(c.Args().First(), c.String("key"))
+		if err != nil {
+			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+		}
+		*repack = true
+	case copyout:
+		*r, err = NewPartitionReader(c.Args().First(), c.String("key"))
+		if err != nil {
+			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+		}
+		*w, err = os.OpenFile(c.Args().Get(1), os.O_CREATE|os.O_RDWR, 0655)
+		if err != nil {
+			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+		}
+	case parseError:
+		return cli.NewExitError(fmt.Sprintln("no artifact or image provided"), 1)
+	case argerror:
+		return cli.NewExitError(fmt.Sprintf("got %d arguments, wants two", c.NArg()), 1)
+	default:
+		return cli.NewExitError("critical error", 1)
+	}
+	return nil
+}
+
 func Append(c *cli.Context) error {
-	var r io.ReadCloser
 	var rwcp PartitionReadWriteClosePacker
 	var appendint = 3
 	var readindex = 0
@@ -121,18 +130,18 @@ func Append(c *cli.Context) error {
 		}
 	}
 
-	isimg := regexp.MustCompile(`\.(mender|sdimg)`)
+	isImg := regexp.MustCompile(`\.(mender|sdimg)`)
 
 	switch {
 
-	case isimg.MatchString(c.Args().First()):
+	case isImg.MatchString(c.Args().First()):
 		rwcp, err = NewPartitionFile(c.Args().First(), c.String("key"))
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 		readindex = 1
 
-	case isimg.MatchString(c.Args().Get(1)):
+	case isImg.MatchString(c.Args().Get(1)):
 		rwcp, err = NewPartitionFile(c.Args().Get(1), c.String("key"))
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
@@ -145,45 +154,8 @@ func Append(c *cli.Context) error {
 	}
 
 	buf := bytes.NewBuffer([]byte{})
-
-	switch appendint {
-	// prepend
-	case 0:
-		// write the stdin input to the buf first
-		if _, err = io.Copy(buf, os.Stdin); err != nil {
-			return cli.NewExitError(err.Error(), 1)
-		}
-
-		// then the partition-file
-		if _, err = io.Copy(buf, rwcp); err != nil {
-			return cli.NewExitError(err.Error(), 1)
-		}
-
-	// append
-	case 1:
-		// write image files' file to the buf first
-		if _, err = io.Copy(buf, rwcp); err != nil {
-			return cli.NewExitError(err.Error(), 1)
-		}
-		// then from stdin
-		if _, err = io.Copy(buf, os.Stdin); err != nil {
-			return cli.NewExitError(err.Error(), 1)
-		}
-
-	// read from input file
-	case 3:
-		// write image files' file to the buf first
-		if _, err = io.Copy(buf, rwcp); err != nil {
-			return cli.NewExitError(err.Error(), 1)
-		}
-		r, err = os.Open(c.Args().Get(readindex))
-		if err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
-		}
-		if _, err = io.Copy(buf, r); err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
-		}
-
+	if err := copyBuff(appendint, buf, rwcp, c, readindex); err != nil {
+		return err
 	}
 
 	// then write it all back out into the image
@@ -193,6 +165,49 @@ func Append(c *cli.Context) error {
 
 	// finally repack the image
 	return rwcp.Repack()
+}
+
+func copyBuff(appendint int, buf *bytes.Buffer,
+	rwcp PartitionReadWriteClosePacker, c *cli.Context, readindex int) error {
+	switch appendint {
+	// prepend
+	case 0:
+		// write the stdin input to the buf first
+		if _, err := io.Copy(buf, os.Stdin); err != nil {
+			return cli.NewExitError(err.Error(), 1)
+		}
+
+		// then the partition-file
+		if _, err := io.Copy(buf, rwcp); err != nil {
+			return cli.NewExitError(err.Error(), 1)
+		}
+
+	// append
+	case 1:
+		// write image files' file to the buf first
+		if _, err := io.Copy(buf, rwcp); err != nil {
+			return cli.NewExitError(err.Error(), 1)
+		}
+		// then from stdin
+		if _, err := io.Copy(buf, os.Stdin); err != nil {
+			return cli.NewExitError(err.Error(), 1)
+		}
+
+	// read from input file
+	case 3:
+		// write image files' file to the buf first
+		if _, err := io.Copy(buf, rwcp); err != nil {
+			return cli.NewExitError(err.Error(), 1)
+		}
+		r, err := os.Open(c.Args().Get(readindex))
+		if err != nil {
+			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+		}
+		if _, err = io.Copy(buf, r); err != nil {
+			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+		}
+	}
+	return nil
 }
 
 // enumerate cli-options
