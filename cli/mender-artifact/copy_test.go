@@ -25,23 +25,22 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func testSetupTeardown(t *testing.T) (artifact string, sdimg string, f func()) {
 
 	tmp, err := ioutil.TempDir("", "mender-modify")
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	err = copyFile("mender_test.img", filepath.Join(tmp, "mender_test.img"))
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	err = WriteArtifact(tmp, 2, filepath.Join(tmp, "mender_test.img"))
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	artifact = filepath.Join(tmp, "artifact.mender")
 
 	err = copyFile("mender_test.sdimg", filepath.Join(tmp, "mender_test.sdimg"))
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	sdimg = filepath.Join(tmp, "mender_test.sdimg")
 
 	return artifact, sdimg, func() {
@@ -52,11 +51,11 @@ func testSetupTeardown(t *testing.T) (artifact string, sdimg string, f func()) {
 func TestCopy(t *testing.T) {
 
 	// build the mender-artifact binary
-	require.Nil(t, exec.Command("go", "build").Run())
+	assert.Nil(t, exec.Command("go", "build").Run())
 	defer os.Remove("mender-artifact")
 
 	dir, err := os.Getwd()
-	require.Nil(t, err)
+	assert.Nil(t, err)
 
 	tests := []struct {
 		initfunc       func()
@@ -78,13 +77,13 @@ func TestCopy(t *testing.T) {
 		},
 		{
 			initfunc: func() {
-				require.Nil(t, ioutil.WriteFile("output.txt", []byte{}, 0755))
+				assert.Nil(t, ioutil.WriteFile("output.txt", []byte{}, 0755))
 			},
 			name: "write artifact_info file to output.txt",
 			argv: []string{"cp", ":/etc/mender/artifact_info", "output.txt"},
 			verifyTestFunc: func(imgpath string) {
 				data, err := ioutil.ReadFile("output.txt")
-				require.Nil(t, err)
+				assert.Nil(t, err)
 				assert.Equal(t, strings.TrimSpace(string(data)), "artifact_name=release-1")
 			},
 		},
@@ -94,7 +93,7 @@ func TestCopy(t *testing.T) {
 			initfunc: func() {
 				// create some new data in the output.txt file,
 				// so that it does not shadow the previous test
-				require.Nil(t, ioutil.WriteFile("output.txt", []byte("artifact_name=foobar"), 0644))
+				assert.Nil(t, ioutil.WriteFile("output.txt", []byte("artifact_name=foobar"), 0644))
 			},
 			argv: []string{"cp", "output.txt", ":/etc/mender/artifact_info"},
 			verifyTestFunc: func(imgpath string) {
@@ -105,7 +104,7 @@ func TestCopy(t *testing.T) {
 				var out bytes.Buffer
 				cmd.Stdout = &out
 				err := cmd.Run()
-				require.Nil(t, err, "got unexpected error: %v", err)
+				assert.Nil(t, err, "got unexpected error: %v", err)
 				assert.Equal(t, "artifact_name=foobar", out.String())
 			},
 		},
