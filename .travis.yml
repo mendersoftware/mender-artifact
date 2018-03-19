@@ -2,11 +2,8 @@ language: go
 
 # Golang version matrix
 go:
-    - 1.7
+    - 1.9.4
     - tip
-
-before_install:
-    - go get ./...
 
 install:
     # Get tools used in Makefile
