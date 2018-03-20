@@ -15,7 +15,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -109,103 +108,6 @@ func doCopy(c *cli.Context, repack *bool, r *io.ReadCloser,
 		return cli.NewExitError(fmt.Sprintf("got %d arguments, wants two", c.NArg()), 1)
 	default:
 		return cli.NewExitError("critical error", 1)
-	}
-	return nil
-}
-
-func Append(c *cli.Context) error {
-	var rwcp PartitionReadWriteClosePacker
-	var appendint = 3
-	var readindex = 0
-	var err error
-
-	if c.NArg() != 2 {
-		return cli.NewExitError("wrong number of input arguments. Two required", 1)
-	}
-
-	for i, arg := range c.Args() {
-		if arg == "-" {
-			appendint = i
-			break
-		}
-	}
-
-	isImg := regexp.MustCompile(`\.(mender|sdimg)`)
-
-	switch {
-
-	case isImg.MatchString(c.Args().First()):
-		rwcp, err = NewPartitionFile(c.Args().First(), c.String("key"))
-		if err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
-		}
-		readindex = 1
-
-	case isImg.MatchString(c.Args().Get(1)):
-		rwcp, err = NewPartitionFile(c.Args().Get(1), c.String("key"))
-		if err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
-		}
-		readindex = 0
-
-	default:
-		return cli.NewExitError("a mender artifact or sdimg needs to be specified", 1)
-
-	}
-
-	buf := bytes.NewBuffer([]byte{})
-	if err := copyBuff(appendint, buf, rwcp, c, readindex); err != nil {
-		return err
-	}
-
-	// then write it all back out into the image
-	if _, err = io.Copy(rwcp, buf); err != nil {
-		return cli.NewExitError(err.Error(), 1)
-	}
-
-	// finally repack the image
-	return rwcp.Repack()
-}
-
-func copyBuff(appendint int, buf *bytes.Buffer,
-	rwcp PartitionReadWriteClosePacker, c *cli.Context, readindex int) error {
-	switch appendint {
-	// prepend
-	case 0:
-		// write the stdin input to the buf first
-		if _, err := io.Copy(buf, os.Stdin); err != nil {
-			return cli.NewExitError(err.Error(), 1)
-		}
-
-		// then the partition-file
-		if _, err := io.Copy(buf, rwcp); err != nil {
-			return cli.NewExitError(err.Error(), 1)
-		}
-
-	// append
-	case 1:
-		// write image files' file to the buf first
-		if _, err := io.Copy(buf, rwcp); err != nil {
-			return cli.NewExitError(err.Error(), 1)
-		}
-		// then from stdin
-		if _, err := io.Copy(buf, os.Stdin); err != nil {
-			return cli.NewExitError(err.Error(), 1)
-		}
-
-	// read from input file
-	case 3:
-		// write image files' file to the buf first
-		if _, err := io.Copy(buf, rwcp); err != nil {
-			return cli.NewExitError(err.Error(), 1)
-		}
-		r, err := os.Open(c.Args().Get(readindex))
-		if err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
-		}
-		if _, err = io.Copy(buf, r); err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
-		}
 	}
 	return nil
 }

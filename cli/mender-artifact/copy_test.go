@@ -17,7 +17,9 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -59,6 +61,7 @@ func TestCopy(t *testing.T) {
 
 	tests := []struct {
 		initfunc       func()
+		stdindata      string
 		name           string
 		argv           []string
 		expected       string
@@ -67,20 +70,35 @@ func TestCopy(t *testing.T) {
 	}{
 		{
 			name: "error on no path given into the image file",
-			argv: []string{"cp", "partitions.sdimg", "output.txt"},
+			argv: []string{"mender-artifact", "cp", "partitions.sdimg", "output.txt"},
 			err:  "failed to parse image path",
 		},
 		{
+			name: "no mender artifact or sdimg provided",
+			argv: []string{"mender-artifact", "cp", "foobar", "output.txt"},
+			err:  "no artifact or image provided\n",
+		},
+		{
+			name: "got 1 arguments, wants two",
+			argv: []string{"mender-artifact", "cp", "foobar"},
+			err:  "got 1 arguments, wants two",
+		},
+		{
+			name: "too many arguments provided to cat",
+			argv: []string{"mender-artifact", "cat", "foo", "bar"},
+			err:  "Got 2 arguments, wants one",
+		},
+		{
 			name:     "write artifact_info file to stdout",
-			argv:     []string{"cat", ":/etc/mender/artifact_info"},
-			expected: "artifact_name=release-1",
+			argv:     []string{"mender-artifact", "cat", ":/etc/mender/artifact_info"},
+			expected: "artifact_name=release-1\n",
 		},
 		{
 			initfunc: func() {
 				assert.Nil(t, ioutil.WriteFile("output.txt", []byte{}, 0755))
 			},
 			name: "write artifact_info file to output.txt",
-			argv: []string{"cp", ":/etc/mender/artifact_info", "output.txt"},
+			argv: []string{"mender-artifact", "cp", ":/etc/mender/artifact_info", "output.txt"},
 			verifyTestFunc: func(imgpath string) {
 				data, err := ioutil.ReadFile("output.txt")
 				assert.Nil(t, err)
@@ -95,7 +113,7 @@ func TestCopy(t *testing.T) {
 				// so that it does not shadow the previous test
 				assert.Nil(t, ioutil.WriteFile("output.txt", []byte("artifact_name=foobar"), 0644))
 			},
-			argv: []string{"cp", "output.txt", ":/etc/mender/artifact_info"},
+			argv: []string{"mender-artifact", "cp", "output.txt", ":/etc/mender/artifact_info"},
 			verifyTestFunc: func(imgpath string) {
 				// as copy out of image is already verified to function, we
 				// will now use this functionality to confirm that the write
@@ -107,6 +125,10 @@ func TestCopy(t *testing.T) {
 				assert.Nil(t, err, "got unexpected error: %v", err)
 				assert.Equal(t, "artifact_name=foobar", out.String())
 			},
+		},
+		{
+			name: "data on stdin",
+			argv: []string{"mender-artifact", "cp", ":/etc/mender/artifact_info", "-"},
 		},
 	}
 
@@ -126,21 +148,39 @@ func TestCopy(t *testing.T) {
 
 			testargv = argvAddImgPath(imgpath, testargv)
 
+			fmt.Println(testargv)
+
+			os.Args = testargv
+
 			if test.initfunc != nil {
 				test.initfunc()
 			}
 
-			cmd := exec.Command(filepath.Join(dir, "mender-artifact"), testargv...)
-			var actual bytes.Buffer
-			cmd.Stdout = &actual
-			var errout bytes.Buffer
-			cmd.Stderr = &errout
+			old := os.Stdout // keep backup of the real stdout
+			r, w, err := os.Pipe()
+			if err != nil {
+				log.Fatal(err)
+			}
+			os.Stdout = w
 
-			err = cmd.Run()
+			outC := make(chan string)
+			// copy the output in a separate goroutine so printing can't block indefinitely
+			go func() {
+				var buf bytes.Buffer
+				io.Copy(&buf, r)
+				outC <- buf.String()
+			}()
+
+			err = run()
+
+			// back to normal state
+			w.Close()
+			os.Stdout = old // restoring the real stdout
+			out := <-outC
 
 			if err != nil {
 				if test.err != "" {
-					assert.Equal(t, test.err, strings.TrimSpace(errout.String()), test.name)
+					assert.Equal(t, test.err, err.Error(), test.name)
 				} else {
 					t.Fatal(fmt.Sprintf("cmd: %s failed with err: %v", test.name, err))
 				}
@@ -148,7 +188,8 @@ func TestCopy(t *testing.T) {
 				if test.verifyTestFunc != nil {
 					test.verifyTestFunc(imgpath)
 				} else {
-					assert.Equal(t, test.expected, strings.TrimSpace(actual.String()), test.name)
+					fmt.Println(out)
+					assert.Equal(t, test.expected, out, test.name)
 				}
 			}
 		}

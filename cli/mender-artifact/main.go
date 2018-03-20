@@ -215,13 +215,6 @@ func run() error {
 		Action:      Cat,
 	}
 
-	append := cli.Command{
-		Name:        "append",
-		Usage:       "append [artifact|sdimg]:<filepath> <src>",
-		Description: "append or prepend to  file on a mender artifact or sdimg, where the placement of the '-' decides the append or prepend functionality",
-		Action:      Append,
-	}
-
 	app.Commands = []cli.Command{
 		writeCommand,
 		readCommand,
@@ -230,7 +223,6 @@ func run() error {
 		modify,
 		copy,
 		cat,
-		append,
 	}
 	return app.Run(os.Args)
 }
