@@ -7,6 +7,8 @@ ceb1b36ff073bd13d9806d4615b931707768ca9023805620acc32dd1cfc2f680  vendor/github.
 #
 # BSD 3 Clause licenses.
 2eb550be6801c1ea434feba53bf6d12e7c71c90253e0a9de4a4f46cf88b56477  vendor/github.com/pmezard/go-difflib/LICENSE
+2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067  vendor/golang.org/x/sys/LICENSE
+2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067  vendor/golang.org/x/crypto/LICENSE
 #
 # ISC licenses.
 3525392c6db3b804af76980b2c560ee9ec1abdadd907d76a26091df7c78f3a25  vendor/github.com/davecgh/go-spew/LICENSE
