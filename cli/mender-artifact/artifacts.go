@@ -15,9 +15,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -221,76 +218,6 @@ func repack(artifactName string, from io.Reader, to io.Writer, key []byte,
 	return ar, err
 }
 
-// oblivious to whether the file exists beforehand
-func modifyName(name, image string) error {
-	data := fmt.Sprintf("artifact_name=%s", name)
-	tmpNameFile, err := ioutil.TempFile("", "mender-name")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmpNameFile.Name())
-	defer tmpNameFile.Close()
-
-	if _, err = tmpNameFile.WriteString(data); err != nil {
-		return err
-	}
-
-	if err = tmpNameFile.Close(); err != nil {
-		return err
-	}
-
-	return debugfsReplaceFile("/etc/mender/artifact_info",
-		tmpNameFile.Name(), image)
-}
-
-func modifyServerCert(newCert, image string) error {
-	_, err := os.Stat(newCert)
-	if err != nil {
-		return errors.Wrap(err, "invalid server certificate")
-	}
-	return debugfsReplaceFile("/etc/mender/server.crt", newCert, image)
-}
-
-func modifyVerificationKey(newKey, image string) error {
-	_, err := os.Stat(newKey)
-	if err != nil {
-		return errors.Wrapf(err, "invalid verification key")
-	}
-	return debugfsReplaceFile("/etc/mender/artifact-verify-key.pem", newKey, image)
-}
-
-func modifyMenderConfVar(confKey, confValue, image string) error {
-	confFile := "/etc/mender/mender.conf"
-	dir, err := debugfsCopyFile(confFile, image)
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(dir)
-
-	raw, err := ioutil.ReadFile(filepath.Join(dir, filepath.Base(confFile)))
-	if err != nil {
-		return err
-	}
-
-	var rawData interface{}
-	if err = json.Unmarshal(raw, &rawData); err != nil {
-		return err
-	}
-	rawData.(map[string]interface{})[confKey] = confValue
-
-	data, err := json.Marshal(&rawData)
-	if err != nil {
-		return err
-	}
-
-	if err = ioutil.WriteFile(filepath.Join(dir, filepath.Base(confFile)), data, 0755); err != nil {
-		return err
-	}
-
-	return debugfsReplaceFile(confFile, filepath.Join(dir,
-		filepath.Base(confFile)), image)
-}
-
 func repackArtifact(artifact, rootfs, key, newName string) error {
 	art, err := os.Open(artifact)
 	if err != nil {
@@ -319,42 +246,6 @@ func repackArtifact(artifact, rootfs, key, newName string) error {
 	}
 
 	return os.Rename(tmp.Name(), artifact)
-}
-
-func modifyExisting(c *cli.Context, image string) error {
-	if c.String("name") != "" {
-		if err := modifyName(c.String("name"), image); err != nil {
-			return err
-		}
-	}
-
-	if c.String("server-uri") != "" {
-		if err := modifyMenderConfVar("ServerURL",
-			c.String("server-uri"), image); err != nil {
-			return err
-		}
-	}
-
-	if c.String("server-cert") != "" {
-		if err := modifyServerCert(c.String("server-cert"), image); err != nil {
-			return err
-		}
-	}
-
-	if c.String("verification-key") != "" {
-		if err := modifyVerificationKey(c.String("verification-key"), image); err != nil {
-			return err
-		}
-	}
-
-	if c.String("tenant-token") != "" {
-		if err := modifyMenderConfVar("TenantToken",
-			c.String("tenant-token"), image); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func processSdimg(image string) ([]partition, error) {
@@ -416,31 +307,6 @@ func repackSdimg(partitions []partition, image string) error {
 		}
 	}
 	return nil
-}
-
-func processModifyKey(keyPath string) ([]byte, error) {
-	// extract public key from it private counterpart
-	if keyPath != "" {
-		priv, err := getKey(keyPath)
-		if err != nil {
-			return nil, errors.Wrap(err, "can not get private key")
-		}
-		pubKeyRaw, err := artifact.GetPublic(priv)
-		if err != nil {
-			return nil, errors.Wrap(err, "can not get private key public counterpart")
-		}
-
-		buf := &bytes.Buffer{}
-		err = pem.Encode(buf, &pem.Block{
-			Type:  "PUBLIC KEY",
-			Bytes: pubKeyRaw,
-		})
-		if err != nil {
-			return nil, errors.Wrap(err, "can not encode public key")
-		}
-		return buf.Bytes(), nil
-	}
-	return nil, nil
 }
 
 func getCandidatesForModify(path string, key []byte) ([]partition, bool, error) {
