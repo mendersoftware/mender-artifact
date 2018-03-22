@@ -153,6 +153,9 @@ func modifyMenderConfVar(confKey, confValue, image string) error {
 }
 
 func modifyExisting(c *cli.Context, image string) error {
+	if err := debugfsRunFsck(image); err != nil {
+		return err
+	}
 	if c.String("name") != "" {
 		if err := modifyName(c.String("name"), image); err != nil {
 			return err

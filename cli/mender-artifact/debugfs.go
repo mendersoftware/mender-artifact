@@ -21,9 +21,37 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/pkg/errors"
 )
+
+// From the fsck man page:
+// The exit code returned by fsck is the sum of the following conditions:
+//
+//              0      No errors
+//              1      Filesystem errors corrected
+//              2      System should be rebooted
+//              4      Filesystem errors left uncorrected
+//              8      Operational error
+//              16     Usage or syntax error
+//              32     Checking canceled by user request
+//              128    Shared-library error
+func debugfsRunFsck(image string) error {
+	cmd := exec.Command("fsck.ext4", "-a", image)
+	if err := cmd.Run(); err != nil {
+		// try to get the exit code
+		if exitError, ok := err.(*exec.ExitError); ok {
+			ws := exitError.Sys().(syscall.WaitStatus)
+			if ws.ExitStatus() == 0 || ws.ExitStatus() == 1 {
+				return nil
+			}
+			return errors.Wrap(err, "fsck error")
+		}
+		return errors.New("fsck returned unparsed error")
+	}
+	return nil
+}
 
 func debugfsCopyFile(file, image string) (string, error) {
 	tmpDir, err := ioutil.TempDir("", "mender")
