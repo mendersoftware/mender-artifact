@@ -17,7 +17,10 @@ package artifact
 import (
 	"crypto/ecdsa"
 	"crypto/rsa"
+	"golang.org/x/crypto/ed25519"
 	"testing"
+
+	"encoding/pem"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -85,6 +88,14 @@ MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEWZjqu0GV92frGjPtw3Nfcbgf94iDTstO
 mt1TI/Ccox6nzveyV5GluER2J+CWpIfxI4VOLEKVB6XLKeVe31wibY1H2TYG74YA
 TV0fjqvesoAoN7mtpi/+LolNrz51/rQI
 -----END PUBLIC KEY-----`
+
+	PublicED25519Key = `-----BEGIN ed25519 PUBLIC KEY-----
+L1GS1yHJME9gpwSil5bz06IfNDnHPp93fJDf+u5Iffw=
+-----END ed25519 PUBLIC KEY-----`
+	PrivateED25519Key = `-----BEGIN ed25519 PRIVATE KEY-----
+6WDKpnk0HygaojLpO/h74Do+fg0n3ib675hPvC2J/rwvUZLXIckwT2CnBKKXlvPT
+oh80Occ+n3d8kN/67kh9/A==
+-----END ed25519 PRIVATE KEY-----`
 
 	PublicDSAKey = `-----BEGIN PUBLIC KEY-----
 MIIBtzCCASwGByqGSM44BAEwggEfAoGBAKNcqa1Q/0s3W8OW3YlVgD2SvFUAZJv3
@@ -221,6 +232,50 @@ func TestECDSA(t *testing.T) {
 	err = v.Verify(msg, sig)
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(), "failed to parse")
+}
+
+func TestED25519Raw(t *testing.T) {
+	msg := []byte("secret message")
+
+	var ed ED25519
+	var privKey ed25519.PrivateKey
+	var pubKey ed25519.PublicKey
+	// parse strings
+	blockPrivate, _ := pem.Decode([]byte(PrivateED25519Key))
+	privKey = ed25519.PrivateKey(blockPrivate.Bytes)
+	blockPublic, _ := pem.Decode([]byte(PublicED25519Key))
+	pubKey = ed25519.PublicKey(blockPublic.Bytes)
+
+	// Acceptable usage:
+	sig, err := ed.Sign(msg, &privKey)
+	assert.NoError(t, err)
+	assert.NotNil(t, sig)
+
+	err = ed.Verify(msg, sig, &pubKey)
+	assert.NoError(t, err)
+
+	// Swap public / private key (public key for signing & private
+	// 								key for verification)
+	sig, err = ed.Sign(msg, &pubKey)
+	assert.Error(t, err)
+	assert.Contains(t, errors.Cause(err).Error(),
+		"signer: invalid ed25519 private key")
+	assert.Nil(t, sig)
+
+	err = ed.Verify(msg, sig, &privKey)
+	assert.Error(t, err)
+
+	// valid type but invalid length (same as above, but not swapping types)
+	privKey = ed25519.PrivateKey(blockPublic.Bytes)
+	pubKey = ed25519.PublicKey(blockPrivate.Bytes)
+	sig, err = ed.Sign(msg, &privKey)
+	assert.Error(t, err)
+	assert.Nil(t, sig)
+
+	err = ed.Verify(msg, sig, &pubKey)
+	assert.Error(t, err)
+	assert.Contains(t, errors.Cause(err).Error(),
+		"signer: invalid ed25519 public key size")
 }
 
 func TestECDSARaw(t *testing.T) {
