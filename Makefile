@@ -13,6 +13,8 @@ GOCYCLO ?= 15
 CGO_ENABLED=1
 export CGO_ENABLED
 
+INSTALL_DIR=cli/mender-artifact
+
 TOOLS = \
 	github.com/fzipp/gocyclo \
 	github.com/opennota/check/cmd/varcheck \
@@ -37,10 +39,10 @@ BUILDTAGS = -tags '$(TAGS)'
 endif
 
 build:
-	$(GO) build $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME) $(BUILDFILES)  
+	$(GO) build $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME) $(BUILDFILES)
 
 install:
-	$(GO) install $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
+	cd $(INSTALL_DIR) && $(GO) install $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
 
 clean:
 	$(GO) clean
@@ -67,7 +69,7 @@ extracheck:
 	echo "-- checking with govet"
 	$(GO) tool vet -unsafeptr=false $(PKGFILES_notest)
 	echo "-- checking for dead code"
-	deadcode 
+	deadcode
 	echo "-- checking with varcheck"
 	varcheck .
 	echo "-- checking cyclometric complexity > $(GOCYCLO)"
