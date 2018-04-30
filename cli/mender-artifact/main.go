@@ -210,7 +210,7 @@ func run() error {
 
 	cat := cli.Command{
 		Name:        "cat",
-		Usage:       "cat [artifact|sdimg]:<filepath>",
+		Usage:       "cat [artifact|sdimg|uefiimg]:<filepath>",
 		Description: "Cat can output a file from a mender artifact or mender image to stdout.",
 		Action:      Cat,
 	}

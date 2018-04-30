@@ -23,9 +23,14 @@ import (
 	"github.com/urfave/cli"
 )
 
+var isimg = regexp.MustCompile(`\.(mender|sdimg|uefiimg)`)
+
 func Cat(c *cli.Context) (err error) {
 	if c.NArg() != 1 {
 		return cli.NewExitError(fmt.Sprintf("Got %d arguments, wants one", c.NArg()), 1)
+	}
+	if !isimg.MatchString(c.Args().First()) {
+		return cli.NewExitError("The input image does not seem to be a valid image", 1)
 	}
 	r, err := NewPartitionReader(c.Args().First(), c.String("key"))
 	if err != nil {
@@ -128,8 +133,6 @@ func parseCLIOptions(c *cli.Context) int {
 	if err != nil {
 		return criterror
 	}
-
-	isimg := regexp.MustCompile(`\.(mender|sdimg)`)
 
 	// no data on stdin
 	if finfo.Mode()&os.ModeNamedPipe == 0 {
