@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func testSetupTeardown(t *testing.T) (artifact string, sdimg string, f func()) {
@@ -130,6 +131,18 @@ func TestCopy(t *testing.T) {
 			name: "data on stdin",
 			argv: []string{"mender-artifact", "cp", ":/etc/mender/artifact_info", "-"},
 		},
+		{
+			name: "write and read from the data partition",
+			argv: []string{"mender-artifact", "cp", "output.txt", ":/data/test.txt"},
+			verifyTestFunc: func(imgpath string) {
+				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/data/test.txt")
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				err := cmd.Run()
+				require.Nil(t, err, "catting the copied file does not function")
+				assert.Equal(t, "artifact_name=foobar", out.String())
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -182,6 +195,7 @@ func TestCopy(t *testing.T) {
 				if test.err != "" {
 					assert.Equal(t, test.err, err.Error(), test.name)
 				} else {
+					t.Log(out)
 					t.Fatal(fmt.Sprintf("cmd: %s failed with err: %v", test.name, err))
 				}
 			} else {
@@ -198,7 +212,7 @@ func TestCopy(t *testing.T) {
 
 func argvAddImgPath(imgpath string, sarr []string) []string {
 	for i, str := range sarr {
-		if strings.Contains(str, "artifact_info") {
+		if strings.Contains(str, "artifact_info") || strings.Contains(str, "test.txt") {
 			sarr[i] = imgpath + str
 		}
 	}
