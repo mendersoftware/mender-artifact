@@ -215,6 +215,20 @@ func run() error {
 		Action:      Cat,
 	}
 
+	install := cli.Command{
+		Name:        "install",
+		Usage:       "install -m<permissions> <src> <dst>",
+		Description: "Installs a file from the host filesystem to the artifact or sdimg.",
+		Action:      Install,
+	}
+
+	install.Flags = []cli.Flag{
+		cli.IntFlag{
+			Name:  "mode, m",
+			Usage: "Set the permission bits in the file",
+		},
+	}
+
 	app.Commands = []cli.Command{
 		writeCommand,
 		readCommand,
@@ -223,6 +237,7 @@ func run() error {
 		modify,
 		copy,
 		cat,
+		install,
 	}
 	return app.Run(os.Args)
 }

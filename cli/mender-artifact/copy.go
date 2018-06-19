@@ -108,13 +108,51 @@ func doCopy(c *cli.Context, repack *bool, r *io.ReadCloser,
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 	case parseError:
-		return cli.NewExitError(fmt.Sprintln("no artifact or image provided"), 1)
+		return cli.NewExitError(fmt.Sprintln("no artifact or sdimage provided"), 1)
 	case argerror:
 		return cli.NewExitError(fmt.Sprintf("got %d arguments, wants two", c.NArg()), 1)
 	default:
 		return cli.NewExitError("critical error", 1)
 	}
 	return nil
+}
+
+// Install installs a file from the host filesystem onto either
+// a mender artifact, or an sdimg.
+func Install(c *cli.Context) (err error) {
+	var r io.ReadCloser
+	var w PartitionReadWriteClosePacker
+	switch parseCLIOptions(c) {
+	case copyin:
+		var perm os.FileMode
+		if c.Int("mode") == 0 {
+			return cli.NewExitError("File permissions needs to be set, if you are simply copying, the cp command should fit your needs", 1)
+		}
+		perm = os.FileMode(c.Int("mode"))
+		r, err = os.OpenFile(c.Args().First(), os.O_RDWR, perm)
+		defer r.Close()
+		if err != nil {
+			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+		}
+		w, err = NewPartitionFile(c.Args().Get(1), c.String("key"))
+		defer w.Close()
+		if err != nil {
+			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+		}
+		if _, err = io.Copy(w, r); err != nil {
+			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+		}
+		if err = w.Repack(); err != nil {
+			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+		}
+		return nil
+	case parseError:
+		return cli.NewExitError("No artifact or sdimg provided", 1)
+	case argerror:
+		return cli.NewExitError(fmt.Sprintf("got %d arguments, wants two", c.NArg()), 1)
+	default:
+		return cli.NewExitError("Unrecognized parse error", 1)
+	}
 }
 
 // enumerate cli-options
