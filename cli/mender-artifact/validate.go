@@ -56,7 +56,7 @@ func validate(art io.Reader, key []byte) error {
 		return err
 	}
 	if validationError != nil {
-		Log.Debug("error validating signature: %s", validationError.Error())
+		Log.Debugf("error validating signature: %s", validationError.Error())
 		return ErrInvalidSignature
 	}
 	return nil

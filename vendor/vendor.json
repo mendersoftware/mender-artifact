@@ -44,6 +44,12 @@
 			"revision": "d77da356e56a7428ad25149ca77381849a6a5232"
 		},
 		{
+			"checksumSHA1": "wnEANt4k5X/KGwoFyfSSnpxULm4=",
+			"path": "github.com/stretchr/testify/require",
+			"revision": "f35b8ab0b5a2cef36673838d662e249dd9c94686",
+			"revisionTime": "2018-05-06T18:05:49Z"
+		},
+		{
 			"checksumSHA1": "LMu1NsthSqcXfKu0m6YGPAmwBcY=",
 			"comment": "v1.19.1",
 			"path": "github.com/urfave/cli",
@@ -54,6 +60,11 @@
 			"path": "golang.org/x/sys/unix",
 			"revision": "f8f1a95d4d780e4e1a82ed8289c8806e4dba7733",
 			"revisionTime": "2018-03-20T08:57:03Z"
+		},
+		{
+			"checksumSHA1": "n9yy9EH83S4k4hv41FQTrnLARDw=",
+			"path": "vendor",
+			"revision": ""
 		}
 	],
 	"rootPath": "github.com/mendersoftware/mender-artifact"
