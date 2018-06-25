@@ -260,11 +260,9 @@ func processSdimg(image string) ([]partition, error) {
 	reg := regexp.MustCompile(`(?m)^[[:blank:]][0-9]+[[:blank:]]+([0-9]+)s[[:blank:]]+[0-9]+s[[:blank:]]+([0-9]+)s`)
 	partitionMatch := reg.FindAllStringSubmatch(string(out), -1)
 
-	// IMPORTANT: we are assuming standard Mender formating here:
-	// only 2nd and 3rd partitions are rootfs we are going to modify
 	if len(partitionMatch) == 4 {
 		// we will have three groups per each entry in the partition table
-		for i := 1; i <= 3; i++ {
+		for i := 0; i < 4; i++ {
 			single := partitionMatch[i]
 			partitions = append(partitions, partition{offset: single[1], size: single[2]})
 		}

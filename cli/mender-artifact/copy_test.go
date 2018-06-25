@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testSetupTeardown(t *testing.T) (artifact string, sdimg string, f func()) {
+func testSetupTeardown(t *testing.T) (artifact, sdimg, fatsdimg string, f func()) {
 
 	tmp, err := ioutil.TempDir("", "mender-modify")
 	assert.NoError(t, err)
@@ -46,7 +46,11 @@ func testSetupTeardown(t *testing.T) (artifact string, sdimg string, f func()) {
 	assert.NoError(t, err)
 	sdimg = filepath.Join(tmp, "mender_test.sdimg")
 
-	return artifact, sdimg, func() {
+	err = copyFile("mender_test_fat.sdimg", filepath.Join(tmp, "mender_test_fat.sdimg"))
+	require.Nil(t, err)
+	fatsdimg = filepath.Join(tmp, "mender_test_fat.sdimg")
+
+	return artifact, sdimg, fatsdimg, func() {
 		os.RemoveAll(tmp)
 	}
 }
@@ -143,18 +147,63 @@ func TestCopy(t *testing.T) {
 				assert.Equal(t, "artifact_name=foobar", out.String())
 			},
 		},
+		{
+			name: "write and read from the boot partition",
+			initfunc: func() {
+				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+			},
+			argv: []string{"mender-artifact", "cp", "foo.txt", ":/boot/test.txt"},
+			verifyTestFunc: func(imgpath string) {
+				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/boot/test.txt")
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				err := cmd.Run()
+				require.Nil(t, err, fmt.Sprintf("catting the copied file does not function: %v", err))
+				assert.Equal(t, "foobar", out.String())
+			},
+		},
+		{
+			name: "write and read from the boot/efi partition",
+			initfunc: func() {
+				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+			},
+			argv: []string{"mender-artifact", "cp", "foo.txt", ":/boot/efi/test.txt"},
+			verifyTestFunc: func(imgpath string) {
+				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/boot/efi/test.txt")
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				err := cmd.Run()
+				require.Nil(t, err, fmt.Sprintf("catting the copied file does not function: %v", err))
+				assert.Equal(t, "foobar", out.String())
+			},
+		},
+		{
+			name: "write and read from the boot/grub partition",
+			initfunc: func() {
+				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+			},
+			argv: []string{"mender-artifact", "cp", "foo.txt", ":/boot/grub/test.txt"},
+			verifyTestFunc: func(imgpath string) {
+				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/boot/grub/test.txt")
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				err := cmd.Run()
+				require.Nil(t, err, fmt.Sprintf("catting the copied file does not function: %v", err))
+				assert.Equal(t, "foobar", out.String())
+			},
+		},
 	}
 
 	for _, test := range tests {
 		// create a copy of the working images
-		artifact, sdimg, closer := testSetupTeardown(t)
+		artifact, sdimg, fatsdimg, closer := testSetupTeardown(t)
 		defer closer()
 
 		fmt.Printf("---------- Running test -----------\n%s\n-----------------------------------\n", test.name)
 		fmt.Println()
 
 		// Run once for the artifact, and once for the sdimg
-		for _, imgpath := range []string{artifact, sdimg} {
+		for _, imgpath := range []string{artifact, sdimg, fatsdimg} {
 			// buffer the argv vector, since it is used twice
 			var testargv = make([]string, len(test.argv))
 			copy(testargv, test.argv)

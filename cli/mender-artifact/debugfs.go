@@ -88,7 +88,23 @@ func debugfsCopyFile(file, image string) (string, error) {
 	return tmpDir, nil
 }
 
-func debugfsReplaceFile(imageFile, newFile, image string) error {
+func debugfsReplaceFile(imageFile, newFile, image string) (err error) {
+	// First check that the path exists. (cd path)
+	cmd := fmt.Sprintf("cd %s\nclose", filepath.Dir(imageFile))
+	if err = executeCommand(cmd, image); err != nil {
+		return err
+	}
+	// remove command can fail, if the file does not already exist, but this is not critical
+	// so simply ignore the error.
+	cmd = fmt.Sprintf("rm %s\nclose", imageFile)
+	executeCommand(cmd, image)
+	// Write to the partition
+	cmd = fmt.Sprintf("cd %s\nwrite %s %s\nclose", filepath.Dir(imageFile), newFile, filepath.Base(imageFile))
+	return executeCommand(cmd, image)
+}
+
+// executeCommand takes a command string and passes it on to debugfs on the image given.
+func executeCommand(cmdstr, image string) error {
 	scr, err := ioutil.TempFile("", "mender-debugfs")
 	if err != nil {
 		return errors.Wrap(err, "debugfs: create sync script file")
@@ -101,10 +117,7 @@ func debugfsReplaceFile(imageFile, newFile, image string) error {
 		return errors.Wrap(err, "debugfs: set script file exec flag")
 	}
 
-	syncScript := fmt.Sprintf("cd %s\nrm %s\nwrite %s %s\nclose",
-		filepath.Dir(imageFile), filepath.Base(imageFile),
-		newFile, filepath.Base(imageFile))
-	if _, err = scr.WriteString(syncScript); err != nil {
+	if _, err = scr.WriteString(cmdstr); err != nil {
 		return errors.Wrap(err, "debugfs: store sync script file")
 	}
 
@@ -120,8 +133,10 @@ func debugfsReplaceFile(imageFile, newFile, image string) error {
 	if err != nil {
 		return err
 	}
-	if len(data) != 0 && strings.Contains(string(data), "Filesystem not open") || strings.Contains(string(data), "cd: File not found") {
-		return errors.New("filesystem not open")
+	// Remove the debugfs standard message
+	datastr := strings.TrimPrefix(string(data), "debugfs 1.42.13 (17-May-2015)\n")
+	if len(datastr) > 0 {
+		return fmt.Errorf("debugfs: error running command: %q, err: %s", cmdstr, datastr)
 	}
 
 	if err := cmd.Wait(); err != nil {
