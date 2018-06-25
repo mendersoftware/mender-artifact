@@ -15,9 +15,11 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -93,10 +95,6 @@ func parseImgPath(imgpath string) (imgname, fpath string, err error) {
 		return "", "", errors.New("failed to parse image path")
 	}
 
-	if len(paths[0]) < 2 {
-		return "", "", errors.New("invalid image or artifact path given")
-	}
-
 	if len(paths[1]) == 0 {
 		return "", "", errors.New("please enter a path into the image")
 	}
@@ -111,14 +109,23 @@ func NewPartitionFile(imgpath, key string) (PartitionReadWriteClosePacker, error
 	if err != nil {
 		return nil, err
 	}
-
 	modcands, isArtifact, err := getCandidatesForModify(imgname, []byte(key))
 	if err != nil {
 		return nil, err
 	}
-
-	modcands[0].name = imgname
+	for i := 0; i < len(modcands); i++ {
+		modcands[i].name = imgname
+	}
 	if isArtifact {
+		// Strip the extra boot path
+		if strings.HasPrefix(fpath, "/boot") {
+			ts := strings.TrimPrefix(fpath, "/boot")
+			if strings.HasPrefix(ts, "/efi") {
+				fpath = strings.TrimPrefix(ts, "/efi")
+			} else if strings.HasPrefix(ts, "/grub") {
+				fpath = strings.Trim(ts, "/grub")
+			}
+		}
 		pf := &partitionFile{
 			key:           key,
 			partition:     modcands[0],
@@ -126,34 +133,101 @@ func NewPartitionFile(imgpath, key string) (PartitionReadWriteClosePacker, error
 		}
 		return pf, nil
 	}
-	modcands[1].name = imgname
-	var ps partitions = []partitionFile{
-		partitionFile{
-			partition:     modcands[0],
-			imagefilepath: fpath,
-		},
-		partitionFile{
-			partition:     modcands[1],
-			imagefilepath: fpath,
-		},
-	}
-
 	// Only return the data partition
 	if strings.HasPrefix(fpath, "/data") {
 		// The data dir is not a directory in the data partition
 		fpath = strings.TrimPrefix(fpath, "/data")
-		if len(modcands) == 3 {
-			modcands[2].name = imgname
-			ps = []partitionFile{
+		if len(modcands) == 4 {
+			return partitions{
 				partitionFile{
-					partition:     modcands[2],
+					partition:     modcands[3], // Data partition
 					imagefilepath: fpath,
 				},
-			}
+			}, nil
+		}
+		return nil, errors.New("data partition not found")
+
+	}
+	// Only return the boot-partition
+	if strings.HasPrefix(fpath, "/boot/") {
+		tps, err := handleBootPrefix(fpath, modcands)
+		if err != nil {
+			return nil, err
+		}
+		if tps != nil {
+			return tps, nil
 		}
 	}
-
+	// return a virtual partition read writer, wrapping both rootfsA and B partitions
+	var ps partitions = []partitionFile{
+		partitionFile{
+			partition:     modcands[1], // rootfsA
+			imagefilepath: fpath,
+		},
+		partitionFile{
+			partition:     modcands[2], // rootfsB
+			imagefilepath: fpath,
+		},
+	}
 	return ps, nil
+}
+
+func handleBootPrefix(fpath string, modcands []partition) (PartitionReadWriteClosePacker, error) {
+	// Map /boot/{efi,grub} to /boot
+	if strings.HasPrefix(fpath, "/boot/efi/") {
+		fpath = strings.TrimPrefix(fpath, "/boot/efi/")
+	} else if strings.HasPrefix(fpath, "/boot/grub") {
+		fpath = strings.TrimPrefix(fpath, "/boot/grub/")
+	} else { // /boot prefix
+		fpath = strings.TrimPrefix(fpath, "/boot/")
+	}
+	// Check if the file partitionFile is on an ext of fat file-system
+	fstype, err := imgFilesystemType(modcands[0].path)
+	if err != nil {
+		return nil, errors.Wrap(err, "partition: error reading file-system type on the boot partition")
+	}
+	// Handle ext and fat independently
+	switch fstype {
+	case fat:
+		return &fatPartitionFile{
+			partition:     modcands[0],
+			imageFilePath: fpath,
+		}, nil
+	case ext:
+		return partitions{
+			partitionFile{
+				partition:     modcands[0], // boot partition
+				imagefilepath: fpath,
+			},
+		}, nil
+	case unsupported:
+		return nil, errors.New("partition: handleBootPrefix: The mender-artifact tool did not recognize this image type")
+
+	}
+	return nil, nil
+}
+
+const (
+	fat = iota
+	ext
+	unsupported
+)
+
+// imgFilesystemType tries the mtools and tune2fs tools in order to determine
+// the filetype of the image given.
+func imgFilesystemType(imgpath string) (int, error) {
+	cmd := exec.Command("blkid", "-s", "TYPE", imgpath)
+	buf := bytes.NewBuffer(nil)
+	cmd.Stdout = buf
+	if err := cmd.Run(); err != nil {
+		return unsupported, errors.Wrap(err, "imgFilesystemType: blkid command failed")
+	}
+	if strings.Contains(buf.String(), `TYPE="vfat"`) {
+		return fat, nil
+	} else if strings.Contains(buf.String(), `TYPE="ext`) {
+		return ext, nil
+	}
+	return unsupported, nil
 }
 
 // NewPartitionReader returns a reader for a file located inside
@@ -231,4 +305,56 @@ func (p *partitionFile) Repack() error {
 		p.key, filepath.Base(p.name))
 	os.Remove(p.path) // ignore error, file exists in /tmp only
 	return err
+}
+
+// fatPartitionFile wraps a partition struct with a reader/writer for fat filesystems
+type fatPartitionFile struct {
+	partition
+	imageFilePath string // The local filesystem path to the image
+}
+
+// Read Dump the file contents to stdout, and capture, using MTools' mtype
+func (f *fatPartitionFile) Read(b []byte) (n int, err error) {
+	cmd := exec.Command("mtype", "-i", f.path, "::/"+f.imageFilePath)
+	dbuf := bytes.NewBuffer(nil)
+	cmd.Stdout = dbuf // capture Stdout
+	if err = cmd.Run(); err != nil {
+		return 0, errors.Wrap(err, "fatPartitionFile: Read: ")
+	}
+	return copy(b, dbuf.Bytes()), io.EOF
+}
+
+// Write Writes to the underlying fat image, using MTools' mcopy
+func (f *fatPartitionFile) Write(b []byte) (n int, err error) {
+	ft, err := ioutil.TempFile("", "mendertmp")
+	if err != nil {
+		return 0, errors.Wrap(err, "fatpartitionFile: Write: ")
+	}
+	defer ft.Close()
+	defer os.Remove(ft.Name())
+	if _, err := ft.WriteAt(b, 0); err != nil {
+		return 0, errors.Wrap(err, "fatpartitionFile: Write: ")
+	}
+	// Use MTools to write to the fat-partition
+	cmd := exec.Command("mcopy", "-i", f.path, ft.Name(), "::/"+f.imageFilePath)
+	data := bytes.NewBuffer(nil)
+	cmd.Stdout = data
+	if err = cmd.Run(); err != nil {
+		return 0, errors.Wrap(err, "fatpartitionFile: Write: ")
+	}
+	return len(b), nil
+}
+
+func (f *fatPartitionFile) Close() error {
+	if f != nil {
+		os.Remove(f.path) // Ignore error for tmp-dir
+	}
+	return nil
+}
+
+// Wrapper to satisfy the ReadWritePackCloser interface
+func (f *fatPartitionFile) Repack() error {
+	// make modified images part of sdimg again
+	p := []partition{f.partition}
+	return repackSdimg(p, f.name)
 }
