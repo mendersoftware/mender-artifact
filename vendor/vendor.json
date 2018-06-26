@@ -44,9 +44,9 @@
 			"revision": "d77da356e56a7428ad25149ca77381849a6a5232"
 		},
 		{
-			"checksumSHA1": "wnEANt4k5X/KGwoFyfSSnpxULm4=",
+			"checksumSHA1": "P9FJpir2c4G5PA46qEkaWy3l60U=",
 			"path": "github.com/stretchr/testify/require",
-			"revision": "f35b8ab0b5a2cef36673838d662e249dd9c94686",
+			"revision": "d77da356e56a7428ad25149ca77381849a6a5232",
 			"revisionTime": "2018-05-06T18:05:49Z"
 		},
 		{
