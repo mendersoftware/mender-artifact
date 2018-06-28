@@ -32,7 +32,7 @@ func Cat(c *cli.Context) (err error) {
 	if !isimg.MatchString(c.Args().First()) {
 		return cli.NewExitError("The input image does not seem to be a valid image", 1)
 	}
-	r, err := NewPartitionReader(c.Args().First(), c.String("key"))
+	r, err := NewPartitionFile(c.Args().First(), c.String("key"))
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)
 	}
@@ -47,63 +47,28 @@ func Copy(c *cli.Context) (err error) {
 	var r io.ReadCloser
 	var w io.WriteCloser
 
-	var repack bool
-	if err := doCopy(c, &repack, &r, &w); err != nil {
-		return err
-	}
-
-	_, err = io.Copy(w, r)
-	if err != nil {
-		return cli.NewExitError(err.Error(), 1)
-	}
-
-	// Only repack in case of writing to an image, a read will not change the image,
-	// and thus we spare a fair few seconds not repacking it.
-	if repack {
-		wpc, ok := w.(PartitionPacker)
-		if !ok {
-			return cli.NewExitError("critical implementation error. Image cannot be repacked", 1)
-		}
-		if err = wpc.Repack(); err != nil {
-			return cli.NewExitError(fmt.Sprintf("failed to repack image: %v", err), 1)
-		}
-
-	}
-	if err = w.Close(); err != nil {
-		return err
-	}
-	return r.Close()
-}
-
-func doCopy(c *cli.Context, repack *bool, r *io.ReadCloser,
-	w *io.WriteCloser) error {
-
-	var err error
-
 	switch parseCLIOptions(c) {
 	case copyin:
-		*r, err = os.OpenFile(c.Args().First(), os.O_CREATE|os.O_RDWR, 0655)
+		r, err = os.OpenFile(c.Args().First(), os.O_CREATE|os.O_RDWR, 0655)
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		*w, err = NewPartitionWritePacker(c.Args().Get(1), c.String("key"))
+		w, err = NewPartitionFile(c.Args().Get(1), c.String("key"))
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		*repack = true
 	case copyinstdin:
-		*r = os.Stdin
-		*w, err = NewPartitionWritePacker(c.Args().First(), c.String("key"))
+		r = os.Stdin
+		w, err = NewPartitionFile(c.Args().First(), c.String("key"))
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		*repack = true
 	case copyout:
-		*r, err = NewPartitionReader(c.Args().First(), c.String("key"))
+		r, err = NewPartitionFile(c.Args().First(), c.String("key"))
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		*w, err = os.OpenFile(c.Args().Get(1), os.O_CREATE|os.O_RDWR, 0655)
+		w, err = os.OpenFile(c.Args().Get(1), os.O_CREATE|os.O_RDWR, 0655)
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
@@ -114,14 +79,23 @@ func doCopy(c *cli.Context, repack *bool, r *io.ReadCloser,
 	default:
 		return cli.NewExitError("critical error", 1)
 	}
-	return nil
+
+	_, err = io.Copy(w, r)
+	if err != nil {
+		return cli.NewExitError(err.Error(), 1)
+	}
+
+	if err = w.Close(); err != nil {
+		return err
+	}
+	return r.Close()
 }
 
 // Install installs a file from the host filesystem onto either
 // a mender artifact, or an sdimg.
 func Install(c *cli.Context) (err error) {
 	var r io.ReadCloser
-	var w PartitionReadWriteClosePacker
+	var w io.WriteCloser
 	switch parseCLIOptions(c) {
 	case copyin:
 		var perm os.FileMode
@@ -140,9 +114,6 @@ func Install(c *cli.Context) (err error) {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 		if _, err = io.Copy(w, r); err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
-		}
-		if err = w.Repack(); err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 		return nil
