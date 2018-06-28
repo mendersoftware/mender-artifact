@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 
@@ -134,8 +135,13 @@ func executeCommand(cmdstr, image string) error {
 		return err
 	}
 	// Remove the debugfs standard message
-	datastr := strings.TrimPrefix(string(data), "debugfs 1.42.13 (17-May-2015)\n")
-	if len(datastr) > 0 {
+	reg := regexp.MustCompile("^debugfs.*\\n")
+	loc := reg.FindIndex(data)
+	if len(loc) == 0 {
+		return fmt.Errorf("debugfs: prompt not found in: %s", string(data))
+	}
+	datastr := string(data[loc[1]-1]) // Strip debugfs: (version) ...
+	if len(datastr) > 1 {
 		return fmt.Errorf("debugfs: error running command: %q, err: %s", cmdstr, datastr)
 	}
 
