@@ -51,6 +51,7 @@ func modifyArtifact(c *cli.Context) error {
 	}
 
 	if len(modifyCandidates) > 1 || isArtifact {
+		modifyCandidates = modifyCandidates[0:1] // Strip the data partition
 		for _, mc := range modifyCandidates {
 			defer os.Remove(mc.path)
 		}

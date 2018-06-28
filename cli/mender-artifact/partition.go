@@ -138,6 +138,21 @@ func NewPartitionFile(imgpath, key string) (PartitionReadWriteClosePacker, error
 		},
 	}
 
+	// Only return the data partition
+	if strings.HasPrefix(fpath, "/data") {
+		// The data dir is not a directory in the data partition
+		fpath = strings.TrimPrefix(fpath, "/data")
+		if len(modcands) == 3 {
+			modcands[2].name = imgname
+			ps = []partitionFile{
+				partitionFile{
+					partition:     modcands[2],
+					imagefilepath: fpath,
+				},
+			}
+		}
+	}
+
 	return ps, nil
 }
 

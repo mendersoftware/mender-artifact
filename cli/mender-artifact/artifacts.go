@@ -264,7 +264,7 @@ func processSdimg(image string) ([]partition, error) {
 	// only 2nd and 3rd partitions are rootfs we are going to modify
 	if len(partitionMatch) == 4 {
 		// we will have three groups per each entry in the partition table
-		for i := 1; i < 3; i++ {
+		for i := 1; i <= 3; i++ {
 			single := partitionMatch[i]
 			partitions = append(partitions, partition{offset: single[1], size: single[2]})
 		}
