@@ -56,7 +56,11 @@ get-tools:
 
 check: test extracheck
 
-test:
+tooldep:
+	echo "check if mtools is installed on the system"
+	mtools --version
+
+test: tooldep
 	$(GO) test -v $(PKGS)
 
 extracheck:
@@ -94,4 +98,4 @@ coverage:
 	rm -f coverage-tmp.txt
 
 .PHONY: build clean get-tools test check \
-	cover htmlcover coverage
+	cover htmlcover coverage tooldep
