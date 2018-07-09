@@ -77,7 +77,7 @@ func TestCopy(t *testing.T) {
 		{
 			name: "no mender artifact or sdimg provided",
 			argv: []string{"mender-artifact", "cp", "foobar", "output.txt"},
-			err:  "no artifact or image provided\n",
+			err:  "no artifact or sdimage provided\n",
 		},
 		{
 			name: "got 1 arguments, wants two",
@@ -143,6 +143,56 @@ func TestCopy(t *testing.T) {
 				assert.Equal(t, "artifact_name=foobar", out.String())
 			},
 		},
+		{
+			name: "Install: Error on no file permissions given",
+			argv: []string{"mender-artifact", "install", "testkey", ":/etc/mender/testkey.key"},
+			err:  "File permissions needs to be set, if you are simply copying, the cp command should fit your needs",
+		},
+		{
+			name: "Install: Error on parse error",
+			argv: []string{"mender-artifact", "install", "foo.txt", "nosdimg"},
+			err:  "No artifact or sdimg provided",
+		},
+		{
+			name: "Install: Error on  wrong number of arguments given",
+			argv: []string{"mender-artifact", "install", "foo.txt", "bar.txt", ":/some/path/file.txt"},
+			err:  "got 3 arguments, wants two",
+		},
+		{
+			name: "Install file, standard permissions (0600)",
+			initfunc: func() {
+				require.Nil(t, ioutil.WriteFile("testkey", []byte("foobar"), 0644))
+			},
+			argv: []string{"mender-artifact", "install", "-m", "0600", "testkey", ":/etc/mender/testkey.key"},
+			verifyTestFunc: func(imgpath string) {
+				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/etc/mender/testkey.key")
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				err := cmd.Run()
+				assert.Nil(t, err, "got unexpected error: %v", err)
+				assert.Equal(t, "foobar", out.String())
+				// Cleanup the testkey
+				assert.Nil(t, os.Remove("testkey"))
+				// Check that the permission bits have been set correctly!
+				pf, err := NewPartitionFile(imgpath+":/etc/mender/testkey.key", "")
+				require.Nil(t, err)
+				// Type switch on the artifact, or sdimg underlying
+				switch pf.(type) {
+				case *partitionFile:
+					imgpath := pf.(*partitionFile).path
+					cmd := exec.Command("debugfs", "-R", "stat /etc/mender/testkey.key", imgpath)
+					out, err := cmd.CombinedOutput()
+					require.Nil(t, err)
+					require.True(t, strings.Contains(string(out), "Mode:  0600"))
+				case partitions:
+					imgpath := pf.(partitions)[0].path
+					cmd := exec.Command("debugfs", "-R", "stat /etc/mender/testkey.key", imgpath)
+					out, err := cmd.CombinedOutput()
+					require.Nil(t, err)
+					require.True(t, strings.Contains(string(out), "Mode:  0600"))
+				}
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -150,8 +200,7 @@ func TestCopy(t *testing.T) {
 		artifact, sdimg, closer := testSetupTeardown(t)
 		defer closer()
 
-		fmt.Printf("---------- Running test -----------\n%s\n-----------------------------------\n", test.name)
-		fmt.Println()
+		t.Logf("---------- Running test -----------\n%s\n-----------------------------------\n", test.name)
 
 		// Run once for the artifact, and once for the sdimg
 		for _, imgpath := range []string{artifact, sdimg} {
@@ -160,8 +209,6 @@ func TestCopy(t *testing.T) {
 			copy(testargv, test.argv)
 
 			testargv = argvAddImgPath(imgpath, testargv)
-
-			fmt.Println(testargv)
 
 			os.Args = testargv
 
@@ -202,7 +249,6 @@ func TestCopy(t *testing.T) {
 				if test.verifyTestFunc != nil {
 					test.verifyTestFunc(imgpath)
 				} else {
-					fmt.Println(out)
 					assert.Equal(t, test.expected, out, test.name)
 				}
 			}
@@ -210,9 +256,12 @@ func TestCopy(t *testing.T) {
 	}
 }
 
+// Dirty hack to add the temp-path to the argument-vector.
+// NOTE - The path is added according to the strings.Contains search,
+// and thus argument files, and files in the path cannot match.
 func argvAddImgPath(imgpath string, sarr []string) []string {
 	for i, str := range sarr {
-		if strings.Contains(str, "artifact_info") || strings.Contains(str, "test.txt") {
+		if strings.Contains(str, "artifact_info") || strings.Contains(str, "testkey.key") || strings.Contains(str, "test.txt") {
 			sarr[i] = imgpath + str
 		}
 	}
