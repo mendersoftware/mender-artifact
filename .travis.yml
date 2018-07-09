@@ -8,6 +8,7 @@ go:
 install:
     # Get tools used in Makefile
     - make get-tools
+    - sudo apt-get install mtools
 
 before_script:
     # Print build info.
