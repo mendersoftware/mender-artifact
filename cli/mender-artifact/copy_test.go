@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testSetupTeardown(t *testing.T) (artifact string, sdimg string, f func()) {
+func testSetupTeardown(t *testing.T) (artifact, sdimg, fatsdimg string, f func()) {
 
 	tmp, err := ioutil.TempDir("", "mender-modify")
 	assert.NoError(t, err)
@@ -46,13 +46,16 @@ func testSetupTeardown(t *testing.T) (artifact string, sdimg string, f func()) {
 	assert.NoError(t, err)
 	sdimg = filepath.Join(tmp, "mender_test.sdimg")
 
-	return artifact, sdimg, func() {
+	err = copyFile("mender_test_fat.sdimg", filepath.Join(tmp, "mender_test_fat.sdimg"))
+	require.Nil(t, err)
+	fatsdimg = filepath.Join(tmp, "mender_test_fat.sdimg")
+
+	return artifact, sdimg, fatsdimg, func() {
 		os.RemoveAll(tmp)
 	}
 }
 
 func TestCopy(t *testing.T) {
-
 	// build the mender-artifact binary
 	assert.Nil(t, exec.Command("go", "build").Run())
 	defer os.Remove("mender-artifact")
@@ -63,6 +66,7 @@ func TestCopy(t *testing.T) {
 	tests := []struct {
 		initfunc       func()
 		stdindata      string
+		validimages    []int // artifact, sdimg, sdimg-fat - default all
 		name           string
 		argv           []string
 		expected       string
@@ -106,7 +110,6 @@ func TestCopy(t *testing.T) {
 				assert.Equal(t, strings.TrimSpace(string(data)), "artifact_name=release-1")
 			},
 		},
-
 		{
 			name: "read from output.txt and write to img",
 			initfunc: func() {
@@ -143,18 +146,77 @@ func TestCopy(t *testing.T) {
 				assert.Equal(t, "artifact_name=foobar", out.String())
 			},
 		},
+		{
+			name: "write and read from the boot partition",
+			initfunc: func() {
+				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+			},
+			validimages: []int{1, 2}, // Not valid for artifacts.
+			argv:        []string{"mender-artifact", "cp", "foo.txt", ":/uboot/test.txt"},
+			verifyTestFunc: func(imgpath string) {
+				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/uboot/test.txt")
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				err := cmd.Run()
+				require.Nil(t, err, fmt.Sprintf("write and read from the boot partition failed: catting the copied file does not function: %v", err))
+				assert.Equal(t, "foobar", out.String())
+				os.Remove("foo.txt")
+			},
+		},
+		{
+			name: "write and read from the boot/efi partition",
+			initfunc: func() {
+				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+			},
+			argv:        []string{"mender-artifact", "cp", "foo.txt", ":/boot/efi/test.txt"},
+			validimages: []int{1, 2}, // Not valid for an artifact.
+			verifyTestFunc: func(imgpath string) {
+				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/boot/efi/test.txt")
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				err := cmd.Run()
+				require.Nil(t, err, fmt.Sprintf("catting the copied file does not function: %v", err))
+				assert.Equal(t, "foobar", out.String())
+				os.Remove("foo.txt")
+			},
+		},
+		{
+			name: "write and read from the boot/grub partition",
+			initfunc: func() {
+				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+			},
+			validimages: []int{1, 2}, // Not valid for artifacts.
+			argv:        []string{"mender-artifact", "cp", "foo.txt", ":/boot/grub/test.txt"},
+			verifyTestFunc: func(imgpath string) {
+				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/boot/grub/test.txt")
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				err := cmd.Run()
+				require.Nil(t, err, fmt.Sprintf("catting the copied file does not function: %v", err))
+				assert.Equal(t, "foobar", out.String())
+				os.Remove("foo.txt")
+			},
+		},
 	}
 
 	for _, test := range tests {
 		// create a copy of the working images
-		artifact, sdimg, closer := testSetupTeardown(t)
+		artifact, sdimg, fatsdimg, closer := testSetupTeardown(t)
 		defer closer()
 
 		fmt.Printf("---------- Running test -----------\n%s\n-----------------------------------\n", test.name)
 		fmt.Println()
 
+		validimages := []string{artifact, sdimg, fatsdimg}
+		if test.validimages != nil { // Prune the images to run the tests on.
+			tmp := []string{}
+			tmp = append(tmp, validimages[test.validimages[0]])
+			tmp = append(tmp, validimages[test.validimages[1]])
+			validimages = tmp
+		}
+
 		// Run once for the artifact, and once for the sdimg
-		for _, imgpath := range []string{artifact, sdimg} {
+		for _, imgpath := range validimages {
 			// buffer the argv vector, since it is used twice
 			var testargv = make([]string, len(test.argv))
 			copy(testargv, test.argv)

@@ -49,12 +49,14 @@ func modifyArtifact(c *cli.Context) error {
 	if err != nil {
 		return cli.NewExitError("Error selecting images for modification: "+err.Error(), 1)
 	}
-
-	if len(modifyCandidates) > 1 || isArtifact {
-		modifyCandidates = modifyCandidates[0:1] // Strip the data partition
+	// strip the data and boot partitions
+	if isArtifact {
+		modifyCandidates = modifyCandidates[0:1]
 		for _, mc := range modifyCandidates {
 			defer os.Remove(mc.path)
 		}
+	} else if len(modifyCandidates) == 4 { // sdimg
+		modifyCandidates = modifyCandidates[1:2]
 	}
 
 	for _, toModify := range modifyCandidates {
