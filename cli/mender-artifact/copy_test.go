@@ -56,7 +56,6 @@ func testSetupTeardown(t *testing.T) (artifact, sdimg, fatsdimg string, f func()
 }
 
 func TestCopy(t *testing.T) {
-
 	// build the mender-artifact binary
 	assert.Nil(t, exec.Command("go", "build").Run())
 	defer os.Remove("mender-artifact")
@@ -67,6 +66,7 @@ func TestCopy(t *testing.T) {
 	tests := []struct {
 		initfunc       func()
 		stdindata      string
+		validimages    []int // artifact, sdimg, sdimg-fat - default all
 		name           string
 		argv           []string
 		expected       string
@@ -115,7 +115,6 @@ func TestCopy(t *testing.T) {
 				assert.Equal(t, strings.TrimSpace(string(data)), "artifact_name=release-1")
 			},
 		},
-
 		{
 			name: "read from output.txt and write to img",
 			initfunc: func() {
@@ -141,8 +140,9 @@ func TestCopy(t *testing.T) {
 			argv: []string{"mender-artifact", "cp", ":/etc/mender/artifact_info", "-"},
 		},
 		{
-			name: "write and read from the data partition",
-			argv: []string{"mender-artifact", "cp", "output.txt", ":/data/test.txt"},
+			name:        "write and read from the data partition",
+			argv:        []string{"mender-artifact", "cp", "output.txt", ":/data/test.txt"},
+			validimages: []int{1, 2}, // Not valid for an artifact.
 			verifyTestFunc: func(imgpath string) {
 				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/data/test.txt")
 				var out bytes.Buffer
@@ -151,6 +151,18 @@ func TestCopy(t *testing.T) {
 				require.Nil(t, err, "catting the copied file does not function")
 				assert.Equal(t, "artifact_name=foobar", out.String())
 			},
+		},
+		{
+			name:        "error: artifact does not contain a data partition",
+			validimages: []int{0},
+			argv:        []string{"mender-artifact", "cp", "output.txt", ":/data/test.txt"},
+			err:         "newArtifactExtFile: A mender artifact does not contain a data partition, only a rootfs",
+		},
+		{
+			name:        "error: artifact does not contain a boot partition",
+			validimages: []int{0},
+			argv:        []string{"mender-artifact", "cp", "output.txt", ":/uboot/test.txt"},
+			err:         "newArtifactExtFile: A mender artifact does not contain a boot partition, only a rootfs",
 		},
 		{
 			name: "Install: Error on no file permissions given",
@@ -187,14 +199,14 @@ func TestCopy(t *testing.T) {
 				require.Nil(t, err)
 				// Type switch on the artifact, or sdimg underlying
 				switch pf.(type) {
-				case *partitionFile:
-					imgpath := pf.(*partitionFile).path
+				case *artifactExtFile:
+					imgpath := pf.(*artifactExtFile).path
 					cmd := exec.Command("debugfs", "-R", "stat /etc/mender/testkey.key", imgpath)
 					out, err := cmd.CombinedOutput()
 					require.Nil(t, err)
 					require.True(t, strings.Contains(string(out), "Mode:  0600"))
-				case partitions:
-					imgpath := pf.(partitions)[0].path
+				case sdimgFile:
+					imgpath := pf.(sdimgFile)[0].(*extFile).path
 					cmd := exec.Command("debugfs", "-R", "stat /etc/mender/testkey.key", imgpath)
 					out, err := cmd.CombinedOutput()
 					require.Nil(t, err)
@@ -207,16 +219,19 @@ func TestCopy(t *testing.T) {
 			initfunc: func() {
 				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
-			argv: []string{"mender-artifact", "cp", "foo.txt", ":/boot/test.txt"},
+			validimages: []int{1, 2}, // Not valid for artifacts.
+			argv:        []string{"mender-artifact", "cp", "foo.txt", ":/uboot/test.txt"},
 			verifyTestFunc: func(imgpath string) {
 				os.Args = []string{"mender-artifact", "cp",
-					imgpath + ":/boot/test.txt",
+					imgpath + ":/uboot/test.txt",
 					"test.res"}
 				err := run()
 				assert.NoError(t, err)
 				data, err := ioutil.ReadFile("test.res")
 				require.Nil(t, err)
 				assert.Equal(t, "foobar", string(data))
+				os.Remove("foo.txt")
+				os.Remove("test.res")
 			},
 		},
 		{
@@ -224,14 +239,19 @@ func TestCopy(t *testing.T) {
 			initfunc: func() {
 				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
-			argv: []string{"mender-artifact", "cp", "foo.txt", ":/boot/efi/test.txt"},
+			argv:        []string{"mender-artifact", "cp", "foo.txt", ":/boot/efi/test.txt"},
+			validimages: []int{1, 2}, // Not valid for an artifact.
 			verifyTestFunc: func(imgpath string) {
-				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/boot/efi/test.txt")
-				var out bytes.Buffer
-				cmd.Stdout = &out
-				err := cmd.Run()
-				require.Nil(t, err, fmt.Sprintf("catting the copied file does not function: %v", err))
-				assert.Equal(t, "foobar", out.String())
+				os.Args = []string{"mender-artifact", "cp",
+					imgpath + ":/boot/efi/test.txt",
+					"test.res"}
+				err := run()
+				assert.NoError(t, err)
+				data, err := ioutil.ReadFile("test.res")
+				require.Nil(t, err)
+				assert.Equal(t, "foobar", string(data))
+				os.Remove("foo.txt")
+				os.Remove("test.res")
 			},
 		},
 		{
@@ -239,15 +259,38 @@ func TestCopy(t *testing.T) {
 			initfunc: func() {
 				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
-			argv: []string{"mender-artifact", "cp", "foo.txt", ":/boot/grub/test.txt"},
+			validimages: []int{1, 2}, // Not valid for artifacts.
+			argv:        []string{"mender-artifact", "cp", "foo.txt", ":/boot/grub/test.txt"},
 			verifyTestFunc: func(imgpath string) {
-				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/boot/grub/test.txt")
-				var out bytes.Buffer
-				cmd.Stdout = &out
-				err := cmd.Run()
-				require.Nil(t, err, fmt.Sprintf("catting the copied file does not function: %v", err))
-				assert.Equal(t, "foobar", out.String())
+				os.Args = []string{"mender-artifact", "cp",
+					imgpath + ":/boot/grub/test.txt",
+					"test.res"}
+				err := run()
+				assert.NoError(t, err)
+				data, err := ioutil.ReadFile("test.res")
+				require.Nil(t, err)
+				assert.Equal(t, "foobar", string(data))
+				os.Remove("foo.txt")
+				os.Remove("test.res")
 			},
+		},
+		{
+			name:        "error: read non-existing file from sdimg boot partition (ext)",
+			validimages: []int{1}, // only valid for ext boot partition
+			argv:        []string{"mender-artifact", "cp", ":/boot/grub/test.txt", "foo.txt"},
+			err:         "extFile: ReadError: debugfsCopyFile failed: file /test.txt not found in image",
+		},
+		{
+			name:        "error: read non-existing file from sdimg boot partition (fat)",
+			validimages: []int{2}, // only valid for fat boot partition
+			argv:        []string{"mender-artifact", "cp", ":/boot/grub/test.txt", "foo.txt"},
+			err:         "fatPartitionFile: Read: MTools mtype dump failed: exit status 1",
+		},
+		{
+			name:        "error: mender artifact does not containt a boot partition",
+			validimages: []int{0}, // only valid for fat boot partition
+			argv:        []string{"mender-artifact", "cp", ":/boot/grub/test.txt", "foo.txt"},
+			err:         "newArtifactExtFile: A mender artifact does not contain a boot partition, only a rootfs",
 		},
 	}
 
@@ -255,11 +298,25 @@ func TestCopy(t *testing.T) {
 		// create a copy of the working images
 		artifact, sdimg, fatsdimg, closer := testSetupTeardown(t)
 		defer closer()
-
-		t.Logf("---------- Running test -----------\n%s\n-----------------------------------\n", test.name)
-
+		validimages := []string{}
+		// Add the images the test is valid for.
+		if len(test.validimages) == 0 {
+			test.validimages = []int{0, 1, 2} // Default case is all images.
+		}
+		for _, validindex := range test.validimages {
+			switch validindex {
+			case 0:
+				validimages = append(validimages, artifact)
+			case 1:
+				validimages = append(validimages, sdimg)
+			case 2:
+				validimages = append(validimages, fatsdimg)
+			default:
+				t.FailNow()
+			}
+		}
 		// Run once for the artifact, and once for the sdimg
-		for _, imgpath := range []string{artifact, sdimg, fatsdimg} {
+		for _, imgpath := range validimages {
 			// buffer the argv vector, since it is used twice
 			var testargv = make([]string, len(test.argv))
 			copy(testargv, test.argv)
