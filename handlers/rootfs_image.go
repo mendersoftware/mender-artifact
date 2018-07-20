@@ -55,6 +55,16 @@ func NewRootfsV2(updFile string) *Rootfs {
 	}
 }
 
+func NewRootfsV3(updFile string) *Rootfs {
+	uf := &DataFile{
+		Name: updFile,
+	}
+	return &Rootfs{
+		update:  uf,
+		version: 3,
+	}
+}
+
 // NewRootfsInstaller is used by the artifact reader to read and install
 // rootfs-image update type.
 func NewRootfsInstaller() *Rootfs {
@@ -125,7 +135,6 @@ func (rfs *Rootfs) ComposeHeader(tw *tar.Writer, no int) error {
 		return err
 	}
 
-	// store type-info
 	if err := writeTypeInfo(tw, "rootfs-image", path); err != nil {
 		return err
 	}
@@ -144,6 +153,53 @@ func (rfs *Rootfs) ComposeHeader(tw *tar.Writer, no int) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// FIXME - this can use the WriteInfoArgs struct, but should probably be renamed then.
+func (rfs *Rootfs) ComposeHeaderV3(tw *tar.Writer, no int, augmented bool, depends []artifact.TypeInfoDepends,
+	provides []artifact.TypeInfoProvides) error {
+
+	if rfs.version != 3 {
+		return errors.New("ComposeHeaderV3: rootfs version must be 3")
+	}
+
+	path := artifact.UpdateHeaderPath(no)
+
+	// first store files
+	if err := writeFiles(tw, []string{filepath.Base(rfs.update.Name)},
+		path); err != nil {
+		return err
+	}
+
+	if augmented {
+		if err := writeAugmentedTypeInfoV3(&WriteInfoArgs{
+			tarWriter:  tw,
+			updateType: "rootfs-image",
+			depends:    depends,
+			dir:        path,
+		}); err != nil {
+			return err
+		}
+	} else {
+		if err := writeTypeInfoV3(&WriteInfoArgs{
+			tarWriter:  tw,
+			updateType: "rootfs-image",
+			dir:        path,
+			depends:    depends,
+			provides:   provides,
+		}); err != nil {
+			return err
+		}
+	}
+
+	// store empty meta-data
+	// the file needs to be a part of artifact even if this one is empty
+	sw := artifact.NewTarWriterStream(tw)
+	if err := sw.Write(nil, filepath.Join(path, "meta-data")); err != nil {
+		return errors.Wrap(err, "update: can not store meta-data")
+	}
+
 	return nil
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2017 Northern.tech AS
+// Copyright 2018 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ package awriter
 import (
 	"archive/tar"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -104,6 +105,37 @@ func writeTempHeader(s *artifact.ChecksumStore, devices []string, name string,
 	return f, nil
 }
 
+func writeTempAugmentedHeader(s *artifact.ChecksumStore, headerArgs *writeAugHeaderArgs) (*os.File, error) {
+	// create temporary header file
+	f, err := ioutil.TempFile("", "header-augment")
+	if err != nil {
+		return nil, errors.New("writer: can not create temporary header-augment file")
+	}
+
+	ch := artifact.NewWriterChecksum(f)
+	// use function to make sure to close gz and tar before
+	// calculating checksum
+	err = func() error {
+		gz := gzip.NewWriter(ch)
+		defer gz.Close()
+
+		htw := tar.NewWriter(gz)
+		defer htw.Close()
+
+		if err = writeAugmentedHeader(headerArgs); err != nil {
+			return errors.Wrapf(err, "writer: error writing header")
+		}
+		return nil
+	}()
+
+	if err != nil {
+		return nil, err
+	}
+	s.Add("header-augment.tar.gz", ch.Checksum())
+
+	return f, nil
+}
+
 func WriteSignature(tw *tar.Writer, message []byte,
 	signer artifact.Signer) error {
 	if signer == nil {
@@ -154,6 +186,33 @@ func (aw *Writer) WriteArtifact(format string, version int,
 	}
 
 	switch version {
+	case 3:
+		// Add checksum of `version`.
+		ch := artifact.NewWriterChecksum(ioutil.Discard)
+		ch.Write(inf)
+		s.Add("version", ch.Checksum())
+
+		// Write `manifest` file.
+		sw := artifact.NewTarWriterStream(tw)
+		if err := sw.Write(s.GetRaw(), "manifest"); err != nil {
+			return errors.Wrapf(err, "writer: can not write manifest stream")
+		}
+
+		// Write signature.
+		if err := WriteSignature(tw, s.GetRaw(), aw.signer); err != nil {
+			return err
+		}
+
+		// Write manifest-augment.
+		// Manifest augment contains the files that are not signed.
+		// Because all the files in manifest has to be signed.
+		sw = artifact.NewTarWriterStream(tw)
+		// TODO - is this the right checksumStore to write? (s.GetRaw).
+		if err := sw.Write(s.GetRaw(), "manifest-augment"); err != nil {
+			return errors.Wrap(err, "writer: cannot write manifest-augment stream")
+		}
+		// panic("Not implented")
+		// Header and augmented-header is written later on
 	case 2:
 		// add checksum of `version`
 		ch := artifact.NewWriterChecksum(ioutil.Discard)
@@ -186,6 +245,35 @@ func (aw *Writer) WriteArtifact(format string, version int,
 	fw := artifact.NewTarWriterFile(tw)
 	if err := fw.Write(tmpHdr, "header.tar.gz"); err != nil {
 		return errors.Wrapf(err, "writer: can not tar header")
+	}
+
+	// Artifact version3 has an augmented header.
+	if version == 3 {
+		// TODO - which header to write?
+		augHdr, err := writeTempAugmentedHeader(s, &writeAugHeaderArgs{
+			tw:      tw,
+			updates: upd,
+			artifactDepends: &artifact.ArtifactDepends{
+				ArtifactName:      "ArtifactNameDependsDummy",
+				CompatibleDevices: devices,
+			},
+			artifactProvides: &artifact.ArtifactProvides{
+				ArtifactName:         name,
+				ArtifactGroup:        "ArtifactGroupDummy",
+				SupportedUpdateTypes: []string{},
+			},
+		})
+		if err != nil {
+			return errors.Wrap(err, "writer: failed to write the augmented header")
+		}
+		// write header
+		if _, err := augHdr.Seek(0, 0); err != nil {
+			return errors.Wrapf(err, "writer: error preparing tmp aug-header for writing")
+		}
+		if err := fw.Write(augHdr, "header-augment.tar.gz"); err != nil {
+			return errors.Wrap(err, "writer: cannot tar augment header")
+		}
+		// panic("Not implemented")
 	}
 
 	// write data files
@@ -235,6 +323,73 @@ func writeHeader(tw *tar.Writer, devices []string, name string,
 
 	for i, upd := range updates.U {
 		if err := upd.ComposeHeader(tw, i); err != nil {
+			return errors.Wrapf(err, "writer: error processing update directory")
+		}
+	}
+	return nil
+}
+
+func writeHeaderV3(args *writeAugHeaderArgs) error {
+	// store header info
+	hInfo := new(artifact.HeaderInfoV3)
+
+	for _, upd := range args.updates.U {
+		hInfo.Updates =
+			append(hInfo.Updates, artifact.UpdateType{Type: upd.GetType()})
+	}
+	hInfo.ArtifactProvides = args.artifactProvides
+	hInfo.ArtifactDepends = args.artifactDepends
+
+	sa := artifact.NewTarWriterStream(args.tw)
+	if err := sa.Write(artifact.ToStream(hInfo), "header-info"); err != nil {
+		return errors.New("writer: can not store header-info")
+	}
+
+	// write scripts
+	if args.scripts != nil {
+		if err := writeScripts(args.tw, args.scripts); err != nil {
+			return err
+		}
+	}
+
+	for i, upd := range args.updates.U {
+		if err := upd.ComposeHeader(args.tw, i); err != nil {
+			return errors.Wrapf(err, "writer: error processing update directory")
+		}
+	}
+	return nil
+}
+
+// writeAugHeaderArgs is a wrapper for the arguments to the writeAugmentedHeader function.
+type writeAugHeaderArgs struct {
+	tw               *tar.Writer
+	updates          *Updates
+	artifactDepends  *artifact.ArtifactDepends
+	artifactProvides *artifact.ArtifactProvides
+	scripts          *artifact.Scripts
+}
+
+// writeAugmentedHeader writes the augmented header with the restrictions:
+// header-info: Can only contain artifact-depends and rootfs_image_checksum.
+// type-info: Can only contain artifact-depends and rootfs_image_checksum.
+func writeAugmentedHeader(args *writeAugHeaderArgs) error {
+	// store header info
+	hInfo := new(artifact.AugmentedHeaderInfoV3)
+
+	for _, upd := range args.updates.U {
+		hInfo.Updates =
+			append(hInfo.Updates, artifact.UpdateType{Type: upd.GetType()})
+	}
+	hInfo.ArtifactDepends = args.artifactDepends
+
+	fmt.Printf("writeAugmentedHeader: TarWriter: %v\n", args.tw)
+	sa := artifact.NewTarWriterStream(args.tw)
+	if err := sa.Write(artifact.ToStream(hInfo), "header-info"); err != nil {
+		return errors.New("writer: can not store header-info")
+	}
+
+	for i, upd := range args.updates.U {
+		if err := upd.ComposeHeader(args.tw, i); err != nil {
 			return errors.Wrapf(err, "writer: error processing update directory")
 		}
 	}

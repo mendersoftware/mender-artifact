@@ -43,6 +43,8 @@ type Composer interface {
 	GetUpdateFiles() [](*DataFile)
 	GetType() string
 	ComposeHeader(tw *tar.Writer, no int) error
+	ComposeHeaderV3(tw *tar.Writer, no int, augmented bool, depends []artifact.TypeInfoDepends,
+		provides []artifact.TypeInfoProvides) error
 	ComposeData(tw *tar.Writer, no int) error
 }
 
@@ -96,6 +98,46 @@ func writeTypeInfo(tw *tar.Writer, updateType string, dir string) error {
 
 	w := artifact.NewTarWriterStream(tw)
 	if err := w.Write(info, filepath.Join(dir, "type-info")); err != nil {
+		return errors.Wrapf(err, "update: can not tar type-info")
+	}
+	return nil
+}
+
+type WriteInfoArgs struct {
+	tarWriter  *tar.Writer
+	updateType string
+	dir        string
+	provides   []artifact.TypeInfoProvides
+	depends    []artifact.TypeInfoDepends
+}
+
+func writeTypeInfoV3(args *WriteInfoArgs) error {
+	tInfo := artifact.TypeInfoV3{
+		Type:             args.updateType,
+		ArtifactProvides: args.provides,
+		ArtifactDepends:  args.depends,
+	}
+	info, err := json.Marshal(&tInfo)
+	if err != nil {
+		return errors.Wrapf(err, "update: can not create type-info")
+	}
+
+	w := artifact.NewTarWriterStream(args.tarWriter)
+	if err := w.Write(info, filepath.Join(args.dir, "type-info")); err != nil {
+		return errors.Wrapf(err, "update: can not tar type-info")
+	}
+	return nil
+}
+
+func writeAugmentedTypeInfoV3(args *WriteInfoArgs) error {
+	tInfo := artifact.AugmentedTypeInfoV3{Type: args.updateType, ArtifactDepends: args.depends}
+	info, err := json.Marshal(&tInfo)
+	if err != nil {
+		return errors.Wrapf(err, "update: can not create type-info")
+	}
+
+	w := artifact.NewTarWriterStream(args.tarWriter)
+	if err := w.Write(info, filepath.Join(args.dir, "type-info")); err != nil {
 		return errors.Wrapf(err, "update: can not tar type-info")
 	}
 	return nil

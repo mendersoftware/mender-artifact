@@ -1,4 +1,4 @@
-// Copyright 2017 Northern.tech AS
+// Copyright 2018 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ type Reader struct {
 
 	shouldBeSigned bool
 	hInfo          *artifact.HeaderInfo
+	hInfoV3        *artifact.HeaderInfoV3
 	info           *artifact.Info
 	r              io.Reader
 	handlers       map[string]handlers.Installer
@@ -155,6 +156,54 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 	return nil
 }
 
+func (ar *Reader) readAugmentedHeader(tReader io.Reader, headerSum []byte) error {
+	r := getReader(tReader, headerSum)
+	// header MUST be compressed
+	gz, err := gzip.NewReader(r)
+	if err != nil {
+		return errors.Wrapf(err, "reader: error opening compressed header")
+	}
+	defer gz.Close()
+	tr := tar.NewReader(gz)
+
+	// first part of header must always be header-info
+	hInfo := new(artifact.HeaderInfoV3)
+	if err = readNext(tr, hInfo, "header-info"); err != nil {
+		return err
+	}
+	ar.hInfoV3 = hInfo
+
+	// TODO - necessary when the previous header is already processed?
+	// after reading header-info we can check device compatibility
+	if ar.CompatibleDevicesCallback != nil {
+		if err = ar.CompatibleDevicesCallback(hInfo.ArtifactDepends.CompatibleDevices); err != nil {
+			return err
+		}
+	}
+
+	var hdr tar.Header
+
+	// Next step is setting correct installers based on update types being
+	// part of the artifact.
+	if err = ar.setInstallers(hInfo.Updates); err != nil {
+		return err
+	}
+
+	// At the end read rest of the header using correct installers.
+	if err = ar.readHeaderUpdate(tr, &hdr); err != nil {
+		return err
+	}
+
+	// Check if header checksum is correct.
+	if cr, ok := r.(*artifact.Checksum); ok {
+		if err = cr.Verify(); err != nil {
+			return errors.Wrap(err, "reader: reading header error")
+		}
+	}
+
+	return nil
+}
+
 func readVersion(tr *tar.Reader) (*artifact.Info, []byte, error) {
 	buf := bytes.NewBuffer(nil)
 	// read version file and calculate checksum
@@ -203,9 +252,9 @@ func (ar *Reader) readHeaderV1(tReader *tar.Reader) error {
 	return nil
 }
 
-func readManifest(tReader *tar.Reader) (*artifact.ChecksumStore, error) {
+func readManifest(tReader *tar.Reader, name string) (*artifact.ChecksumStore, error) {
 	buf := bytes.NewBuffer(nil)
-	if err := readNext(tReader, buf, "manifest"); err != nil {
+	if err := readNext(tReader, buf, name); err != nil {
 		return nil, errors.Wrap(err, "reader: can not buffer manifest")
 	}
 	manifest := artifact.NewChecksumStore()
@@ -245,10 +294,104 @@ func verifyVersion(ver []byte, manifest *artifact.ChecksumStore) error {
 	return err
 }
 
+func (ar *Reader) readHeaderV3(tReader *tar.Reader,
+	version []byte) (*artifact.ChecksumStore, error) {
+	// first file after version MUST contain all the checksums
+	manifest, err := readManifest(tReader, "manifest")
+	if err != nil {
+		return nil, err
+	}
+	var augManChecksumStore *artifact.ChecksumStore
+
+	// check what is the next file in the artifact
+	// depending if artifact is signed or not we can have
+	// either header or signature file
+	hdr, err := getNext(tReader)
+	if err != nil {
+		return nil, errors.Wrapf(err, "reader: error reading file after manifest")
+	}
+
+	// we are expecting to have a signed artifact, but the signature is missing
+	if ar.shouldBeSigned && (hdr.FileInfo().Name() != "manifest.sig") {
+		return nil,
+			errors.New("reader: expecting signed artifact, but no signature file found")
+	}
+
+	switch hdr.FileInfo().Name() {
+	case "manifest.sig":
+		ar.IsSigned = true
+		// firs read and verify signature
+		if err = signatureReadAndVerify(tReader, manifest.GetRaw(),
+			ar.VerifySignatureCallback, ar.shouldBeSigned); err != nil {
+			return nil, err
+		}
+		// verify checksums of version
+		if err = verifyVersion(version, manifest); err != nil {
+			return nil, err
+		}
+
+		// ...and then header
+		hdr, err = getNext(tReader)
+		if err != nil {
+			return nil, errors.New("reader: error reading header")
+		}
+		if !strings.HasPrefix(hdr.Name, "header.tar.gz") {
+			return nil, errors.Errorf("reader: invalid header element: %v", hdr.Name)
+		}
+		fallthrough
+
+	case "manifest-augment":
+		augManChecksumStore, err = readManifest(tReader, "manifest-augment")
+		if err != nil {
+			return nil, errors.Wrap(err, "ReadHeaderV3: manifest-augment: ")
+		}
+		// First read and verify signature.
+		if err = signatureReadAndVerify(tReader, augManChecksumStore.GetRaw(),
+			ar.VerifySignatureCallback, ar.shouldBeSigned); err != nil {
+			return nil, err
+		}
+		// ...and then header.
+		hdr, err = getNext(tReader)
+		if err != nil {
+			return nil, errors.New("readHeaderV3: reader: error reading header")
+		}
+		if !strings.HasPrefix(hdr.Name, "header-augment.tar.gz") {
+			return nil, errors.Errorf("reader: invalid header element: %v", hdr.Name)
+		}
+		fallthrough
+
+	case "header.tar.gz":
+		// Get and verify checksums of header.
+		hc, err := manifest.Get("header.tar.gz")
+		if err != nil {
+			return nil, err
+		}
+
+		if err := ar.readHeader(tReader, hc); err != nil {
+			return nil, err
+		}
+
+	case "header.augment.tar.gz":
+		// Get and verify checksums of the augmented header.
+		hc, err := augManChecksumStore.Get("header.augment.tar.gz")
+		if err != nil {
+			return nil, err
+		}
+
+		if err := ar.readAugmentedHeader(tReader, hc); err != nil {
+			return nil, err
+		}
+
+	default:
+		return nil, errors.Errorf("reader: found unexpected file in artifact: %v",
+			hdr.FileInfo().Name())
+	}
+	return manifest, nil
+}
 func (ar *Reader) readHeaderV2(tReader *tar.Reader,
 	version []byte) (*artifact.ChecksumStore, error) {
 	// first file after version MUST contain all the checksums
-	manifest, err := readManifest(tReader)
+	manifest, err := readManifest(tReader, "manifest")
 	if err != nil {
 		return nil, err
 	}
@@ -331,6 +474,11 @@ func (ar *Reader) ReadArtifact() error {
 		}
 	case 2:
 		s, err = ar.readHeaderV2(tReader, vRaw)
+		if err != nil {
+			return err
+		}
+	case 3:
+		s, err = ar.readHeaderV3(tReader, vRaw)
 		if err != nil {
 			return err
 		}

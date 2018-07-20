@@ -17,6 +17,7 @@ package artifact
 import (
 	"archive/tar"
 	"encoding/json"
+	"fmt"
 
 	"github.com/pkg/errors"
 )
@@ -48,6 +49,7 @@ func (str *StreamArchiver) Write(data []byte, archivePath string) error {
 		Mode: 0600,
 		Size: int64(len(data)),
 	}
+	fmt.Printf("StreamArchiver: Name: %s\nSize: %d\n", archivePath, int64(len(data)))
 	if err := str.Writer.WriteHeader(hdr); err != nil {
 		return errors.Wrapf(err, "arch: can not write stream header")
 	}

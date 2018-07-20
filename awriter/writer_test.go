@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func checkTarElemsnts(r io.Reader, expected int) error {
+func checkTarElements(r io.Reader, expected int) error {
 	tr := tar.NewReader(r)
 	i := 0
 	for ; ; i++ {
@@ -54,7 +54,7 @@ func TestWriteArtifact(t *testing.T) {
 	err := w.WriteArtifact("mender", 1, []string{"asd"}, "name", &Updates{}, nil)
 	assert.NoError(t, err)
 
-	assert.NoError(t, checkTarElemsnts(buf, 2))
+	assert.NoError(t, checkTarElements(buf, 2))
 }
 
 func TestWriteArtifactWithUpdates(t *testing.T) {
@@ -71,7 +71,7 @@ func TestWriteArtifactWithUpdates(t *testing.T) {
 	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates, nil)
 	assert.NoError(t, err)
 
-	assert.NoError(t, checkTarElemsnts(buf, 3))
+	assert.NoError(t, checkTarElements(buf, 3))
 }
 
 func TestWriteMultipleUpdates(t *testing.T) {
@@ -89,7 +89,7 @@ func TestWriteMultipleUpdates(t *testing.T) {
 	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates, nil)
 	assert.NoError(t, err)
 
-	assert.NoError(t, checkTarElemsnts(buf, 4))
+	assert.NoError(t, checkTarElements(buf, 4))
 }
 
 const PrivateKey = `-----BEGIN RSA PRIVATE KEY-----
@@ -124,7 +124,7 @@ func TestWriteArtifactV2(t *testing.T) {
 
 	err = w.WriteArtifact("mender", 2, []string{"asd"}, "name", updates, nil)
 	assert.NoError(t, err)
-	assert.NoError(t, checkTarElemsnts(buf, 5))
+	assert.NoError(t, checkTarElements(buf, 5))
 	buf.Reset()
 
 	// error creating v1 signed artifact
@@ -144,21 +144,60 @@ func TestWriteArtifactV2(t *testing.T) {
 	// write empty artifact
 	err = w.WriteArtifact("", 2, []string{}, "", &Updates{}, nil)
 	assert.NoError(t, err)
-	assert.NoError(t, checkTarElemsnts(buf, 4))
+	assert.NoError(t, checkTarElements(buf, 4))
 	buf.Reset()
 
 	w = NewWriterSigned(buf, nil)
 	err = w.WriteArtifact("mender", 2, []string{"asd"}, "name", updates, nil)
 	assert.NoError(t, err)
-	assert.NoError(t, checkTarElemsnts(buf, 4))
+	assert.NoError(t, checkTarElements(buf, 4))
+	buf.Reset()
+}
+
+func TestWriteArtifactV3(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+
+	s := artifact.NewSigner([]byte(PrivateKey))
+	w := NewWriterSigned(buf, s)
+
+	upd, err := MakeFakeUpdate("my test update")
+	assert.NoError(t, err)
+	defer os.Remove(upd)
+
+	u := handlers.NewRootfsV3(upd)
+	updates := &Updates{U: []handlers.Composer{u}}
+
+	err = w.WriteArtifact("mender", 3, []string{"vexpress-qemu"}, "name", updates, nil)
+	assert.NoError(t, err)
+	assert.NoError(t, checkTarElements(buf, 11))
 	buf.Reset()
 
-	// error writing non-existing
-	u = handlers.NewRootfsV2("non-existing")
-	updates = &Updates{U: []handlers.Composer{u}}
-	err = w.WriteArtifact("mender", 3, []string{"asd"}, "name", updates, nil)
-	assert.Error(t, err)
-	buf.Reset()
+	// // write empty artifact
+	// err = w.WriteArtifact("", 3, []string{}, "", &Updates{}, nil)
+	// assert.NoError(t, err)
+	// assert.NoError(t, checkTarElements(buf, 4))
+	// buf.Reset()
+
+	// w = NewWriterSigned(buf, nil)
+	// err = w.WriteArtifact("mender", 3, []string{"vexpress-qemu"}, "name", updates, nil)
+	// assert.NoError(t, err)
+	// assert.NoError(t, checkTarElements(buf, 4))
+	// buf.Reset()
+
+	// // error writing non-existing
+	// u = handlers.NewRootfsV3("non-existing")
+	// updates = &Updates{U: []handlers.Composer{u}}
+	// err = w.WriteArtifact("mender", 3, []string{"vexpress-qemu"}, "name", updates, nil)
+	// assert.Error(t, err)
+	// buf.Reset()
+	// tests := map[string]struct {
+	// 	input string
+	// }{
+	// 	"dummy": {"test1"},
+	// }
+	// for _, testCase := range tests {
+
+	// }
 }
 
 func TestWithScripts(t *testing.T) {
@@ -183,7 +222,7 @@ func TestWithScripts(t *testing.T) {
 	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates, s)
 	assert.NoError(t, err)
 
-	assert.NoError(t, checkTarElemsnts(buf, 3))
+	assert.NoError(t, checkTarElements(buf, 3))
 }
 
 type TestDirEntry struct {
