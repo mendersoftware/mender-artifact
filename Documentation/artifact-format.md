@@ -281,27 +281,29 @@ Format: JSON
 
 ```
 {
-  "updates": [
-    {
-      "type": "rootfs-image"
+    "updates": [
+        {
+            "type": "rootfs-image"
+        },
+        {
+            "type": "delta-image"
+        }
+    ],
+    "artifact_provides": {
+        "artifact_name": "release-2",
+        "artifact_group": "fix",
+        "update_types_supported": [
+            "rootfs-image",
+            "delta-update"
+        ]
     },
-    {
-      "type": "rootfs-image"
-    },
-    {
-      ...
+    "artifact_depends": {
+        "artifact_name": "release-1",
+        "device_type": [
+            "vexpress-qemu",
+             "beaglebone"
+        ]
     }
-  ],
-  "artifact_provides": [
-          { "artifact_name": "name" },
-          { "artifact_group": "group-1" },
-          { "update_types_supported": ["rootfs-image"]},
-      ],
-  "artifact_depends": [
-          { "device_type": ["vexpress-qemu", "beaglebone"] },
-          { "artifact_name": ["rootfs-1"] },
-      ],
-  ],
 }
 ```
 
