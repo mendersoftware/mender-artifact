@@ -39,12 +39,18 @@ type DataFile struct {
 	Checksum []byte
 }
 
+type ComposeHeaderArgs struct {
+	TarWriter *tar.Writer
+	No        int
+	Augmented bool
+	Depends   []artifact.TypeInfoDepends
+	Provides  []artifact.TypeInfoProvides
+}
+
 type Composer interface {
 	GetUpdateFiles() [](*DataFile)
 	GetType() string
-	ComposeHeader(tw *tar.Writer, no int) error
-	ComposeHeaderV3(tw *tar.Writer, no int, augmented bool, depends []artifact.TypeInfoDepends,
-		provides []artifact.TypeInfoProvides) error
+	ComposeHeader(args *ComposeHeaderArgs) error
 	ComposeData(tw *tar.Writer, no int) error
 }
 

@@ -125,82 +125,51 @@ func (rfs *Rootfs) GetType() string {
 	return "rootfs-image"
 }
 
-func (rfs *Rootfs) ComposeHeader(tw *tar.Writer, no int) error {
+// FIXME - this can use the WriteInfoArgs struct, but should probably be renamed then.
+// Also this should be migrated to the General ComposeHeader function.
+func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 
-	path := artifact.UpdateHeaderPath(no)
+	path := artifact.UpdateHeaderPath(args.No)
 
 	// first store files
-	if err := writeFiles(tw, []string{filepath.Base(rfs.update.Name)},
+	if err := writeFiles(args.TarWriter, []string{filepath.Base(rfs.update.Name)},
 		path); err != nil {
 		return err
 	}
 
-	if err := writeTypeInfo(tw, "rootfs-image", path); err != nil {
-		return err
+	switch rfs.version {
+	case 1, 2:
+		if err := writeTypeInfo(args.TarWriter, "rootfs-image", path); err != nil {
+			return err
+		}
+	case 3:
+		// TODO - should the augmented header have a different Type-Info structure?
+		// Also, should it be written later, and only by the server?
+		if err := writeTypeInfoV3(&WriteInfoArgs{
+			tarWriter:  args.TarWriter,
+			updateType: "rootfs-image",
+			dir:        path,
+			depends:    args.Depends,
+			provides:   args.Provides,
+		}); err != nil {
+			return err
+		}
 	}
 
 	// store empty meta-data
 	// the file needs to be a part of artifact even if this one is empty
-	sw := artifact.NewTarWriterStream(tw)
+	sw := artifact.NewTarWriterStream(args.TarWriter)
 	if err := sw.Write(nil, filepath.Join(path, "meta-data")); err != nil {
 		return errors.Wrap(err, "update: can not store meta-data")
 	}
 
 	if rfs.version == 1 {
 		// store checksums
-		if err := writeChecksums(tw, [](*DataFile){rfs.update},
+		if err := writeChecksums(args.TarWriter, [](*DataFile){rfs.update},
 			filepath.Join(path, "checksums")); err != nil {
 			return err
 		}
 	}
-	return nil
-}
-
-// FIXME - this can use the WriteInfoArgs struct, but should probably be renamed then.
-// Also this should be migrated to the General ComposeHeader function.
-func (rfs *Rootfs) ComposeHeaderV3(tw *tar.Writer, no int, augmented bool, depends []artifact.TypeInfoDepends,
-	provides []artifact.TypeInfoProvides) error {
-
-	if rfs.version != 3 {
-		return errors.New("ComposeHeaderV3: rootfs version must be 3")
-	}
-
-	path := artifact.UpdateHeaderPath(no)
-
-	// first store files
-	if err := writeFiles(tw, []string{filepath.Base(rfs.update.Name)},
-		path); err != nil {
-		return err
-	}
-
-	if augmented {
-		if err := writeAugmentedTypeInfoV3(&WriteInfoArgs{
-			tarWriter:  tw,
-			updateType: "rootfs-image",
-			depends:    depends,
-			dir:        path,
-		}); err != nil {
-			return err
-		}
-	} else {
-		if err := writeTypeInfoV3(&WriteInfoArgs{
-			tarWriter:  tw,
-			updateType: "rootfs-image",
-			dir:        path,
-			depends:    depends,
-			provides:   provides,
-		}); err != nil {
-			return err
-		}
-	}
-
-	// store empty meta-data
-	// the file needs to be a part of artifact even if this one is empty
-	sw := artifact.NewTarWriterStream(tw)
-	if err := sw.Write(nil, filepath.Join(path, "meta-data")); err != nil {
-		return errors.Wrap(err, "update: can not store meta-data")
-	}
-
 	return nil
 }
 

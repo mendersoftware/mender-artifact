@@ -220,9 +220,15 @@ func repack(artifactName string, from io.Reader, to io.Writer, key []byte,
 	if newName != "" {
 		name = newName
 	}
-	err = aWriter.WriteArtifact(info.Format, info.Version,
-		ar.GetCompatibleDevices(), name, upd, scr)
-
+	err = aWriter.WriteArtifact(
+		&awriter.WriteArtifactArgs{
+			Format:  info.Format,
+			Version: info.Version,
+			Devices: ar.GetCompatibleDevices(),
+			Name:    name,
+			Updates: upd,
+			Scripts: scr,
+		})
 	return ar, err
 }
 

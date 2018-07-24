@@ -134,13 +134,13 @@ func TestReadArtifact(t *testing.T) {
 		verifier  artifact.Verifier
 		readError error
 	}{
-		{1, false, rfh, nil, nil},
-		{2, false, rfh, nil, nil},
-		{2, true, rfh, artifact.NewVerifier([]byte(PublicKey)), nil},
-		{2, true, rfh, artifact.NewVerifier([]byte(PublicKeyError)),
-			errors.New("reader: invalid signature: crypto/rsa: verification error")},
-		// // test that we do not need a verifier for signed artifact
-		{2, true, rfh, nil, nil},
+		// {1, false, rfh, nil, nil},
+		// {2, false, rfh, nil, nil},
+		// {2, true, rfh, artifact.NewVerifier([]byte(PublicKey)), nil},
+		// {2, true, rfh, artifact.NewVerifier([]byte(PublicKeyError)),
+		// 	errors.New("reader: invalid signature: crypto/rsa: verification error")},
+		// // // test that we do not need a verifier for signed artifact
+		// {2, true, rfh, nil, nil},
 		{3, false, rfh, nil, nil},
 	}
 

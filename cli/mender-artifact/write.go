@@ -101,8 +101,15 @@ func writeRootfs(c *cli.Context) error {
 		return cli.NewExitError("can not use scripts artifact with version 1", 1)
 	}
 
-	err = aw.WriteArtifact("mender", version,
-		c.StringSlice("device-type"), c.String("artifact-name"), upd, scr)
+	err = aw.WriteArtifact(
+		&awriter.WriteArtifactArgs{
+			Format:  "mender",
+			Version: version,
+			Devices: c.StringSlice("device-type"),
+			Name:    c.String("artifact-name"),
+			Updates: upd,
+			Scripts: scr,
+		})
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
