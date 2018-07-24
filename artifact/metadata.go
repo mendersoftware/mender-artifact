@@ -107,8 +107,8 @@ func (hi *HeaderInfo) Write(p []byte) (n int, err error) {
 
 type HeaderInfoV3 struct {
 	Updates          []UpdateType      `json:"updates"`
-	ArtifactProvides *ArtifactProvides // Has its own json marshaller tags.
-	ArtifactDepends  *ArtifactDepends  // Has its own json marshaller  function.
+	ArtifactProvides *ArtifactProvides `json:"artifact_provides"` // Has its own json marshaller tags.
+	ArtifactDepends  *ArtifactDepends  `json:"artifact_depends"`  // Has its own json marshaller  function.
 }
 
 // Validate validates the correctness of the header version3.
@@ -203,17 +203,6 @@ type ArtifactProvides struct {
 type ArtifactDepends struct {
 	ArtifactName      string   `json:"artifact_name"`
 	CompatibleDevices []string `json:"device_type"`
-}
-
-// MarshalJSON encodes the artifact depends either as an empty array,
-// or contain one or both depends parameters.
-func (ad *ArtifactDepends) MarshalJSON() ([]byte, error) {
-	// Do not encode the nil pointer as json `null`, make an empty array.
-	if ad == nil {
-		return json.Marshal([]string{})
-	}
-	// Otherwise encode as normal.
-	return json.Marshal(*ad)
 }
 
 // TypeInfo provides information of type of individual updates

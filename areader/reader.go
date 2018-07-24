@@ -18,6 +18,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -370,6 +371,7 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 		if err := ar.readHeader(tReader, hc); err != nil {
 			return nil, err
 		}
+		fallthrough
 
 	case "header.augment.tar.gz":
 		// Get and verify checksums of the augmented header.
@@ -593,9 +595,11 @@ func readNext(tr *tar.Reader, w io.Writer, elem string) error {
 		return errors.New("reader: read next called on invalid stream")
 	}
 	hdr, err := getNext(tr)
+	fmt.Printf("readNext: %v, err: %v\n", hdr, err)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("hdr.Name: %s, elem: %s\n", hdr.Name, elem)
 	if strings.HasPrefix(hdr.Name, elem) {
 		_, err := io.Copy(w, tr)
 		return err

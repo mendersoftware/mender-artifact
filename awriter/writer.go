@@ -17,7 +17,6 @@ package awriter
 import (
 	"archive/tar"
 	"compress/gzip"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -122,6 +121,7 @@ func writeTempAugmentedHeader(s *artifact.ChecksumStore, headerArgs *writeAugHea
 		htw := tar.NewWriter(gz)
 		defer htw.Close()
 
+		headerArgs.tw = htw
 		if err = writeAugmentedHeader(headerArgs); err != nil {
 			return errors.Wrapf(err, "writer: error writing header")
 		}
@@ -172,6 +172,24 @@ func (aw *Writer) WriteArtifact(format string, version int,
 	if err != nil {
 		return err
 	}
+	var augHdr *os.File
+	if version == 3 {
+		augHdr, err = writeTempAugmentedHeader(s, &writeAugHeaderArgs{
+			updates: upd,
+			artifactDepends: &artifact.ArtifactDepends{
+				ArtifactName:      "ArtifactNameDependsDummy",
+				CompatibleDevices: devices,
+			},
+			artifactProvides: &artifact.ArtifactProvides{
+				ArtifactName:         name,
+				ArtifactGroup:        "ArtifactGroupDummy",
+				SupportedUpdateTypes: []string{},
+			},
+		})
+		if err != nil {
+			return errors.Wrap(err, "writer: failed to write the augmented header")
+		}
+	}
 	defer os.Remove(tmpHdr.Name())
 
 	// mender archive writer
@@ -203,6 +221,7 @@ func (aw *Writer) WriteArtifact(format string, version int,
 			return err
 		}
 
+		// FIXME - only write manifest augment if needed.
 		// Write manifest-augment.
 		// Manifest augment contains the files that are not signed.
 		// Because all the files in manifest has to be signed.
@@ -250,30 +269,15 @@ func (aw *Writer) WriteArtifact(format string, version int,
 	// Artifact version3 has an augmented header.
 	if version == 3 {
 		// TODO - which header to write?
-		augHdr, err := writeTempAugmentedHeader(s, &writeAugHeaderArgs{
-			tw:      tw,
-			updates: upd,
-			artifactDepends: &artifact.ArtifactDepends{
-				ArtifactName:      "ArtifactNameDependsDummy",
-				CompatibleDevices: devices,
-			},
-			artifactProvides: &artifact.ArtifactProvides{
-				ArtifactName:         name,
-				ArtifactGroup:        "ArtifactGroupDummy",
-				SupportedUpdateTypes: []string{},
-			},
-		})
-		if err != nil {
-			return errors.Wrap(err, "writer: failed to write the augmented header")
-		}
-		// write header
+		// FIXME - only write the header-augment if needed.
+		augfw := artifact.NewTarWriterFile(tw)
+		// write the augmented-header
 		if _, err := augHdr.Seek(0, 0); err != nil {
 			return errors.Wrapf(err, "writer: error preparing tmp aug-header for writing")
 		}
-		if err := fw.Write(augHdr, "header-augment.tar.gz"); err != nil {
+		if err := augfw.Write(augHdr, "header-augment.tar.gz"); err != nil {
 			return errors.Wrap(err, "writer: cannot tar augment header")
 		}
-		// panic("Not implemented")
 	}
 
 	// write data files
@@ -380,9 +384,9 @@ func writeAugmentedHeader(args *writeAugHeaderArgs) error {
 		hInfo.Updates =
 			append(hInfo.Updates, artifact.UpdateType{Type: upd.GetType()})
 	}
+	// Augmented header only has artifact-depends.
 	hInfo.ArtifactDepends = args.artifactDepends
 
-	fmt.Printf("writeAugmentedHeader: TarWriter: %v\n", args.tw)
 	sa := artifact.NewTarWriterStream(args.tw)
 	if err := sa.Write(artifact.ToStream(hInfo), "header-info"); err != nil {
 		return errors.New("writer: can not store header-info")

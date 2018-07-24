@@ -113,24 +113,24 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 				},
 			},
 			expected: `{
-					  "updates": [
-						  {
-							  "type": "rootfs-image"
-						  }
-					  ],
-					  "ArtifactProvides": {
-						  "artifact_name": "release-2",
-						  "artifact_group": "fix",
-						  "update_types_supported": [
-							  "rootfs-image"
-						  ]
-					  },
-					  "ArtifactDepends": {
-						  "artifact_name": "release-1",
-						  "device_type": [
-							  "vexpress-qemu"
-						  ]
-					  }
+				      "updates": [
+					      {
+						      "type": "rootfs-image"
+					      }
+				      ],
+				      "artifact_provides": {
+					      "artifact_name": "release-2",
+					      "artifact_group": "fix",
+					      "update_types_supported": [
+						      "rootfs-image"
+					      ]
+				      },
+				      "artifact_depends": {
+					      "artifact_name": "release-1",
+					      "device_type": [
+						      "vexpress-qemu"
+					      ]
+				      }
 				  }`,
 		},
 		"two updates": {
@@ -158,7 +158,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 						      "type": "delta-image"
 					      }
 				      ],
-				      "ArtifactProvides": {
+				      "artifact_provides": {
 					      "artifact_name": "release-2",
 					      "artifact_group": "fix",
 					      "update_types_supported": [
@@ -166,7 +166,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 						      "delta-update"
 					      ]
 				      },
-				      "ArtifactDepends": {
+				      "artifact_depends": {
 					      "artifact_name": "release-1",
 					      "device_type": [
 						      "vexpress-qemu"
@@ -199,7 +199,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 						      "type": "delta-image"
 					      }
 				      ],
-				      "ArtifactProvides": {
+				      "artifact_provides": {
 					      "artifact_name": "release-2",
 					      "artifact_group": "fix",
 					      "update_types_supported": [
@@ -207,7 +207,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 						      "delta-update"
 					      ]
 				      },
-				      "ArtifactDepends": {
+				      "artifact_depends": {
 					      "artifact_name": "release-1",
 					      "device_type": [
 						      "vexpress-qemu",
@@ -216,11 +216,43 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 				      }
 			      }`,
 		},
+		"No artifact depends": {
+			hi: HeaderInfoV3{
+				Updates: []UpdateType{
+					UpdateType{"rootfs-image"},
+					UpdateType{"delta-image"},
+				},
+				ArtifactProvides: &ArtifactProvides{
+					ArtifactName:         "release-2",
+					ArtifactGroup:        "fix",
+					SupportedUpdateTypes: []string{"rootfs-image", "delta-update"},
+				},
+			},
+			expected: `{
+				      "updates": [
+					      {
+						      "type": "rootfs-image"
+					      },
+					      {
+						      "type": "delta-image"
+					      }
+				      ],
+				      "artifact_provides": {
+					      "artifact_name": "release-2",
+					      "artifact_group": "fix",
+					      "update_types_supported": [
+						      "rootfs-image",
+						      "delta-update"
+					      ]
+				      },
+                                      "artifact_depends": null
+			      }`,
+		},
 	}
 	for name, test := range tests {
 		b, err := json.MarshalIndent(test.hi, "", "\t")
 		require.Nil(t, err, "failed to marshal json for: %s", name)
-		assert.JSONEq(t, test.expected, string(b), "Marshalled json for %s is wrong")
+		require.JSONEq(t, test.expected, string(b), "Marshalled json for %q is wrong", name)
 	}
 }
 
@@ -237,6 +269,40 @@ func TestValidateTypeInfo(t *testing.T) {
 	for _, tt := range validateTests {
 		e := tt.in.Validate()
 		assert.Equal(t, e, tt.err)
+	}
+}
+
+func TestMarshalJSONTypeInfoV3(t *testing.T) {
+	tests := map[string]struct {
+		ti       TypeInfoV3
+		expected string
+	}{
+		"delta": {
+			ti: TypeInfoV3{
+				Type:             "delta",
+				ArtifactDepends:  []TypeInfoDepends{{RootfsChecksum: "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"}},
+				ArtifactProvides: []TypeInfoProvides{{RootfsChecksum: "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"}},
+			},
+			expected: `{
+				      "type": "delta",
+				      "artifact_depends": [
+					      {
+						      "rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
+					      }
+				      ],
+				      "artifact_provides": [
+					      {
+						      "rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
+					      }
+				      ]
+			      }`,
+		},
+	}
+
+	for name, test := range tests {
+		b, err := json.MarshalIndent(test.ti, "", "\t")
+		require.Nil(t, err)
+		require.JSONEq(t, test.expected, string(b), "%q failed!", name)
 	}
 }
 

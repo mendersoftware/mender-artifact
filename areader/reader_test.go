@@ -18,6 +18,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -85,6 +86,10 @@ func MakeRootfsImageArtifact(version int, signed bool,
 		u = handlers.NewRootfsV1(upd)
 	case 2:
 		u = handlers.NewRootfsV2(upd)
+	case 3:
+		u = handlers.NewRootfsV3(upd)
+	default:
+		return nil, fmt.Errorf("Unsupported artifact version: %d", version)
 	}
 
 	scr := artifact.Scripts{}
@@ -136,6 +141,7 @@ func TestReadArtifact(t *testing.T) {
 			errors.New("reader: invalid signature: crypto/rsa: verification error")},
 		// // test that we do not need a verifier for signed artifact
 		{2, true, rfh, nil, nil},
+		{3, false, rfh, nil, nil},
 	}
 
 	// first create archive, that we will be able to read

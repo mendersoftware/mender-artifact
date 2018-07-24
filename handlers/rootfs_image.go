@@ -157,6 +157,7 @@ func (rfs *Rootfs) ComposeHeader(tw *tar.Writer, no int) error {
 }
 
 // FIXME - this can use the WriteInfoArgs struct, but should probably be renamed then.
+// Also this should be migrated to the General ComposeHeader function.
 func (rfs *Rootfs) ComposeHeaderV3(tw *tar.Writer, no int, augmented bool, depends []artifact.TypeInfoDepends,
 	provides []artifact.TypeInfoProvides) error {
 

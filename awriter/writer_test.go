@@ -17,6 +17,7 @@ package awriter
 import (
 	"archive/tar"
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -33,7 +34,13 @@ func checkTarElements(r io.Reader, expected int) error {
 	tr := tar.NewReader(r)
 	i := 0
 	for ; ; i++ {
-		_, err := tr.Next()
+		tarHeader, err := tr.Next()
+		if tarHeader != nil {
+			fmt.Println(tarHeader.Name)
+		} else {
+			fmt.Println("tar Header is nil")
+		}
+		// fmt.Println(tarHeader.Name)
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -134,13 +141,6 @@ func TestWriteArtifactV2(t *testing.T) {
 		err.Error())
 	buf.Reset()
 
-	// error creating v3 artifact
-	err = w.WriteArtifact("mender", 3, []string{"asd"}, "name", updates, nil)
-	assert.Error(t, err)
-	assert.Equal(t, "writer: unsupported artifact version",
-		err.Error())
-	buf.Reset()
-
 	// write empty artifact
 	err = w.WriteArtifact("", 2, []string{}, "", &Updates{}, nil)
 	assert.NoError(t, err)
@@ -154,6 +154,7 @@ func TestWriteArtifactV2(t *testing.T) {
 	buf.Reset()
 }
 
+// TODO - manifest-augment and header-augment should be optional.
 func TestWriteArtifactV3(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 
@@ -169,35 +170,49 @@ func TestWriteArtifactV3(t *testing.T) {
 
 	err = w.WriteArtifact("mender", 3, []string{"vexpress-qemu"}, "name", updates, nil)
 	assert.NoError(t, err)
-	assert.NoError(t, checkTarElements(buf, 11))
+	assert.NoError(t, checkTarElements(buf, 7))
 	buf.Reset()
 
-	// // write empty artifact
-	// err = w.WriteArtifact("", 3, []string{}, "", &Updates{}, nil)
-	// assert.NoError(t, err)
-	// assert.NoError(t, checkTarElements(buf, 4))
-	// buf.Reset()
+	// write empty artifact
+	err = w.WriteArtifact("", 3, []string{}, "", &Updates{}, nil)
+	assert.NoError(t, err)
+	assert.NoError(t, checkTarElements(buf, 6))
+	buf.Reset()
 
-	// w = NewWriterSigned(buf, nil)
-	// err = w.WriteArtifact("mender", 3, []string{"vexpress-qemu"}, "name", updates, nil)
-	// assert.NoError(t, err)
-	// assert.NoError(t, checkTarElements(buf, 4))
-	// buf.Reset()
+	// error writing non-existing
+	u = handlers.NewRootfsV3("non-existing")
+	updates = &Updates{U: []handlers.Composer{u}}
+	err = w.WriteArtifact("mender", 3, []string{"vexpress-qemu"}, "name", updates, nil)
+	assert.Error(t, err)
+	buf.Reset()
 
-	// // error writing non-existing
-	// u = handlers.NewRootfsV3("non-existing")
-	// updates = &Updates{U: []handlers.Composer{u}}
-	// err = w.WriteArtifact("mender", 3, []string{"vexpress-qemu"}, "name", updates, nil)
-	// assert.Error(t, err)
-	// buf.Reset()
-	// tests := map[string]struct {
-	// 	input string
-	// }{
-	// 	"dummy": {"test1"},
-	// }
-	// for _, testCase := range tests {
+	// Unsigned artifact V3
+	buf.Reset()
+	w = NewWriter(buf)
+	upd, err = MakeFakeUpdate("my test update")
+	assert.NoError(t, err)
+	defer os.Remove(upd)
 
-	// }
+	u = handlers.NewRootfsV3(upd)
+	updates = &Updates{U: []handlers.Composer{u}}
+
+	err = w.WriteArtifact("mender", 3, []string{"vexpress-qemu"}, "name", updates, nil)
+	assert.NoError(t, err)
+	assert.NoError(t, checkTarElements(buf, 6))
+	buf.Reset()
+
+	// write empty artifact
+	err = w.WriteArtifact("", 3, []string{}, "", &Updates{}, nil)
+	assert.NoError(t, err)
+	assert.NoError(t, checkTarElements(buf, 5))
+	buf.Reset()
+
+	// error writing non-existing
+	u = handlers.NewRootfsV3("non-existing")
+	updates = &Updates{U: []handlers.Composer{u}}
+	err = w.WriteArtifact("mender", 3, []string{"vexpress-qemu"}, "name", updates, nil)
+	assert.Error(t, err)
+	buf.Reset()
 }
 
 func TestWithScripts(t *testing.T) {
