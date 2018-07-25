@@ -66,6 +66,8 @@ func writeRootfs(c *cli.Context) error {
 		h = handlers.NewRootfsV1(c.String("update"))
 	case 2:
 		h = handlers.NewRootfsV2(c.String("update"))
+	case 3:
+		h = handlers.NewRootfsV3(c.String("update"))
 	default:
 		return cli.NewExitError(
 			fmt.Sprintf("unsupported artifact version: %v", version),
