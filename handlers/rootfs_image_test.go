@@ -22,7 +22,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
@@ -60,7 +59,10 @@ func TestRootfsCompose(t *testing.T) {
 	defer os.Remove(f.Name())
 
 	r := NewRootfsV1(f.Name())
-	err = r.ComposeHeader(tw, 1)
+	err = r.ComposeHeader(&ComposeHeaderArgs{
+		TarWriter: tw,
+		No:        1,
+	})
 	assert.NoError(t, err)
 
 	err = r.ComposeData(tw, 1)
@@ -75,7 +77,10 @@ func TestRootfsCompose(t *testing.T) {
 
 	// Artifact format version 3
 	r = NewRootfsV3(f.Name())
-	err = r.ComposeHeaderV3(tw, 3, false, []artifact.TypeInfoDepends{}, []artifact.TypeInfoProvides{})
+	err = r.ComposeHeader(&ComposeHeaderArgs{
+		TarWriter: tw,
+		No:        3,
+	})
 	assert.NoError(t, err, "failed to compose the rootfs header - version 3")
 
 }

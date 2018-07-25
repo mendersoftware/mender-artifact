@@ -143,8 +143,6 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 			return err
 		}
 	case 3:
-		// TODO - should the augmented header have a different Type-Info structure?
-		// Also, should it be written later, and only by the server?
 		if err := writeTypeInfoV3(&WriteInfoArgs{
 			tarWriter:  args.TarWriter,
 			updateType: "rootfs-image",

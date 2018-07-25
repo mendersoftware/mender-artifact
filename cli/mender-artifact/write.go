@@ -15,14 +15,16 @@
 package main
 
 import (
-	"errors"
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
+	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )
 
@@ -41,6 +43,109 @@ func validateInput(c *cli.Context) error {
 			"whitespace is not allowed in the artifact-name",
 			errArtifactInvalidParameters,
 		)
+	}
+	return nil
+}
+
+func getRootfsChecksum(rootfs string) (string, error) {
+	partf, err := os.OpenFile(rootfs, os.O_RDONLY, os.ModeDevice)
+	if err != nil {
+		return "", errors.Wrapf(err, "getRootfsChecksum: failed to open rootfs: %s", rootfs)
+	}
+	h := sha256.New()
+	if _, err = io.Copy(h, partf); err != nil {
+		return "", errors.Wrap(err, "getRootfsChecksum: failed to calculate the checksum of the inactive partition")
+	}
+	checksumHex := fmt.Sprintf("%x", h.Sum(nil))
+	return checksumHex, nil
+}
+
+func validateDeltaInput(c *cli.Context) error {
+	if len(c.StringSlice("device-type")) == 0 ||
+		c.String("artifact-name") == "" ||
+		c.String("newrootfs") == "" ||
+		c.String("oldrootfs") == "" {
+		return cli.NewExitError("must provide `device-type`, `artifact-name`, `old/newrootfs`", 1)
+	}
+	if len(strings.Fields(c.String("artifact-name"))) > 1 {
+		// check for whitespace in artifact-name
+		return cli.NewExitError(
+			"whitespace is not allowed in the artifact-name",
+			errArtifactInvalidParameters,
+		)
+	}
+	return nil
+}
+
+func writeDelta(c *cli.Context) error {
+	if err := validateDeltaInput(c); err != nil {
+		Log.Error(err.Error())
+		return err
+	}
+
+	// set the default name
+	name := "artifact.mender"
+	if len(c.String("output-path")) > 0 {
+		name = c.String("output-path")
+	}
+	version := c.Int("version")
+
+	Log.Debugf("creating arifact [%s], version: %d", name, version)
+
+	newRootfs := c.String("newrootfs")
+	oldRootfs := c.String("oldrootfs")
+	// Get the checksums for our rootfs'
+	newRootfsChecksum, err := getRootfsChecksum(newRootfs)
+	oldRootfsChecksum, err := getRootfsChecksum(oldRootfs)
+	deltaFile := newRootfs
+
+	h := handlers.NewDelta(deltaFile, newRootfsChecksum, oldRootfsChecksum)
+
+	upd := &awriter.Updates{
+		U: []handlers.Composer{h},
+	}
+
+	f, err := os.Create(name + ".tmp")
+	if err != nil {
+		return cli.NewExitError("can not create artifact file", errArtifactCreate)
+	}
+	defer func() {
+		f.Close()
+		// in case of success `.tmp` suffix will be removed and below
+		// will not remove valid artifact
+		os.Remove(name + ".tmp")
+	}()
+
+	aw, err := artifactWriter(f, c.String("key"), version)
+	if err != nil {
+		return cli.NewExitError(err.Error(), 1)
+	}
+
+	scr, err := scripts(c.StringSlice("script"))
+	if err != nil {
+		return cli.NewExitError(err.Error(), 1)
+	} else if len(scr.Get()) != 0 && version == 1 {
+		// check if we are having correct version
+		return cli.NewExitError("can not use scripts artifact with version 1", 1)
+	}
+
+	err = aw.WriteArtifact(
+		&awriter.WriteArtifactArgs{
+			Format:  "mender",
+			Version: version,
+			Devices: c.StringSlice("device-type"),
+			Name:    c.String("artifact-name"),
+			Updates: upd,
+			Scripts: scr,
+		})
+	if err != nil {
+		return cli.NewExitError(err.Error(), 1)
+	}
+
+	f.Close()
+	err = os.Rename(name+".tmp", name)
+	if err != nil {
+		return cli.NewExitError(err.Error(), 1)
 	}
 	return nil
 }
