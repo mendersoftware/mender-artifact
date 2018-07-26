@@ -22,6 +22,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -48,8 +50,25 @@ func checkTarElements(r io.Reader, expected int) error {
 		}
 	}
 	if i != expected {
-		return errors.Errorf("invalid number of elements; expecting %d, atual %d",
+		return errors.Errorf("invalid number of elements; expecting %d, actual %d",
 			expected, i)
+	}
+	return nil
+}
+
+func checkTarElementsByName(r io.Reader, expected []string) error {
+	tr := tar.NewReader(r)
+	actual := []string{}
+	for hdr, err := tr.Next(); err != io.EOF; hdr, err = tr.Next() {
+		actual = append(actual, filepath.Base(hdr.Name))
+	}
+	if len(expected) != len(actual) {
+		return fmt.Errorf("The expected list: %s and the actual list: %s are not the same length", expected, actual)
+	}
+	for i, _ := range expected {
+		if strings.Trim(expected[i], " ") != strings.Trim(actual[i], " ") {
+			return fmt.Errorf("%s and %s mismatch", expected[i], actual[i])
+		}
 	}
 	return nil
 }
@@ -58,7 +77,13 @@ func TestWriteArtifact(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	w := NewWriter(buf)
 
-	err := w.WriteArtifact("mender", 1, []string{"asd"}, "name", &Updates{}, nil)
+	err := w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 1,
+		Devices: []string{"asd"},
+		Name:    "name",
+		Updates: &Updates{},
+	})
 	assert.NoError(t, err)
 
 	assert.NoError(t, checkTarElements(buf, 2))
@@ -75,7 +100,13 @@ func TestWriteArtifactWithUpdates(t *testing.T) {
 	u := handlers.NewRootfsV1(upd)
 	updates := &Updates{U: []handlers.Composer{u}}
 
-	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates, nil)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 1,
+		Devices: []string{"asd"},
+		Name:    "name",
+		Updates: updates,
+	})
 	assert.NoError(t, err)
 
 	assert.NoError(t, checkTarElements(buf, 3))
@@ -93,7 +124,13 @@ func TestWriteMultipleUpdates(t *testing.T) {
 	u2 := handlers.NewRootfsV1(upd)
 	updates := &Updates{U: []handlers.Composer{u1, u2}}
 
-	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates, nil)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 1,
+		Devices: []string{"asd"},
+		Name:    "name",
+		Updates: updates,
+	})
 	assert.NoError(t, err)
 
 	assert.NoError(t, checkTarElements(buf, 4))
@@ -129,32 +166,54 @@ func TestWriteArtifactV2(t *testing.T) {
 	u := handlers.NewRootfsV2(upd)
 	updates := &Updates{U: []handlers.Composer{u}}
 
-	err = w.WriteArtifact("mender", 2, []string{"asd"}, "name", updates, nil)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 2,
+		Devices: []string{"asd"},
+		Name:    "name",
+		Updates: updates,
+	})
 	assert.NoError(t, err)
 	assert.NoError(t, checkTarElements(buf, 5))
 	buf.Reset()
 
 	// error creating v1 signed artifact
-	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates, nil)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 1,
+		Devices: []string{"asd"},
+		Name:    "name",
+	})
 	assert.Error(t, err)
 	assert.Equal(t, "writer: can not create version 1 signed artifact",
 		err.Error())
 	buf.Reset()
 
 	// write empty artifact
-	err = w.WriteArtifact("", 2, []string{}, "", &Updates{}, nil)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "",
+		Version: 2,
+		Devices: []string{},
+		Name:    "",
+		Updates: &Updates{},
+	})
 	assert.NoError(t, err)
 	assert.NoError(t, checkTarElements(buf, 4))
 	buf.Reset()
 
 	w = NewWriterSigned(buf, nil)
-	err = w.WriteArtifact("mender", 2, []string{"asd"}, "name", updates, nil)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 2,
+		Devices: []string{"asd"},
+		Name:    "name",
+		Updates: updates,
+	})
 	assert.NoError(t, err)
 	assert.NoError(t, checkTarElements(buf, 4))
 	buf.Reset()
 }
 
-// TODO - manifest-augment and header-augment should be optional.
 func TestWriteArtifactV3(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 
@@ -168,21 +227,50 @@ func TestWriteArtifactV3(t *testing.T) {
 	u := handlers.NewRootfsV3(upd)
 	updates := &Updates{U: []handlers.Composer{u}}
 
-	err = w.WriteArtifact("mender", 3, []string{"vexpress-qemu"}, "name", updates, nil)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates,
+	})
 	assert.NoError(t, err)
-	assert.NoError(t, checkTarElements(buf, 7))
+	assert.NoError(t, checkTarElementsByName(buf, []string{
+		"version",
+		"manifest",
+		"manifest.sig",
+		"header.tar.gz",
+		"0000.tar.gz",
+	}))
 	buf.Reset()
 
 	// write empty artifact
-	err = w.WriteArtifact("", 3, []string{}, "", &Updates{}, nil)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "",
+		Version: 3,
+		Devices: []string{},
+		Name:    "",
+		Updates: &Updates{},
+	})
 	assert.NoError(t, err)
-	assert.NoError(t, checkTarElements(buf, 6))
+	assert.NoError(t, checkTarElementsByName(buf, []string{
+		"version",
+		"manifest",
+		"manifest.sig",
+		"header.tar.gz",
+	}))
 	buf.Reset()
 
 	// error writing non-existing
 	u = handlers.NewRootfsV3("non-existing")
 	updates = &Updates{U: []handlers.Composer{u}}
-	err = w.WriteArtifact("mender", 3, []string{"vexpress-qemu"}, "name", updates, nil)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates,
+	})
 	assert.Error(t, err)
 	buf.Reset()
 
@@ -196,21 +284,48 @@ func TestWriteArtifactV3(t *testing.T) {
 	u = handlers.NewRootfsV3(upd)
 	updates = &Updates{U: []handlers.Composer{u}}
 
-	err = w.WriteArtifact("mender", 3, []string{"vexpress-qemu"}, "name", updates, nil)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates,
+	})
 	assert.NoError(t, err)
-	assert.NoError(t, checkTarElements(buf, 6))
+	assert.NoError(t, checkTarElementsByName(buf, []string{
+		"version",
+		"manifest",
+		"header.tar.gz",
+		"0000.tar.gz",
+	}))
 	buf.Reset()
 
 	// write empty artifact
-	err = w.WriteArtifact("", 3, []string{}, "", &Updates{}, nil)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "",
+		Version: 3,
+		Devices: []string{},
+		Name:    "",
+		Updates: &Updates{},
+	})
 	assert.NoError(t, err)
-	assert.NoError(t, checkTarElements(buf, 5))
+	assert.NoError(t, checkTarElementsByName(buf, []string{
+		"version",
+		"manifest",
+		"header.tar.gz",
+	}))
 	buf.Reset()
 
 	// error writing non-existing
 	u = handlers.NewRootfsV3("non-existing")
 	updates = &Updates{U: []handlers.Composer{u}}
-	err = w.WriteArtifact("mender", 3, []string{"vexpress-qemu"}, "name", updates, nil)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates,
+	})
 	assert.Error(t, err)
 	buf.Reset()
 }
@@ -234,7 +349,14 @@ func TestWithScripts(t *testing.T) {
 	err = s.Add(scr.Name())
 	assert.NoError(t, err)
 
-	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates, s)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 1,
+		Devices: []string{"asd"},
+		Name:    "name",
+		Updates: updates,
+		Scripts: s,
+	})
 	assert.NoError(t, err)
 
 	assert.NoError(t, checkTarElements(buf, 3))

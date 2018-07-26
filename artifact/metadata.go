@@ -85,6 +85,14 @@ type HeaderInfo struct {
 	CompatibleDevices []string     `json:"device_types_compatible"`
 }
 
+func NewHeaderInfo(artifactName string, updates []UpdateType, compatibleDevices []string) *HeaderInfo {
+	return &HeaderInfo{
+		ArtifactName:      artifactName,
+		Updates:           updates,
+		CompatibleDevices: compatibleDevices,
+	}
+}
+
 // Validate checks if header-info structure is correct.
 func (hi HeaderInfo) Validate() error {
 	if len(hi.Updates) == 0 || len(hi.CompatibleDevices) == 0 || len(hi.ArtifactName) == 0 {
@@ -109,6 +117,15 @@ type HeaderInfoV3 struct {
 	Updates          []UpdateType      `json:"updates"`
 	ArtifactProvides *ArtifactProvides `json:"artifact_provides"` // Has its own json marshaller tags.
 	ArtifactDepends  *ArtifactDepends  `json:"artifact_depends"`  // Has its own json marshaller  function.
+}
+
+func NewHeaderInfoV3(updates []UpdateType,
+	artifactProvides *ArtifactProvides, artifactDepends *ArtifactDepends) *HeaderInfoV3 {
+	return &HeaderInfoV3{
+		Updates:          updates,
+		ArtifactProvides: artifactProvides,
+		ArtifactDepends:  artifactDepends,
+	}
 }
 
 // Validate validates the correctness of the header version3.

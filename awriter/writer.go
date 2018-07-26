@@ -17,6 +17,7 @@ package awriter
 import (
 	"archive/tar"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -235,8 +236,10 @@ func (aw *Writer) WriteArtifact(args *WriteArtifactArgs) (err error) {
 			return err
 		}
 
+	case 1:
+
 	default:
-		return errors.New("writer: unsupported artifact version")
+		return fmt.Errorf("writer: unsupported artifact version: %d", args.Version)
 	}
 
 	// write header
@@ -269,39 +272,24 @@ func writeScripts(tw *tar.Writer, scr *artifact.Scripts) error {
 	return nil
 }
 
-func NewHeaderInfo(args *WriteArtifactArgs) *artifact.HeaderInfo {
-	var upds []artifact.UpdateType
-	for _, upd := range args.Updates.U {
-		upds = append(upds, artifact.UpdateType{Type: upd.GetType()})
+func extractUpdateTypes(updates *Updates) []artifact.UpdateType {
+	u := []artifact.UpdateType{}
+	for _, upd := range updates.U {
+		u = append(u, artifact.UpdateType{upd.GetType()})
 	}
-	return &artifact.HeaderInfo{
-		ArtifactName:      args.Name,
-		Updates:           upds,
-		CompatibleDevices: args.Devices,
-	}
-}
-
-func NewHeaderInfoV3(args *WriteArtifactArgs) *artifact.HeaderInfoV3 {
-	var upds []artifact.UpdateType
-	for _, upd := range args.Updates.U {
-		upds = append(upds, artifact.UpdateType{Type: upd.GetType()})
-	}
-	return &artifact.HeaderInfoV3{
-		Updates:          upds,
-		ArtifactProvides: args.Provides,
-		ArtifactDepends:  args.Depends,
-	}
+	return u
 }
 
 // TODO - args struct should possibly be renamed.
 func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error {
 	// store header info
 	var hInfo artifact.WriteValidator
+	upds := extractUpdateTypes(args.Updates)
 	switch args.Version {
 	case 1, 2:
-		hInfo = NewHeaderInfo(args)
+		hInfo = artifact.NewHeaderInfo(args.Name, upds, args.Devices)
 	case 3:
-		hInfo = NewHeaderInfoV3(args)
+		hInfo = artifact.NewHeaderInfoV3(upds, args.Provides, args.Depends)
 	}
 
 	sa := artifact.NewTarWriterStream(tarWriter)

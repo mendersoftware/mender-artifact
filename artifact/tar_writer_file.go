@@ -16,7 +16,6 @@ package artifact
 
 import (
 	"archive/tar"
-	"fmt"
 	"io"
 	"os"
 
@@ -35,7 +34,6 @@ func NewTarWriterFile(tw *tar.Writer) *FileArchiver {
 }
 
 func (fa *FileArchiver) Write(f *os.File, archivePath string) error {
-	fmt.Printf("FileArchiver %v, writing to %s, archivePath: %s\n", f.Name(), archivePath)
 	info, err := f.Stat()
 	if err != nil {
 		return err
