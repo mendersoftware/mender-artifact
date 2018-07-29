@@ -108,8 +108,14 @@ func MakeRootfsImageArtifact(version int, signed bool,
 	}
 
 	updates := &awriter.Updates{U: []handlers.Composer{u}}
-	err = aw.WriteArtifact("mender", version, []string{"vexpress"},
-		"mender-1.1", updates, &scr)
+	err = aw.WriteArtifact(&awriter.WriteArtifactArgs{
+		Format:  "mender",
+		Version: version,
+		Devices: []string{"vexpress"},
+		Name:    "mender-1.1",
+		Updates: updates,
+		Scripts: &scr,
+	})
 	if err != nil {
 		return nil, err
 	}

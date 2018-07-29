@@ -77,6 +77,15 @@ type UpdateType struct {
 	Type string `json:"type"`
 }
 
+// HeaderInfoer wraps headerInfo version 1,2 and 3,
+// in order to supply the artifact reader with the information it needs.
+type HeaderInfoer interface {
+	Write(b []byte) (n int, err error)
+	GetArtifactName() string
+	GetCompatibleDevices() []string
+	GetUpdates() []UpdateType
+}
+
 // HeaderInfo contains information of number and type of update files
 // archived in Mender metadata archive.
 type HeaderInfo struct {
@@ -91,6 +100,21 @@ func NewHeaderInfo(artifactName string, updates []UpdateType, compatibleDevices 
 		Updates:           updates,
 		CompatibleDevices: compatibleDevices,
 	}
+}
+
+// Satisfy HeaderInfoer interface for the artifact reader.
+func (hi *HeaderInfo) GetArtifactName() string {
+	return hi.ArtifactName
+}
+
+// Satisfy HeaderInfoer interface for the artifact reader.
+func (hi *HeaderInfo) GetCompatibleDevices() []string {
+	return hi.CompatibleDevices
+}
+
+// Satisfy HeaderInfoer interface for the artifact reader.
+func (hi *HeaderInfo) GetUpdates() []UpdateType {
+	return hi.Updates
 }
 
 // Validate checks if header-info structure is correct.
@@ -126,6 +150,21 @@ func NewHeaderInfoV3(updates []UpdateType,
 		ArtifactProvides: artifactProvides,
 		ArtifactDepends:  artifactDepends,
 	}
+}
+
+// Satisfy HeaderInfoer interface for the artifact reader.
+func (hi *HeaderInfoV3) GetArtifactName() string {
+	return hi.ArtifactProvides.ArtifactName
+}
+
+// Satisfy HeaderInfoer interface for the artifact reader.
+func (hi *HeaderInfoV3) GetCompatibleDevices() []string {
+	return hi.ArtifactDepends.CompatibleDevices
+}
+
+// Satisfy HeaderInfoer interface for the artifact reader.
+func (hi *HeaderInfoV3) GetUpdates() []UpdateType {
+	return hi.Updates
 }
 
 // Validate validates the correctness of the header version3.

@@ -18,7 +18,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -42,12 +41,16 @@ type Reader struct {
 	IsSigned                  bool
 
 	shouldBeSigned bool
-	hInfo          *artifact.HeaderInfo
-	hInfoV3        *artifact.HeaderInfoV3
-	info           *artifact.Info
-	r              io.Reader
-	handlers       map[string]handlers.Installer
-	installers     map[int]handlers.Installer
+	// TODO - This can be made a sub-struct in the artifact package.
+	artifactName         string
+	compatibleDevices    []string
+	supportedUpdateTypes []string
+	artifactGroup        string
+	hInfo                artifact.HeaderInfoer // TODO -factor out
+	info                 *artifact.Info
+	r                    io.Reader
+	handlers             map[string]handlers.Installer
+	installers           map[int]handlers.Installer
 }
 
 func NewReader(r io.Reader) *Reader {
@@ -115,8 +118,15 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 	defer gz.Close()
 	tr := tar.NewReader(gz)
 
+	var hInfo artifact.HeaderInfoer
+	switch ar.info.Version {
+	case 1, 2:
+		hInfo = new(artifact.HeaderInfo)
+	case 3:
+		hInfo = new(artifact.HeaderInfoV3)
+	}
+
 	// first part of header must always be header-info
-	hInfo := new(artifact.HeaderInfo)
 	if err = readNext(tr, hInfo, "header-info"); err != nil {
 		return err
 	}
@@ -124,7 +134,7 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 
 	// after reading header-info we can check device compatibility
 	if ar.CompatibleDevicesCallback != nil {
-		if err = ar.CompatibleDevicesCallback(hInfo.CompatibleDevices); err != nil {
+		if err = ar.CompatibleDevicesCallback(hInfo.GetCompatibleDevices()); err != nil {
 			return err
 		}
 	}
@@ -138,7 +148,7 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 
 	// Next step is setting correct installers based on update types being
 	// part of the artifact.
-	if err = ar.setInstallers(hInfo.Updates); err != nil {
+	if err = ar.setInstallers(hInfo.GetUpdates()); err != nil {
 		return err
 	}
 
@@ -172,7 +182,7 @@ func (ar *Reader) readAugmentedHeader(tReader io.Reader, headerSum []byte) error
 	if err = readNext(tr, hInfo, "header-info"); err != nil {
 		return err
 	}
-	ar.hInfoV3 = hInfo
+	ar.hInfo = hInfo
 
 	// TODO - necessary when the previous header is already processed?
 	// after reading header-info we can check device compatibility
@@ -390,6 +400,7 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 	}
 	return manifest, nil
 }
+
 func (ar *Reader) readHeaderV2(tReader *tar.Reader,
 	version []byte) (*artifact.ChecksumStore, error) {
 	// first file after version MUST contain all the checksums
@@ -491,11 +502,11 @@ func (ar *Reader) ReadArtifact() error {
 }
 
 func (ar *Reader) GetCompatibleDevices() []string {
-	return ar.hInfo.CompatibleDevices
+	return ar.hInfo.GetCompatibleDevices()
 }
 
 func (ar *Reader) GetArtifactName() string {
-	return ar.hInfo.ArtifactName
+	return ar.hInfo.GetArtifactName()
 }
 
 func (ar *Reader) GetInfo() artifact.Info {
@@ -595,11 +606,9 @@ func readNext(tr *tar.Reader, w io.Writer, elem string) error {
 		return errors.New("reader: read next called on invalid stream")
 	}
 	hdr, err := getNext(tr)
-	fmt.Printf("readNext: %v, err: %v\n", hdr, err)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("hdr.Name: %s, elem: %s\n", hdr.Name, elem)
 	if strings.HasPrefix(hdr.Name, elem) {
 		_, err := io.Copy(w, tr)
 		return err
