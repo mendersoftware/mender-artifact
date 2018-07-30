@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -119,13 +120,28 @@ func (hi *HeaderInfo) GetUpdates() []UpdateType {
 
 // Validate checks if header-info structure is correct.
 func (hi HeaderInfo) Validate() error {
-	if len(hi.Updates) == 0 || len(hi.CompatibleDevices) == 0 || len(hi.ArtifactName) == 0 {
-		return ErrValidatingData
+	missingArgs := []string{"Artifact validation failed with missing argument"}
+	if len(hi.Updates) == 0 {
+		missingArgs = append(missingArgs, "No updates added")
+	}
+	if len(hi.CompatibleDevices) == 0 {
+		missingArgs = append(missingArgs, "No compatible devices listed")
+	}
+	if len(hi.ArtifactName) == 0 {
+		missingArgs = append(missingArgs, "No artifact name")
 	}
 	for _, update := range hi.Updates {
 		if update == (UpdateType{}) {
-			return ErrValidatingData
+			missingArgs = append(missingArgs, "Empty update")
+			break
 		}
+	}
+	if len(missingArgs) > 1 {
+		if len(missingArgs) > 2 {
+			missingArgs[0] = missingArgs[0] + "s" // Add plural.
+		}
+		missingArgs[0] = missingArgs[0] + ": "
+		return errors.New(missingArgs[0] + strings.Join(missingArgs[1:], ", "))
 	}
 	return nil
 }
@@ -169,14 +185,16 @@ func (hi *HeaderInfoV3) GetUpdates() []UpdateType {
 
 // Validate validates the correctness of the header version3.
 func (hi *HeaderInfoV3) Validate() error {
+	missingArgs := []string{"Artifact validation failed with missing argument"}
 	// Artifact must have an update with them.
 	if len(hi.Updates) == 0 {
-		return ErrValidatingData
+		missingArgs = append(missingArgs, "No updates added")
 	}
 	// Updates cannot be empty.
 	for _, update := range hi.Updates {
 		if update == (UpdateType{}) {
-			return ErrValidatingData
+			missingArgs = append(missingArgs, "Empty update")
+			break
 		}
 	}
 	//////////////////////////////////
@@ -184,25 +202,33 @@ func (hi *HeaderInfoV3) Validate() error {
 	//////////////////////////////////
 	/* Artifact-provides cannot be empty. */
 	if hi.ArtifactProvides == nil {
-		return ErrValidatingData
-	}
-	/* Artifact must have a name. */
-	if len(hi.ArtifactProvides.ArtifactName) == 0 {
-		return ErrValidatingData
-	}
-	/* Artifact must have a group */
-	if len(hi.ArtifactProvides.ArtifactGroup) == 0 {
-		return ErrValidatingData
-	}
-	/* Artifact must have at least one supported update type. */
-	if len(hi.ArtifactProvides.SupportedUpdateTypes) == 0 {
-		return ErrValidatingData
+		missingArgs = append(missingArgs, "Empty artifact provides")
+	} else {
+		/* Artifact must have a name. */
+		if len(hi.ArtifactProvides.ArtifactName) == 0 {
+			missingArgs = append(missingArgs, "Artifact name")
+		}
+		/* Artifact must have a group */
+		if len(hi.ArtifactProvides.ArtifactGroup) == 0 {
+			missingArgs = append(missingArgs, "Artifact group")
+		}
+		/* Artifact must have at least one supported update type. */
+		if len(hi.ArtifactProvides.SupportedUpdateTypes) == 0 {
+			missingArgs = append(missingArgs, "Supported update type")
+		}
 	}
 	///////////////////////////////////////
 	// Artifact-depends can be empty, thus:
 	///////////////////////////////////////
 	/* Artifact must not depend on a name. */
-	/* Artifact must not depend on a device. */
+	/* Artifact must not depend on a device. */ // TODO - hmmm... is this correct behaviour?
+	if len(missingArgs) > 1 {
+		if len(missingArgs) > 2 {
+			missingArgs[0] = missingArgs[0] + "s" // Add plural.
+		}
+		missingArgs[0] = missingArgs[0] + ": "
+		return errors.New(missingArgs[0] + strings.Join(missingArgs[1:], ", "))
+	}
 	return nil
 }
 

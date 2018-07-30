@@ -1,4 +1,4 @@
-// Copyright 2017 Northern.tech AS
+// Copyright 2018 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import (
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func checkTarElements(r io.Reader, expected int) error {
@@ -76,17 +77,23 @@ func checkTarElementsByName(r io.Reader, expected []string) error {
 func TestWriteArtifact(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	w := NewWriter(buf)
-
-	err := w.WriteArtifact(&WriteArtifactArgs{
+	tFile, err := ioutil.TempFile("", "artifacttmp")
+	require.Nil(t, err)
+	u := handlers.NewRootfsV1(tFile.Name())
+	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
+		Name:    "name",
 		Version: 1,
 		Devices: []string{"asd"},
-		Name:    "name",
-		Updates: &Updates{},
+		Updates: &Updates{[]handlers.Composer{u}},
 	})
 	assert.NoError(t, err)
 
-	assert.NoError(t, checkTarElements(buf, 2))
+	assert.NoError(t, checkTarElementsByName(buf, []string{
+		"version",
+		"header.tar.gz",
+		"0000.tar.gz",
+	}))
 }
 
 func TestWriteArtifactWithUpdates(t *testing.T) {
@@ -189,18 +196,6 @@ func TestWriteArtifactV2(t *testing.T) {
 		err.Error())
 	buf.Reset()
 
-	// write empty artifact
-	err = w.WriteArtifact(&WriteArtifactArgs{
-		Format:  "",
-		Version: 2,
-		Devices: []string{},
-		Name:    "",
-		Updates: &Updates{},
-	})
-	assert.NoError(t, err)
-	assert.NoError(t, checkTarElements(buf, 4))
-	buf.Reset()
-
 	w = NewWriterSigned(buf, nil)
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
@@ -233,6 +228,15 @@ func TestWriteArtifactV3(t *testing.T) {
 		Devices: []string{"vexpress-qemu"},
 		Name:    "name",
 		Updates: updates,
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      "depends-name",
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
 	})
 	assert.NoError(t, err)
 	assert.NoError(t, checkTarElementsByName(buf, []string{
@@ -241,23 +245,6 @@ func TestWriteArtifactV3(t *testing.T) {
 		"manifest.sig",
 		"header.tar.gz",
 		"0000.tar.gz",
-	}))
-	buf.Reset()
-
-	// write empty artifact
-	err = w.WriteArtifact(&WriteArtifactArgs{
-		Format:  "",
-		Version: 3,
-		Devices: []string{},
-		Name:    "",
-		Updates: &Updates{},
-	})
-	assert.NoError(t, err)
-	assert.NoError(t, checkTarElementsByName(buf, []string{
-		"version",
-		"manifest",
-		"manifest.sig",
-		"header.tar.gz",
 	}))
 	buf.Reset()
 
@@ -270,6 +257,15 @@ func TestWriteArtifactV3(t *testing.T) {
 		Devices: []string{"vexpress-qemu"},
 		Name:    "name",
 		Updates: updates,
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      "depends-name",
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
 	})
 	assert.Error(t, err)
 	buf.Reset()
@@ -290,6 +286,15 @@ func TestWriteArtifactV3(t *testing.T) {
 		Devices: []string{"vexpress-qemu"},
 		Name:    "name",
 		Updates: updates,
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      "depends-name",
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
 	})
 	assert.NoError(t, err)
 	assert.NoError(t, checkTarElementsByName(buf, []string{
@@ -297,22 +302,6 @@ func TestWriteArtifactV3(t *testing.T) {
 		"manifest",
 		"header.tar.gz",
 		"0000.tar.gz",
-	}))
-	buf.Reset()
-
-	// write empty artifact
-	err = w.WriteArtifact(&WriteArtifactArgs{
-		Format:  "",
-		Version: 3,
-		Devices: []string{},
-		Name:    "",
-		Updates: &Updates{},
-	})
-	assert.NoError(t, err)
-	assert.NoError(t, checkTarElementsByName(buf, []string{
-		"version",
-		"manifest",
-		"header.tar.gz",
 	}))
 	buf.Reset()
 
@@ -325,6 +314,15 @@ func TestWriteArtifactV3(t *testing.T) {
 		Devices: []string{"vexpress-qemu"},
 		Name:    "name",
 		Updates: updates,
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      "depends-name",
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
 	})
 	assert.Error(t, err)
 	buf.Reset()

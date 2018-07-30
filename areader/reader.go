@@ -45,6 +45,7 @@ type Reader struct {
 	artifactName         string
 	compatibleDevices    []string
 	supportedUpdateTypes []string
+	updates              []artifact.UpdateType
 	artifactGroup        string
 	hInfo                artifact.HeaderInfoer // TODO -factor out
 	info                 *artifact.Info
@@ -130,7 +131,16 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 	if err = readNext(tr, hInfo, "header-info"); err != nil {
 		return err
 	}
-	ar.hInfo = hInfo
+	// Populate the artifact information.
+	// TODO - populateArtifactInfo-function.
+	ar.artifactName = hInfo.GetArtifactName()
+	ar.compatibleDevices = hInfo.GetCompatibleDevices()
+	ar.updates = hInfo.GetUpdates()
+	switch ar.info.Version {
+	// Version 3 is a superset of V1 and V2, so add the extra fields.
+	case 3:
+		// TODO - populate depends and provides.
+	}
 
 	// after reading header-info we can check device compatibility
 	if ar.CompatibleDevicesCallback != nil {
@@ -312,7 +322,7 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 	if err != nil {
 		return nil, err
 	}
-	var augManChecksumStore *artifact.ChecksumStore
+	// var augManChecksumStore *artifact.ChecksumStore
 
 	// check what is the next file in the artifact
 	// depending if artifact is signed or not we can have
@@ -351,25 +361,25 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 		}
 		fallthrough
 
-	case "manifest-augment":
-		augManChecksumStore, err = readManifest(tReader, "manifest-augment")
-		if err != nil {
-			return nil, errors.Wrap(err, "ReadHeaderV3: manifest-augment: ")
-		}
-		// First read and verify signature.
-		if err = signatureReadAndVerify(tReader, augManChecksumStore.GetRaw(),
-			ar.VerifySignatureCallback, ar.shouldBeSigned); err != nil {
-			return nil, err
-		}
-		// ...and then header.
-		hdr, err = getNext(tReader)
-		if err != nil {
-			return nil, errors.New("readHeaderV3: reader: error reading header")
-		}
-		if !strings.HasPrefix(hdr.Name, "header-augment.tar.gz") {
-			return nil, errors.Errorf("reader: invalid header element: %v", hdr.Name)
-		}
-		fallthrough
+	// case "manifest-augment":
+	// 	augManChecksumStore, err = readManifest(tReader, "manifest-augment")
+	// 	if err != nil {
+	// 		return nil, errors.Wrap(err, "ReadHeaderV3: manifest-augment: ")
+	// 	}
+	// 	// First read and verify signature.
+	// 	if err = signatureReadAndVerify(tReader, augManChecksumStore.GetRaw(),
+	// 		ar.VerifySignatureCallback, ar.shouldBeSigned); err != nil {
+	// 		return nil, err
+	// 	}
+	// 	// ...and then header.
+	// 	hdr, err = getNext(tReader)
+	// 	if err != nil {
+	// 		return nil, errors.New("readHeaderV3: reader: error reading header")
+	// 	}
+	// 	if !strings.HasPrefix(hdr.Name, "header-augment.tar.gz") {
+	// 		return nil, errors.Errorf("reader: invalid header element: %v", hdr.Name)
+	// 	}
+	// 	fallthrough
 
 	case "header.tar.gz":
 		// Get and verify checksums of header.
@@ -381,18 +391,19 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 		if err := ar.readHeader(tReader, hc); err != nil {
 			return nil, err
 		}
-		fallthrough
+		// fallthrough - cannot simply fallthrough, the augmented header might be missing.
 
-	case "header.augment.tar.gz":
-		// Get and verify checksums of the augmented header.
-		hc, err := augManChecksumStore.Get("header.augment.tar.gz")
-		if err != nil {
-			return nil, err
-		}
+		// TODO - implement.
+	// case "header.augment.tar.gz":
+	// 	// Get and verify checksums of the augmented header.
+	// 	hc, err := augManChecksumStore.Get("header.augment.tar.gz")
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
 
-		if err := ar.readAugmentedHeader(tReader, hc); err != nil {
-			return nil, err
-		}
+	// 	if err := ar.readAugmentedHeader(tReader, hc); err != nil {
+	// 		return nil, err
+	// 	}
 
 	default:
 		return nil, errors.Errorf("reader: found unexpected file in artifact: %v",
@@ -502,11 +513,11 @@ func (ar *Reader) ReadArtifact() error {
 }
 
 func (ar *Reader) GetCompatibleDevices() []string {
-	return ar.hInfo.GetCompatibleDevices()
+	return ar.compatibleDevices
 }
 
 func (ar *Reader) GetArtifactName() string {
-	return ar.hInfo.GetArtifactName()
+	return ar.artifactName
 }
 
 func (ar *Reader) GetInfo() artifact.Info {

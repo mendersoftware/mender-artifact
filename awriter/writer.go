@@ -101,7 +101,7 @@ func writeTempHeader(s *artifact.ChecksumStore, name string, writeHeaderVersion 
 	if err != nil {
 		return nil, err
 	}
-	s.Add(name+"tar.gz", ch.Checksum())
+	s.Add(name+".tar.gz", ch.Checksum())
 
 	return f, nil
 }
@@ -193,7 +193,10 @@ func (aw *Writer) WriteArtifact(args *WriteArtifactArgs) (err error) {
 	defer os.Remove(tmpHdr.Name())
 
 	// write version file
-	inf := artifact.ToStream(&artifact.Info{Version: args.Version, Format: args.Format})
+	inf, err := artifact.ToStream(&artifact.Info{Version: args.Version, Format: args.Format})
+	if err != nil {
+		return err
+	}
 	sa := artifact.NewTarWriterStream(tw)
 	if err := sa.Write(inf, "version"); err != nil {
 		return errors.Wrapf(err, "writer: can not write version tar header")
@@ -280,7 +283,6 @@ func extractUpdateTypes(updates *Updates) []artifact.UpdateType {
 	return u
 }
 
-// TODO - args struct should possibly be renamed.
 func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error {
 	// store header info
 	var hInfo artifact.WriteValidator
@@ -293,7 +295,11 @@ func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error {
 	}
 
 	sa := artifact.NewTarWriterStream(tarWriter)
-	if err := sa.Write(artifact.ToStream(hInfo), "header-info"); err != nil {
+	stream, err := artifact.ToStream(hInfo)
+	if err != nil {
+		return errors.Wrap(err, "writeHeader")
+	}
+	if err := sa.Write(stream, "header-info"); err != nil {
 		return errors.New("writer: can not store header-info")
 	}
 
@@ -312,7 +318,7 @@ func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error {
 	return nil
 }
 
-// writeAugHeaderArgs is a wrapper for the arguments to the writeAugmentedHeader function.
+// WriteAugHeaderArgs is a wrapper for the arguments to the writeAugmentedHeader function.
 type WriteAugHeaderArgs struct {
 	Version          int
 	TarWriter        *tar.Writer
@@ -337,7 +343,11 @@ func writeAugmentedHeader(args *WriteAugHeaderArgs) error {
 	hInfo.ArtifactDepends = args.ArtifactDepends
 
 	sa := artifact.NewTarWriterStream(args.TarWriter)
-	if err := sa.Write(artifact.ToStream(hInfo), "header-info"); err != nil {
+	stream, err := artifact.ToStream(hInfo)
+	if err != nil {
+		return errors.Wrap(err, "writeAugmentedHeader: ")
+	}
+	if err := sa.Write(stream, "header-info"); err != nil {
 		return errors.New("writer: can not store header-info")
 	}
 

@@ -1,4 +1,4 @@
-// Copyright 2017 Northern.tech AS
+// Copyright 2018 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import (
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -108,6 +109,7 @@ func MakeRootfsImageArtifact(version int, signed bool,
 	}
 
 	updates := &awriter.Updates{U: []handlers.Composer{u}}
+	// TODO - for now the arguments are double, in artifact depends, and a simple depend (also name etc.).
 	err = aw.WriteArtifact(&awriter.WriteArtifactArgs{
 		Format:  "mender",
 		Version: version,
@@ -115,6 +117,15 @@ func MakeRootfsImageArtifact(version int, signed bool,
 		Name:    "mender-1.1",
 		Updates: updates,
 		Scripts: &scr,
+		// Version 3 specifics:
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "mender-1.1",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs", "delta"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			CompatibleDevices: []string{"vexpress"},
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -140,13 +151,13 @@ func TestReadArtifact(t *testing.T) {
 		verifier  artifact.Verifier
 		readError error
 	}{
-		// {1, false, rfh, nil, nil},
-		// {2, false, rfh, nil, nil},
-		// {2, true, rfh, artifact.NewVerifier([]byte(PublicKey)), nil},
-		// {2, true, rfh, artifact.NewVerifier([]byte(PublicKeyError)),
-		// 	errors.New("reader: invalid signature: crypto/rsa: verification error")},
-		// // // test that we do not need a verifier for signed artifact
-		// {2, true, rfh, nil, nil},
+		{1, false, rfh, nil, nil},
+		{2, false, rfh, nil, nil},
+		{2, true, rfh, artifact.NewVerifier([]byte(PublicKey)), nil},
+		{2, true, rfh, artifact.NewVerifier([]byte(PublicKeyError)),
+			errors.New("reader: invalid signature: crypto/rsa: verification error")},
+		// // test that we do not need a verifier for signed artifact
+		{2, true, rfh, nil, nil},
 		{3, false, rfh, nil, nil},
 	}
 
@@ -173,7 +184,7 @@ func TestReadArtifact(t *testing.T) {
 		assert.Equal(t, TestUpdateFileContent, updFileContent.String())
 
 		devComp := aReader.GetCompatibleDevices()
-		assert.Len(t, devComp, 1)
+		require.Len(t, devComp, 1)
 		assert.Equal(t, "vexpress", devComp[0])
 
 		if test.handler != nil {

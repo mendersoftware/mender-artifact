@@ -1,4 +1,4 @@
-// Copyright 2017 Northern.tech AS
+// Copyright 2018 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -88,7 +88,11 @@ func writeFiles(tw *tar.Writer, updFiles []string, dir string) error {
 	}
 
 	sa := artifact.NewTarWriterStream(tw)
-	if err := sa.Write(artifact.ToStream(files),
+	stream, err := artifact.ToStream(files)
+	if err != nil {
+		return errors.Wrap(err, "writeFiles: ")
+	}
+	if err := sa.Write(stream,
 		filepath.Join(dir, "files")); err != nil {
 		return errors.Wrapf(err, "writer: can not tar files")
 	}

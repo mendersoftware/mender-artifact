@@ -92,6 +92,7 @@ func WriteTestArtifact(version int, update string, key []byte) (io.Reader, error
 
 	err = aw.WriteArtifact(&awriter.WriteArtifactArgs{
 		Format:  "mender",
+		Name:    "test-artifact",
 		Version: version,
 		Devices: []string{"vexpress"},
 		Updates: updates,
@@ -143,6 +144,7 @@ func WriteArtifact(dir string, ver int, update string) error {
 	updates := &awriter.Updates{U: []handlers.Composer{u}}
 	return aw.WriteArtifact(&awriter.WriteArtifactArgs{
 		Format:  "mender",
+		Name:    "test-artifact",
 		Version: ver,
 		Devices: []string{"vexpress"},
 		Updates: updates,

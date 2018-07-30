@@ -43,29 +43,42 @@ func TestValidateInfo(t *testing.T) {
 func TestValidateHeaderInfo(t *testing.T) {
 	var validateTests = []struct {
 		in  HeaderInfo
-		err error
+		err string
 	}{
-		{HeaderInfo{}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{}}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{Type: ""}}}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {}}}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{}, {Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: ""}}, CompatibleDevices: []string{""}, ArtifactName: "id"}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"}, nil},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, ArtifactName: "id"}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: ""}, ErrValidatingData},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"}, nil},
+		{HeaderInfo{},
+			"Artifact validation failed with missing arguments: No updates added, No compatible devices listed, No artifact name"},
+		{HeaderInfo{Updates: []UpdateType{}},
+			"Artifact validation failed with missing arguments: No updates added, No compatible devices listed, No artifact name"},
+		{HeaderInfo{Updates: []UpdateType{{Type: ""}}},
+			"Artifact validation failed with missing arguments: No compatible devices listed, No artifact name, Empty update"},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {}}},
+			"Artifact validation failed with missing arguments: No compatible devices listed, No artifact name, Empty update"},
+		{HeaderInfo{Updates: []UpdateType{{}, {Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
+			"Artifact validation failed with missing argument: Empty update"},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: ""}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
+			"Artifact validation failed with missing argument: Empty update"},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
+			""},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, ArtifactName: "id"},
+			"Artifact validation failed with missing argument: No compatible devices listed"},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: ""},
+			"Artifact validation failed with missing argument: No artifact name"},
+		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
+			""},
 	}
 	for idx, tt := range validateTests {
 		e := tt.in.Validate()
-		assert.Equal(t, e, tt.err, "failing test: %v (%v)", idx, tt)
+		if tt.err == "" && e == nil {
+			continue
+		}
+		assert.EqualError(t, e, tt.err, "failing test: %v (%v)", idx, tt)
 	}
 }
 
 func TestValidateHeaderInfoV3(t *testing.T) {
 	var tests = map[string]struct {
 		in  HeaderInfoV3
-		err error
+		err string
 	}{
 		"correct headerinfo:": {
 			in: HeaderInfoV3{
@@ -82,13 +95,16 @@ func TestValidateHeaderInfoV3(t *testing.T) {
 					CompatibleDevices: []string{"vexpress-qemu", "rpi3"},
 				},
 			},
-			err: nil},
-		"wrong headerinfo": {},
+			err: ""},
+		"wrong headerinfo": {
+			err: "Artifact validation failed with missing arguments: No updates added, Empty artifact provides"},
 	}
 	for name, tt := range tests {
-		// TODO - Implement validate!
 		e := tt.in.Validate()
-		assert.Equal(t, e, tt.err, "failing test: %v (%v)", name, tt)
+		if tt.err == "" && e == nil {
+			continue
+		}
+		assert.Equal(t, tt.err, e.Error(), "failing test: %v (%v)", name, tt)
 	}
 }
 

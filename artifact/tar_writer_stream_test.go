@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTarStream(t *testing.T) {
@@ -53,10 +54,12 @@ func TestTarStream(t *testing.T) {
 
 func TestToStream(t *testing.T) {
 	info := &Info{Version: 3, Format: "custom"}
-	s := ToStream(info)
+	s, err := ToStream(info)
+	require.Nil(t, err)
 	assert.Equal(t, []byte(`{"format":"custom","version":3}`), s)
 
 	info = &Info{Format: "custom"}
-	s = ToStream(info)
+	s, err = ToStream(info)
+	require.Error(t, err)
 	assert.Nil(t, s)
 }
