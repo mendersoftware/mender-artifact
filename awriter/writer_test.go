@@ -60,7 +60,7 @@ func checkTarElements(r io.Reader, expected int) error {
 func checkTarElementsByName(r io.Reader, expected []string) error {
 	tr := tar.NewReader(r)
 	actual := []string{}
-	for hdr, err := tr.Next(); err != io.EOF; hdr, err = tr.Next() {
+	for hdr, err := tr.Next(); err != io.EOF && hdr != nil; hdr, err = tr.Next() {
 		actual = append(actual, filepath.Base(hdr.Name))
 	}
 	if len(expected) != len(actual) {
@@ -360,7 +360,7 @@ func TestWithScripts(t *testing.T) {
 	assert.NoError(t, checkTarElements(buf, 3))
 }
 
-func TestAddAugmentedHeader(t *testing.T) {
+func TestAugmentArtifact(t *testing.T) {
 	////////////////////////////////////////////
 	// Setup
 	////////////////////////////////////////////
@@ -394,8 +394,29 @@ func TestAddAugmentedHeader(t *testing.T) {
 	//////////////////////////////////////////////////
 	// Check the identity operation currently in add augmentedHeader.
 	artBuf := bytes.NewReader(buf.Bytes())
-	err = addAugmentedManifest(args, ioutil.NopCloser(artBuf))
+	artifactFile, err := augmentArtifact(ioutil.NopCloser(artBuf), args)
 	require.Nil(t, err)
+	// finfo, err := artifactFile.Stat()
+	// fmt.Printf("FileSize: %d\n", finfo.Size())
+	_, err = artifactFile.Seek(0, 0)
+	require.Nil(t, err)
+	assert.NoError(t, checkTarElementsByName(artifactFile, []string{
+		"version",
+		"manifest",
+		"manifest.sig",
+		"manifest-augment",
+		"header.tar.gz",
+		"header-augment.tar.gz",
+		"0000.tar.gz",
+	}))
+	artifactFile.Seek(0, 0)
+	tarReader := tar.NewReader(artifactFile)
+	hdr, err := tarReader.Next()
+	require.Nil(t, err)
+	if hdr == nil {
+		t.Log("Header is nil")
+	}
+	fmt.Println(hdr.Name)
 }
 
 type TestDirEntry struct {
