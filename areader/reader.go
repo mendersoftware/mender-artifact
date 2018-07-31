@@ -225,7 +225,7 @@ func (ar *Reader) readAugmentedHeader(tReader io.Reader, headerSum []byte) error
 	return nil
 }
 
-func readVersion(tr *tar.Reader) (*artifact.Info, []byte, error) {
+func ReadVersion(tr *tar.Reader) (*artifact.Info, []byte, error) {
 	buf := bytes.NewBuffer(nil)
 	// read version file and calculate checksum
 	if err := readNext(tr, buf, "version"); err != nil {
@@ -483,7 +483,7 @@ func (ar *Reader) ReadArtifact() error {
 	tReader := tar.NewReader(ar.r)
 
 	// first file inside the artifact MUST be version
-	ver, vRaw, err := readVersion(tReader)
+	ver, vRaw, err := ReadVersion(tReader)
 	if err != nil {
 		return errors.Wrapf(err, "reader: can not read version file")
 	}

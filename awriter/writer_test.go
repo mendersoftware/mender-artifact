@@ -360,6 +360,44 @@ func TestWithScripts(t *testing.T) {
 	assert.NoError(t, checkTarElements(buf, 3))
 }
 
+func TestAddAugmentedHeader(t *testing.T) {
+	////////////////////////////////////////////
+	// Setup
+	////////////////////////////////////////////
+	buf := bytes.NewBuffer(nil)
+	s := artifact.NewSigner([]byte(PrivateKey))
+	w := NewWriterSigned(buf, s)
+	upd, err := MakeFakeUpdate("my test update")
+	assert.NoError(t, err)
+	defer os.Remove(upd)
+	u := handlers.NewRootfsV3(upd)
+	updates := &Updates{U: []handlers.Composer{u}}
+	// Write an artifact into the buffer.
+	args := &WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates,
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      "depends-name",
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
+	}
+	err = w.WriteArtifact(args)
+	assert.NoError(t, err)
+	//////////////////////////////////////////////////
+	// Check the identity operation currently in add augmentedHeader.
+	artBuf := bytes.NewReader(buf.Bytes())
+	err = addAugmentedManifest(args, ioutil.NopCloser(artBuf))
+	require.Nil(t, err)
+}
+
 type TestDirEntry struct {
 	Path    string
 	Content []byte

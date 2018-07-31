@@ -258,6 +258,56 @@ func (aw *Writer) WriteArtifact(args *WriteArtifactArgs) (err error) {
 	return writeData(tw, args.Updates)
 }
 
+// addAugmentedManifest adds an unsigned manifest to the artifact.
+func addAugmentedManifest(args *WriteArtifactArgs, art io.ReadCloser) error {
+	// First read the artifact.
+	tarReader := tar.NewReader(art)
+	// Create a new artifact writer, and simply write anew the old artifact.
+	artifactFile, err := os.OpenFile("artifact.mender", os.O_RDWR|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return errors.Wrap(err, "addAugmentedManifest: failed to open the new artifact file")
+	}
+	tw := tar.NewWriter(artifactFile)
+	defer tw.Close()
+	// The augmented manifest needs to be placed after manifest.sig.
+	for {
+		header, err := tarReader.Next()
+		fmt.Println(err)
+		if err == io.EOF {
+			break // Done processing the archive.
+		}
+		if err != nil {
+			return errors.Wrap(err, "addAugmentedManifest: tarReader.Next() failed")
+		}
+		if !(header.Typeflag == tar.TypeReg || header.Typeflag == tar.TypeRegA) {
+			continue
+		}
+		if header.Name == "manifest.sig" {
+			fmt.Println("Found manifest.sig!!!")
+			s := artifact.NewChecksumStore()
+
+		}
+		// Allocate a buffer the size of a tar-record (512 Bytes).
+		// tarBuf := make([]byte, 512)
+		// Simply write the current artifact contents anew.
+		// Write back the header.
+		err = tw.WriteHeader(header)
+		if err != nil {
+			return errors.Wrap(err, "addAugmentedManifest: failed to write header")
+		}
+		n, err := io.Copy(tw, tarReader)
+		if err != nil {
+			return errors.Wrapf(err, "addAugmentedManifest: io.CopyBuffer failed: writeLength: %d", n)
+		}
+	}
+	return nil
+}
+
+func addAugmentedHeader() error {
+	// First read the artifact.
+	return nil
+}
+
 func writeScripts(tw *tar.Writer, scr *artifact.Scripts) error {
 	sw := artifact.NewTarWriterFile(tw)
 	for _, script := range scr.Get() {
