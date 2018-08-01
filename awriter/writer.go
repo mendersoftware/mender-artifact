@@ -202,47 +202,8 @@ func (aw *Writer) WriteArtifact(args *WriteArtifactArgs) (err error) {
 		return errors.Wrapf(err, "writer: can not write version tar header")
 	}
 
-	switch args.Version {
-	case 2:
-
-		// add checksum of `version`
-		ch := artifact.NewWriterChecksum(ioutil.Discard)
-		ch.Write(inf)
-		s.Add("version", ch.Checksum())
-
-		// write `manifest` file
-		sw := artifact.NewTarWriterStream(tw)
-		if err := sw.Write(s.GetRaw(), "manifest"); err != nil {
-			return errors.Wrapf(err, "writer: can not write manifest stream")
-		}
-
-		// write signature
-		if err := WriteSignature(tw, s.GetRaw(), aw.signer); err != nil {
-			return err
-		}
-		// header is written later on
-	case 3:
-
-		// Add checksum of `version`.
-		ch := artifact.NewWriterChecksum(ioutil.Discard)
-		ch.Write(inf)
-		s.Add("version", ch.Checksum())
-
-		// Write `manifest` file.
-		sw := artifact.NewTarWriterStream(tw)
-		if err := sw.Write(s.GetRaw(), "manifest"); err != nil {
-			return errors.Wrapf(err, "writer: can not write manifest stream")
-		}
-
-		// Write signature.
-		if err := WriteSignature(tw, s.GetRaw(), aw.signer); err != nil {
-			return err
-		}
-
-	case 1:
-
-	default:
-		return fmt.Errorf("writer: unsupported artifact version: %d", args.Version)
+	if err = writeArtifactVersion(args.Version, aw.signer, tw, s, inf); err != nil {
+		return errors.Wrap(err, "WriteArtifact")
 	}
 
 	// write header
@@ -258,78 +219,111 @@ func (aw *Writer) WriteArtifact(args *WriteArtifactArgs) (err error) {
 	return writeData(tw, args.Updates)
 }
 
-// addAugmentedManifest adds an unsigned manifest to the artifact.
-func augmentArtifact(art io.ReadCloser, args *WriteArtifactArgs) (*os.File, error) {
-	augmentedManifestWritten := false
-	// First read the artifact.
-	tarReader := tar.NewReader(art)
-	// Create a new artifact writer, and simply write anew the old artifact.
-	artifactFile, err := os.OpenFile("artifact.mender", os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return nil, errors.Wrap(err, "addAugmentedManifest: failed to open the new artifact file")
+// writeArtifactVersion writes version specific artifact records.
+func writeArtifactVersion(version int, signer artifact.Signer, tw *tar.Writer, s *artifact.ChecksumStore, artifactInfoStream []byte) error {
+	switch version {
+	case 2:
+		// add checksum of `version`
+		ch := artifact.NewWriterChecksum(ioutil.Discard)
+		ch.Write(artifactInfoStream)
+		s.Add("version", ch.Checksum())
+		// write `manifest` file
+		sw := artifact.NewTarWriterStream(tw)
+		if err := sw.Write(s.GetRaw(), "manifest"); err != nil {
+			return errors.Wrapf(err, "writer: can not write manifest stream")
+		}
+		// write signature
+		if err := WriteSignature(tw, s.GetRaw(), signer); err != nil {
+			return err
+		}
+		// header is written later on
+	case 3:
+		// Add checksum of `version`.
+		ch := artifact.NewWriterChecksum(ioutil.Discard)
+		ch.Write(artifactInfoStream)
+		s.Add("version", ch.Checksum())
+		// Write `manifest` file.
+		sw := artifact.NewTarWriterStream(tw)
+		if err := sw.Write(s.GetRaw(), "manifest"); err != nil {
+			return errors.Wrapf(err, "writer: can not write manifest stream")
+		}
+		// Write signature.
+		if err := WriteSignature(tw, s.GetRaw(), signer); err != nil {
+			return err
+		}
+	case 1:
+
+	default:
+		return fmt.Errorf("writer: unsupported artifact version: %d", version)
 	}
-	tw := tar.NewWriter(artifactFile)
+	return nil
+}
+
+// addAugmentedManifest adds an unsigned manifest and a header to the artifact,
+func augmentArtifact(stdArtifact io.Reader, augmentedArtifact io.Writer, args *WriteArtifactArgs) error {
+	augmentedManifestWritten := false
+	augmentedHeaderWritten := false
+	// First read the artifact.
+	tarReader := tar.NewReader(stdArtifact)
+	// Create a new artifact writer, and simply write anew the old artifact.
+	tw := tar.NewWriter(augmentedArtifact)
 	defer tw.Close()
 	// Since we need the checksums, before writing the augmented manifest, get the
 	// correct checksums, and store header as a tempFile.
 	s := artifact.NewChecksumStore()
 	tmpHdr, err := writeTempHeader(s, "header-augment", writeAugmentedHeader, args)
 	if err != nil {
-		return nil, errors.Wrap(err, "augmentArtifact: failed to write tempAugmentHeader")
+		return errors.Wrap(err, "augmentArtifact: failed to write tempAugmentHeader")
 	}
-	// The augmented manifest needs to be placed after manifest.sig.
+	// File needs to be read anew.
+	if _, err := tmpHdr.Seek(0, 0); err != nil {
+		return errors.Wrapf(err, "addAugmentedManifest: error preparing tmp augmented-header for writing")
+	}
+	// Place the augmented fields at their corresponding places in the new artifact.
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
 			break // Done processing the archive.
 		}
 		if err != nil {
-			return nil, errors.Wrap(err, "addAugmentedManifest: tarReader.Next() failed")
-		}
-		if !(header.Typeflag == tar.TypeReg || header.Typeflag == tar.TypeRegA) {
-			continue
+			return errors.Wrap(err, "addAugmentedManifest: tarReader.Next() failed")
 		}
 		// Allocate a buffer the size of a tar-record (512 Bytes).
 		tarBuf := make([]byte, 512)
 		// Simply write the current artifact contents anew.
-		// Write back the header.
 		err = tw.WriteHeader(header)
 		if err != nil {
-			return nil, errors.Wrap(err, "addAugmentedManifest: failed to write header")
+			return errors.Wrap(err, "addAugmentedManifest: failed to write header")
 		}
 		n, err := io.CopyBuffer(tw, tarReader, tarBuf)
 		if err != nil {
-			return nil, errors.Wrapf(err, "addAugmentedManifest: io.CopyBuffer failed: writeLength: %d", n)
+			return errors.Wrapf(err, "addAugmentedManifest: io.CopyBuffer failed: writeLength: %d", n)
 		}
 		// After the header has been written, we can append our augmented records.
 		if header.Name == "manifest.sig" {
 			// Add the manifest to the tarWriter.
 			sa := artifact.NewTarWriterStream(tw)
 			if err = sa.Write(s.GetRaw(), "manifest-augment"); err != nil {
-				return nil, errors.Wrap(err, "addAugmentedManifest: failed to write manifest-augment")
+				return errors.Wrap(err, "addAugmentedManifest: failed to write manifest-augment")
 			}
 			augmentedManifestWritten = true
 		}
 		if header.Name == "header.tar.gz" && augmentedManifestWritten {
 			// Write the augmented header to the new artifact.
-			if _, err := tmpHdr.Seek(0, 0); err != nil {
-				return nil, errors.Wrapf(err, "addAugmentedManifest: error preparing tmp augmented-header for writing")
-			}
 			fw := artifact.NewTarWriterFile(tw)
 			if err := fw.Write(tmpHdr, "header-augment.tar.gz"); err != nil {
-				return nil, errors.Wrapf(err, "addAugmentedManifest: can not tar the augmented header")
+				return errors.Wrapf(err, "addAugmentedManifest: can not tar the augmented header")
 			}
-
+			augmentedHeaderWritten = true
 		}
 	}
-	// Reset the file, and remove in case of error.
-	// if _, err = artifactFile.Seek(0, 0); err != nil {
-	// 	if ferr := os.Remove(artifactFile.Name()); ferr != nil {
-	// 		return nil, errors.Wrapf(ferr, "augmentArtifact: failed to remove artifactFile: %v", err)
-	// 	}
-	// 	return nil, errors.Wrap(err, "augmentArtifact: failed to reset the artifact file for writing")
-	// }
-	return artifactFile, nil
+	// Be sure that both the augmented records have been written
+	if !(augmentedManifestWritten && augmentedHeaderWritten) {
+		return fmt.Errorf(
+			"augmentArtifact: AugmentError: augmented-manifest: %t, augmented-header: %t",
+			augmentedManifestWritten, augmentedHeaderWritten)
+	}
+	return nil
 }
 
 func writeScripts(tw *tar.Writer, scr *artifact.Scripts) error {

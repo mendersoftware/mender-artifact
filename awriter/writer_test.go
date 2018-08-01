@@ -394,13 +394,10 @@ func TestAugmentArtifact(t *testing.T) {
 	//////////////////////////////////////////////////
 	// Check the identity operation currently in add augmentedHeader.
 	artBuf := bytes.NewReader(buf.Bytes())
-	artifactFile, err := augmentArtifact(ioutil.NopCloser(artBuf), args)
+	augmentedArtifact := bytes.NewBuffer(nil)
+	err = augmentArtifact(ioutil.NopCloser(artBuf), augmentedArtifact, args)
 	require.Nil(t, err)
-	// finfo, err := artifactFile.Stat()
-	// fmt.Printf("FileSize: %d\n", finfo.Size())
-	_, err = artifactFile.Seek(0, 0)
-	require.Nil(t, err)
-	assert.NoError(t, checkTarElementsByName(artifactFile, []string{
+	assert.NoError(t, checkTarElementsByName(bytes.NewReader(augmentedArtifact.Bytes()), []string{
 		"version",
 		"manifest",
 		"manifest.sig",
@@ -409,14 +406,6 @@ func TestAugmentArtifact(t *testing.T) {
 		"header-augment.tar.gz",
 		"0000.tar.gz",
 	}))
-	artifactFile.Seek(0, 0)
-	tarReader := tar.NewReader(artifactFile)
-	hdr, err := tarReader.Next()
-	require.Nil(t, err)
-	if hdr == nil {
-		t.Log("Header is nil")
-	}
-	fmt.Println(hdr.Name)
 }
 
 type TestDirEntry struct {
