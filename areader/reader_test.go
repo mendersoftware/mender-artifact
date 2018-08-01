@@ -419,3 +419,56 @@ func TestReadAndInstall(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(), "checksum missing")
 }
+
+func TestValidParsePathV3(t *testing.T) {
+	tests := map[string]struct {
+		path  []string
+		valid bool
+	}{
+		"Unsigned": {
+			path:  []string{"manifest", "header", "data"},
+			valid: true,
+		},
+		"Signed": {
+			path:  []string{"manifest", "manifest.sig", "header", "data"},
+			valid: true,
+		},
+		"Augmented": {
+			path:  []string{"manifest", "manifest.sig", "manifest-augment", "header", "header-augment", "data"},
+			valid: true,
+		},
+		"Missing manifest": {
+			path:  []string{"header", "data"},
+			valid: false,
+		},
+		"Header missing": {
+			path:  []string{"manifest", "data"},
+			valid: false,
+		},
+		"Data missing": {
+			path:  []string{"manifest", "header", ""}, // Empty string needed to keep the test-loop going.
+			valid: false,
+		},
+		"Manifest-augment missing": {
+			path:  []string{"manifest", "manifest.sig", "header", "header-augment", "data"},
+			valid: false,
+		},
+		"Header-augment missing": {
+			path: []string{"manifest", "manifest.sig", "manifest-augment", "header", "data"},
+		},
+	}
+	var finalResult bool
+	for name, test := range tests {
+		// Loop through all the tokens in a single test path.
+		for _, token := range test.path {
+			finalResult = artifactV3ParseGrammar.validPath(token)
+			// Either we get a false as we are parsing, or the truth value will hold through
+			// all the way to the end of the path.
+			if !finalResult {
+				break // Don't continue on an invalid path.
+			}
+		}
+		assert.Equal(t, test.valid, finalResult, "Error parsing grammar for: %s", name)
+		artifactV3ParseGrammar.Reset()
+	}
+}

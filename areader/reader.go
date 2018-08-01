@@ -304,100 +304,127 @@ func verifyVersion(ver []byte, manifest *artifact.ChecksumStore) error {
 	return err
 }
 
+type validParsePathV3 struct {
+	pos        int
+	validPaths [][]string
+}
+
+func (v *validParsePathV3) validPath(token string) bool {
+	defer func() { v.pos++ }()
+	// fmt.Printf("pos: %d\n", v.pos)
+	for i, path := range v.validPaths {
+		if v.pos >= len(path) {
+			continue // invalid path
+		}
+		validToken := path[v.pos]
+		// fmt.Printf("pos: %d, validToken: %s, token: %s\n", v.pos, validToken, token)
+		if validToken == token {
+			return true // Still on a valid path through our grammar.
+		}
+		if i == len(v.validPaths) {
+			return false // No hits for token on any of our path positions.
+		}
+	}
+	v.Reset()
+	return false // Token not found in any valid paths.
+}
+
+func (v *validParsePathV3) Reset() {
+	v.pos = 0
+}
+
+// The artifact parser needs to take one of the paths listed below when reading
+// the artifact version 3.
+var artifactV3ParseGrammar = &validParsePathV3{
+	pos: 0,
+	validPaths: [][]string{
+		// Version is already read in ReadArtifact().
+		{"manifest", "header", "data"},                                                       // Unsigned.
+		{"manifest", "manifest.sig", "header", "data"},                                       // Signed.
+		{"manifest", "manifest.sig", "manifest-augment", "header", "header-augment", "data"}, // Augmented.
+	},
+}
+
 func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 	version []byte) (*artifact.ChecksumStore, error) {
-	// first file after version MUST contain all the checksums
-	manifest, err := readManifest(tReader, "manifest")
-	if err != nil {
-		return nil, err
-	}
-	// var augManChecksumStore *artifact.ChecksumStore
+	var manifest *artifact.ChecksumStore
+	var augManChecksumStore *artifact.ChecksumStore
 
-	// check what is the next file in the artifact
-	// depending if artifact is signed or not we can have
-	// either header or signature file
-	hdr, err := getNext(tReader)
-	if err != nil {
-		return nil, errors.Wrapf(err, "reader: error reading file after manifest")
-	}
-
-	// we are expecting to have a signed artifact, but the signature is missing
-	if ar.shouldBeSigned && (hdr.FileInfo().Name() != "manifest.sig") {
-		return nil,
-			errors.New("reader: expecting signed artifact, but no signature file found")
-	}
-
-	switch hdr.FileInfo().Name() {
-	case "manifest.sig":
-		ar.IsSigned = true
-		// First read and verify signature
-		if err = signatureReadAndVerify(tReader, manifest.GetRaw(),
-			ar.VerifySignatureCallback, ar.shouldBeSigned); err != nil {
-			return nil, err
+	for {
+		hdr, err := tReader.Next()
+		if err == io.EOF {
+			break // Done parsing
 		}
-		// verify checksums of version
-		if err = verifyVersion(version, manifest); err != nil {
-			return nil, err
-		}
-
-		// ...and then header
-		hdr, err = getNext(tReader)
 		if err != nil {
-			return nil, errors.New("reader: error reading header")
+			return nil, errors.Wrap(err, "readHeaderV3")
 		}
-		if !strings.HasPrefix(hdr.Name, "header.tar.gz") {
-			return nil, errors.Errorf("reader: invalid header element: %v", hdr.Name)
+		// Parse sentinel, so that we can simply switch on the header name next.
+		if !artifactV3ParseGrammar.validPath(hdr.Name) {
+			return nil, errors.New("readHeaderV3: Could not understand the structure of the received artifact")
 		}
-		fallthrough
+		switch hdr.FileInfo().Name() {
+		case "manifest":
+			manifest, err = readManifest(tReader, "manifest")
+			if err != nil {
+				return nil, err
+			}
+		case "manifest.sig":
+			ar.IsSigned = true
+			// First read and verify signature
+			if err = signatureReadAndVerify(tReader, manifest.GetRaw(),
+				ar.VerifySignatureCallback, ar.shouldBeSigned); err != nil {
+				return nil, err
+			}
+			// verify checksums of version
+			if err = verifyVersion(version, manifest); err != nil {
+				return nil, err
+			}
+		case "manifest-augment":
+			augManChecksumStore, err = readManifest(tReader, "manifest-augment")
+			if err != nil {
+				return nil, errors.Wrap(err, "ReadHeaderV3: manifest-augment: ")
+			}
+			// First read and verify signature.
+			if err = signatureReadAndVerify(tReader, augManChecksumStore.GetRaw(),
+				ar.VerifySignatureCallback, ar.shouldBeSigned); err != nil {
+				return nil, err
+			}
+			// ...and then header.
+			hdr, err = getNext(tReader)
+			if err != nil {
+				return nil, errors.New("readHeaderV3: reader: error reading header")
+			}
+			if !strings.HasPrefix(hdr.Name, "header-augment.tar.gz") {
+				return nil, errors.Errorf("reader: invalid header element: %v", hdr.Name)
+			}
+		case "header.tar.gz":
+			// Get and verify checksums of header.
+			hc, err := manifest.Get("header.tar.gz")
+			if err != nil {
+				return nil, err
+			}
 
-	// case "manifest-augment":
-	// 	augManChecksumStore, err = readManifest(tReader, "manifest-augment")
-	// 	if err != nil {
-	// 		return nil, errors.Wrap(err, "ReadHeaderV3: manifest-augment: ")
-	// 	}
-	// 	// First read and verify signature.
-	// 	if err = signatureReadAndVerify(tReader, augManChecksumStore.GetRaw(),
-	// 		ar.VerifySignatureCallback, ar.shouldBeSigned); err != nil {
-	// 		return nil, err
-	// 	}
-	// 	// ...and then header.
-	// 	hdr, err = getNext(tReader)
-	// 	if err != nil {
-	// 		return nil, errors.New("readHeaderV3: reader: error reading header")
-	// 	}
-	// 	if !strings.HasPrefix(hdr.Name, "header-augment.tar.gz") {
-	// 		return nil, errors.Errorf("reader: invalid header element: %v", hdr.Name)
-	// 	}
-	// 	fallthrough
-
-	case "header.tar.gz":
-		// Get and verify checksums of header.
-		hc, err := manifest.Get("header.tar.gz")
-		if err != nil {
-			return nil, err
-		}
-
-		if err := ar.readHeader(tReader, hc); err != nil {
-			return nil, err
-		}
-		// fallthrough - cannot simply fallthrough, the augmented header might be missing.
-
+			if err := ar.readHeader(tReader, hc); err != nil {
+				return nil, err
+			}
 		// TODO - implement.
-	// case "header.augment.tar.gz":
-	// 	// Get and verify checksums of the augmented header.
-	// 	hc, err := augManChecksumStore.Get("header.augment.tar.gz")
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
+		case "header.augment.tar.gz":
+			// Get and verify checksums of the augmented header.
+			hc, err := augManChecksumStore.Get("header.augment.tar.gz")
+			if err != nil {
+				return nil, err
+			}
 
-	// 	if err := ar.readAugmentedHeader(tReader, hc); err != nil {
-	// 		return nil, err
-	// 	}
+			if err := ar.readAugmentedHeader(tReader, hc); err != nil {
+				return nil, err
+			}
 
-	default:
-		return nil, errors.Errorf("reader: found unexpected file in artifact: %v",
-			hdr.FileInfo().Name())
+		default:
+			return nil, errors.Errorf("reader: found unexpected file in artifact: %v",
+				hdr.FileInfo().Name())
+		}
 	}
+
 	return manifest, nil
 }
 
