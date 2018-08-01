@@ -47,6 +47,8 @@ type Reader struct {
 	supportedUpdateTypes []string
 	updates              []artifact.UpdateType
 	artifactGroup        string
+	provides             *artifact.ArtifactProvides
+	depends              *artifact.ArtifactDepends
 	hInfo                artifact.HeaderInfoer // TODO -factor out
 	info                 *artifact.Info
 	r                    io.Reader
@@ -119,32 +121,13 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 	defer gz.Close()
 	tr := tar.NewReader(gz)
 
-	var hInfo artifact.HeaderInfoer
-	switch ar.info.Version {
-	case 1, 2:
-		hInfo = new(artifact.HeaderInfo)
-	case 3:
-		hInfo = new(artifact.HeaderInfoV3)
+	// Populate the artifact info fields.
+	if err = ar.populateArtifactInfo(ar.info.Version, tr); err != nil {
+		return errors.Wrap(err, "readHeader")
 	}
-
-	// first part of header must always be header-info
-	if err = readNext(tr, hInfo, "header-info"); err != nil {
-		return err
-	}
-	// Populate the artifact information.
-	// TODO - populateArtifactInfo-function.
-	ar.artifactName = hInfo.GetArtifactName()
-	ar.compatibleDevices = hInfo.GetCompatibleDevices()
-	ar.updates = hInfo.GetUpdates()
-	switch ar.info.Version {
-	// Version 3 is a superset of V1 and V2, so add the extra fields.
-	case 3:
-		// TODO - populate depends and provides.
-	}
-
 	// after reading header-info we can check device compatibility
 	if ar.CompatibleDevicesCallback != nil {
-		if err = ar.CompatibleDevicesCallback(hInfo.GetCompatibleDevices()); err != nil {
+		if err = ar.CompatibleDevicesCallback(ar.GetCompatibleDevices()); err != nil {
 			return err
 		}
 	}
@@ -158,7 +141,7 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 
 	// Next step is setting correct installers based on update types being
 	// part of the artifact.
-	if err = ar.setInstallers(hInfo.GetUpdates()); err != nil {
+	if err = ar.setInstallers(ar.GetUpdates()); err != nil {
 		return err
 	}
 
@@ -174,6 +157,36 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 		}
 	}
 
+	return nil
+}
+
+func (ar *Reader) populateArtifactInfo(version int, tr *tar.Reader) error {
+
+	var hInfo artifact.HeaderInfoer
+	switch version {
+	case 1, 2:
+		hInfo = new(artifact.HeaderInfo)
+	case 3:
+		hInfo = new(artifact.HeaderInfoV3)
+	}
+
+	// first part of header must always be header-info
+	if err := readNext(tr, hInfo, "header-info"); err != nil {
+		return err
+	}
+	ar.artifactName = hInfo.GetArtifactName()
+	ar.compatibleDevices = hInfo.GetCompatibleDevices()
+	ar.updates = hInfo.GetUpdates()
+	switch ar.info.Version {
+	// Version 3 is a superset of V1 and V2, so add the extra fields.
+	case 3:
+		h3, ok := hInfo.(*artifact.HeaderInfoV3)
+		if !ok {
+			return errors.New("readHeader: Critical error, version 3 artifact does not have a v3 header")
+		}
+		ar.provides = h3.ArtifactProvides
+		ar.depends = h3.ArtifactDepends
+	}
 	return nil
 }
 
@@ -522,6 +535,10 @@ func (ar *Reader) GetArtifactName() string {
 
 func (ar *Reader) GetInfo() artifact.Info {
 	return *ar.info
+}
+
+func (ar *Reader) GetUpdates() []artifact.UpdateType {
+	return ar.updates
 }
 
 func (ar *Reader) setInstallers(upd []artifact.UpdateType) error {
