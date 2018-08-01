@@ -39,21 +39,12 @@ type Reader struct {
 	ScriptsReadCallback       ScriptsReadFn
 	VerifySignatureCallback   SignatureVerifyFn
 	IsSigned                  bool
-
-	shouldBeSigned bool
-	// TODO - This can be made a sub-struct in the artifact package.
-	artifactName         string
-	compatibleDevices    []string
-	supportedUpdateTypes []string
-	updates              []artifact.UpdateType
-	artifactGroup        string
-	provides             *artifact.ArtifactProvides
-	depends              *artifact.ArtifactDepends
-	hInfo                artifact.HeaderInfoer // TODO -factor out
-	info                 *artifact.Info
-	r                    io.Reader
-	handlers             map[string]handlers.Installer
-	installers           map[int]handlers.Installer
+	shouldBeSigned            bool
+	hInfo                     artifact.HeaderInfoer
+	info                      *artifact.Info
+	r                         io.Reader
+	handlers                  map[string]handlers.Installer
+	installers                map[int]handlers.Installer
 }
 
 func NewReader(r io.Reader) *Reader {
@@ -79,9 +70,8 @@ func getReader(tReader io.Reader, headerSum []byte) io.Reader {
 		// If artifact is signed we need to calculate header checksum to be
 		// able to validate it later.
 		return artifact.NewReaderChecksum(tReader, headerSum)
-	} else {
-		return tReader
 	}
+	return tReader
 }
 
 func readStateScripts(tr *tar.Reader, header *tar.Header, cb ScriptsReadFn) error {
@@ -161,7 +151,6 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 }
 
 func (ar *Reader) populateArtifactInfo(version int, tr *tar.Reader) error {
-
 	var hInfo artifact.HeaderInfoer
 	switch version {
 	case 1, 2:
@@ -169,24 +158,11 @@ func (ar *Reader) populateArtifactInfo(version int, tr *tar.Reader) error {
 	case 3:
 		hInfo = new(artifact.HeaderInfoV3)
 	}
-
 	// first part of header must always be header-info
 	if err := readNext(tr, hInfo, "header-info"); err != nil {
 		return err
 	}
-	ar.artifactName = hInfo.GetArtifactName()
-	ar.compatibleDevices = hInfo.GetCompatibleDevices()
-	ar.updates = hInfo.GetUpdates()
-	switch ar.info.Version {
-	// Version 3 is a superset of V1 and V2, so add the extra fields.
-	case 3:
-		h3, ok := hInfo.(*artifact.HeaderInfoV3)
-		if !ok {
-			return errors.New("readHeader: Critical error, version 3 artifact does not have a v3 header")
-		}
-		ar.provides = h3.ArtifactProvides
-		ar.depends = h3.ArtifactDepends
-	}
+	ar.hInfo = hInfo
 	return nil
 }
 
@@ -354,7 +330,7 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 	switch hdr.FileInfo().Name() {
 	case "manifest.sig":
 		ar.IsSigned = true
-		// firs read and verify signature
+		// First read and verify signature
 		if err = signatureReadAndVerify(tReader, manifest.GetRaw(),
 			ar.VerifySignatureCallback, ar.shouldBeSigned); err != nil {
 			return nil, err
@@ -526,11 +502,11 @@ func (ar *Reader) ReadArtifact() error {
 }
 
 func (ar *Reader) GetCompatibleDevices() []string {
-	return ar.compatibleDevices
+	return ar.hInfo.GetCompatibleDevices()
 }
 
 func (ar *Reader) GetArtifactName() string {
-	return ar.artifactName
+	return ar.hInfo.GetArtifactName()
 }
 
 func (ar *Reader) GetInfo() artifact.Info {
@@ -538,7 +514,25 @@ func (ar *Reader) GetInfo() artifact.Info {
 }
 
 func (ar *Reader) GetUpdates() []artifact.UpdateType {
-	return ar.updates
+	return ar.hInfo.GetUpdates()
+}
+
+// GetArtifactProvides is version 3 specific.
+func (ar *Reader) GetArtifactProvides() *artifact.ArtifactProvides {
+	h3, ok := ar.hInfo.(*artifact.HeaderInfoV3)
+	if !ok {
+		return nil
+	}
+	return h3.ArtifactProvides
+}
+
+// GetArtifactDepends is version 3 specific.
+func (ar *Reader) GetArtifactDepends() *artifact.ArtifactDepends {
+	h3, ok := ar.hInfo.(*artifact.HeaderInfoV3)
+	if !ok {
+		return nil
+	}
+	return h3.ArtifactDepends
 }
 
 func (ar *Reader) setInstallers(upd []artifact.UpdateType) error {
