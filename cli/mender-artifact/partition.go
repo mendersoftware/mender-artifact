@@ -226,6 +226,7 @@ func newArtifactExtFile(key, fpath string, p partition) (*artifactExtFile, error
 
 func (a *artifactExtFile) Close() error {
 	os.Remove(a.tmpf.Name())
+	defer os.Remove(a.path)
 	if a.repack {
 		return repackArtifact(a.name, a.path,
 			a.key, filepath.Base(a.name))
