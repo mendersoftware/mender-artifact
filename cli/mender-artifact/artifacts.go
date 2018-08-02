@@ -104,7 +104,7 @@ func unpackArtifact(name string) (string, error) {
 	aReader := areader.NewReader(f)
 	rootfs := handlers.NewRootfsInstaller()
 
-	tmp, err := ioutil.TempFile(filepath.Dir(name), "mender-artifact")
+	tmp, err := ioutil.TempFile("", "mender-artifact")
 	if err != nil {
 		return "", err
 	}
