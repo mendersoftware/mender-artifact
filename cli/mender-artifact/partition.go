@@ -228,7 +228,7 @@ func (a *artifactExtFile) Close() error {
 	os.Remove(a.tmpf.Name())
 	if a.repack {
 		return repackArtifact(a.name, a.path,
-			a.key, filepath.Base(a.name))
+			a.key, "")
 	}
 	return nil
 }
