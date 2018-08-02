@@ -170,11 +170,17 @@ func NewHeaderInfoV3(updates []UpdateType,
 
 // Satisfy HeaderInfoer interface for the artifact reader.
 func (hi *HeaderInfoV3) GetArtifactName() string {
+	if hi.ArtifactProvides == nil {
+		return ""
+	}
 	return hi.ArtifactProvides.ArtifactName
 }
 
 // Satisfy HeaderInfoer interface for the artifact reader.
 func (hi *HeaderInfoV3) GetCompatibleDevices() []string {
+	if hi.ArtifactDepends == nil {
+		return nil
+	}
 	return hi.ArtifactDepends.CompatibleDevices
 }
 

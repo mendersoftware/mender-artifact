@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"testing"
 
@@ -144,25 +145,28 @@ func TestReadArtifact(t *testing.T) {
 	rfh := handlers.NewRootfsInstaller()
 	rfh.InstallHandler = copy
 
-	tc := []struct {
+	tc := map[string]struct {
 		version   int
 		signed    bool
 		handler   handlers.Installer
 		verifier  artifact.Verifier
 		readError error
 	}{
-		{1, false, rfh, nil, nil},
-		{2, false, rfh, nil, nil},
-		{2, true, rfh, artifact.NewVerifier([]byte(PublicKey)), nil},
-		{2, true, rfh, artifact.NewVerifier([]byte(PublicKeyError)),
+		"version 1":        {1, false, rfh, nil, nil},
+		"version 2 pass":   {2, false, rfh, nil, nil},
+		"version 2 signed": {2, true, rfh, artifact.NewVerifier([]byte(PublicKey)), nil},
+		"version 2 - public key error": {2, true, rfh, artifact.NewVerifier([]byte(PublicKeyError)),
 			errors.New("reader: invalid signature: crypto/rsa: verification error")},
-		// // test that we do not need a verifier for signed artifact
-		{2, true, rfh, nil, nil},
-		{3, false, rfh, nil, nil},
+		// test that we do not need a verifier for signed artifact
+		"version 2 - no verifier needed for a signed artifact": {2, true, rfh, nil, nil},
+		"version 3 - base case":                                {3, false, rfh, nil, nil},
+		"version 3 - signed":                                   {3, true, rfh, artifact.NewVerifier([]byte(PublicKey)), nil},
+		"version 3 - public key error": {3, true, rfh, artifact.NewVerifier([]byte(PublicKeyError)),
+			errors.New("reader: invalid signature: crypto/rsa: verification error")},
 	}
 
 	// first create archive, that we will be able to read
-	for _, test := range tc {
+	for name, test := range tc {
 		art, err := MakeRootfsImageArtifact(test.version, test.signed, false)
 		assert.NoError(t, err)
 
@@ -177,10 +181,13 @@ func TestReadArtifact(t *testing.T) {
 
 		err = aReader.ReadArtifact()
 		if test.readError != nil {
+			if err == nil {
+				log.Fatalf("%q: Test expected an error, but ReadArtifact did not return an error. expected: %v", name, test.readError)
+			}
 			assert.Equal(t, test.readError.Error(), err.Error())
 			continue
 		}
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, TestUpdateFileContent, updFileContent.String())
 
 		devComp := aReader.GetCompatibleDevices()
@@ -422,53 +429,53 @@ func TestReadAndInstall(t *testing.T) {
 
 func TestValidParsePathV3(t *testing.T) {
 	tests := map[string]struct {
-		path  []string
-		valid bool
+		path      []string
+		nextToken string
+		validPath bool
 	}{
 		"Unsigned": {
-			path:  []string{"manifest", "header", "data"},
-			valid: true,
+			path:      []string{"manifest", "header.tar.gz"},
+			nextToken: "header.tar.gz",
+			validPath: true,
 		},
 		"Signed": {
-			path:  []string{"manifest", "manifest.sig", "header", "data"},
-			valid: true,
+			path:      []string{"manifest", "manifest.sig", "header.tar.gz"},
+			nextToken: "header.tar.gz",
+			validPath: true,
 		},
 		"Augmented": {
-			path:  []string{"manifest", "manifest.sig", "manifest-augment", "header", "header-augment", "data"},
-			valid: true,
+			path:      []string{"manifest", "manifest.sig", "manifest-augment", "header.tar.gz", "header-augment"},
+			nextToken: "header-augment",
+			validPath: true,
 		},
 		"Missing manifest": {
-			path:  []string{"header", "data"},
-			valid: false,
+			path:      []string{"header.tar.gz"},
+			nextToken: "invalid structure",
+			validPath: false,
 		},
-		"Header missing": {
-			path:  []string{"manifest", "data"},
-			valid: false,
+		"manifest means we're still on a valid path, but path is not finished": {
+			path:      []string{"manifest"},
+			nextToken: "manifest",
+			validPath: false,
 		},
-		"Data missing": {
-			path:  []string{"manifest", "header", ""}, // Empty string needed to keep the test-loop going.
-			valid: false,
-		},
+		// "Data missing": {
+		// 	path:      []string{"manifest", "header.tar.gz"},
+		// 	nextToken: "invalid structure",
+		// },
 		"Manifest-augment missing": {
-			path:  []string{"manifest", "manifest.sig", "header", "header-augment", "data"},
-			valid: false,
+			path:      []string{"manifest", "manifest.sig", "header.tar.gz", "header-augment"},
+			nextToken: "invalid structure",
+			validPath: false,
 		},
-		"Header-augment missing": {
-			path: []string{"manifest", "manifest.sig", "manifest-augment", "header", "data"},
+		"Header.tar.gz is still on a valid path, we're not finished, as the artifact is augmented": {
+			path:      []string{"manifest", "manifest.sig", "manifest-augment", "header.tar.gz"},
+			nextToken: "header.tar.gz",
+			validPath: false,
 		},
 	}
-	var finalResult bool
 	for name, test := range tests {
-		// Loop through all the tokens in a single test path.
-		for _, token := range test.path {
-			finalResult = artifactV3ParseGrammar.validPath(token)
-			// Either we get a false as we are parsing, or the truth value will hold through
-			// all the way to the end of the path.
-			if !finalResult {
-				break // Don't continue on an invalid path.
-			}
-		}
-		assert.Equal(t, test.valid, finalResult, "Error parsing grammar for: %s", name)
-		artifactV3ParseGrammar.Reset()
+		res, validPath := verifyParseOrder(test.path)
+		assert.Equal(t, test.nextToken, res, "%q: Failed to verify the order the artifact was parsed", name)
+		assert.Equal(t, test.validPath, validPath, "%q: ValidPath values are wrong", name)
 	}
 }
