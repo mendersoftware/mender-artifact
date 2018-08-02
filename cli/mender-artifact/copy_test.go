@@ -197,6 +197,7 @@ func TestCopy(t *testing.T) {
 				assert.Nil(t, os.Remove("testkey"))
 				// Check that the permission bits have been set correctly!
 				pf, err := NewPartitionFile(imgpath+":/etc/mender/testkey.key", "")
+				defer pf.Close()
 				require.Nil(t, err)
 				// Type switch on the artifact, or sdimg underlying
 				switch pf.(type) {
