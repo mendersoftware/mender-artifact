@@ -46,30 +46,34 @@ func Cat(c *cli.Context) (err error) {
 func Copy(c *cli.Context) (err error) {
 	var r io.ReadCloser
 	var w io.WriteCloser
-
 	switch parseCLIOptions(c) {
 	case copyin:
-		r, err = os.OpenFile(c.Args().First(), os.O_CREATE|os.O_RDWR, 0655)
+		r, err = os.OpenFile(c.Args().First(), os.O_CREATE|os.O_RDONLY, 0655)
+		defer r.Close()
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 		w, err = NewPartitionFile(c.Args().Get(1), c.String("key"))
 		if err != nil {
+			w.Close()
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 	case copyinstdin:
 		r = os.Stdin
 		w, err = NewPartitionFile(c.Args().First(), c.String("key"))
 		if err != nil {
+			w.Close()
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 	case copyout:
 		r, err = NewPartitionFile(c.Args().First(), c.String("key"))
+		defer r.Close()
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		w, err = os.OpenFile(c.Args().Get(1), os.O_CREATE|os.O_RDWR, 0655)
+		w, err = os.OpenFile(c.Args().Get(1), os.O_CREATE|os.O_WRONLY, 0655)
 		if err != nil {
+			w.Close()
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 	case parseError:
@@ -81,14 +85,11 @@ func Copy(c *cli.Context) (err error) {
 	}
 
 	_, err = io.Copy(w, r)
-	if err != nil {
-		return cli.NewExitError(err.Error(), 1)
+	// Ignore the close error in case of an io.Copy error.
+	if cerr := w.Close(); cerr != nil && err != nil {
+		err = cerr
 	}
-
-	if err = w.Close(); err != nil {
-		return err
-	}
-	return r.Close()
+	return err
 }
 
 // Install installs a file from the host filesystem onto either
