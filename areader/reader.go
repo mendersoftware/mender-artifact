@@ -281,15 +281,13 @@ func signatureReadAndVerify(tReader *tar.Reader, message []byte,
 	if verify == nil && signed {
 		return errors.New("reader: verify signature callback not registered")
 	} else if verify != nil {
-		fmt.Println("signatureReadAndVerify: ")
 		// first read signature...
 		sig := bytes.NewBuffer(nil)
 		if _, err := io.Copy(sig, tReader); err != nil {
 			return errors.Wrapf(err, "reader: can not read signature file")
 		}
-		fmt.Printf("Message: %s, signature: %X\n", message, sig.Bytes())
 		if err := verify(message, sig.Bytes()); err != nil {
-			return errors.Wrapf(err, "reader: invalid signature. Message: %s, signature: %X", message, sig.Bytes())
+			return errors.Wrapf(err, "reader: invalid signature")
 		}
 	}
 	return nil
@@ -310,41 +308,33 @@ func verifyVersion(ver []byte, manifest *artifact.ChecksumStore) error {
 // the artifact version 3.
 var artifactV3ParseGrammar = [][]string{
 	// Version is already read in ReadArtifact().
-	{"manifest", "header.tar.gz"},                                                       // Unsigned.
-	{"manifest", "manifest.sig", "header.tar.gz"},                                       // Signed.
-	{"manifest", "manifest.sig", "manifest-augment", "header.tar.gz", "header-augment"}, // Augmented.
+	{"manifest", "header.tar.gz"},                                                              // Unsigned.
+	{"manifest", "manifest.sig", "header.tar.gz"},                                              // Signed.
+	{"manifest", "manifest.sig", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"}, // Augmented.
 }
 
 // verifyParseOrder compares the parseOrder against the allowed parse paths through an artifact.
-// FIXME - should probs be a tree structure.
 func verifyParseOrder(parseOrder []string) (validToken string, validPath bool) {
-	// Compare the slices from the parseOrder to the valid grammar.
-	for _, grammar := range artifactV3ParseGrammar {
-		if len(parseOrder) > len(grammar) {
-			continue // Obviously not a valid match
+	// Do a substring search for the parseOrder sent in on each of the valid grammars.
+	for _, validPath := range artifactV3ParseGrammar {
+		if len(parseOrder) > len(validPath) {
+			continue
 		}
-		validSubGrammar := grammar[:len(parseOrder)]
-		// Compare the lists.
-		fmt.Printf("validSubGrammar: %s, grammar: %s, parseOrder: %s\n", validSubGrammar, grammar, parseOrder)
-		for i, token := range validSubGrammar {
-			if token != parseOrder[i] {
-				return "invalid structure", false // Invalid structure will force an error in the switch statement.
+		// Check for a submatch in the current validPath.
+		for i := range parseOrder {
+			if validPath[i] != parseOrder[i] {
+				break // Check the next validPath against the parseOrder.
+			}
+			// We have a submatch. Check if the entire length matches.
+			if i == len(parseOrder)-1 {
+				if len(parseOrder) == len(validPath) {
+					return parseOrder[i], true // Full match.
+				}
+				return parseOrder[i], false
 			}
 		}
-		// Check if we are at the end of a parse path (The lists are the same length).
-		// This stipulates that the static grammar cannot be valid 'substrings' of eachother.
-		// If so we would get a false positive here.
-		if len(validSubGrammar) == len(grammar) {
-			// We have reached the end of a path, notify the parser.
-			return parseOrder[len(parseOrder)-1], true
-		}
-		if len(parseOrder) == len(validSubGrammar) {
-			// Still on a valid path.
-			return parseOrder[len(parseOrder)-1], false
-		}
-		return "invalid structure", false // parse path is too short
 	}
-	return "invalid structure", false // Tested all our grammars without a full match.
+	return fmt.Sprintf("Invalid structure: %s, wrong element: %s", parseOrder, parseOrder[len(parseOrder)-1]), false
 }
 
 func (ar *Reader) readHeaderV3(tReader *tar.Reader,
@@ -356,31 +346,27 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 	for {
 		hdr, err := tReader.Next()
 		if err == io.EOF {
-			break // Done parsing
+			return nil, errors.New("The artifact does not contain all required fields")
 		}
 		if err != nil {
 			return nil, errors.Wrap(err, "readHeaderV3")
 		}
 		parsePath = append(parsePath, hdr.Name)
 		nextParseToken, validPath := verifyParseOrder(parsePath)
-		fmt.Printf("NextParseToken: %s, header name: %s\n", nextParseToken, hdr.Name)
-		fmt.Println(parsePath)
 		err = handleHeaderReads(nextParseToken, tReader, manifestChecksumStore, augManChecksumStore, ar, version)
+		if err != nil {
+			return nil, errors.Wrap(err, "readHeaderV3")
+		}
 		if validPath {
-			// We have finished parsing all the needed records. Only (hopefully) data missing.
 			break // return and process the /data records in ReadArtifact()
 		}
 	}
-	// TODO - parse order needs to be verified prior to reading the data files, as this is where the install is done.
-	// If we have successfully finished a parse path, the parseOrder needs to match one of the lists in artifactV3ParseGrammar.
 	return manifestChecksumStore, nil
 }
 
 func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumStore, augManChecksumStore *artifact.ChecksumStore, ar *Reader, version []byte) (err error) {
 	switch headerName {
 	case "manifest":
-		// TODO - make this a type. (manifest). Also other artifact records could be typed with a reader and writer interace!
-		// Populate the file checksums.
 		buf := bytes.NewBuffer(nil)
 		_, err = io.Copy(buf, tReader)
 		if err != nil {
@@ -393,7 +379,6 @@ func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumS
 	case "manifest.sig":
 		ar.IsSigned = true
 		// First read and verify signature
-		fmt.Println("handleHeaderReads: signatureReadAndVerify up next!")
 		if err = signatureReadAndVerify(tReader, manifestChecksumStore.GetRaw(),
 			ar.VerifySignatureCallback, ar.shouldBeSigned); err != nil {
 			return err
@@ -403,7 +388,17 @@ func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumS
 			return err
 		}
 	case "manifest-augment":
-		// TODO - implement.
+		// Get the data from the augmented manifest.
+		buf := bytes.NewBuffer(nil)
+		_, err = io.Copy(buf, tReader)
+		if err != nil {
+			return errors.Wrap(err, "handleHeaderReads: Failed to read the augmented manifest body")
+		}
+		fmt.Printf("Augmented header contents: %s\n", buf.String())
+		err = manifestChecksumStore.ReadRaw(buf.Bytes())
+		if err != nil {
+			return errors.Wrap(err, "handleHeaderReads: Failed to store the checksums from the augmented manifest")
+		}
 	case "header.tar.gz":
 		// Get and verify checksums of header.
 		hc, err := manifestChecksumStore.Get("header.tar.gz")
@@ -414,22 +409,23 @@ func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumS
 		if err := ar.readHeader(tReader, hc); err != nil {
 			return err
 		}
-	case "header.augment.tar.gz":
+	case "header-augment.tar.gz":
 		// Get and verify checksums of the augmented header.
-		hc, err := augManChecksumStore.Get("header.augment.tar.gz")
+		hc, err := manifestChecksumStore.Get("header-augment.tar.gz")
+		fmt.Fprintf(os.Stderr, "augmented header checksum: %x\n", hc)
 		if err != nil {
 			return err
 		}
-
 		if err := ar.readAugmentedHeader(tReader, hc); err != nil {
-			return err
+			return errors.Wrap(err, "handleHeaderReads: Failed to read the augmented header")
 		}
 	case "invalid structure":
-		return errors.New("readHeaderV3: Artifact has an invalid structure")
+		return fmt.Errorf("readHeaderV3: Artifact has an invalid structure: %s", headerName)
+	default:
+		return errors.Errorf("reader: found unexpected file in artifact: %v",
+			headerName)
 	}
-	// Default case.
-	return errors.Errorf("reader: found unexpected file in artifact: %v",
-		headerName)
+	return nil
 }
 
 func (ar *Reader) readHeaderV2(tReader *tar.Reader,
@@ -675,7 +671,6 @@ func readNext(tr *tar.Reader, w io.Writer, elem string) error {
 		_, err := io.Copy(w, tr)
 		return errors.Wrap(err, "readNext: Failed to copy from tarReader to the writer")
 	}
-	fmt.Printf("os.ErrInvalid: hdr.Name: %s, elem: %s\n", hdr.Name, elem)
 	return os.ErrInvalid
 }
 

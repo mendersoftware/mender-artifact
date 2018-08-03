@@ -395,7 +395,7 @@ func TestAugmentArtifact(t *testing.T) {
 	// Check the identity operation currently in add augmentedHeader.
 	artBuf := bytes.NewReader(buf.Bytes())
 	augmentedArtifact := bytes.NewBuffer(nil)
-	err = augmentArtifact(ioutil.NopCloser(artBuf), augmentedArtifact, args)
+	err = AugmentArtifact(ioutil.NopCloser(artBuf), augmentedArtifact, args)
 	require.Nil(t, err)
 	assert.NoError(t, checkTarElementsByName(bytes.NewReader(augmentedArtifact.Bytes()), []string{
 		"version",

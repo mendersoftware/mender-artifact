@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -162,7 +163,7 @@ func TestReadArtifact(t *testing.T) {
 		"version 3 - base case":                                {3, false, rfh, nil, nil},
 		"version 3 - signed":                                   {3, true, rfh, artifact.NewVerifier([]byte(PublicKey)), nil},
 		"version 3 - public key error": {3, true, rfh, artifact.NewVerifier([]byte(PublicKeyError)),
-			errors.New("reader: invalid signature: crypto/rsa: verification error")},
+			errors.New("readHeaderV3: reader: invalid signature: crypto/rsa: verification error")},
 	}
 
 	// first create archive, that we will be able to read
@@ -203,6 +204,54 @@ func TestReadArtifact(t *testing.T) {
 		// clean the buffer
 		updFileContent.Reset()
 	}
+}
+
+func setupTestReadAugmentedArtifact(t *testing.T) (io.Reader, func()) {
+	// Create a fake update.
+	tmpdir, err := ioutil.TempDir("", "mendertmp")
+	tearDownFunc := func() {
+		os.RemoveAll(tmpdir)
+	}
+	require.Nil(t, err)
+	require.Nil(t, ioutil.WriteFile(filepath.Join(tmpdir, "update"), []byte("foobar"), 0755))
+	updFilePath := filepath.Join(tmpdir, "update")
+	// Write an artifact.
+	u := handlers.NewRootfsV3(updFilePath)
+	updates := &awriter.Updates{U: []handlers.Composer{u}}
+	art := bytes.NewBuffer(nil)
+	s := artifact.NewSigner([]byte(PrivateKey))
+	w := awriter.NewWriterSigned(art, s)
+	args := &awriter.WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates,
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      "depends-name",
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
+	}
+	fmt.Printf("Updates: %v\n", updates)
+	require.Nil(t, w.WriteArtifact(args))
+	augmentedArtifact := bytes.NewBuffer(nil)
+	// Augment the artifact.
+	require.Nil(t, awriter.AugmentArtifact(ioutil.NopCloser(art), augmentedArtifact, args))
+	return augmentedArtifact, tearDownFunc
+}
+
+func TestReadAugmentedArtifact(t *testing.T) {
+	augmentedArtifact, tearDownTest := setupTestReadAugmentedArtifact(t)
+	defer tearDownTest()
+	aReader := NewReader(augmentedArtifact)
+	// aReader.VerifySignatureCallback = test.verifier.Verify
+	require.Nil(t, aReader.ReadArtifact())
+
 }
 
 func TestReadSigned(t *testing.T) {
@@ -444,13 +493,13 @@ func TestValidParsePathV3(t *testing.T) {
 			validPath: true,
 		},
 		"Augmented": {
-			path:      []string{"manifest", "manifest.sig", "manifest-augment", "header.tar.gz", "header-augment"},
-			nextToken: "header-augment",
+			path:      []string{"manifest", "manifest.sig", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"},
+			nextToken: "header-augment.tar.gz",
 			validPath: true,
 		},
 		"Missing manifest": {
 			path:      []string{"header.tar.gz"},
-			nextToken: "invalid structure",
+			nextToken: "Invalid structure",
 			validPath: false,
 		},
 		"manifest means we're still on a valid path, but path is not finished": {
@@ -458,13 +507,9 @@ func TestValidParsePathV3(t *testing.T) {
 			nextToken: "manifest",
 			validPath: false,
 		},
-		// "Data missing": {
-		// 	path:      []string{"manifest", "header.tar.gz"},
-		// 	nextToken: "invalid structure",
-		// },
 		"Manifest-augment missing": {
-			path:      []string{"manifest", "manifest.sig", "header.tar.gz", "header-augment"},
-			nextToken: "invalid structure",
+			path:      []string{"manifest", "manifest.sig", "header.tar.gz", "header-augment.tar.gz"},
+			nextToken: "Invalid structure",
 			validPath: false,
 		},
 		"Header.tar.gz is still on a valid path, we're not finished, as the artifact is augmented": {
@@ -475,7 +520,7 @@ func TestValidParsePathV3(t *testing.T) {
 	}
 	for name, test := range tests {
 		res, validPath := verifyParseOrder(test.path)
-		assert.Equal(t, test.nextToken, res, "%q: Failed to verify the order the artifact was parsed", name)
+		assert.Contains(t, res, test.nextToken, "%q: Failed to verify the order the artifact was parsed", name)
 		assert.Equal(t, test.validPath, validPath, "%q: ValidPath values are wrong", name)
 	}
 }
