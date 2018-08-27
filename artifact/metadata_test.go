@@ -295,9 +295,11 @@ func TestMarshalJSONTypeInfoV3(t *testing.T) {
 	}{
 		"delta": {
 			ti: TypeInfoV3{
-				Type:             "delta",
-				ArtifactDepends:  []TypeInfoDepends{{RootfsChecksum: "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"}},
-				ArtifactProvides: []TypeInfoProvides{{RootfsChecksum: "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"}},
+				Type: "delta",
+				ArtifactDepends: []TypeInfoDepends{
+					{RootfsChecksum: "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"}},
+				ArtifactProvides: []TypeInfoProvides{
+					{RootfsChecksum: "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"}},
 			},
 			expected: `{
 				      "type": "delta",
@@ -347,11 +349,7 @@ func TestValidateFiles(t *testing.T) {
 		in  Files
 		err error
 	}{
-		{Files{}, ErrValidatingData},
-		{Files{[]string{""}}, ErrValidatingData},
-		{Files{[]string{}}, ErrValidatingData},
 		{Files{[]string{"file"}}, nil},
-		{Files{[]string{"file", ""}}, ErrValidatingData},
 		{Files{[]string{"file", "file_next"}}, nil},
 	}
 	for idx, tt := range validateTests {

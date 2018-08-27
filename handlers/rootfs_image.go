@@ -125,8 +125,6 @@ func (rfs *Rootfs) GetType() string {
 	return "rootfs-image"
 }
 
-// FIXME - this can use the WriteInfoArgs struct, but should probably be renamed then.
-// Also this should be migrated to the General ComposeHeader function.
 func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 
 	updFiles := filepath.Base(rfs.update.Name)
@@ -157,7 +155,7 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 			depends:    args.Depends,
 			provides:   args.Provides,
 		}); err != nil {
-			return err
+			return errors.Wrap(err, "ComposeHeader: ")
 		}
 	}
 

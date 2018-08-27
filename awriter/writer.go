@@ -41,10 +41,10 @@ func NewWriter(w io.Writer) *Writer {
 	}
 }
 
-func NewWriterSigned(w io.Writer, s artifact.Signer) *Writer {
+func NewWriterSigned(w io.Writer, manifestChecksumStore artifact.Signer) *Writer {
 	return &Writer{
 		w:      w,
-		signer: s,
+		signer: manifestChecksumStore,
 	}
 }
 
@@ -53,7 +53,7 @@ type Updates struct {
 }
 
 // Iterate through all data files inside `upd` and calculate checksums.
-func calcDataHash(s *artifact.ChecksumStore, upd *Updates) error {
+func calcDataHash(manifestChecksumStore *artifact.ChecksumStore, upd *Updates) error {
 	for i, u := range upd.U {
 		for _, f := range u.GetUpdateFiles() {
 			ch := artifact.NewWriterChecksum(ioutil.Discard)
@@ -67,7 +67,7 @@ func calcDataHash(s *artifact.ChecksumStore, upd *Updates) error {
 			}
 			sum := ch.Checksum()
 			f.Checksum = sum
-			s.Add(filepath.Join(artifact.UpdatePath(i), filepath.Base(f.Name)), sum)
+			manifestChecksumStore.Add(filepath.Join(artifact.UpdatePath(i), filepath.Base(f.Name)), sum)
 		}
 	}
 	return nil
@@ -75,7 +75,7 @@ func calcDataHash(s *artifact.ChecksumStore, upd *Updates) error {
 
 // writeTempHeader can write both the standard and the augmented header by passing in the appropriate `writeHeaderVersion`
 // function. (writeHeader/writeAugmentedHeader)
-func writeTempHeader(s *artifact.ChecksumStore, name string, writeHeaderVersion func(tarWriter *tar.Writer, args *WriteArtifactArgs) error, args *WriteArtifactArgs) (*os.File, error) {
+func writeTempHeader(manifestChecksumStore *artifact.ChecksumStore, name string, writeHeaderVersion func(tarWriter *tar.Writer, args *WriteArtifactArgs) error, args *WriteArtifactArgs) (*os.File, error) {
 	// create temporary header file
 	f, err := ioutil.TempFile("", name)
 	if err != nil {
@@ -102,7 +102,7 @@ func writeTempHeader(s *artifact.ChecksumStore, name string, writeHeaderVersion 
 	if err != nil {
 		return nil, err
 	}
-	s.Add(name+".tar.gz", ch.Checksum())
+	manifestChecksumStore.Add(name+".tar.gz", ch.Checksum())
 
 	return f, nil
 }
@@ -153,17 +153,17 @@ func (aw *Writer) WriteArtifact(args *WriteArtifactArgs) (err error) {
 
 func (aw *Writer) writeArtifactV1V2(args *WriteArtifactArgs) error {
 
-	s := artifact.NewChecksumStore()
+	manifestChecksumStore := artifact.NewChecksumStore()
 	// calculate checksums of all data files
 	// we need this regardless of which artifact version we are writing
-	if err := calcDataHash(s, args.Updates); err != nil {
+	if err := calcDataHash(manifestChecksumStore, args.Updates); err != nil {
 		return err
 	}
 	// mender archive writer
 	tw := tar.NewWriter(aw.w)
 	defer tw.Close()
 
-	tmpHdr, err := writeTempHeader(s, "header", writeHeader, args)
+	tmpHdr, err := writeTempHeader(manifestChecksumStore, "header", writeHeader, args)
 
 	if err != nil {
 		return err
@@ -180,7 +180,7 @@ func (aw *Writer) writeArtifactV1V2(args *WriteArtifactArgs) error {
 		return errors.Wrapf(err, "writer: can not write version tar header")
 	}
 
-	if err = writeManifestVersion(args.Version, aw.signer, tw, s, inf); err != nil {
+	if err = writeManifestVersion(args.Version, aw.signer, tw, manifestChecksumStore, nil, inf); err != nil {
 		return errors.Wrap(err, "WriteArtifact")
 	}
 
@@ -213,12 +213,12 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 	// The header in version 3 will have the original rootfs-checksum in type-info!
 	tmpHdr, err := writeTempHeader(manifestChecksumStore, "header", writeHeader, args)
 	if err != nil {
-		return errors.Wrap(err, "writeHeaderV3: ")
+		return errors.Wrap(err, "writeArtifactV3")
 	}
 	defer os.Remove(tmpHdr.Name())
 	tmpAugHdr, err := writeTempHeader(augManifestChecksumStore, "header-augment", writeAugmentedHeader, args)
 	if err != nil {
-		return errors.Wrap(err, "writeHeaderV3: ")
+		return errors.Wrap(err, "writeArtifactV3")
 	}
 	defer os.Remove(tmpAugHdr.Name())
 	////////////////////////
@@ -232,11 +232,12 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 	if err := sa.Write(inf, "version"); err != nil {
 		return errors.Wrapf(err, "writer: can not write version tar header")
 	}
-	////////////////////////
-	// Write manifest     //
-	// Write manifest.sig //
-	////////////////////////
-	if err = writeManifestVersion(args.Version, aw.signer, tw, manifestChecksumStore, inf); err != nil {
+	////////////////////////////
+	// Write manifest         //
+	// Write manifest.sig     //
+	// Write manifest-augment //
+	////////////////////////////
+	if err = writeManifestVersion(args.Version, aw.signer, tw, manifestChecksumStore, augManifestChecksumStore, inf); err != nil {
 		return errors.Wrap(err, "WriteArtifact")
 	}
 	////////////////////
@@ -266,35 +267,40 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 }
 
 // writeArtifactVersion writes version specific artifact records.
-func writeManifestVersion(version int, signer artifact.Signer, tw *tar.Writer, s *artifact.ChecksumStore, artifactInfoStream []byte) error {
+func writeManifestVersion(version int, signer artifact.Signer, tw *tar.Writer, manifestChecksumStore, augmanChecksumStore *artifact.ChecksumStore, artifactInfoStream []byte) error {
 	switch version {
 	case 2:
 		// add checksum of `version`
 		ch := artifact.NewWriterChecksum(ioutil.Discard)
 		ch.Write(artifactInfoStream)
-		s.Add("version", ch.Checksum())
+		manifestChecksumStore.Add("version", ch.Checksum())
 		// write `manifest` file
 		sw := artifact.NewTarWriterStream(tw)
-		if err := sw.Write(s.GetRaw(), "manifest"); err != nil {
+		if err := sw.Write(manifestChecksumStore.GetRaw(), "manifest"); err != nil {
 			return errors.Wrapf(err, "writer: can not write manifest stream")
 		}
 		// write signature
-		if err := WriteSignature(tw, s.GetRaw(), signer); err != nil {
+		if err := WriteSignature(tw, manifestChecksumStore.GetRaw(), signer); err != nil {
 			return err
 		}
 	case 3:
 		// Add checksum of `version`.
 		ch := artifact.NewWriterChecksum(ioutil.Discard)
 		ch.Write(artifactInfoStream)
-		s.Add("version", ch.Checksum())
+		manifestChecksumStore.Add("version", ch.Checksum())
 		// Write `manifest` file.
 		sw := artifact.NewTarWriterStream(tw)
-		if err := sw.Write(s.GetRaw(), "manifest"); err != nil {
+		if err := sw.Write(manifestChecksumStore.GetRaw(), "manifest"); err != nil {
 			return errors.Wrapf(err, "writer: can not write manifest stream")
 		}
 		// Write signature.
-		if err := WriteSignature(tw, s.GetRaw(), signer); err != nil {
+		if err := WriteSignature(tw, manifestChecksumStore.GetRaw(), signer); err != nil {
 			return err
+		}
+		// Write the augmented manifest.
+		sw = artifact.NewTarWriterStream(tw)
+		if err := sw.Write(augmanChecksumStore.GetRaw(), "manifest-augment"); err != nil {
+			return errors.Wrapf(err, "writer: can not write manifest stream")
 		}
 	case 1:
 
@@ -315,8 +321,8 @@ func AugmentArtifact(stdArtifact io.Reader, augmentedArtifact io.Writer, args *W
 	defer tw.Close()
 	// Since we need the checksums, before writing the augmented manifest, get the
 	// correct checksums, and store header as a tempFile.
-	s := artifact.NewChecksumStore()
-	tmpHdr, err := writeTempHeader(s, "header-augment", writeAugmentedHeader, args)
+	manifestChecksumStore := artifact.NewChecksumStore()
+	tmpHdr, err := writeTempHeader(manifestChecksumStore, "header-augment", writeAugmentedHeader, args)
 	if err != nil {
 		return errors.Wrap(err, "augmentArtifact: failed to write tempAugmentHeader")
 	}
@@ -348,8 +354,8 @@ func AugmentArtifact(stdArtifact io.Reader, augmentedArtifact io.Writer, args *W
 		if header.Name == "manifest.sig" {
 			// Add the manifest to the tarWriter.
 			sa := artifact.NewTarWriterStream(tw)
-			fmt.Fprintf(os.Stderr, "Adding %s to the augmented manifest\n", s.GetRaw())
-			if err = sa.Write(s.GetRaw(), "manifest-augment"); err != nil {
+			fmt.Fprintf(os.Stderr, "Adding %manifestChecksumStore to the augmented manifest\n", manifestChecksumStore.GetRaw())
+			if err = sa.Write(manifestChecksumStore.GetRaw(), "manifest-augment"); err != nil {
 				return errors.Wrap(err, "addAugmentedManifest: failed to write manifest-augment")
 			}
 			augmentedManifestWritten = true
@@ -377,13 +383,13 @@ func writeScripts(tw *tar.Writer, scr *artifact.Scripts) error {
 	for _, script := range scr.Get() {
 		f, err := os.Open(script)
 		if err != nil {
-			return errors.Wrapf(err, "writer: can not open script file: %s", script)
+			return errors.Wrapf(err, "writer: can not open script file: %manifestChecksumStore", script)
 		}
 		defer f.Close()
 
 		if err :=
 			sw.Write(f, filepath.Join("scripts", filepath.Base(script))); err != nil {
-			return errors.Wrapf(err, "writer: can not store script: %s", script)
+			return errors.Wrapf(err, "writer: can not store script: %manifestChecksumStore", script)
 		}
 	}
 	return nil
@@ -450,7 +456,7 @@ func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error 
 	fmt.Fprintf(os.Stderr, "Updates: %v\n", args.Updates)
 	for _, upd := range args.Updates.U {
 		fmt.Printf("Writing update: %v\n", upd)
-		fmt.Printf("Writing update: %s\n", upd.GetType())
+		fmt.Printf("Writing update: %manifestChecksumStore\n", upd.GetType())
 		hInfo.Updates =
 			append(hInfo.Updates, artifact.UpdateType{Type: upd.GetType()})
 	}

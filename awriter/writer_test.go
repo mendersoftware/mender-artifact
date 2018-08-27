@@ -238,12 +238,14 @@ func TestWriteArtifactV3(t *testing.T) {
 			CompatibleDevices: []string{"vexpress-qemu"},
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NoError(t, checkTarElementsByName(buf, []string{
 		"version",
 		"manifest",
 		"manifest.sig",
+		"manifest-augment",
 		"header.tar.gz",
+		"header-augment.tar.gz",
 		"0000.tar.gz",
 	}))
 	buf.Reset()
@@ -300,7 +302,9 @@ func TestWriteArtifactV3(t *testing.T) {
 	assert.NoError(t, checkTarElementsByName(buf, []string{
 		"version",
 		"manifest",
+		"manifest-augment",
 		"header.tar.gz",
+		"header-augment.tar.gz",
 		"0000.tar.gz",
 	}))
 	buf.Reset()
@@ -358,54 +362,6 @@ func TestWithScripts(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.NoError(t, checkTarElements(buf, 3))
-}
-
-func TestAugmentArtifact(t *testing.T) {
-	////////////////////////////////////////////
-	// Setup
-	////////////////////////////////////////////
-	buf := bytes.NewBuffer(nil)
-	s := artifact.NewSigner([]byte(PrivateKey))
-	w := NewWriterSigned(buf, s)
-	upd, err := MakeFakeUpdate("my test update")
-	assert.NoError(t, err)
-	defer os.Remove(upd)
-	u := handlers.NewRootfsV3(upd)
-	updates := &Updates{U: []handlers.Composer{u}}
-	// Write an artifact into the buffer.
-	args := &WriteArtifactArgs{
-		Format:  "mender",
-		Version: 3,
-		Devices: []string{"vexpress-qemu"},
-		Name:    "name",
-		Updates: updates,
-		Provides: &artifact.ArtifactProvides{
-			ArtifactName:         "name",
-			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
-		},
-		Depends: &artifact.ArtifactDepends{
-			ArtifactName:      "depends-name",
-			CompatibleDevices: []string{"vexpress-qemu"},
-		},
-	}
-	err = w.WriteArtifact(args)
-	assert.NoError(t, err)
-	//////////////////////////////////////////////////
-	// Check the identity operation currently in add augmentedHeader.
-	artBuf := bytes.NewReader(buf.Bytes())
-	augmentedArtifact := bytes.NewBuffer(nil)
-	err = AugmentArtifact(ioutil.NopCloser(artBuf), augmentedArtifact, args)
-	require.Nil(t, err)
-	assert.NoError(t, checkTarElementsByName(bytes.NewReader(augmentedArtifact.Bytes()), []string{
-		"version",
-		"manifest",
-		"manifest.sig",
-		"manifest-augment",
-		"header.tar.gz",
-		"header-augment.tar.gz",
-		"0000.tar.gz",
-	}))
 }
 
 type TestDirEntry struct {

@@ -258,7 +258,7 @@ type AugmentedHeaderInfoV3 struct {
 func (hi *AugmentedHeaderInfoV3) Validate() error {
 	// Artifact must have an update with them.
 	if len(hi.Updates) == 0 {
-		return ErrValidatingData
+		return errors.Wrap(ErrValidatingData, "Augmented Header info requires at least one update")
 	}
 	// No empty updates.
 	for _, update := range hi.Updates {
@@ -408,14 +408,8 @@ type Files struct {
 
 // Validate checks format of Files.
 func (f Files) Validate() error {
-	if len(f.FileList) == 0 {
-		return ErrValidatingData
-	}
-	for _, f := range f.FileList {
-		if len(f) == 0 {
-			return ErrValidatingData
-		}
-	}
+	// Do not enforce any structure on the files format,
+	// since in version 3, a header can have an empty payload.
 	return nil
 }
 
