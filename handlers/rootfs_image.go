@@ -129,10 +129,17 @@ func (rfs *Rootfs) GetType() string {
 // Also this should be migrated to the General ComposeHeader function.
 func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 
+	updFiles := filepath.Base(rfs.update.Name)
+	if args.Version == 3 && !args.Augmented {
+		// The regular header in the version 3 format will not
+		// contain the payload.
+		updFiles = ""
+	}
+
 	path := artifact.UpdateHeaderPath(args.No)
 
 	// first store files
-	if err := writeFiles(args.TarWriter, []string{filepath.Base(rfs.update.Name)},
+	if err := writeFiles(args.TarWriter, []string{updFiles},
 		path); err != nil {
 		return err
 	}

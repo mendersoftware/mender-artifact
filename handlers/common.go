@@ -42,6 +42,7 @@ type DataFile struct {
 type ComposeHeaderArgs struct {
 	TarWriter *tar.Writer
 	No        int
+	Version   int
 	Augmented bool
 	Depends   []artifact.TypeInfoDepends
 	Provides  []artifact.TypeInfoProvides
