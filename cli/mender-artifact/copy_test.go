@@ -26,6 +26,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -291,6 +292,33 @@ func TestCopy(t *testing.T) {
 			validimages: []int{0}, // only valid for fat boot partition
 			argv:        []string{"mender-artifact", "cp", ":/boot/grub/test.txt", "foo.txt"},
 			err:         "newArtifactExtFile: A mender artifact does not contain a boot partition, only a rootfs",
+		},
+		{
+			name: "check if artifact does not change name",
+			initfunc: func() {
+				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+			},
+			validimages: []int{0},
+			argv:        []string{"mender-artifact", "cp", "foo.txt", ":/test.txt"},
+			verifyTestFunc: func(imgpath string) {
+				// Read the artifact after cp.
+				readScripts := func(r io.Reader, info os.FileInfo) error {
+					return nil
+				}
+				f, err := os.Open(imgpath)
+				require.Nil(t, err)
+				defer f.Close()
+				ver := func(message, sig []byte) error {
+					return nil
+				}
+				ar := areader.NewReader(f)
+				_, err = read(ar, ver, readScripts)
+				require.Nil(t, err)
+				// Verify that the artifact-name has not changed.
+				assert.Equal(t, "mender-1.1", ar.GetArtifactName())
+				// Cleanup
+				os.Remove("foo.txt")
+			},
 		},
 	}
 
