@@ -267,12 +267,18 @@ func TestModifySigned(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), ErrInvalidSignature.Error())
 
+	err = copyFile("mender_test.img", filepath.Join(tmp, "mender_test.img"))
+	assert.NoError(t, err)
+
 	os.Args = []string{"mender-artifact", "modify",
 		"-n", "release-2",
 		"-k", filepath.Join(tmp, "rsa.key"),
 		filepath.Join(tmp, "artifact.mender")}
 
 	err = run()
+	assert.NoError(t, err)
+
+	err = copyFile("mender_test.img", filepath.Join(tmp, "mender_test.img"))
 	assert.NoError(t, err)
 
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
