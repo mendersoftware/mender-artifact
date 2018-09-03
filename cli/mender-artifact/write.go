@@ -165,7 +165,7 @@ func writeRootfs(c *cli.Context) error {
 
 	Log.Debugf("creating arifact [%s], version: %d", name, version)
 
-	var h *handlers.Rootfs
+	var h handlers.Composer
 	switch version {
 	case 1:
 		h = handlers.NewRootfsV1(c.String("update"))

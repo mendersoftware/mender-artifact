@@ -42,6 +42,7 @@ type Reader struct {
 	IsSigned                  bool
 	shouldBeSigned            bool
 	hInfo                     artifact.HeaderInfoer
+	augmentedhInfo            *artifact.AugmentedHeaderInfoV3
 	info                      *artifact.Info
 	r                         io.Reader
 	handlers                  map[string]handlers.Installer
@@ -107,7 +108,7 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 	// header MUST be compressed
 	gz, err := gzip.NewReader(r)
 	if err != nil {
-		return errors.Wrapf(err, "reader: error opening compressed header")
+		return errors.Wrapf(err, "readHeader: error opening compressed header")
 	}
 	defer gz.Close()
 	tr := tar.NewReader(gz)
@@ -164,6 +165,8 @@ func (ar *Reader) populateArtifactInfo(version int, tr *tar.Reader) error {
 		return err
 	}
 	ar.hInfo = hInfo
+	fmt.Fprintf(os.Stderr, "populateArtifactInfo: hInfo: %v\n", hInfo)
+	fmt.Fprintf(os.Stderr, "populateArtifactInfo: hInfo.Depends: %v\n", hInfo.GetCompatibleDevices())
 	return nil
 }
 
@@ -178,22 +181,29 @@ func (ar *Reader) readAugmentedHeader(tReader io.Reader, headerSum []byte) error
 	tr := tar.NewReader(gz)
 
 	// first part of header must always be header-info
-	hInfo := new(artifact.HeaderInfoV3)
+	hInfo := new(artifact.AugmentedHeaderInfoV3)
 	if err = readNext(tr, hInfo, "header-info"); err != nil {
 		return err
 	}
-	ar.hInfo = hInfo
+	ar.augmentedhInfo = hInfo
 
 	// TODO - necessary when the previous header is already processed?
 	// after reading header-info we can check device compatibility
+	// Maybe this should be a callback for checking depends and provides?
 	if ar.CompatibleDevicesCallback != nil {
 		if err = ar.CompatibleDevicesCallback(hInfo.ArtifactDepends.CompatibleDevices); err != nil {
 			return err
 		}
 	}
 
-	var hdr tar.Header
+	hdr, err := getNext(tr)
+	if err != nil {
+		return err
+	}
 
+	fmt.Fprintf(os.Stderr, "readAugmentedHeader: header-info: %v\n", hInfo)
+	fmt.Fprintf(os.Stderr, "readAugmentedHeader: header-info: %v\n", hInfo.ArtifactDepends)
+	fmt.Fprintf(os.Stderr, "readAugmentedHeader: hdr.name: %v\n", hdr.Name)
 	// Next step is setting correct installers based on update types being
 	// part of the artifact.
 	if err = ar.setInstallers(hInfo.Updates); err != nil {
@@ -201,7 +211,7 @@ func (ar *Reader) readAugmentedHeader(tReader io.Reader, headerSum []byte) error
 	}
 
 	// At the end read rest of the header using correct installers.
-	if err = ar.readHeaderUpdate(tr, &hdr); err != nil {
+	if err = ar.readHeaderUpdate(tr, hdr); err != nil {
 		return err
 	}
 
@@ -310,6 +320,7 @@ var artifactV3ParseGrammar = [][]string{
 	// Version is already read in ReadArtifact().
 	{"manifest", "header.tar.gz"},                                                              // Unsigned.
 	{"manifest", "manifest.sig", "header.tar.gz"},                                              // Signed.
+	{"manifest", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"},                 // TODO - is this the unsigned path, or the one above the preferred one?.
 	{"manifest", "manifest.sig", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"}, // Augmented.
 }
 
@@ -407,7 +418,7 @@ func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumS
 		}
 
 		if err := ar.readHeader(tReader, hc); err != nil {
-			return err
+			return errors.Wrap(err, "handleHeaderReads")
 		}
 	case "header-augment.tar.gz":
 		// Get and verify checksums of the augmented header.
@@ -532,6 +543,9 @@ func (ar *Reader) GetCompatibleDevices() []string {
 	if ar.hInfo == nil {
 		return nil
 	}
+	if ar.augmentedhInfo != nil {
+		fmt.Fprintf(os.Stderr, "GetCompatibleDevices: compatible devices: %v\n", ar.augmentedhInfo)
+	}
 	return ar.hInfo.GetCompatibleDevices()
 }
 
@@ -610,6 +624,7 @@ func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header) error {
 		if !ok {
 			return errors.Errorf("reader: can not find parser for update: %v", hdr.Name)
 		}
+		fmt.Fprintf(os.Stderr, "readHeaderUpdate: installer: %T\n", inst)
 		if hErr := inst.ReadHeader(tr, hdr.Name); hErr != nil {
 			return errors.Wrap(hErr, "reader: can not read header")
 		}

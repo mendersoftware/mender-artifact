@@ -53,8 +53,8 @@ func (d *DeltaHandler) ComposeHeader(args *ComposeHeaderArgs) error {
 		tarWriter:  args.TarWriter,
 		updateType: "delta-update",
 		dir:        path,
-		depends:    args.Depends,
-		provides:   args.Provides,
+		depends:    args.TypeInfoDepends,
+		provides:   args.TypeInfoProvides,
 	}); err != nil {
 		return err
 	}

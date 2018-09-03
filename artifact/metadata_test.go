@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/pkg/errors"
 )
 
 func TestValidateInfo(t *testing.T) {
@@ -36,6 +37,9 @@ func TestValidateInfo(t *testing.T) {
 
 	for _, tt := range validateTests {
 		e := tt.in.Validate()
+		if e != nil {
+			e = errors.Cause(e)
+		}
 		assert.Equal(t, e, tt.err)
 	}
 }
@@ -284,7 +288,7 @@ func TestValidateTypeInfo(t *testing.T) {
 
 	for _, tt := range validateTests {
 		e := tt.in.Validate()
-		assert.Equal(t, e, tt.err)
+		assert.Equal(t, errors.Cause(e), tt.err)
 	}
 }
 

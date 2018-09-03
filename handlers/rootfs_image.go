@@ -23,6 +23,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"fmt"
+
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
 )
@@ -67,9 +69,10 @@ func NewRootfsV3(updFile string) *Rootfs {
 
 // NewRootfsInstaller is used by the artifact reader to read and install
 // rootfs-image update type.
-func NewRootfsInstaller() *Rootfs {
+func NewRootfsInstaller(version int) *Rootfs {
 	return &Rootfs{
-		update: new(DataFile),
+		version: version,
+		update:  new(DataFile),
 	}
 }
 
@@ -85,11 +88,25 @@ func (rp *Rootfs) Copy() Installer {
 func (rp *Rootfs) ReadHeader(r io.Reader, path string) error {
 	switch {
 	case filepath.Base(path) == "files":
-
+		if rp.version == 3 {
+			files, err := parseFilesV3(r)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stderr, "ReadHeader: len(fileList): %v\nerr: %v\n", files, err)
+			if len(files.FileList) == 0 {
+				rp.update.Name = ""
+			} else {
+				rp.update.Name = files.FileList[0]
+			}
+			return nil
+		}
 		files, err := parseFiles(r)
 		if err != nil {
 			return err
 		}
+		fmt.Fprintf(os.Stderr, "ReadHeader: filelist: %d\n", len(files.FileList))
+		fmt.Fprintf(os.Stderr, "ReadHeader: filelist: %T\n", files.FileList)
 		rp.update.Name = files.FileList[0]
 	case filepath.Base(path) == "type-info",
 		filepath.Base(path) == "meta-data",
@@ -128,35 +145,45 @@ func (rfs *Rootfs) GetType() string {
 func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 
 	updFiles := filepath.Base(rfs.update.Name)
-	if args.Version == 3 && !args.Augmented {
-		// The regular header in the version 3 format will not
-		// contain the payload.
-		updFiles = ""
-	}
-
 	path := artifact.UpdateHeaderPath(args.No)
-
-	// first store files
-	if err := writeFiles(args.TarWriter, []string{updFiles},
-		path); err != nil {
-		return err
-	}
 
 	switch rfs.version {
 	case 1, 2:
+		// first store files
+		if err := writeFiles(args.TarWriter, []string{updFiles},
+			path); err != nil {
+			return err
+		}
+
 		if err := writeTypeInfo(args.TarWriter, "rootfs-image", path); err != nil {
 			return err
 		}
+
 	case 3:
+		if args.Augmented {
+			if err := writeFiles(args.TarWriter, []string{updFiles},
+				path); err != nil {
+				return err
+			}
+		} else {
+			// The header in a version 3 artifact will not contain the update,
+			// and hence there is no files in the files list.
+			if err := writeEmptyFiles(args.TarWriter, []string{updFiles},
+				path); err != nil {
+				return err
+			}
+		}
+
 		if err := writeTypeInfoV3(&WriteInfoArgs{
 			tarWriter:  args.TarWriter,
 			updateType: "rootfs-image",
 			dir:        path,
-			depends:    args.Depends,
-			provides:   args.Provides,
+			depends:    args.TypeInfoDepends,
+			provides:   args.TypeInfoProvides,
 		}); err != nil {
 			return errors.Wrap(err, "ComposeHeader: ")
 		}
+
 	}
 
 	// store empty meta-data

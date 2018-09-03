@@ -44,7 +44,7 @@ type Info struct {
 // Validate performs sanity checks on artifact info.
 func (i Info) Validate() error {
 	if len(i.Format) == 0 || i.Version == 0 {
-		return ErrValidatingData
+		return errors.Wrap(ErrValidatingData, "Artifact Info needs a format type and a version")
 	}
 	return nil
 }
@@ -192,7 +192,8 @@ func (hi *HeaderInfoV3) GetUpdates() []UpdateType {
 // Validate validates the correctness of the header version3.
 func (hi *HeaderInfoV3) Validate() error {
 	missingArgs := []string{"Artifact validation failed with missing argument"}
-	// Artifact must have an update with them.
+	// Artifact must have an update with them,
+	// because the signature of the update is stored in the metadata field.
 	if len(hi.Updates) == 0 {
 		missingArgs = append(missingArgs, "No updates added")
 	}
@@ -227,7 +228,7 @@ func (hi *HeaderInfoV3) Validate() error {
 	// Artifact-depends can be empty, thus:
 	///////////////////////////////////////
 	/* Artifact must not depend on a name. */
-	/* Artifact must not depend on a device. */ // TODO - hmmm... is this correct behaviour?
+	/* Artifact must not depend on a device. */
 	if len(missingArgs) > 1 {
 		if len(missingArgs) > 2 {
 			missingArgs[0] = missingArgs[0] + "s" // Add plural.
@@ -251,7 +252,7 @@ func (hi *HeaderInfoV3) Write(p []byte) (n int, err error) {
 // - Artifact depends.
 type AugmentedHeaderInfoV3 struct {
 	Updates         []UpdateType     `json:"updates"`
-	ArtifactDepends *ArtifactDepends // Has its own json marshaller  function.
+	ArtifactDepends *ArtifactDepends `json:"artifact_depends"` // Has its own json marshaller  function.
 }
 
 // Validate validates the correctness of the augmented-header version3.
@@ -263,7 +264,7 @@ func (hi *AugmentedHeaderInfoV3) Validate() error {
 	// No empty updates.
 	for _, update := range hi.Updates {
 		if update == (UpdateType{}) {
-			return ErrValidatingData
+			return errors.Wrap(ErrValidatingData, "Augmented Header requires an upate type")
 		}
 	}
 	///////////////////////////////////////
@@ -302,7 +303,7 @@ type TypeInfo struct {
 // Validate validates corectness of TypeInfo.
 func (ti TypeInfo) Validate() error {
 	if len(ti.Type) == 0 {
-		return ErrValidatingData
+		return errors.Wrap(ErrValidatingData, "TypeInfo requires a type")
 	}
 	return nil
 }
@@ -408,8 +409,14 @@ type Files struct {
 
 // Validate checks format of Files.
 func (f Files) Validate() error {
-	// Do not enforce any structure on the files format,
-	// since in version 3, a header can have an empty payload.
+	if len(f.FileList) == 0 {
+		return errors.Wrap(ErrValidatingData, "Files list cannot be empty")
+	}
+	for _, f := range f.FileList {
+		if len(f) == 0 {
+			return errors.Wrap(ErrValidatingData, "File in FileList requires a name")
+		}
+	}
 	return nil
 }
 
@@ -418,4 +425,16 @@ func (f *Files) Write(p []byte) (n int, err error) {
 		return 0, err
 	}
 	return len(p), nil
+}
+
+// FilesV3 can contain no files, as opposed to Files in version 1 and 2,
+// as the update is now stored in the augmented-header.
+type FilesV3 struct {
+	*Files
+}
+
+func (f FilesV3) Validate() error {
+	// Do not enforce any structure on the files format,
+	// since in version 3, a header can have an empty payload.
+	return nil
 }

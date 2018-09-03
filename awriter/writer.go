@@ -17,6 +17,7 @@ package awriter
 import (
 	"archive/tar"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -213,12 +214,12 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 	// The header in version 3 will have the original rootfs-checksum in type-info!
 	tmpHdr, err := writeTempHeader(manifestChecksumStore, "header", writeHeader, args)
 	if err != nil {
-		return errors.Wrap(err, "writeArtifactV3")
+		return errors.Wrap(err, "writeArtifactV3: writeHeader")
 	}
 	defer os.Remove(tmpHdr.Name())
 	tmpAugHdr, err := writeTempHeader(augManifestChecksumStore, "header-augment", writeAugmentedHeader, args)
 	if err != nil {
-		return errors.Wrap(err, "writeArtifactV3")
+		return errors.Wrap(err, "writeArtifactV3: writeAugmentedHeader")
 	}
 	defer os.Remove(tmpAugHdr.Name())
 	////////////////////////
@@ -310,74 +311,6 @@ func writeManifestVersion(version int, signer artifact.Signer, tw *tar.Writer, m
 	return nil
 }
 
-// addAugmentedManifest adds an unsigned manifest and a header to the artifact,
-func AugmentArtifact(stdArtifact io.Reader, augmentedArtifact io.Writer, args *WriteArtifactArgs) error {
-	augmentedManifestWritten := false
-	augmentedHeaderWritten := false
-	// First read the artifact.
-	tarReader := tar.NewReader(stdArtifact)
-	// Create a new artifact writer, and simply write anew the old artifact.
-	tw := tar.NewWriter(augmentedArtifact)
-	defer tw.Close()
-	// Since we need the checksums, before writing the augmented manifest, get the
-	// correct checksums, and store header as a tempFile.
-	manifestChecksumStore := artifact.NewChecksumStore()
-	tmpHdr, err := writeTempHeader(manifestChecksumStore, "header-augment", writeAugmentedHeader, args)
-	if err != nil {
-		return errors.Wrap(err, "augmentArtifact: failed to write tempAugmentHeader")
-	}
-	// File needs to be read anew.
-	if _, err := tmpHdr.Seek(0, 0); err != nil {
-		return errors.Wrapf(err, "addAugmentedManifest: error preparing tmp augmented-header for writing")
-	}
-	// Place the augmented fields at their corresponding places in the new artifact.
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break // Done processing the archive.
-		}
-		if err != nil {
-			return errors.Wrap(err, "addAugmentedManifest: tarReader.Next() failed")
-		}
-		// Allocate a buffer the size of a tar-record (512 Bytes).
-		tarBuf := make([]byte, 512)
-		// Simply write the current artifact contents anew.
-		err = tw.WriteHeader(header)
-		if err != nil {
-			return errors.Wrap(err, "addAugmentedManifest: failed to write header")
-		}
-		n, err := io.CopyBuffer(tw, tarReader, tarBuf)
-		if err != nil {
-			return errors.Wrapf(err, "addAugmentedManifest: io.CopyBuffer failed: writeLength: %d", n)
-		}
-		// After the header has been written, we can append our augmented records.
-		if header.Name == "manifest.sig" {
-			// Add the manifest to the tarWriter.
-			sa := artifact.NewTarWriterStream(tw)
-			fmt.Fprintf(os.Stderr, "Adding %manifestChecksumStore to the augmented manifest\n", manifestChecksumStore.GetRaw())
-			if err = sa.Write(manifestChecksumStore.GetRaw(), "manifest-augment"); err != nil {
-				return errors.Wrap(err, "addAugmentedManifest: failed to write manifest-augment")
-			}
-			augmentedManifestWritten = true
-		}
-		if header.Name == "header.tar.gz" && augmentedManifestWritten {
-			// Write the augmented header to the new artifact.
-			fw := artifact.NewTarWriterFile(tw)
-			if err := fw.Write(tmpHdr, "header-augment.tar.gz"); err != nil {
-				return errors.Wrapf(err, "addAugmentedManifest: can not tar the augmented header")
-			}
-			augmentedHeaderWritten = true
-		}
-	}
-	// Be sure that both the augmented records have been written
-	if !(augmentedManifestWritten && augmentedHeaderWritten) {
-		return fmt.Errorf(
-			"augmentArtifact: AugmentError: augmented-manifest written: %t, augmented-header-written: %t",
-			augmentedManifestWritten, augmentedHeaderWritten)
-	}
-	return nil
-}
-
 func writeScripts(tw *tar.Writer, scr *artifact.Scripts) error {
 	sw := artifact.NewTarWriterFile(tw)
 	for _, script := range scr.Get() {
@@ -414,6 +347,7 @@ func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error {
 		hInfo = artifact.NewHeaderInfoV3(upds, args.Provides, args.Depends)
 	}
 
+	fmt.Fprintf(os.Stderr, "writeHeader: depends: %v\n", hInfo)
 	sa := artifact.NewTarWriterStream(tarWriter)
 	stream, err := artifact.ToStream(hInfo)
 	if err != nil {
@@ -432,7 +366,7 @@ func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error {
 
 	for i, upd := range args.Updates.U {
 		if err := upd.ComposeHeader(&handlers.ComposeHeaderArgs{TarWriter: tarWriter, No: i, Version: args.Version, Augmented: false}); err != nil {
-			return errors.Wrapf(err, "writer: error processing update directory")
+			return errors.Wrapf(err, "writer: error composing header")
 		}
 	}
 	return nil
@@ -456,14 +390,20 @@ func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error 
 	fmt.Fprintf(os.Stderr, "Updates: %v\n", args.Updates)
 	for _, upd := range args.Updates.U {
 		fmt.Printf("Writing update: %v\n", upd)
-		fmt.Printf("Writing update: %manifestChecksumStore\n", upd.GetType())
+		fmt.Printf("Writing update: %v\n", upd.GetType())
 		hInfo.Updates =
 			append(hInfo.Updates, artifact.UpdateType{Type: upd.GetType()})
 	}
 	// Augmented header only has artifact-depends.
 	hInfo.ArtifactDepends = args.Depends
+	fmt.Fprintf(os.Stderr, "writeAugmentedHeader: hInfo.ArtifactDepends: %v\n", hInfo.ArtifactDepends)
 	sa := artifact.NewTarWriterStream(tarWriter)
 	stream, err := artifact.ToStream(hInfo)
+	ai := artifact.HeaderInfoV3{}
+	err = json.Unmarshal(stream, &ai)
+	fmt.Fprintf(os.Stderr, "writeAugmentedHeader: err: %v\n", err)
+	fmt.Fprintf(os.Stderr, "writeAugmentedHeader: stream: %v\n", ai)
+	fmt.Fprintf(os.Stderr, "writeAugmentedHeader: stream: %v\n", ai.ArtifactDepends)
 	if err != nil {
 		return errors.Wrap(err, "writeAugmentedHeader")
 	}
@@ -473,7 +413,7 @@ func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error 
 
 	for i, upd := range args.Updates.U {
 		fmt.Fprintf(os.Stderr, "Composing header: update: %v\n", upd)
-		if err := upd.ComposeHeader(&handlers.ComposeHeaderArgs{TarWriter: tarWriter, No: i}); err != nil {
+		if err := upd.ComposeHeader(&handlers.ComposeHeaderArgs{TarWriter: tarWriter, No: i, Augmented: true, TypeInfoDepends: []artifact.TypeInfoDepends{}, TypeInfoProvides: []artifact.TypeInfoProvides{}}); err != nil {
 			return errors.Wrapf(err, "writer: error processing update directory")
 		}
 	}

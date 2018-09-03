@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"fmt"
 	"time"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -44,8 +45,8 @@ type ComposeHeaderArgs struct {
 	No        int
 	Version   int
 	Augmented bool
-	Depends   []artifact.TypeInfoDepends
-	Provides  []artifact.TypeInfoProvides
+	TypeInfoDepends   []artifact.TypeInfoDepends
+	TypeInfoProvides  []artifact.TypeInfoProvides
 }
 
 type Composer interface {
@@ -74,6 +75,19 @@ func parseFiles(r io.Reader) (*artifact.Files, error) {
 	return files, nil
 }
 
+func parseFilesV3(r io.Reader) (*artifact.FilesV3, error) {
+	files := artifact.FilesV3{&artifact.Files{}}
+	fmt.Fprintf(os.Stderr, "parseFilesV3: pre %v\n", files)
+	if _, err := io.Copy(files, r); err != nil {
+		return nil, errors.Wrap(err, "update: error reading files")
+	}
+	if err := files.Validate(); err != nil {
+		return nil, err
+	}
+	fmt.Fprintf(os.Stderr, "parseFilesV3: %v\n", files)
+	return &files, nil
+}
+
 func match(pattern, name string) bool {
 	match, err := filepath.Match(pattern, name)
 	if err != nil {
@@ -97,6 +111,24 @@ func writeFiles(tw *tar.Writer, updFiles []string, dir string) error {
 		filepath.Join(dir, "files")); err != nil {
 		return errors.Wrapf(err, "writer: can not tar files")
 	}
+	return nil
+}
+
+// writeEmptyFiles Writes an empty files list to the update header, as
+// the V3 format contains the updates in the augmented header, the regular
+// header will not contain any update, thus this method is needed to bypass
+// the empty files list check in version 1 and 2.
+func writeEmptyFiles(tw *tar.Writer, updFiles []string, dir string) error {
+	files := new(artifact.FilesV3)
+	sa := artifact.NewTarWriterStream(tw)
+	stream, err := artifact.ToStream(files)
+	if err != nil {
+		return errors.Wrap(err, "writeFiles: ")
+	}
+	if err := sa.Write(stream,
+		filepath.Join(dir, "files")); err != nil {
+			return errors.Wrapf(err, "writer: can not tar files")
+		}
 	return nil
 }
 
