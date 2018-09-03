@@ -110,7 +110,9 @@ func unpackArtifact(name string) (string, error) {
 	}
 	defer tmp.Close()
 
+	rootfsName := ""
 	rootfs.InstallHandler = func(r io.Reader, df *handlers.DataFile) error {
+		rootfsName = df.Name
 		_, err = io.Copy(tmp, r)
 		return err
 	}
@@ -123,7 +125,13 @@ func unpackArtifact(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return tmp.Name(), nil
+	// Give the tempfile it's original name, so that the update does not change name upon a write.
+	tmpfilePath := tmp.Name()
+	newNamePath := filepath.Join(filepath.Dir(tmpfilePath), rootfsName)
+	if err = os.Rename(tmpfilePath, newNamePath); err != nil {
+		return "", err
+	}
+	return newNamePath, nil
 }
 
 func repack(artifactName string, from io.Reader, to io.Writer, key []byte,

@@ -42,6 +42,12 @@ type partition struct {
 type sdimgFile []io.ReadWriteCloser
 
 func newSDImgFile(fpath string, modcands []partition) (sdimgFile, error) {
+	var delPartition []partition
+	defer func() {
+		for _, part := range delPartition {
+			os.Remove(part.path)
+		}
+	}()
 	if len(modcands) < 4 {
 		return nil, fmt.Errorf("newSDImgFile: %d partitions found, 4 needed", len(modcands))
 	}
@@ -49,11 +55,9 @@ func newSDImgFile(fpath string, modcands []partition) (sdimgFile, error) {
 	if strings.HasPrefix(fpath, "/data") {
 		// The data dir is not a directory in the data partition
 		fpath = strings.TrimPrefix(fpath, "/data")
+		delPartition = append(delPartition, modcands[0:3]...)
 		ext, err := newExtFile("", fpath, modcands[3]) // Data partition
-		if err != nil {
-			return nil, err
-		}
-		return sdimgFile{ext}, nil
+		return sdimgFile{ext}, err
 	}
 	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))")
 	// Only return the boot-partition.
@@ -66,46 +70,29 @@ func newSDImgFile(fpath string, modcands []partition) (sdimgFile, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "partition: error reading file-system type on the boot partition")
 		}
-		tmpf, err := ioutil.TempFile("", "mendertmp")
-		if err != nil {
-			return nil, err
-		}
 		switch fstype {
 		case fat:
-			return sdimgFile{
-				&fatFile{
-					partition:     modcands[0], // boot partition.
-					imageFilePath: fpath,
-					tmpf:          tmpf,
-				},
-			}, nil
+			delPartition = append(delPartition, modcands[1:]...)
+			ff, err := newFatFile(fpath, modcands[0]) // Boot partition.
+			return sdimgFile{ff}, err
 		case ext:
-			return sdimgFile{
-				&extFile{
-					partition:     modcands[0], // boot partition.
-					imagefilepath: fpath,
-					tmpf:          tmpf,
-				},
-			}, nil
+			delPartition = append(delPartition, modcands[1:]...)
+			extf, err := newExtFile("", fpath, modcands[0])
+			return sdimgFile{extf}, err
 		case unsupported:
 			return nil, errors.New("partition: error reading file-system type on the boot partition")
 
 		}
 	}
+	delPartition = append(delPartition, modcands[0])
+	delPartition = append(delPartition, modcands[2:]...)
 	rootfsa, err := newExtFile("", fpath, modcands[1]) // rootfsa
 	if err != nil {
-		return nil, err
+		return sdimgFile{rootfsa}, err
 	}
+	delPartition = []partition{modcands[0], modcands[3]}
 	rootfsb, err := newExtFile("", fpath, modcands[2]) // rootfsb
-	if err != nil {
-		return nil, err
-	}
-	// return a virtual partition read/writer, wrapping both rootfsA and B partitions
-	ps := sdimgFile{
-		rootfsa,
-		rootfsb,
-	}
-	return ps, nil
+	return sdimgFile{rootfsa, rootfsb}, err
 }
 
 // Write forces a write from the underlying writers sdimgFile wraps.
@@ -130,6 +117,9 @@ func (p sdimgFile) Read(b []byte) (int, error) {
 
 // Close closes the underlying closers.
 func (p sdimgFile) Close() (err error) {
+	if p == nil {
+		return nil
+	}
 	for _, part := range p {
 		err = part.Close()
 		if err != nil {
@@ -158,11 +148,11 @@ func parseImgPath(imgpath string) (imgname, fpath string, err error) {
 func NewPartitionFile(imgpath, key string) (io.ReadWriteCloser, error) {
 	imgname, fpath, err := parseImgPath(imgpath)
 	if err != nil {
-		return nil, err
+		return &extFile{}, err
 	}
 	modcands, isArtifact, err := getCandidatesForModify(imgname, []byte(key))
 	if err != nil {
-		return nil, err
+		return &extFile{}, err
 	}
 	for i := 0; i < len(modcands); i++ {
 		modcands[i].name = imgname
@@ -202,35 +192,44 @@ type artifactExtFile struct {
 	extFile
 }
 
-func newArtifactExtFile(key, fpath string, p partition) (*artifactExtFile, error) {
-	tmpf, err := ioutil.TempFile("", "mendertmp")
-	if err != nil {
-		return nil, err
-	}
-	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))")
-	if reg.MatchString(fpath) {
-		return nil, errors.New("newArtifactExtFile: A mender artifact does not contain a boot partition, only a rootfs")
-	}
-	if strings.HasPrefix(fpath, "/data") {
-		return nil, errors.New("newArtifactExtFile: A mender artifact does not contain a data partition, only a rootfs")
-	}
-	return &artifactExtFile{
+func newArtifactExtFile(key, fpath string, p partition) (af *artifactExtFile, err error) {
+	tmpf, err := ioutil.TempFile("", "mendertmp-artifactextfile")
+	// Cleanup resources in case of error.
+	af = &artifactExtFile{
 		extFile{
 			partition:     p,
 			key:           key,
 			imagefilepath: fpath,
 			tmpf:          tmpf,
 		},
-	}, nil
+	}
+	if err != nil {
+		return af, err
+	}
+	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))")
+	if reg.MatchString(fpath) {
+		return af, errors.New("newArtifactExtFile: A mender artifact does not contain a boot partition, only a rootfs")
+	}
+	if strings.HasPrefix(fpath, "/data") {
+		return af, errors.New("newArtifactExtFile: A mender artifact does not contain a data partition, only a rootfs")
+	}
+	return af, nil
 }
 
-func (a *artifactExtFile) Close() error {
-	os.Remove(a.tmpf.Name())
-	if a.repack {
-		return repackArtifact(a.name, a.path,
-			a.key, filepath.Base(a.name))
+func (a *artifactExtFile) Close() (err error) {
+	if a == nil {
+		return nil
 	}
-	return nil
+	if a.repack {
+		err = repackArtifact(a.name, a.path,
+			a.key, "")
+	}
+	if a.tmpf != nil {
+		a.tmpf.Close()
+		os.Remove(a.tmpf.Name())
+	}
+	os.Remove(a.path)
+	return err
 }
 
 // extFile wraps partition and implements ReadWriteCloser
@@ -242,17 +241,16 @@ type extFile struct {
 	tmpf          *os.File // Used as a buffer for multiple write operations
 }
 
-func newExtFile(key, imagefilepath string, p partition) (*extFile, error) {
-	tmpf, err := ioutil.TempFile("", "mendertmp")
-	if err != nil {
-		return nil, err
-	}
-	return &extFile{
+func newExtFile(key, imagefilepath string, p partition) (e *extFile, err error) {
+	tmpf, err := ioutil.TempFile("", "mendertmp-extfile")
+	// Cleanup resources in case of error.
+	e = &extFile{
 		partition:     p,
 		key:           key,
 		imagefilepath: imagefilepath,
 		tmpf:          tmpf,
-	}, nil
+	}
+	return e, err
 }
 
 // Write reads all bytes from b into the partitionFile using debugfs.
@@ -274,6 +272,7 @@ func (ef *extFile) Write(b []byte) (int, error) {
 // Read reads all bytes from the filepath on the partition image into b
 func (ef *extFile) Read(b []byte) (int, error) {
 	str, err := debugfsCopyFile(ef.imagefilepath, ef.path)
+	defer os.RemoveAll(str) // ignore error removing tmp-dir
 	if err != nil {
 		return 0, errors.Wrap(err, "extFile: ReadError: debugfsCopyFile failed")
 	}
@@ -281,17 +280,23 @@ func (ef *extFile) Read(b []byte) (int, error) {
 	if err != nil {
 		return 0, errors.Wrapf(err, "extFile: ReadError: ioutil.Readfile failed to read file: %s", filepath.Join(str, filepath.Base(ef.imagefilepath)))
 	}
-	defer os.RemoveAll(str) // ignore error removing tmp-dir
 	return copy(b, data), io.EOF
 }
 
 // Close closes the temporary file held by partitionFile path, and repacks the partition if needed.
 func (ef *extFile) Close() (err error) {
+	if ef == nil {
+		return nil
+	}
 	if ef.repack {
 		part := []partition{ef.partition}
 		err = repackSdimg(part, ef.name)
 	}
-	ef.tmpf.Close()    // Ignore
+	if ef.tmpf != nil {
+		// Ignore tmp-errors
+		ef.tmpf.Close()
+		os.Remove(ef.tmpf.Name())
+	}
 	os.Remove(ef.path) // ignore error for tmp-dir
 	return err
 }
@@ -302,6 +307,16 @@ type fatFile struct {
 	imageFilePath string // The local filesystem path to the image
 	repack        bool
 	tmpf          *os.File
+}
+
+func newFatFile(imageFilePath string, partition partition) (*fatFile, error) {
+	tmpf, err := ioutil.TempFile("", "mendertmp-fatfile")
+	ff := &fatFile{
+		partition:     partition,
+		imageFilePath: imageFilePath,
+		tmpf:          tmpf,
+	}
+	return ff, err
 }
 
 // Read Dump the file contents to stdout, and capture, using MTools' mtype
@@ -335,11 +350,17 @@ func (f *fatFile) Write(b []byte) (n int, err error) {
 }
 
 func (f *fatFile) Close() (err error) {
+	if f == nil {
+		return nil
+	}
 	if f.repack {
 		p := []partition{f.partition}
 		err = repackSdimg(p, f.name)
 	}
-	f.tmpf.Close()
+	if f.tmpf != nil {
+		f.tmpf.Close()
+		os.Remove(f.tmpf.Name())
+	}
 	os.Remove(f.path) // Ignore error for tmp-dir
 	return err
 }
