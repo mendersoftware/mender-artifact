@@ -347,7 +347,6 @@ func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error {
 		hInfo = artifact.NewHeaderInfoV3(upds, args.Provides, args.Depends)
 	}
 
-	fmt.Fprintf(os.Stderr, "writeHeader: depends: %v\n", hInfo)
 	sa := artifact.NewTarWriterStream(tarWriter)
 	stream, err := artifact.ToStream(hInfo)
 	if err != nil {
@@ -387,7 +386,6 @@ type WriteAugHeaderArgs struct {
 // type-info: Can only contain artifact-depends and rootfs_image_checksum.
 func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error {
 	hInfo := new(artifact.AugmentedHeaderInfoV3)
-	fmt.Fprintf(os.Stderr, "Updates: %v\n", args.Updates)
 	for _, upd := range args.Updates.U {
 		fmt.Printf("Writing update: %v\n", upd)
 		fmt.Printf("Writing update: %v\n", upd.GetType())
@@ -396,14 +394,10 @@ func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error 
 	}
 	// Augmented header only has artifact-depends.
 	hInfo.ArtifactDepends = args.Depends
-	fmt.Fprintf(os.Stderr, "writeAugmentedHeader: hInfo.ArtifactDepends: %v\n", hInfo.ArtifactDepends)
 	sa := artifact.NewTarWriterStream(tarWriter)
 	stream, err := artifact.ToStream(hInfo)
 	ai := artifact.HeaderInfoV3{}
 	err = json.Unmarshal(stream, &ai)
-	fmt.Fprintf(os.Stderr, "writeAugmentedHeader: err: %v\n", err)
-	fmt.Fprintf(os.Stderr, "writeAugmentedHeader: stream: %v\n", ai)
-	fmt.Fprintf(os.Stderr, "writeAugmentedHeader: stream: %v\n", ai.ArtifactDepends)
 	if err != nil {
 		return errors.Wrap(err, "writeAugmentedHeader")
 	}
@@ -412,7 +406,6 @@ func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error 
 	}
 
 	for i, upd := range args.Updates.U {
-		fmt.Fprintf(os.Stderr, "Composing header: update: %v\n", upd)
 		if err := upd.ComposeHeader(&handlers.ComposeHeaderArgs{TarWriter: tarWriter, No: i, Augmented: true, TypeInfoDepends: []artifact.TypeInfoDepends{}, TypeInfoProvides: []artifact.TypeInfoProvides{}}); err != nil {
 			return errors.Wrapf(err, "writer: error processing update directory")
 		}

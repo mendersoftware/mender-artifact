@@ -77,14 +77,12 @@ func parseFiles(r io.Reader) (*artifact.Files, error) {
 
 func parseFilesV3(r io.Reader) (*artifact.FilesV3, error) {
 	files := artifact.FilesV3{&artifact.Files{}}
-	fmt.Fprintf(os.Stderr, "parseFilesV3: pre %v\n", files)
 	if _, err := io.Copy(files, r); err != nil {
 		return nil, errors.Wrap(err, "update: error reading files")
 	}
 	if err := files.Validate(); err != nil {
 		return nil, err
 	}
-	fmt.Fprintf(os.Stderr, "parseFilesV3: %v\n", files)
 	return &files, nil
 }
 

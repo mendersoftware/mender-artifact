@@ -93,7 +93,6 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string) error {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(os.Stderr, "ReadHeader: len(fileList): %v\nerr: %v\n", files, err)
 			if len(files.FileList) == 0 {
 				rp.update.Name = ""
 			} else {
@@ -105,8 +104,6 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(os.Stderr, "ReadHeader: filelist: %d\n", len(files.FileList))
-		fmt.Fprintf(os.Stderr, "ReadHeader: filelist: %T\n", files.FileList)
 		rp.update.Name = files.FileList[0]
 	case filepath.Base(path) == "type-info",
 		filepath.Base(path) == "meta-data",

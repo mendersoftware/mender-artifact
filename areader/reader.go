@@ -165,8 +165,6 @@ func (ar *Reader) populateArtifactInfo(version int, tr *tar.Reader) error {
 		return err
 	}
 	ar.hInfo = hInfo
-	fmt.Fprintf(os.Stderr, "populateArtifactInfo: hInfo: %v\n", hInfo)
-	fmt.Fprintf(os.Stderr, "populateArtifactInfo: hInfo.Depends: %v\n", hInfo.GetCompatibleDevices())
 	return nil
 }
 
@@ -201,9 +199,6 @@ func (ar *Reader) readAugmentedHeader(tReader io.Reader, headerSum []byte) error
 		return err
 	}
 
-	fmt.Fprintf(os.Stderr, "readAugmentedHeader: header-info: %v\n", hInfo)
-	fmt.Fprintf(os.Stderr, "readAugmentedHeader: header-info: %v\n", hInfo.ArtifactDepends)
-	fmt.Fprintf(os.Stderr, "readAugmentedHeader: hdr.name: %v\n", hdr.Name)
 	// Next step is setting correct installers based on update types being
 	// part of the artifact.
 	if err = ar.setInstallers(hInfo.Updates); err != nil {
@@ -423,7 +418,6 @@ func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumS
 	case "header-augment.tar.gz":
 		// Get and verify checksums of the augmented header.
 		hc, err := manifestChecksumStore.Get("header-augment.tar.gz")
-		fmt.Fprintf(os.Stderr, "augmented header checksum: %x\n", hc)
 		if err != nil {
 			return err
 		}
@@ -544,7 +538,6 @@ func (ar *Reader) GetCompatibleDevices() []string {
 		return nil
 	}
 	if ar.augmentedhInfo != nil {
-		fmt.Fprintf(os.Stderr, "GetCompatibleDevices: compatible devices: %v\n", ar.augmentedhInfo)
 	}
 	return ar.hInfo.GetCompatibleDevices()
 }
@@ -624,7 +617,6 @@ func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header) error {
 		if !ok {
 			return errors.Errorf("reader: can not find parser for update: %v", hdr.Name)
 		}
-		fmt.Fprintf(os.Stderr, "readHeaderUpdate: installer: %T\n", inst)
 		if hErr := inst.ReadHeader(tr, hdr.Name); hErr != nil {
 			return errors.Wrap(hErr, "reader: can not read header")
 		}
