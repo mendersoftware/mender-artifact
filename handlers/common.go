@@ -20,7 +20,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"fmt"
 	"time"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -41,12 +40,12 @@ type DataFile struct {
 }
 
 type ComposeHeaderArgs struct {
-	TarWriter *tar.Writer
-	No        int
-	Version   int
-	Augmented bool
-	TypeInfoDepends   []artifact.TypeInfoDepends
-	TypeInfoProvides  []artifact.TypeInfoProvides
+	TarWriter        *tar.Writer
+	No               int
+	Version          int
+	Augmented        bool
+	TypeInfoDepends  []artifact.TypeInfoDepends
+	TypeInfoProvides []artifact.TypeInfoProvides
 }
 
 type Composer interface {
@@ -125,8 +124,8 @@ func writeEmptyFiles(tw *tar.Writer, updFiles []string, dir string) error {
 	}
 	if err := sa.Write(stream,
 		filepath.Join(dir, "files")); err != nil {
-			return errors.Wrapf(err, "writer: can not tar files")
-		}
+		return errors.Wrapf(err, "writer: can not tar files")
+	}
 	return nil
 }
 

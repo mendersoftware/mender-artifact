@@ -317,6 +317,7 @@ var artifactV3ParseGrammar = [][]string{
 	{"manifest", "manifest.sig", "header.tar.gz"},                                              // Signed.
 	{"manifest", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"},                 // TODO - is this the unsigned path, or the one above the preferred one?.
 	{"manifest", "manifest.sig", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"}, // Augmented.
+	// Data is processed in ReadArtifact()
 }
 
 // verifyParseOrder compares the parseOrder against the allowed parse paths through an artifact.
@@ -346,7 +347,6 @@ func verifyParseOrder(parseOrder []string) (validToken string, validPath bool) {
 func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 	version []byte) (*artifact.ChecksumStore, error) {
 	manifestChecksumStore := artifact.NewChecksumStore()
-	var augManChecksumStore *artifact.ChecksumStore // TODO - necessary?
 	parsePath := []string{}
 
 	for {
@@ -359,7 +359,7 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 		}
 		parsePath = append(parsePath, hdr.Name)
 		nextParseToken, validPath := verifyParseOrder(parsePath)
-		err = handleHeaderReads(nextParseToken, tReader, manifestChecksumStore, augManChecksumStore, ar, version)
+		err = handleHeaderReads(nextParseToken, tReader, manifestChecksumStore, ar, version)
 		if err != nil {
 			return nil, errors.Wrap(err, "readHeaderV3")
 		}
@@ -370,7 +370,7 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 	return manifestChecksumStore, nil
 }
 
-func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumStore, augManChecksumStore *artifact.ChecksumStore, ar *Reader, version []byte) (err error) {
+func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumStore *artifact.ChecksumStore, ar *Reader, version []byte) (err error) {
 	switch headerName {
 	case "manifest":
 		buf := bytes.NewBuffer(nil)
@@ -400,7 +400,6 @@ func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumS
 		if err != nil {
 			return errors.Wrap(err, "handleHeaderReads: Failed to read the augmented manifest body")
 		}
-		fmt.Printf("Augmented header contents: %s\n", buf.String())
 		err = manifestChecksumStore.ReadRaw(buf.Bytes())
 		if err != nil {
 			return errors.Wrap(err, "handleHeaderReads: Failed to store the checksums from the augmented manifest")
@@ -582,6 +581,15 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType) error {
 	for i, update := range upd {
 		// set installer for given update type
 		if w, ok := ar.handlers[update.Type]; ok {
+			// NOTE ArtifactV3 specific:
+			// If the update-type has not changed, do not update the installer.
+			// The installer has internal state in order to handle the diffence between a read in an
+			// augmented and regular header.
+			if installer, ok := ar.installers[i]; ok {
+				if installer.GetType() == update.Type {
+					continue
+				}
+			}
 			ar.installers[i] = w.Copy()
 			continue
 		}

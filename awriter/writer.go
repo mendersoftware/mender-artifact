@@ -387,8 +387,6 @@ type WriteAugHeaderArgs struct {
 func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error {
 	hInfo := new(artifact.AugmentedHeaderInfoV3)
 	for _, upd := range args.Updates.U {
-		fmt.Printf("Writing update: %v\n", upd)
-		fmt.Printf("Writing update: %v\n", upd.GetType())
 		hInfo.Updates =
 			append(hInfo.Updates, artifact.UpdateType{Type: upd.GetType()})
 	}

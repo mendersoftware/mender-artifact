@@ -23,16 +23,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"fmt"
-
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
 )
 
 // Rootfs handles updates of type 'rootfs-image'.
 type Rootfs struct {
-	version int
-	update  *DataFile
+	version    int
+	update     *DataFile
+	headerRead bool
 
 	InstallHandler func(io.Reader, *DataFile) error
 }
@@ -82,6 +81,7 @@ func (rp *Rootfs) Copy() Installer {
 		version:        rp.version,
 		update:         new(DataFile),
 		InstallHandler: rp.InstallHandler,
+		headerRead:     rp.headerRead,
 	}
 }
 
@@ -89,16 +89,12 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string) error {
 	switch {
 	case filepath.Base(path) == "files":
 		if rp.version == 3 {
-			files, err := parseFilesV3(r)
-			if err != nil {
-				return err
-			}
-			if len(files.FileList) == 0 {
+			if !rp.headerRead {
+				// Skip the files in the (possibly) signed header in version 3.
+				rp.headerRead = true
 				rp.update.Name = ""
-			} else {
-				rp.update.Name = files.FileList[0]
+				return nil
 			}
-			return nil
 		}
 		files, err := parseFiles(r)
 		if err != nil {
