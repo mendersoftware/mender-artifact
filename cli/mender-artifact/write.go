@@ -226,12 +226,12 @@ func writeRootfs(c *cli.Context) error {
 		return cli.NewExitError("can not use scripts artifact with version 1", 1)
 	}
 
-	// NOTE: Update-types-supported is currently hardcoded into the artifact!
+	// NOTE: Update-types supported is currently hardcoded into the artifact!
 	updateTypesSupported := []string{"rootfs-image"}
 
 	depends := artifact.ArtifactDepends{
 		ArtifactName:      c.StringSlice("artifact-name-depends"),
-		CompatibleDevices: c.StringSlice("depends-device-types"),
+		CompatibleDevices: c.StringSlice("artifact-device-depends"),
 	}
 
 	provides := artifact.ArtifactProvides{
