@@ -68,7 +68,6 @@ func calcDataHash(manifestChecksumStore *artifact.ChecksumStore, upd *Updates) e
 			}
 			sum := ch.Checksum()
 			f.Checksum = sum
-			fmt.Fprintf(os.Stderr, "calcDataHash: upd: %s: checksum: %s\n", f.Name, sum)
 			manifestChecksumStore.Add(filepath.Join(artifact.UpdatePath(i), filepath.Base(f.Name)), sum)
 		}
 	}

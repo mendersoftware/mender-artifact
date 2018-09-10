@@ -137,7 +137,6 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 		return err
 	}
 
-	fmt.Fprintf(os.Stderr, "readHeader: installers: %T\n", ar.installers[0])
 	// At the end read rest of the header using correct installers.
 	if err = ar.readHeaderUpdate(tr, &hdr); err != nil {
 		return err
@@ -414,7 +413,6 @@ func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumS
 		}
 	case "header.tar.gz":
 		// Get and verify checksums of header.
-		fmt.Fprintf(os.Stderr, "handleHeaderReads: header.tar.gz\n")
 		hc, err := manifestChecksumStore.Get("header.tar.gz")
 		if err != nil {
 			return err
@@ -425,7 +423,6 @@ func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumS
 		}
 	case "header-augment.tar.gz":
 		// Get and verify checksums of the augmented header.
-		fmt.Fprintf(os.Stderr, "handleHeaderReads: header-augment.tar.gz\n")
 		hc, err := manifestChecksumStore.Get("header-augment.tar.gz")
 		if err != nil {
 			return err
@@ -588,9 +585,7 @@ func (ar *Reader) GetArtifactDepends() *artifact.ArtifactDepends {
 }
 
 func (ar *Reader) setInstallers(upd []artifact.UpdateType) error {
-	fmt.Fprintf(os.Stderr, "setInstallers: installers: %v, handlers: %v\n", ar.installers, ar.handlers)
 	for i, update := range upd {
-		fmt.Fprintf(os.Stderr, "setInstallers: update: %s\n", update)
 		// set installer for given update type
 		if w, ok := ar.handlers[update.Type]; ok {
 			// NOTE ArtifactV3 specific:
@@ -637,7 +632,6 @@ func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header) error {
 		if !ok {
 			return errors.Errorf("reader: can not find parser for update: %v", hdr.Name)
 		}
-		fmt.Fprintf(os.Stderr, "readHeaderUpdate: reading header: %v\n", hdr)
 		if hErr := inst.ReadHeader(tr, hdr.Name); hErr != nil {
 			return errors.Wrap(hErr, "reader: can not read header")
 		}
@@ -655,7 +649,6 @@ func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header) error {
 func (ar *Reader) readNextDataFile(tr *tar.Reader,
 	manifest *artifact.ChecksumStore) error {
 	hdr, err := getNext(tr)
-	fmt.Fprintf(os.Stderr, "readNextDataFile: hdr: %v\n", hdr)
 	if err == io.EOF {
 		return io.EOF
 	} else if err != nil {
@@ -753,17 +746,12 @@ func readAndInstall(r io.Reader, i handlers.Installer,
 		info := hdr.FileInfo()
 		df.Size = info.Size()
 		df.Date = info.ModTime()
-		fmt.Fprintf(os.Stderr, "readAndInstall: info-name: %s\n", info.Name())
-		fmt.Fprintf(os.Stderr, "readAndInstall: info-size: %d\n", info.Size())
-		fmt.Fprintf(os.Stderr, "readAndInstall: df-size: %d\n", df.Size)
-		fmt.Fprintf(os.Stderr, "readAndInstall: df-name: %s\n", df.Name)
 
 		// we need to have a checksum either in manifest file (v2 artifact)
 		// or it needs to be pre-filled after reading header
 		// all the names of the data files in manifest are written with the
 		// archive relative path: data/0000/update.ext4
 		if manifest != nil {
-			fmt.Fprintf(os.Stderr, "readAndInstall: manifest present: %s\n", manifest)
 			df.Checksum, err = manifest.Get(filepath.Join(artifact.UpdatePath(no),
 				hdr.FileInfo().Name()))
 			if err != nil {
@@ -777,7 +765,6 @@ func readAndInstall(r io.Reader, i handlers.Installer,
 		// check checksum
 		ch := artifact.NewReaderChecksum(tar, df.Checksum)
 
-		fmt.Fprintf(os.Stderr, "readAndInstall: installer: %T. %v\n", i, i)
 		if err = i.Install(ch, &info); err != nil {
 			return errors.Wrapf(err, "update: can not install update: %v", hdr)
 		}

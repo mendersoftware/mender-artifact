@@ -18,7 +18,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -87,7 +86,6 @@ func (rp *Rootfs) Copy() Installer {
 }
 
 func (rp *Rootfs) ReadHeader(r io.Reader, path string) error {
-	fmt.Fprintf(os.Stderr, "ReadHeader: reading header..\n")
 	switch {
 	case filepath.Base(path) == "files":
 		files, err := parseFiles(r)

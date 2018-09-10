@@ -37,13 +37,7 @@ func checkTarElements(r io.Reader, expected int) error {
 	tr := tar.NewReader(r)
 	i := 0
 	for ; ; i++ {
-		tarHeader, err := tr.Next()
-		if tarHeader != nil {
-			fmt.Println(tarHeader.Name)
-		} else {
-			fmt.Println("tar Header is nil")
-		}
-		// fmt.Println(tarHeader.Name)
+		_, err := tr.Next()
 		if err == io.EOF {
 			break
 		} else if err != nil {
