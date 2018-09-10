@@ -357,7 +357,7 @@ func TestCopy(t *testing.T) {
 				_, err = read(ar, ver, readScripts)
 				require.Nil(t, err)
 				// Verify that the artifact-name has not changed.
-				assert.Equal(t, "mender-1.1", ar.GetArtifactName())
+				assert.Equal(t, "test-artifact", ar.GetArtifactName())
 				// Cleanup
 				os.Remove("foo.txt")
 			},

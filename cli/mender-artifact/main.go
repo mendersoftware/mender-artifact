@@ -34,7 +34,7 @@ var Version = "unknown"
 
 // LatestFormatVersion is the latest version of the format, which is
 // also what we default to.
-const LatestFormatVersion = 2
+const LatestFormatVersion = 3
 
 func main() {
 	if err := run(); err != nil {
@@ -93,6 +93,29 @@ func run() error {
 			Name: "script, s",
 			Usage: "Full path to the state script(s). You can specify multiple " +
 				"scripts providing this parameter multiple times.",
+		},
+		/////////////////////////
+		// Version 3 specifics.//
+		/////////////////////////
+		cli.StringSliceFlag{
+			Name:  "artifact-name-depends",
+			Usage: "Sets the name(s) of the artifact(s) which this update depends upon",
+		},
+		cli.StringFlag{
+			Name:  "provides-group",
+			Usage: "The group the artifact provides",
+		},
+		cli.StringSliceFlag{
+			Name:  "depends-groups",
+			Usage: "The group(s) the artifact depends on",
+		},
+		cli.StringFlag{
+			Name:  "depends-rootfs-image-checksum",
+			Usage: "The checksum of the rootfs image which this artifact depends upon",
+		},
+		cli.StringFlag{
+			Name:  "provides-rootfs-image-checksum",
+			Usage: "The checksum of the rootfs image which this artifact provides",
 		},
 	}
 

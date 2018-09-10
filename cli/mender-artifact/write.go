@@ -15,7 +15,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -23,10 +22,12 @@ import (
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
+	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )
 
 func validateInput(c *cli.Context) error {
+	// Version 1,2 and 3 validation.
 	if len(c.StringSlice("device-type")) == 0 ||
 		len(c.String("artifact-name")) == 0 ||
 		len(c.String("update")) == 0 {
@@ -60,12 +61,14 @@ func writeRootfs(c *cli.Context) error {
 
 	Log.Debugf("creating arifact [%s], version: %d", name, version)
 
-	var h *handlers.Rootfs
+	var h handlers.Composer
 	switch version {
 	case 1:
 		h = handlers.NewRootfsV1(c.String("update"))
 	case 2:
 		h = handlers.NewRootfsV2(c.String("update"))
+	case 3:
+		h = handlers.NewRootfsV3(c.String("update"))
 	default:
 		return cli.NewExitError(
 			fmt.Sprintf("unsupported artifact version: %v", version),
@@ -101,8 +104,39 @@ func writeRootfs(c *cli.Context) error {
 		return cli.NewExitError("can not use scripts artifact with version 1", 1)
 	}
 
-	err = aw.WriteArtifact("mender", version,
-		c.StringSlice("device-type"), c.String("artifact-name"), upd, scr)
+	// NOTE: Update-types supported is currently hardcoded into the artifact!
+	updateTypesSupported := []string{"rootfs-image"}
+
+	depends := artifact.ArtifactDepends{
+		ArtifactName:      c.StringSlice("artifact-name-depends"),
+		CompatibleDevices: c.StringSlice("device-type"),
+		ArtifactGroup:     c.StringSlice("depends-groups"),
+	}
+
+	provides := artifact.ArtifactProvides{
+		ArtifactName:         c.String("artifact-name"),
+		ArtifactGroup:        c.String("provides-group"),
+		SupportedUpdateTypes: updateTypesSupported,
+	}
+
+	typeInfoV3 := artifact.TypeInfoV3{
+		Type:             updateTypesSupported[0], // TODO - update this when other update types are added.
+		ArtifactDepends:  &artifact.TypeInfoDepends{RootfsChecksum: c.String("depends-rootfs-image-checksum")},
+		ArtifactProvides: &artifact.TypeInfoProvides{RootfsChecksum: c.String("provides-rootfs-image-checksum")},
+	}
+
+	err = aw.WriteArtifact(
+		&awriter.WriteArtifactArgs{
+			Format:     "mender",
+			Version:    version,
+			Devices:    c.StringSlice("device-type"),
+			Name:       c.String("artifact-name"),
+			Updates:    upd,
+			Scripts:    scr,
+			Depends:    &depends,
+			Provides:   &provides,
+			TypeInfoV3: &typeInfoV3,
+		})
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
