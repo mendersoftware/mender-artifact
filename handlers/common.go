@@ -74,17 +74,6 @@ func parseFiles(r io.Reader) (*artifact.Files, error) {
 	return files, nil
 }
 
-func parseFilesV3(r io.Reader) (*artifact.FilesV3, error) {
-	files := artifact.FilesV3{&artifact.Files{}}
-	if _, err := io.Copy(files, r); err != nil {
-		return nil, errors.Wrap(err, "update: error reading files")
-	}
-	if err := files.Validate(); err != nil {
-		return nil, err
-	}
-	return &files, nil
-}
-
 func match(pattern, name string) bool {
 	match, err := filepath.Match(pattern, name)
 	if err != nil {

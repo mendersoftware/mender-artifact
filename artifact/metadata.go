@@ -156,7 +156,7 @@ func (hi *HeaderInfo) Write(p []byte) (n int, err error) {
 type HeaderInfoV3 struct {
 	Updates          []UpdateType      `json:"updates"`
 	ArtifactProvides *ArtifactProvides `json:"artifact_provides"` // Has its own json marshaller tags.
-	ArtifactDepends  *ArtifactDepends  `json:"artifact_depends"`  // Has its own json marshaller  function.
+	ArtifactDepends  *ArtifactDepends  `json:"artifact_depends"`  // Has its own json marshaller tags.
 }
 
 func NewHeaderInfoV3(updates []UpdateType,
@@ -215,10 +215,9 @@ func (hi *HeaderInfoV3) Validate() error {
 		if len(hi.ArtifactProvides.ArtifactName) == 0 {
 			missingArgs = append(missingArgs, "Artifact name")
 		}
-		/* Artifact must have a group */
-		if len(hi.ArtifactProvides.ArtifactGroup) == 0 {
-			missingArgs = append(missingArgs, "Artifact group")
-		}
+		//
+		/* Artifact need not have a group */
+		//
 		/* Artifact must have at least one supported update type. */
 		if len(hi.ArtifactProvides.SupportedUpdateTypes) == 0 {
 			missingArgs = append(missingArgs, "Supported update type")
@@ -229,6 +228,9 @@ func (hi *HeaderInfoV3) Validate() error {
 	///////////////////////////////////////
 	/* Artifact must not depend on a name. */
 	/* Artifact must not depend on a device. */
+	/* Artifact must not depend on an device group. */
+	/* Artifact must not depend on a update types supported. */
+	/* Artifact must not depend on artifact versions supported. */
 	if len(missingArgs) > 1 {
 		if len(missingArgs) > 2 {
 			missingArgs[0] = missingArgs[0] + "s" // Add plural.
@@ -282,16 +284,17 @@ func (hi *AugmentedHeaderInfoV3) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-type ArtifactProvides struct {
-	ArtifactName         string   `json:"artifact_name"`
-	ArtifactGroup        string   `json:"artifact_group"`
-	SupportedUpdateTypes []string `json:"update_types_supported"` // e.g. rootfs, delta.
+type ArtifactDepends struct {
+	ArtifactName         []string `json:"artifact_name,omitempty"`
+	CompatibleDevices    []string `json:"device_type,omitempty"`
+	ArtifactGroup        string   `json:"artifact_group,omitempty"`
+	UpdateTypesSupported []string `json:"update_types_supported,omitempty"`
 }
 
-// TODO - can this replace TypeInfoDepends and provides?
-type ArtifactDepends struct {
-	ArtifactName      string   `json:"artifact_name"`
-	CompatibleDevices []string `json:"device_type"`
+type ArtifactProvides struct {
+	ArtifactName         string   `json:"artifact_name"`
+	ArtifactGroup        string   `json:"artifact_group,omitempty"`
+	SupportedUpdateTypes []string `json:"update_types_supported"` // e.g. rootfs, delta.
 }
 
 // TypeInfo provides information of type of individual updates

@@ -90,7 +90,7 @@ func TestArtifactsWrite(t *testing.T) {
 		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "art.mender"), "-v", "3"}
 	err = run()
-	assert.Error(t, err)
+	assert.NoError(t, err)
 }
 
 func TestWriteDelta(t *testing.T) {

@@ -18,9 +18,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/pkg/errors"
 )
 
 func TestValidateInfo(t *testing.T) {
@@ -95,7 +95,7 @@ func TestValidateHeaderInfoV3(t *testing.T) {
 					SupportedUpdateTypes: []string{"rootfs", "delta"},
 				},
 				ArtifactDepends: &ArtifactDepends{
-					ArtifactName:      "release-2",
+					ArtifactName:      []string{"release-2"},
 					CompatibleDevices: []string{"vexpress-qemu", "rpi3"},
 				},
 			},
@@ -113,7 +113,6 @@ func TestValidateHeaderInfoV3(t *testing.T) {
 }
 
 // TODO (?) - currently the marshalling does not match the template in the docs!
-// Is artifact-provides supposed to be a list?
 func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 	tests := map[string]struct {
 		hi       HeaderInfoV3
@@ -128,7 +127,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 					SupportedUpdateTypes: []string{"rootfs-image"},
 				},
 				ArtifactDepends: &ArtifactDepends{
-					ArtifactName:      "release-1",
+					ArtifactName:      []string{"release-1"},
 					CompatibleDevices: []string{"vexpress-qemu"},
 				},
 			},
@@ -146,7 +145,9 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 					      ]
 				      },
 				      "artifact_depends": {
-					      "artifact_name": "release-1",
+					      "artifact_name": [
+                                                      "release-1"
+                                              ],
 					      "device_type": [
 						      "vexpress-qemu"
 					      ]
@@ -165,7 +166,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 					SupportedUpdateTypes: []string{"rootfs-image", "delta-update"},
 				},
 				ArtifactDepends: &ArtifactDepends{
-					ArtifactName:      "release-1",
+					ArtifactName:      []string{"release-1"},
 					CompatibleDevices: []string{"vexpress-qemu"},
 				},
 			},
@@ -187,7 +188,9 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 					      ]
 				      },
 				      "artifact_depends": {
-					      "artifact_name": "release-1",
+					      "artifact_name": [
+		                                      "release-1"
+		                              ],
 					      "device_type": [
 						      "vexpress-qemu"
 					      ]
@@ -206,7 +209,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 					SupportedUpdateTypes: []string{"rootfs-image", "delta-update"},
 				},
 				ArtifactDepends: &ArtifactDepends{
-					ArtifactName:      "release-1",
+					ArtifactName:      []string{"release-1"},
 					CompatibleDevices: []string{"vexpress-qemu", "beaglebone"},
 				},
 			},
@@ -228,10 +231,12 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 					      ]
 				      },
 				      "artifact_depends": {
-					      "artifact_name": "release-1",
+					      "artifact_name": [
+                                                      "release-1"
+                                              ],
 					      "device_type": [
 						      "vexpress-qemu",
-                                                      "beaglebone"
+		                                      "beaglebone"
 					      ]
 				      }
 			      }`,
@@ -265,7 +270,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 						      "delta-update"
 					      ]
 				      },
-                                      "artifact_depends": null
+		                      "artifact_depends": null
 			      }`,
 		},
 	}

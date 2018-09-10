@@ -49,4 +49,8 @@ func TestArtifactsRead(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, errArtifactOpen, lastExitCode)
 	assert.Contains(t, fakeErrWriter.String(), "no such file")
+
+	////////////////////////////////
+	//     Version 3 tests        //
+	////////////////////////////////
 }

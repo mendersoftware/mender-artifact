@@ -150,15 +150,13 @@ func TestRootfsReadData(t *testing.T) {
 	r := NewRootfsInstaller(2)
 
 	buf := bytes.NewBuffer([]byte("some data"))
-	err := r.Install(buf, nil)
-	assert.NoError(t, err)
 
 	data := bytes.NewBuffer(nil)
 	r.InstallHandler = func(r io.Reader, df *DataFile) error {
 		_, err := io.Copy(data, r)
 		return err
 	}
-	err = r.Install(buf, nil)
+	err := r.Install(buf, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "some data", data.String())
 

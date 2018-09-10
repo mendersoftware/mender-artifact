@@ -234,7 +234,7 @@ func TestWriteArtifactV3(t *testing.T) {
 			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
-			ArtifactName:      "depends-name",
+			ArtifactName:      []string{"depends-name"},
 			CompatibleDevices: []string{"vexpress-qemu"},
 		},
 	})
@@ -265,7 +265,7 @@ func TestWriteArtifactV3(t *testing.T) {
 			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
-			ArtifactName:      "depends-name",
+			ArtifactName:      []string{"depends-name"},
 			CompatibleDevices: []string{"vexpress-qemu"},
 		},
 	})
@@ -294,7 +294,7 @@ func TestWriteArtifactV3(t *testing.T) {
 			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
-			ArtifactName:      "depends-name",
+			ArtifactName:      []string{"depends-name"},
 			CompatibleDevices: []string{"vexpress-qemu"},
 		},
 	})
@@ -324,7 +324,7 @@ func TestWriteArtifactV3(t *testing.T) {
 			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
-			ArtifactName:      "depends-name",
+			ArtifactName:      []string{"depends-name"},
 			CompatibleDevices: []string{"vexpress-qemu"},
 		},
 	})

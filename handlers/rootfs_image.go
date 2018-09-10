@@ -18,6 +18,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -29,9 +30,9 @@ import (
 
 // Rootfs handles updates of type 'rootfs-image'.
 type Rootfs struct {
-	version    int
-	update     *DataFile
-	headerRead bool
+	version           int
+	update            *DataFile
+	regularHeaderRead bool
 
 	InstallHandler func(io.Reader, *DataFile) error
 }
@@ -78,25 +79,27 @@ func NewRootfsInstaller(version int) *Rootfs {
 // Copy creates a new instance of Rootfs handler from the existing one.
 func (rp *Rootfs) Copy() Installer {
 	return &Rootfs{
-		version:        rp.version,
-		update:         new(DataFile),
-		InstallHandler: rp.InstallHandler,
-		headerRead:     rp.headerRead,
+		version:           rp.version,
+		update:            new(DataFile),
+		InstallHandler:    rp.InstallHandler,
+		regularHeaderRead: rp.regularHeaderRead,
 	}
 }
 
 func (rp *Rootfs) ReadHeader(r io.Reader, path string) error {
+	fmt.Fprintf(os.Stderr, "ReadHeader: reading header..\n")
 	switch {
 	case filepath.Base(path) == "files":
+		files, err := parseFiles(r)
 		if rp.version == 3 {
-			if !rp.headerRead {
-				// Skip the files in the (possibly) signed header in version 3.
-				rp.headerRead = true
-				rp.update.Name = ""
+			if !rp.regularHeaderRead {
+				rp.regularHeaderRead = true
+				if err == nil {
+					return errors.New("ReadHeader: files-list should be empty")
+				}
 				return nil
 			}
 		}
-		files, err := parseFiles(r)
 		if err != nil {
 			return err
 		}
@@ -123,8 +126,12 @@ func (rfs *Rootfs) Install(r io.Reader, info *os.FileInfo) error {
 		if err := rfs.InstallHandler(r, rfs.update); err != nil {
 			return errors.Wrap(err, "update: can not install")
 		}
+		return nil
 	}
-	return nil
+	// This is to get the checksum for a artifact-version 3 read,
+	// as it does not use the generic reader.
+	_, err := io.Copy(ioutil.Discard, r)
+	return err
 }
 
 func (rfs *Rootfs) GetUpdateFiles() [](*DataFile) {

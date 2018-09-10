@@ -29,20 +29,38 @@ import (
 )
 
 func validateInput(c *cli.Context) error {
-	if len(c.StringSlice("device-type")) == 0 ||
-		len(c.String("artifact-name")) == 0 ||
-		len(c.String("update")) == 0 {
-		return cli.NewExitError(
-			"must provide `device-type`, `artifact-name` and `update`",
-			errArtifactInvalidParameters,
-		)
-	}
-	if len(strings.Fields(c.String("artifact-name"))) > 1 {
-		// check for whitespace in artifact-name
-		return cli.NewExitError(
-			"whitespace is not allowed in the artifact-name",
-			errArtifactInvalidParameters,
-		)
+	if c.Int("version") == 3 {
+		// TODO - spec says that device-type can be empty.
+		if len(c.String("artifact-name")) == 0 || // Required by artifact-provides.
+			len(c.String("update")) == 0 {
+			return cli.NewExitError(
+				"must provide `artifact-name` and `update`",
+				errArtifactInvalidParameters)
+		}
+		if len(strings.Fields(c.String("artifact-name"))) > 1 {
+			// check for whitespace in artifact-name
+			return cli.NewExitError(
+				"whitespace is not allowed in the artifact-name",
+				errArtifactInvalidParameters,
+			)
+		}
+	} else {
+		// Version 1 and 2 validation.
+		if len(c.StringSlice("device-type")) == 0 ||
+			len(c.String("artifact-name")) == 0 ||
+			len(c.String("update")) == 0 {
+			return cli.NewExitError(
+				"must provide `device-type`, `artifact-name` and `update`",
+				errArtifactInvalidParameters,
+			)
+		}
+		if len(strings.Fields(c.String("artifact-name"))) > 1 {
+			// check for whitespace in artifact-name
+			return cli.NewExitError(
+				"whitespace is not allowed in the artifact-name",
+				errArtifactInvalidParameters,
+			)
+		}
 	}
 	return nil
 }
@@ -208,14 +226,30 @@ func writeRootfs(c *cli.Context) error {
 		return cli.NewExitError("can not use scripts artifact with version 1", 1)
 	}
 
+	// NOTE: Update-types-supported is currently hardcoded into the artifact!
+	updateTypesSupported := []string{"rootfs-image"}
+
+	depends := artifact.ArtifactDepends{
+		ArtifactName:      c.StringSlice("artifact-name-depends"),
+		CompatibleDevices: c.StringSlice("depends-device-types"),
+	}
+
+	provides := artifact.ArtifactProvides{
+		ArtifactName:         c.String("artifact-name"),
+		ArtifactGroup:        c.String("group"),
+		SupportedUpdateTypes: updateTypesSupported,
+	}
+
 	err = aw.WriteArtifact(
 		&awriter.WriteArtifactArgs{
-			Format:  "mender",
-			Version: version,
-			Devices: c.StringSlice("device-type"),
-			Name:    c.String("artifact-name"),
-			Updates: upd,
-			Scripts: scr,
+			Format:   "mender",
+			Version:  version,
+			Devices:  c.StringSlice("device-type"),
+			Name:     c.String("artifact-name"),
+			Updates:  upd,
+			Scripts:  scr,
+			Depends:  &depends,
+			Provides: &provides,
 		})
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
