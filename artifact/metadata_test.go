@@ -112,7 +112,6 @@ func TestValidateHeaderInfoV3(t *testing.T) {
 	}
 }
 
-// TODO (?) - currently the marshalling does not match the template in the docs!
 func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 	tests := map[string]struct {
 		hi       HeaderInfoV3

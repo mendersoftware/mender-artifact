@@ -142,7 +142,6 @@ func (c *ChecksumStore) GetRaw() []byte {
 	return c.raw.Bytes()
 }
 
-// TODO - should this be write instead, so that we can simply write to the checksumStore? (no intermediate byte buffers).
 func (c *ChecksumStore) ReadRaw(data []byte) error {
 	raw := bytes.NewBuffer(data)
 	for {

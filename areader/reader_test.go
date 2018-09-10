@@ -156,18 +156,18 @@ func TestReadArtifact(t *testing.T) {
 		verifier  artifact.Verifier
 		readError error
 	}{
-		// "version 1":        {1, false, rfh(1), nil, nil},
-		// "version 2 pass":   {2, false, rfh(1), nil, nil},
-		// "version 2 signed": {2, true, rfh(2), artifact.NewVerifier([]byte(PublicKey)), nil},
-		// "version 2 - public key error": {2, true, rfh(2), artifact.NewVerifier([]byte(PublicKeyError)),
-		// 	errors.New("reader: invalid signature: crypto/rsa: verification error")},
-		// // test that we do not need a verifier for signed artifact
-		// "version 2 - no verifier needed for a signed artifact": {2, true, rfh(2), nil, nil},
+		"version 1":        {1, false, rfh(1), nil, nil},
+		"version 2 pass":   {2, false, rfh(1), nil, nil},
+		"version 2 signed": {2, true, rfh(2), artifact.NewVerifier([]byte(PublicKey)), nil},
+		"version 2 - public key error": {2, true, rfh(2), artifact.NewVerifier([]byte(PublicKeyError)),
+			errors.New("reader: invalid signature: crypto/rsa: verification error")},
+		// test that we do not need a verifier for signed artifact
+		"version 2 - no verifier needed for a signed artifact": {2, true, rfh(2), nil, nil},
 		// Version 3 tests.
 		"version 3 - base case": {3, false, rfh(3), nil, nil},
-		// "version 3 - signed":    {3, true, rfh(3), artifact.NewVerifier([]byte(PublicKey)), nil},
-		// "version 3 - public key error": {3, true, rfh(3), artifact.NewVerifier([]byte(PublicKeyError)),
-		// 	errors.New("readHeaderV3: reader: invalid signature: crypto/rsa: verification error")},
+		"version 3 - signed":    {3, true, rfh(3), artifact.NewVerifier([]byte(PublicKey)), nil},
+		"version 3 - public key error": {3, true, rfh(3), artifact.NewVerifier([]byte(PublicKeyError)),
+			errors.New("readHeaderV3: reader: invalid signature: crypto/rsa: verification error")},
 	}
 
 	// first create archive, that we will be able to read

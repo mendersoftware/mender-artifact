@@ -124,12 +124,8 @@ func (rfs *Rootfs) Install(r io.Reader, info *os.FileInfo) error {
 		if err := rfs.InstallHandler(r, rfs.update); err != nil {
 			return errors.Wrap(err, "update: can not install")
 		}
-		return nil
 	}
-	// This is to get the checksum for a artifact-version 3 read,
-	// as it does not use the generic reader.
-	_, err := io.Copy(ioutil.Discard, r)
-	return err
+	return nil
 }
 
 func (rfs *Rootfs) GetUpdateFiles() [](*DataFile) {

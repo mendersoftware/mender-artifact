@@ -352,7 +352,10 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 	// Register the update handler for rootfsV3.
 	rootfs := handlers.NewRootfsInstaller(3)
 	rootfs.InstallHandler = func(r io.Reader, df *handlers.DataFile) error {
-		return nil
+		// This is to get the checksum for a artifact-version 3 read,
+		// as it does not use the generic reader.
+		_, err := io.Copy(ioutil.Discard, r)
+		return err
 	}
 	ar.RegisterHandler(rootfs)
 
@@ -544,6 +547,7 @@ func (ar *Reader) GetCompatibleDevices() []string {
 		return nil
 	}
 	if ar.augmentedhInfo != nil {
+		// TODO - how is this handled for version 3?
 	}
 	return ar.hInfo.GetCompatibleDevices()
 }
