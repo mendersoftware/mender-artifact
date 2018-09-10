@@ -1,4 +1,4 @@
-// Copyright 2017 Northern.tech AS
+// Copyright 2018 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -51,24 +51,27 @@ func TestReadHeader(t *testing.T) {
 
 	tc := []struct {
 		data      string
+		version   int
 		name      string
 		shouldErr bool
 		errMsg    string
 	}{
 		{data: "invalid", name: "headers/0000/files", shouldErr: true,
-			errMsg: "error validating data"},
+			errMsg: "error validating data", version: 2},
 		{data: `{"files":["update.ext4", "next_update.ext4"]}`,
-			name: "headers/0000/files", shouldErr: false},
+			name: "headers/0000/files", shouldErr: false, version: 2},
 		{data: `1212121212121212121212121212`,
-			name: "headers/0000/checksums/update.ext4.sum", shouldErr: false},
+			name: "headers/0000/checksums/update.ext4.sum", shouldErr: false, version: 2},
 		{data: "", name: "headers/0000/non-existing", shouldErr: true,
 			errMsg: "unsupported file"},
-		{data: "data", name: "headers/0000/type-info", shouldErr: false},
+		{data: "data", name: "headers/0000/type-info", shouldErr: false, version: 2},
 		{data: "", name: "headers/0000/meta-data", shouldErr: false},
-		{data: "", name: "headers/0000/scripts/pre/my_script", shouldErr: false},
-		{data: "", name: "headers/0000/scripts/post/my_script", shouldErr: false},
-		{data: "", name: "headers/0000/scripts/check/my_script", shouldErr: false},
-		{data: "", name: "headers/0000/signatures/update.sig", shouldErr: false},
+		{data: "", name: "headers/0000/scripts/pre/my_script", shouldErr: false, version: 2},
+		{data: "", name: "headers/0000/scripts/post/my_script", shouldErr: false, version: 2},
+		{data: "", name: "headers/0000/scripts/check/my_script", shouldErr: false, version: 2},
+		{data: "", name: "headers/0000/signatures/update.sig", shouldErr: false, version: 2},
+		// Version 3 specifics:
+		{data: `{"files":["update.ext4", "next_update.ext4"]}`, name: "headers/0000/files", shouldErr: true, version: 3},
 	}
 
 	for _, test := range tc {
@@ -89,11 +92,16 @@ func TestReadHeader(t *testing.T) {
 		_, err = tr.Next()
 		assert.NoError(t, err)
 
-		err = g.ReadHeader(buf, test.name)
+		err = g.ReadHeader(buf, test.name, test.version)
 		if test.shouldErr {
 			assert.Error(t, err)
 			if test.errMsg != "" {
 				assert.Contains(t, errors.Cause(err).Error(), test.errMsg)
+			}
+			// Second read in version 3 should accept files in the header.
+			if test.version == 3 {
+				err = g.ReadHeader(bytes.NewReader([]byte(test.data)), test.name, test.version)
+				assert.NoError(t, err)
 			}
 		} else {
 			assert.NoError(t, err)

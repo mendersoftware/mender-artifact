@@ -1,4 +1,4 @@
-// Copyright 2017 Northern.tech AS
+// Copyright 2018 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTarStream(t *testing.T) {
@@ -53,10 +54,12 @@ func TestTarStream(t *testing.T) {
 
 func TestToStream(t *testing.T) {
 	info := &Info{Version: 3, Format: "custom"}
-	s := ToStream(info)
+	s, err := ToStream(info)
+	require.Nil(t, err)
 	assert.Equal(t, []byte(`{"format":"custom","version":3}`), s)
 
 	info = &Info{Format: "custom"}
-	s = ToStream(info)
+	s, err = ToStream(info)
+	require.Error(t, err)
 	assert.Nil(t, s)
 }
