@@ -78,6 +78,7 @@ func readArtifact(c *cli.Context) error {
 	inst := r.GetHandlers()
 	info := r.GetInfo()
 
+	// TODO - this could be done using string-templates
 	fmt.Printf("Mender artifact:\n")
 	fmt.Printf("  Name: %s\n", r.GetArtifactName())
 	fmt.Printf("  Format: %s\n", info.Format)

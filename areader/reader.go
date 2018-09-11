@@ -1,4 +1,4 @@
-// Copyright 2017 Northern.tech AS
+// Copyright 2018 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -39,13 +39,13 @@ type Reader struct {
 	ScriptsReadCallback       ScriptsReadFn
 	VerifySignatureCallback   SignatureVerifyFn
 	IsSigned                  bool
-
-	shouldBeSigned bool
-	hInfo          *artifact.HeaderInfo
-	info           *artifact.Info
-	r              io.Reader
-	handlers       map[string]handlers.Installer
-	installers     map[int]handlers.Installer
+	shouldBeSigned            bool
+	hInfo                     artifact.HeaderInfoer
+	augmentedhInfo            *artifact.AugmentedHeaderInfoV3
+	info                      *artifact.Info
+	r                         io.Reader
+	handlers                  map[string]handlers.Installer
+	installers                map[int]handlers.Installer
 }
 
 func NewReader(r io.Reader) *Reader {
@@ -71,9 +71,8 @@ func getReader(tReader io.Reader, headerSum []byte) io.Reader {
 		// If artifact is signed we need to calculate header checksum to be
 		// able to validate it later.
 		return artifact.NewReaderChecksum(tReader, headerSum)
-	} else {
-		return tReader
 	}
+	return tReader
 }
 
 func readStateScripts(tr *tar.Reader, header *tar.Header, cb ScriptsReadFn) error {
@@ -108,21 +107,18 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 	// header MUST be compressed
 	gz, err := gzip.NewReader(r)
 	if err != nil {
-		return errors.Wrapf(err, "reader: error opening compressed header")
+		return errors.Wrapf(err, "readHeader: error opening compressed header")
 	}
 	defer gz.Close()
 	tr := tar.NewReader(gz)
 
-	// first part of header must always be header-info
-	hInfo := new(artifact.HeaderInfo)
-	if err = readNext(tr, hInfo, "header-info"); err != nil {
-		return err
+	// Populate the artifact info fields.
+	if err = ar.populateArtifactInfo(ar.info.Version, tr); err != nil {
+		return errors.Wrap(err, "readHeader")
 	}
-	ar.hInfo = hInfo
-
 	// after reading header-info we can check device compatibility
 	if ar.CompatibleDevicesCallback != nil {
-		if err = ar.CompatibleDevicesCallback(hInfo.CompatibleDevices); err != nil {
+		if err = ar.CompatibleDevicesCallback(ar.GetCompatibleDevices()); err != nil {
 			return err
 		}
 	}
@@ -136,7 +132,7 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 
 	// Next step is setting correct installers based on update types being
 	// part of the artifact.
-	if err = ar.setInstallers(hInfo.Updates); err != nil {
+	if err = ar.setInstallers(ar.GetUpdates()); err != nil {
 		return err
 	}
 
@@ -155,7 +151,75 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 	return nil
 }
 
-func readVersion(tr *tar.Reader) (*artifact.Info, []byte, error) {
+func (ar *Reader) populateArtifactInfo(version int, tr *tar.Reader) error {
+	var hInfo artifact.HeaderInfoer
+	switch version {
+	case 1, 2:
+		hInfo = new(artifact.HeaderInfo)
+	case 3:
+		hInfo = new(artifact.HeaderInfoV3)
+	}
+	// first part of header must always be header-info
+	if err := readNext(tr, hInfo, "header-info"); err != nil {
+		return err
+	}
+	ar.hInfo = hInfo
+	return nil
+}
+
+func (ar *Reader) readAugmentedHeader(tReader io.Reader, headerSum []byte) error {
+	r := getReader(tReader, headerSum)
+	// header MUST be compressed
+	gz, err := gzip.NewReader(r)
+	if err != nil {
+		return errors.Wrapf(err, "reader: error opening compressed header")
+	}
+	defer gz.Close()
+	tr := tar.NewReader(gz)
+
+	// first part of header must always be header-info
+	hInfo := new(artifact.AugmentedHeaderInfoV3)
+	if err = readNext(tr, hInfo, "header-info"); err != nil {
+		return err
+	}
+	ar.augmentedhInfo = hInfo
+
+	// TODO - necessary when the previous header is already processed?
+	// after reading header-info we can check device compatibility
+	// Maybe this should be a callback for checking depends and provides?
+	if ar.CompatibleDevicesCallback != nil {
+		if err = ar.CompatibleDevicesCallback(hInfo.ArtifactDepends.CompatibleDevices); err != nil {
+			return err
+		}
+	}
+
+	hdr, err := getNext(tr)
+	if err != nil {
+		return err
+	}
+
+	// Next step is setting correct installers based on update types being
+	// part of the artifact.
+	if err = ar.setInstallers(hInfo.Updates); err != nil {
+		return err
+	}
+
+	// At the end read rest of the header using correct installers.
+	if err = ar.readHeaderUpdate(tr, hdr); err != nil {
+		return err
+	}
+
+	// Check if header checksum is correct.
+	if cr, ok := r.(*artifact.Checksum); ok {
+		if err = cr.Verify(); err != nil {
+			return errors.Wrap(err, "reader: reading header error")
+		}
+	}
+
+	return nil
+}
+
+func ReadVersion(tr *tar.Reader) (*artifact.Info, []byte, error) {
 	buf := bytes.NewBuffer(nil)
 	// read version file and calculate checksum
 	if err := readNext(tr, buf, "version"); err != nil {
@@ -203,9 +267,9 @@ func (ar *Reader) readHeaderV1(tReader *tar.Reader) error {
 	return nil
 }
 
-func readManifest(tReader *tar.Reader) (*artifact.ChecksumStore, error) {
+func readManifest(tReader *tar.Reader, name string) (*artifact.ChecksumStore, error) {
 	buf := bytes.NewBuffer(nil)
-	if err := readNext(tReader, buf, "manifest"); err != nil {
+	if err := readNext(tReader, buf, name); err != nil {
 		return nil, errors.Wrap(err, "reader: can not buffer manifest")
 	}
 	manifest := artifact.NewChecksumStore()
@@ -226,9 +290,8 @@ func signatureReadAndVerify(tReader *tar.Reader, message []byte,
 		if _, err := io.Copy(sig, tReader); err != nil {
 			return errors.Wrapf(err, "reader: can not read signature file")
 		}
-
 		if err := verify(message, sig.Bytes()); err != nil {
-			return errors.Wrap(err, "reader: invalid signature")
+			return errors.Wrapf(err, "reader: invalid signature")
 		}
 	}
 	return nil
@@ -245,10 +308,143 @@ func verifyVersion(ver []byte, manifest *artifact.ChecksumStore) error {
 	return err
 }
 
+// The artifact parser needs to take one of the paths listed below when reading
+// the artifact version 3.
+var artifactV3ParseGrammar = [][]string{
+	// Version is already read in ReadArtifact().
+	{"manifest", "header.tar.gz"},                                                              // Unsigned.
+	{"manifest", "manifest.sig", "header.tar.gz"},                                              // Signed.
+	{"manifest", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"},                 // TODO - is this the unsigned path, or the one above the preferred one?.
+	{"manifest", "manifest.sig", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"}, // Augmented.
+	// Data is processed in ReadArtifact()
+}
+
+// verifyParseOrder compares the parseOrder against the allowed parse paths through an artifact.
+func verifyParseOrder(parseOrder []string) (validToken string, validPath bool) {
+	// Do a substring search for the parseOrder sent in on each of the valid grammars.
+	for _, validPath := range artifactV3ParseGrammar {
+		if len(parseOrder) > len(validPath) {
+			continue
+		}
+		// Check for a submatch in the current validPath.
+		for i := range parseOrder {
+			if validPath[i] != parseOrder[i] {
+				break // Check the next validPath against the parseOrder.
+			}
+			// We have a submatch. Check if the entire length matches.
+			if i == len(parseOrder)-1 {
+				if len(parseOrder) == len(validPath) {
+					return parseOrder[i], true // Full match.
+				}
+				return parseOrder[i], false
+			}
+		}
+	}
+	return fmt.Sprintf("Invalid structure: %s, wrong element: %s", parseOrder, parseOrder[len(parseOrder)-1]), false
+}
+
+func (ar *Reader) readHeaderV3(tReader *tar.Reader,
+	version []byte) (*artifact.ChecksumStore, error) {
+	manifestChecksumStore := artifact.NewChecksumStore()
+	parsePath := []string{}
+
+	// Register the update handler for rootfsV3.
+	rootfs := handlers.NewRootfsInstaller(3)
+	rootfs.InstallHandler = func(r io.Reader, df *handlers.DataFile) error {
+		// This is to get the checksum for a artifact-version 3 read,
+		// as it does not use the generic reader.
+		_, err := io.Copy(ioutil.Discard, r)
+		return err
+	}
+	ar.RegisterHandler(rootfs)
+
+	for {
+		hdr, err := tReader.Next()
+		if err == io.EOF {
+			return nil, errors.New("The artifact does not contain all required fields")
+		}
+		if err != nil {
+			return nil, errors.Wrap(err, "readHeaderV3")
+		}
+		parsePath = append(parsePath, hdr.Name)
+		nextParseToken, validPath := verifyParseOrder(parsePath)
+		err = handleHeaderReads(nextParseToken, tReader, manifestChecksumStore, ar, version)
+		if err != nil {
+			return nil, errors.Wrap(err, "readHeaderV3")
+		}
+		if validPath {
+			break // return and process the /data records in ReadArtifact()
+		}
+	}
+	return manifestChecksumStore, nil
+}
+
+func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumStore *artifact.ChecksumStore, ar *Reader, version []byte) (err error) {
+	switch headerName {
+	case "manifest":
+		buf := bytes.NewBuffer(nil)
+		_, err = io.Copy(buf, tReader)
+		if err != nil {
+			return errors.Wrap(err, "readHeaderV3: Failed to copy to the byte buffer, from the tar reader")
+		}
+		err = manifestChecksumStore.ReadRaw(buf.Bytes())
+		if err != nil {
+			return errors.Wrap(err, "readHeaderV3: Failed to populate the manifest's checksum store")
+		}
+	case "manifest.sig":
+		ar.IsSigned = true
+		// First read and verify signature
+		if err = signatureReadAndVerify(tReader, manifestChecksumStore.GetRaw(),
+			ar.VerifySignatureCallback, ar.shouldBeSigned); err != nil {
+			return err
+		}
+		// verify checksums of version
+		if err = verifyVersion(version, manifestChecksumStore); err != nil {
+			return err
+		}
+	case "manifest-augment":
+		// Get the data from the augmented manifest.
+		buf := bytes.NewBuffer(nil)
+		_, err = io.Copy(buf, tReader)
+		if err != nil {
+			return errors.Wrap(err, "handleHeaderReads: Failed to read the augmented manifest body")
+		}
+		err = manifestChecksumStore.ReadRaw(buf.Bytes())
+		if err != nil {
+			return errors.Wrap(err, "handleHeaderReads: Failed to store the checksums from the augmented manifest")
+		}
+	case "header.tar.gz":
+		// Get and verify checksums of header.
+		hc, err := manifestChecksumStore.Get("header.tar.gz")
+		if err != nil {
+			return err
+		}
+
+		if err := ar.readHeader(tReader, hc); err != nil {
+			return errors.Wrap(err, "handleHeaderReads")
+		}
+	case "header-augment.tar.gz":
+		// Get and verify checksums of the augmented header.
+		hc, err := manifestChecksumStore.Get("header-augment.tar.gz")
+		if err != nil {
+			return err
+		}
+		if err := ar.readAugmentedHeader(tReader, hc); err != nil {
+			return errors.Wrap(err, "handleHeaderReads: Failed to read the augmented header")
+		}
+	case "invalid structure":
+		return fmt.Errorf("readHeaderV3: Artifact has an invalid structure: %s", headerName)
+	default:
+		return errors.Errorf("reader: found unexpected file in artifact: %v",
+			headerName)
+	}
+	return nil
+}
+
 func (ar *Reader) readHeaderV2(tReader *tar.Reader,
 	version []byte) (*artifact.ChecksumStore, error) {
 	// first file after version MUST contain all the checksums
-	manifest, err := readManifest(tReader)
+	manifest, err := readManifest(tReader, "manifest")
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +512,7 @@ func (ar *Reader) ReadArtifact() error {
 	tReader := tar.NewReader(ar.r)
 
 	// first file inside the artifact MUST be version
-	ver, vRaw, err := readVersion(tReader)
+	ver, vRaw, err := ReadVersion(tReader)
 	if err != nil {
 		return errors.Wrapf(err, "reader: can not read version file")
 	}
@@ -334,6 +530,11 @@ func (ar *Reader) ReadArtifact() error {
 		if err != nil {
 			return err
 		}
+	case 3:
+		s, err = ar.readHeaderV3(tReader, vRaw)
+		if err != nil {
+			return err
+		}
 	default:
 		return errors.Errorf("reader: unsupported version: %d", ver.Version)
 	}
@@ -341,21 +542,64 @@ func (ar *Reader) ReadArtifact() error {
 }
 
 func (ar *Reader) GetCompatibleDevices() []string {
-	return ar.hInfo.CompatibleDevices
+	if ar.hInfo == nil {
+		return nil
+	}
+	if ar.augmentedhInfo != nil {
+		// TODO - how is this handled for version 3?
+	}
+	return ar.hInfo.GetCompatibleDevices()
 }
 
 func (ar *Reader) GetArtifactName() string {
-	return ar.hInfo.ArtifactName
+	if ar.hInfo == nil {
+		return ""
+	}
+	return ar.hInfo.GetArtifactName()
 }
 
 func (ar *Reader) GetInfo() artifact.Info {
 	return *ar.info
 }
 
+func (ar *Reader) GetUpdates() []artifact.UpdateType {
+	if ar.hInfo == nil {
+		return nil
+	}
+	return ar.hInfo.GetUpdates()
+}
+
+// GetArtifactProvides is version 3 specific.
+func (ar *Reader) GetArtifactProvides() *artifact.ArtifactProvides {
+	h3, ok := ar.hInfo.(*artifact.HeaderInfoV3)
+	if !ok {
+		return nil
+	}
+	return h3.ArtifactProvides
+}
+
+// GetArtifactDepends is version 3 specific.
+func (ar *Reader) GetArtifactDepends() *artifact.ArtifactDepends {
+	h3, ok := ar.hInfo.(*artifact.HeaderInfoV3)
+	if !ok {
+		return nil
+	}
+	return h3.ArtifactDepends
+}
+
 func (ar *Reader) setInstallers(upd []artifact.UpdateType) error {
 	for i, update := range upd {
 		// set installer for given update type
 		if w, ok := ar.handlers[update.Type]; ok {
+			// NOTE ArtifactV3 specific:
+			// If the update-type has not changed, do not update the installer.
+			// The installer has internal state in order to handle the diffence between a read in an
+			// augmented and a regular header.
+			if installer, ok := ar.installers[i]; ok {
+				if installer.GetType() == update.Type {
+					continue
+				}
+			}
 			ar.installers[i] = w.Copy()
 			continue
 		}
@@ -446,11 +690,11 @@ func readNext(tr *tar.Reader, w io.Writer, elem string) error {
 	}
 	hdr, err := getNext(tr)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "readNext: Failed to get next header")
 	}
 	if strings.HasPrefix(hdr.Name, elem) {
 		_, err := io.Copy(w, tr)
-		return err
+		return errors.Wrap(err, "readNext: Failed to copy from tarReader to the writer")
 	}
 	return os.ErrInvalid
 }

@@ -1,4 +1,4 @@
-// Copyright 2017 Northern.tech AS
+// Copyright 2018 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -93,10 +93,13 @@ func TestReadHeader(t *testing.T) {
 		if test.shouldErr {
 			assert.Error(t, err)
 			if test.errMsg != "" {
+				if err == nil {
+					t.Fatalf("Test %q should have failed with error message: %q", test.name, test.errMsg)
+				}
 				assert.Contains(t, errors.Cause(err).Error(), test.errMsg)
 			}
 		} else {
-			assert.NoError(t, err)
+			assert.NoError(t, err, test.name)
 		}
 	}
 }

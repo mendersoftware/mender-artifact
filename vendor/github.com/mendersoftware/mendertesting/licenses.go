@@ -14,12 +14,14 @@
 
 package mendertesting
 
-import "errors"
-import "os/exec"
-import "fmt"
-import "os"
-import "path"
-import "strings"
+import (
+	"fmt"
+	"errors"
+	"os"
+	"os/exec"
+	"path"
+	"strings"
+)
 
 const packageLocation string = "github.com/mendersoftware/mendertesting"
 

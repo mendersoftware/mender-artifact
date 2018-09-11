@@ -21,7 +21,23 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestGetRootfsChecksum(t *testing.T) {
+	// Create a rootfs image
+	tdir, err := ioutil.TempDir("", "mendertmp")
+	require.Nil(t, err)
+	require.Nil(t, copyFile("mender_test.img", filepath.Join(tdir, "mender_test.img")))
+	testimg := filepath.Join(tdir, "mender_test.img")
+	defer os.RemoveAll(tdir)
+	// Check the Checksum
+	checksum, err := getRootfsChecksum(testimg)
+	require.Nil(t, err)
+	assert.Equal(t, "dc66c40bc3e52e1d0d3f46f417cbb8e12a86bc63b2a9b3be91ee77aa0fd680b0", checksum, "getRootfsChecksum calculates the wrong checksum")
+	// No file
+	checksum, err = getRootfsChecksum("foobarimg")
+}
 
 func TestArtifactsWrite(t *testing.T) {
 	os.Args = []string{"mender-artifact", "write"}
@@ -74,7 +90,10 @@ func TestArtifactsWrite(t *testing.T) {
 		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "art.mender"), "-v", "3"}
 	err = run()
-	assert.Error(t, err)
+	assert.NoError(t, err)
+}
+
+func TestWriteDelta(t *testing.T) {
 }
 
 func TestWithScripts(t *testing.T) {

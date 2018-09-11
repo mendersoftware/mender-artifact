@@ -94,6 +94,22 @@ func run() error {
 			Usage: "Full path to the state script(s). You can specify multiple " +
 				"scripts providing this parameter multiple times.",
 		},
+		/////////////////////////
+		// Version 3 specifics.//
+		/////////////////////////
+		cli.StringSliceFlag{
+			Name:  "artifact-name-depends",
+			Usage: "Sets the name(s) of the artifact(s) which this update depends upon",
+		},
+		// TODO - this flag, or device-type?
+		cli.StringSliceFlag{
+			Name:  "artifact-device-depends",
+			Usage: "Sets the name(s) of the device(s) which this update depends upon",
+		},
+		cli.StringFlag{
+			Name:  "group",
+			Usage: "Sets the artifact group",
+		},
 	}
 
 	writeCommand := cli.Command{

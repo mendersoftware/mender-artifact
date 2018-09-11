@@ -1,4 +1,4 @@
-// Copyright 2017 Northern.tech AS
+// Copyright 2018 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -18,8 +18,10 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"testing"
 
@@ -28,6 +30,7 @@ import (
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -85,6 +88,10 @@ func MakeRootfsImageArtifact(version int, signed bool,
 		u = handlers.NewRootfsV1(upd)
 	case 2:
 		u = handlers.NewRootfsV2(upd)
+	case 3:
+		u = handlers.NewRootfsV3(upd)
+	default:
+		return nil, fmt.Errorf("Unsupported artifact version: %d", version)
 	}
 
 	scr := artifact.Scripts{}
@@ -103,8 +110,25 @@ func MakeRootfsImageArtifact(version int, signed bool,
 	}
 
 	updates := &awriter.Updates{U: []handlers.Composer{u}}
-	err = aw.WriteArtifact("mender", version, []string{"vexpress"},
-		"mender-1.1", updates, &scr)
+
+	err = aw.WriteArtifact(&awriter.WriteArtifactArgs{
+		Format:  "mender",
+		Version: version,
+		Devices: []string{"vexpress"},
+		Name:    "mender-1.1",
+		Updates: updates,
+		Scripts: &scr,
+		// Version 3 specifics:
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "mender-1.1",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs-image", "delta"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      []string{"mender-1.0"},
+			CompatibleDevices: []string{"vexpress"},
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -119,27 +143,35 @@ func TestReadArtifact(t *testing.T) {
 		return err
 	}
 
-	rfh := handlers.NewRootfsInstaller()
-	rfh.InstallHandler = copy
+	rfh := func(version int) handlers.Installer {
+		rfh := handlers.NewRootfsInstaller(version)
+		rfh.InstallHandler = copy
+		return rfh
+	}
 
-	tc := []struct {
+	tc := map[string]struct {
 		version   int
 		signed    bool
 		handler   handlers.Installer
 		verifier  artifact.Verifier
 		readError error
 	}{
-		{1, false, rfh, nil, nil},
-		{2, false, rfh, nil, nil},
-		{2, true, rfh, artifact.NewVerifier([]byte(PublicKey)), nil},
-		{2, true, rfh, artifact.NewVerifier([]byte(PublicKeyError)),
+		"version 1":        {1, false, rfh(1), nil, nil},
+		"version 2 pass":   {2, false, rfh(1), nil, nil},
+		"version 2 signed": {2, true, rfh(2), artifact.NewVerifier([]byte(PublicKey)), nil},
+		"version 2 - public key error": {2, true, rfh(2), artifact.NewVerifier([]byte(PublicKeyError)),
 			errors.New("reader: invalid signature: crypto/rsa: verification error")},
-		// // test that we do not need a verifier for signed artifact
-		{2, true, rfh, nil, nil},
+		// test that we do not need a verifier for signed artifact
+		"version 2 - no verifier needed for a signed artifact": {2, true, rfh(2), nil, nil},
+		// Version 3 tests.
+		"version 3 - base case": {3, false, rfh(3), nil, nil},
+		"version 3 - signed":    {3, true, rfh(3), artifact.NewVerifier([]byte(PublicKey)), nil},
+		"version 3 - public key error": {3, true, rfh(3), artifact.NewVerifier([]byte(PublicKeyError)),
+			errors.New("readHeaderV3: reader: invalid signature: crypto/rsa: verification error")},
 	}
 
 	// first create archive, that we will be able to read
-	for _, test := range tc {
+	for name, test := range tc {
 		art, err := MakeRootfsImageArtifact(test.version, test.signed, false)
 		assert.NoError(t, err)
 
@@ -154,14 +186,17 @@ func TestReadArtifact(t *testing.T) {
 
 		err = aReader.ReadArtifact()
 		if test.readError != nil {
+			if err == nil {
+				log.Fatalf("%q: Test expected an error, but ReadArtifact did not return an error. expected: %v", name, test.readError)
+			}
 			assert.Equal(t, test.readError.Error(), err.Error())
 			continue
 		}
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, TestUpdateFileContent, updFileContent.String())
 
 		devComp := aReader.GetCompatibleDevices()
-		assert.Len(t, devComp, 1)
+		require.Len(t, devComp, 1)
 		assert.Equal(t, "vexpress", devComp[0])
 
 		if test.handler != nil {
@@ -209,10 +244,10 @@ func TestReadSigned(t *testing.T) {
 
 func TestRegisterMultipleHandlers(t *testing.T) {
 	aReader := NewReader(nil)
-	err := aReader.RegisterHandler(handlers.NewRootfsInstaller())
+	err := aReader.RegisterHandler(handlers.NewRootfsInstaller(1))
 	assert.NoError(t, err)
 
-	err = aReader.RegisterHandler(handlers.NewRootfsInstaller())
+	err = aReader.RegisterHandler(handlers.NewRootfsInstaller(1))
 	assert.Error(t, err)
 
 	err = aReader.RegisterHandler(nil)
@@ -395,4 +430,53 @@ func TestReadAndInstall(t *testing.T) {
 	err = readAndInstall(r, i, m, 1)
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(), "checksum missing")
+}
+
+func TestValidParsePathV3(t *testing.T) {
+	tests := map[string]struct {
+		path      []string
+		nextToken string
+		validPath bool
+	}{
+		"Unsigned": {
+			path:      []string{"manifest", "header.tar.gz"},
+			nextToken: "header.tar.gz",
+			validPath: true,
+		},
+		"Signed": {
+			path:      []string{"manifest", "manifest.sig", "header.tar.gz"},
+			nextToken: "header.tar.gz",
+			validPath: true,
+		},
+		"Augmented": {
+			path:      []string{"manifest", "manifest.sig", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"},
+			nextToken: "header-augment.tar.gz",
+			validPath: true,
+		},
+		"Missing manifest": {
+			path:      []string{"header.tar.gz"},
+			nextToken: "Invalid structure",
+			validPath: false,
+		},
+		"manifest means we're still on a valid path, but path is not finished": {
+			path:      []string{"manifest"},
+			nextToken: "manifest",
+			validPath: false,
+		},
+		"Manifest-augment missing": {
+			path:      []string{"manifest", "manifest.sig", "header.tar.gz", "header-augment.tar.gz"},
+			nextToken: "Invalid structure",
+			validPath: false,
+		},
+		"Header.tar.gz is still on a valid path, we're not finished, as the artifact is augmented": {
+			path:      []string{"manifest", "manifest.sig", "manifest-augment", "header.tar.gz"},
+			nextToken: "header.tar.gz",
+			validPath: false,
+		},
+	}
+	for name, test := range tests {
+		res, validPath := verifyParseOrder(test.path)
+		assert.Contains(t, res, test.nextToken, "%q: Failed to verify the order the artifact was parsed", name)
+		assert.Equal(t, test.validPath, validPath, "%q: ValidPath values are wrong", name)
+	}
 }

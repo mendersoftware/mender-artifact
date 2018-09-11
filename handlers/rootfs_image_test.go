@@ -1,4 +1,4 @@
-// Copyright 2017 Northern.tech AS
+// Copyright 2018 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -58,8 +58,12 @@ func TestRootfsCompose(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.Remove(f.Name())
 
-	r := NewRootfsV1(f.Name())
-	err = r.ComposeHeader(tw, 1)
+	var r Composer
+	r = NewRootfsV1(f.Name())
+	err = r.ComposeHeader(&ComposeHeaderArgs{
+		TarWriter: tw,
+		No:        1,
+	})
 	assert.NoError(t, err)
 
 	err = r.ComposeData(tw, 1)
@@ -71,31 +75,45 @@ func TestRootfsCompose(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(),
 		"no such file or directory")
+
+	// Artifact format version 3
+	r = NewRootfsV3(f.Name())
+	err = r.ComposeHeader(&ComposeHeaderArgs{
+		TarWriter: tw,
+		No:        3,
+	})
+	assert.NoError(t, err, "failed to compose the rootfs header - version 3")
+
 }
 
 func TestRootfsReadHeader(t *testing.T) {
-	r := NewRootfsV1("custom")
+	var r Installer
+	r = NewRootfsV1("custom")
 
 	tc := []struct {
+		rootfs    Installer
 		data      string
 		name      string
 		shouldErr bool
 		errMsg    string
 	}{
-		{data: "invalid", name: "headers/0000/files", shouldErr: true,
+		{rootfs: r, data: "invalid", name: "headers/0000/files", shouldErr: true,
 			errMsg: "error validating data"},
-		{data: `{"files":["update.ext4", "next_update.ext4"]}`,
+		{rootfs: r, data: `{"files":["update.ext4", "next_update.ext4"]}`,
 			name: "headers/0000/files", shouldErr: false},
-		{data: `1212121212121212121212121212`,
+		{rootfs: r, data: `1212121212121212121212121212`,
 			name: "headers/0000/checksums/update.ext4.sum", shouldErr: false},
-		{data: "", name: "headers/0000/non-existing", shouldErr: true,
+		{rootfs: r, data: "", name: "headers/0000/non-existing", shouldErr: true,
 			errMsg: "unsupported file"},
-		{data: "data", name: "headers/0000/type-info", shouldErr: false},
-		{data: "", name: "headers/0000/meta-data", shouldErr: false},
-		{data: "", name: "headers/0000/scripts/pre/my_script", shouldErr: false},
-		{data: "", name: "headers/0000/scripts/post/my_script", shouldErr: false},
-		{data: "", name: "headers/0000/scripts/check/my_script", shouldErr: false},
-		{data: "", name: "headers/0000/signatures/update.sig", shouldErr: false},
+		{rootfs: r, data: "data", name: "headers/0000/type-info", shouldErr: false},
+		{rootfs: r, data: "", name: "headers/0000/meta-data", shouldErr: false},
+		{rootfs: r, data: "", name: "headers/0000/scripts/pre/my_script", shouldErr: false},
+		{rootfs: r, data: "", name: "headers/0000/scripts/post/my_script", shouldErr: false},
+		{rootfs: r, data: "", name: "headers/0000/scripts/check/my_script", shouldErr: false},
+		{rootfs: r, data: "", name: "headers/0000/signatures/update.sig", shouldErr: false},
+		{rootfs: NewRootfsV3("custom"), data: "invalid", name: "headers/0000/files", shouldErr: true,
+			errMsg: "error validating data"},
+		{rootfs: NewRootfsV3("custom"), data: "", name: "headers/0000/signatures/update.sig", shouldErr: false},
 	}
 
 	for _, test := range tc {
@@ -129,18 +147,16 @@ func TestRootfsReadHeader(t *testing.T) {
 }
 
 func TestRootfsReadData(t *testing.T) {
-	r := NewRootfsInstaller()
+	r := NewRootfsInstaller(2)
 
 	buf := bytes.NewBuffer([]byte("some data"))
-	err := r.Install(buf, nil)
-	assert.NoError(t, err)
 
 	data := bytes.NewBuffer(nil)
 	r.InstallHandler = func(r io.Reader, df *DataFile) error {
 		_, err := io.Copy(data, r)
 		return err
 	}
-	err = r.Install(buf, nil)
+	err := r.Install(buf, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "some data", data.String())
 
