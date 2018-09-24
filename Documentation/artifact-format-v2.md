@@ -3,86 +3,12 @@ Mender artifact file format
 
 File extension: `.mender`
 
-Depending on the version of the artifact the format might be as a tree below.
+The tree below describes the layout of files inside the main file, which is
+hosted inside a standard tar archive.
+
 Note that there are some restrictions on ordering of the files, described
 in the "Ordering" section.
 
-
-### version 3
-
-```
--artifact.mender (tar format)
-  |
-  +---version
-  |
-  +---manifest
-  |
-  +---manifest.sig
-  |
-  +---manifest-augment
-  |
-  +---header.tar.gz (tar format)
-  |    |
-  |    +---header-info
-  |    |
-  |    +---scripts
-  |    |    |
-  |    |    +---State.Enter
-  |    |    +---State.Leave
-  |    |    +---State.Error
-  |    |    `---<more scripts>
-  |    |
-  |    `---headers
-  |         |
-  |         +---0000
-  |         |    |
-  |         |    +---files
-  |         |    |
-  |         |    +---type-info
-  |         |    |
-  |         |    +---meta-data
-  |         |
-  |         +---0001
-  |         |    |
-  |         |    `---<more headers>
-  |         |
-  |         `---000n ...
-  |
-  +---header-augment.tar.gz (tar format)
-  |    |
-  |    +---header-info
-  |    |
-  |    `---headers
-  |         |
-  |         +---0000
-  |         |    |
-  |         |    +---files
-  |         |    |
-  |         |    +---type-info
-  |         |    |
-  |         |    +---meta-data
-  |         |
-  |         +---0001
-  |         |    |
-  |         |    `---<more headers>
-  |         |
-  |         `---000n ...
-  |
-  `---data
-       |
-       +---0000.tar.gz
-       |    +--<image-file (ext4)>
-       |    +--<binary delta, etc>
-       |    `--...
-       |
-       +---0001.tar.gz
-       |    +--<image-file (ext4)>
-       |    +--<binary delta, etc>
-       |    `--...
-       |
-       +---000n.tar.gz ...
-            `--...
-```
 
 ### version 2
 
@@ -139,55 +65,6 @@ in the "Ordering" section.
 ```
 
 
-### version 1
-
-```
--artifact.mender (tar format)
-  |
-  +---version
-  |
-  +---header.tar.gz (tar format)
-  |    |
-  |    +---header-info
-  |    |
-  |    `---headers
-  |         |
-  |         +---0000
-  |         |    |
-  |         |    +---files
-  |         |    |
-  |         |    +---type-info
-  |         |    |
-  |         |    +---meta-data
-  |         |    |
-  |         |    +---checksums
-  |         |         +--<image file.sha25sum>
-  |         |         +--<binary delta.sha256sum>
-  |         |         `--...
-  |         |
-  |         +---0001
-  |         |    |
-  |         |    `---<more headers>
-  |         |
-  |         `---000n ...
-  |
-  `---data
-       |
-       +---0000.tar.gz
-       |    +--<image-file (ext4)>
-       |    +--<binary delta, etc>
-       |    `--...
-       |
-       +---0001.tar.gz
-       |    +--<image-file (ext4)>
-       |    +--<binary delta, etc>
-       |    `--...
-       |
-       +---000n.tar.gz ...
-            `--...
-```
-
-
 version
 ----
 
@@ -198,20 +75,18 @@ Contains the below content exactly:
 ```
 {
   "format": "mender",
-  "version": 3
+  "version": 2
 }
 ```
 
 The `format` value is to confirm that this is indeed a Mender update file, and
 the `version` value is a way to extend/change the format later if needed.
-Currently there are versions 1 and 2 supported.
 
 
 manifest
 ----
 
 Format: text
-Version: Exists only in version 2 and later
 
 Contains file checksums, formatted exactly like below:
 
@@ -231,33 +106,10 @@ manifest.sig
 ----
 
 Format: base64 encoded ecdsa or rsa signature
-Version: Exists only in version 2 and later
 
 File containing the signature of `manifest`.
 
 It is legal for an artifact not to have signature file.
-
-
-manifest-augment
-----
-
-Format: text
-Version: Exists only in version 3 and later
-
-Contains file checksums, formatted exactly like below:
-
-```
-4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619  header-augment.tar.gz
-1d0b820130ae028ce8a79b7e217fe505a765ac394718e795d454941487c53d32  data/0000/update.delta
-```
-
-The manifest-augment file is the extension of manifest file and is needed only
-for certain types of the updates.
-It contains the checksums of the files which could change during the creation of the
-artifact and therefore which can not be signed explicitly. In case of the
-delta update this file will contain the checksum of the delta file (the actual
-payload of the file being a part of the artifact) and the header-augment.tar.gz
-file checksum.
 
 
 header.tar.gz
@@ -273,84 +125,7 @@ version is specified outside of `header.tar.gz`.
 
 Why is there a tar file inside a tar file? See the "Ordering" section.
 
-### header-info (version 3)
-
-Format: JSON
-
-`header-info` must be the first file within `header.tar.gz`. Its content is:
-
-```
-{
-    "updates": [
-        {
-            "type": "rootfs-image"
-        },
-        {
-            "type": "delta-image"
-        }
-    ],
-    "artifact_provides": {
-        "artifact_name": "release-2",
-        "artifact_group": "fix",
-        "update_types_supported": [
-            "rootfs-image",
-            "delta-update"
-        ]
-    },
-    "artifact_depends": {
-        "artifact_name": "release-1",
-        "device_type": [
-            "vexpress-qemu",
-             "beaglebone"
-        ]
-    }
-}
-```
-
-The `updates` parameter is as described in the
-section below (see the version 2 header-info description for the details).
-
-#### artifact_depends
-
-The `artifact_depends` contains a set of parameters that the current artifact
-depends on. It can contain zero or more elements (in most cases at least
-`device_type` should be present though).
-
-The given artifact will be installed, only if the device itself
-and the artifact currently installed on the device are providing a full set
-of matching parameters. The complete list contains following parameters:
-
-* `artifact_name` is the name of the artifact currently installed on the device
-* `device_type` is the type of the device (see `device_provides` below)
-* `artifact_group` is the group of the artifacts current artifact belongs to
-* `update_types_supported` is the list of the update types Mender agent installed
-on the device can handle
-* `artifact_versions_supported` is the list of the versions of the artifacts
-agent installed on the device can handle
-
-
-#### artifact_provides
-
-The `artifact_provides` is a set of global parameters given artifact provides.
-For the detailed information see the description of the given parameter below.
-
-* `artifact_name` is the name of the artifact
-* `artifact_group` is the name of the group of artifacts given artifact
-belongs to
-* `update_types_supported` is the list of all the update types given Mender
-client can install
-
-#### device_provides
-
-There is also a set of parameters that are provided by the device itself,
-which are not a part of the artifact. Those are the values, that the device
-itself can read and send to the Mender server when needed. The full list of
-`device_provides` is as follows:
-
-* `device_type` is the current device type
-
-
-### header-info (up to version 2 only)
+### header-info
 
 Format: JSON
 
@@ -406,65 +181,8 @@ or multiple files listed.  For example:
 { "files" : ["core-image-minimal-201608110900.ext4", "core-image-base-201608110900.ext4"]}
 ```
 
-### type-info (version 3)
 
-Format: JSON
-
-A file that provides information about the type of package contained within the
-tar file. The first and the only required entry is the type of the update
-corresponding to the type in `header-info` file.
-It can also contain some additional parameters extending or modifying the global
-`artifact_provides` set of parameters specific for a given update type.
-
-```
-{
-  "type": "rootfs-image"
-  "artifact_provides": [
-          { "rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619" },
-      ],
-  "artifact_depends": [
-          { "rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619" },
-      ],
-}
-```
-
-#### artifact_provides
-
-As an opposite to the list of global `artifact_provides` being a part of
-`header-info` file, the `artifact_provides` section in the `type-info` file
-is a set of parameters specific for a given update type.
-
-The list of currently supported parameters is as follows:
-
-* `rootfs_image_checksum` is the checksum of the image currently installed on the
-device
-
-#### artifact_depends
-
-The `artifact_depends` section in the `type-info` file is a set of parameters
-specific for a given update type. The list of currently supported
-parameters is as follows:
-
-* `rootfs_image_checksum` is the checksum of the image that needs to be installed
-on the device before current artifact can be installed
-
-
-### type-info (version 1 and version 2)
-
-Format: JSON
-
-A file that provides information about the type of package contained within the
-tar file. The first and the only required entry is the type of the update
-corresponding to the type in `header-info` file.
-
-```
-{
-  "type": "rootfs-image"
-
-}
-```
-
-### type-info (up to version 2 only)
+### type-info
 
 Format: JSON
 
@@ -491,28 +209,6 @@ For other package types this file can contain for example number of files in the
 `data` directory, if the update contains more than one. Or it can contain
 network address(es) and credentials if Mender is to do a proxy update.
 
-
-### checksums
-
-Format: Directory containing one checksum file for each file listed in the
-`files` header.
-
-It is legal for an update not to have any checksums.
-
-#### Checksum file
-
-Format: Checksum
-Version: Exists only in version 1
-
-Each file must match the name of a file in `data` exactly, plus an appended
-suffix which determines the type of checksum. For maximum compatibility, there
-is only one checksum in each file. Currently, there is only one type of
-checksum, `sha256`, which follows the format of the `sha256sum` tool. For
-example:
-
-```
-b6207e04cbdd57b12f22591cca02c774463fe1fac2cb593f99b38a9e07cf050f
-```
 
 ### scripts
 
@@ -563,20 +259,6 @@ For more information about the script and state API, see the official Mender
 documentation.
 
 
-header-augment.tar.gz (version 3)
--------------
-
-Format: tar
-
-This file is complementing the information contained in the header.tar.gz.
-It can have the same structure as header.tar.gz, but for security reasons
-(this file is not signed) only certain files and parameters are allowed.
-
-At the moment ONLY header-info and type-info files are allowed which can
-contain only `artifact_depends` `rootfs_image_checksum`
-parameters and type of the update.
-
-
 data
 ----
 
@@ -611,27 +293,24 @@ Ordering
 Some ordering rules are enforced on the artifact tar file. For the outer tar
 file:
 
-| File/Directory            | Ordering rule                       |
-|---------------------------|-------------------------------------|
-| `version`                 | First in `.mender` tar archive      |
-| `manifest`                | After `version` (v2)                |
-| `manifest.sig`            | Optional after `manifest` (v2)      |
-| `manifest-augment`        | Optional after `manifest.sig` (v3)  |
-| `header.tar.gz`           | After all manifest files            |
-| `header-augment.tar.gz`   | Optional after `header.tar.gz` (v3) |
-| `data`                    | After `header.tar.gz`               |
+| File/Directory            | Ordering rule                  |
+|---------------------------|--------------------------------|
+| `version`                 | First in `.mender` tar archive |
+| `manifest`                | After `version`                |
+| `manifest.sig`            | Optional after `manifest`      |
+| `header.tar.gz`           | After all manifest files       |
+| `data`                    | After `header.tar.gz`          |
 
 For the embedded `header.tar.gz` file:
 
-| File/Directory  | Ordering rule                     |
-|-----------------|-----------------------------------|
-| `header-info`   | First in `header.tar.gz` file     |
-| `scripts`       | Optional after `header-info` (v2) |
-| `headers`       | After `scripts`                   |
-| `files`         | First in every `xxxx` bucket      |
-| `type-info`     | After `files`                     |
-| `meta-data`     | After `type-info`                 |
-| `checksums`     | After `type-info` (v1)            |
+| File/Directory  | Ordering rule                 |
+|-----------------|-------------------------------|
+| `header-info`   | First in `header.tar.gz` file |
+| `scripts`       | Optional after `header-info`  |
+| `headers`       | After `scripts`               |
+| `files`         | First in every `xxxx` bucket  |
+| `type-info`     | After `files`                 |
+| `meta-data`     | After `type-info`             |
 
 The fact that many files/directories inside `header.tar.gz` have ambiguous rules
 (`checksums` can be before or after `signatures`) implies that the order is not
