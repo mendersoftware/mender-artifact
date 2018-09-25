@@ -33,6 +33,7 @@ func validate(art io.Reader, key []byte) error {
 	// just continue checking consistency and return info if
 	// signature verification failed
 	var validationError error
+	verifiedDigitalSignature := false
 	verify := func(message, sig []byte) error {
 		verifyCallback := func(message, sig []byte) error {
 			return errors.New("artifact is signed but no verification key was provided")
@@ -45,6 +46,8 @@ func validate(art io.Reader, key []byte) error {
 		if verifyCallback != nil {
 			if err := verifyCallback(message, sig); err != nil {
 				validationError = err
+			} else {
+				verifiedDigitalSignature = true
 			}
 		}
 		return nil
@@ -57,6 +60,10 @@ func validate(art io.Reader, key []byte) error {
 	}
 	if validationError != nil {
 		Log.Debugf("error validating signature: %s", validationError.Error())
+		return ErrInvalidSignature
+	}
+	if key != nil && !verifiedDigitalSignature {
+		Log.Debug("key was specified but no digital signature was found")
 		return ErrInvalidSignature
 	}
 	return nil

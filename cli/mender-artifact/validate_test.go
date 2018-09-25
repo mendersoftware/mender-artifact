@@ -72,6 +72,8 @@ var validateTests = []struct {
 		ErrInvalidSignature},
 	{2, []byte(PrivateValidateRSAKey), []byte(PublicValidateRSAKeyInvalid),
 		ErrInvalidSignature},
+	{2, []byte(PrivateValidateRSAKey), nil, ErrInvalidSignature},
+	{2, nil, []byte(PublicValidateRSAKey), ErrInvalidSignature}, // MEN-2155
 }
 
 func TestValidate(t *testing.T) {
@@ -83,6 +85,7 @@ func TestValidate(t *testing.T) {
 		if test.expectedError == nil {
 			assert.NoError(t, err)
 		} else {
+			assert.Error(t, err)
 			assert.Contains(t, err.Error(), test.expectedError.Error())
 		}
 		fmt.Println("---------------------------------")
