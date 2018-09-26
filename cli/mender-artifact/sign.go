@@ -17,6 +17,7 @@ package main
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
@@ -38,7 +39,7 @@ func signExisting(c *cli.Context) error {
 		return cli.NewExitError("Can not use signing key provided: "+err.Error(), 1)
 	}
 
-	tFile, err := ioutil.TempFile("", "mender-artifact")
+	tFile, err := ioutil.TempFile(filepath.Dir(c.Args().First()), "mender-artifact")
 	if err != nil {
 		return errors.Wrap(err,
 			"Can not create temporary file for storing artifact")
