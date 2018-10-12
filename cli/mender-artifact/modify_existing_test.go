@@ -252,6 +252,7 @@ func TestModifySigned(t *testing.T) {
 	err = ioutil.WriteFile(filepath.Join(tmp, "ecdsa.key"), []byte(PrivateECDSAKey), 0711)
 	assert.NoError(t, err)
 
+	// Create and sign artifact using RSA private key.
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
 		"-n", "release-1", "-u", filepath.Join(tmp, "mender_test.img"),
 		"-o", filepath.Join(tmp, "artifact.mender"),
@@ -259,17 +260,7 @@ func TestModifySigned(t *testing.T) {
 	err = run()
 	assert.NoError(t, err)
 
-	os.Args = []string{"mender-artifact", "modify",
-		"-n", "release-2",
-		filepath.Join(tmp, "artifact.mender")}
-
-	err = run()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), ErrInvalidSignature.Error())
-
-	err = copyFile("mender_test.img", filepath.Join(tmp, "mender_test.img"))
-	assert.NoError(t, err)
-
+	// Modify the artifact and re-sign it using the same RSA private key.
 	os.Args = []string{"mender-artifact", "modify",
 		"-n", "release-2",
 		"-k", filepath.Join(tmp, "rsa.key"),
@@ -278,9 +269,15 @@ func TestModifySigned(t *testing.T) {
 	err = run()
 	assert.NoError(t, err)
 
-	err = copyFile("mender_test.img", filepath.Join(tmp, "mender_test.img"))
+	// Modify the artifact again, this time leaving it unsigned (no private key provided).
+	os.Args = []string{"mender-artifact", "modify",
+		"-n", "release-3",
+		filepath.Join(tmp, "artifact.mender")}
+
+	err = run()
 	assert.NoError(t, err)
 
+	// Create artifact again, this time with EC private key.
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
 		"-n", "release-1", "-u", filepath.Join(tmp, "mender_test.img"),
 		"-o", filepath.Join(tmp, "artifact_ecdsa.mender"),
@@ -288,6 +285,7 @@ func TestModifySigned(t *testing.T) {
 	err = run()
 	assert.NoError(t, err)
 
+	// Modify artifact, re-signing with same EC private key.
 	os.Args = []string{"mender-artifact", "modify",
 		"-n", "release-2",
 		"-k", filepath.Join(tmp, "ecdsa.key"),

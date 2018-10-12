@@ -56,6 +56,19 @@ func testSetupTeardown(t *testing.T) (artifact, sdimg, fatsdimg string, f func()
 	}
 }
 
+const testPrivateKey = `-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEIMU7txA5VwTnkNIXQx+XjJE4HLSjvkVsckyFYhpjWXIioAoGCCqGSM49
+AwEHoUQDQgAEzzRKBsM1lJ+z/ljS+9kCAJCiTB6+HbyD2TE2hLKGj9xnFkzOHnEj
+7KybiE2PAx6skWvCPqBP5+H0d68jN9mOAw==
+-----END EC PRIVATE KEY-----
+`
+
+const testPublicKey = `-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzzRKBsM1lJ+z/ljS+9kCAJCiTB6+
+HbyD2TE2hLKGj9xnFkzOHnEj7KybiE2PAx6skWvCPqBP5+H0d68jN9mOAw==
+-----END PUBLIC KEY-----
+`
+
 func TestCopy(t *testing.T) {
 	// build the mender-artifact binary
 	assert.Nil(t, exec.Command("go", "build").Run())
@@ -65,7 +78,7 @@ func TestCopy(t *testing.T) {
 	assert.Nil(t, err)
 
 	tests := []struct {
-		initfunc       func()
+		initfunc       func(imgpath string)
 		stdindata      string
 		validimages    []int // artifact, sdimg, sdimg-fat - default all
 		name           string
@@ -105,7 +118,35 @@ func TestCopy(t *testing.T) {
 			expected: "artifact_name=release-1\n",
 		},
 		{
-			initfunc: func() {
+			name:        "write artifact_info file to stdout from signed artifact",
+			argv:        []string{"mender-artifact", "cat", ":/etc/mender/artifact_info"},
+			validimages: []int{0}, // only artifacts can be signed
+			initfunc: func(imgpath string) {
+				// Write a private key to the same directory as the test artifact.
+				privateKeyFileName := filepath.Join(filepath.Dir(imgpath), "private.key")
+				err := ioutil.WriteFile(privateKeyFileName, []byte(testPrivateKey), 0600)
+				assert.Nil(t, err, "unexpected error writing private key file: %v", err)
+
+				// Write a public key to the same directory as the test artifact.
+				publicKeyFileName := filepath.Join(filepath.Dir(imgpath), "public.key")
+				err = ioutil.WriteFile(publicKeyFileName, []byte(testPublicKey), 0600)
+				assert.Nil(t, err, "unexpected error writing public key file: %v", err)
+
+				// Use the private key to sign the artifact in place.
+				executable := filepath.Join(dir, "mender-artifact")
+				cmd := exec.Command(executable, "sign", imgpath, "-k", privateKeyFileName)
+				err = cmd.Run()
+				assert.Nil(t, err, "unexpected error signing artifact: %v", err)
+
+				// Use the public key to verify the signature.
+				cmd = exec.Command(executable, "validate", imgpath, "-k", publicKeyFileName)
+				err = cmd.Run()
+				assert.Nil(t, err, "unexpected error verifying artifact signature: %v", err)
+			},
+			expected: "artifact_name=release-1\n",
+		},
+		{
+			initfunc: func(imgpath string) {
 				assert.Nil(t, ioutil.WriteFile("output.txt", []byte{}, 0755))
 			},
 			name: "write artifact_info file to output.txt",
@@ -118,7 +159,7 @@ func TestCopy(t *testing.T) {
 		},
 		{
 			name: "read from output.txt and write to img",
-			initfunc: func() {
+			initfunc: func(imgpath string) {
 				// create some new data in the output.txt file,
 				// so that it does not shadow the previous test
 				assert.Nil(t, ioutil.WriteFile("output.txt", []byte("artifact_name=foobar"), 0644))
@@ -182,7 +223,7 @@ func TestCopy(t *testing.T) {
 		},
 		{
 			name: "Install file, standard permissions (0600)",
-			initfunc: func() {
+			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("testkey", []byte("foobar"), 0644))
 			},
 			argv: []string{"mender-artifact", "install", "-m", "0600", "testkey", ":/etc/mender/testkey.key"},
@@ -218,7 +259,7 @@ func TestCopy(t *testing.T) {
 		},
 		{
 			name: "write and read from the boot partition",
-			initfunc: func() {
+			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
 			validimages: []int{1, 2}, // Not valid for artifacts.
@@ -238,7 +279,7 @@ func TestCopy(t *testing.T) {
 		},
 		{
 			name: "write and read from the boot/efi partition",
-			initfunc: func() {
+			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
 			argv:        []string{"mender-artifact", "cp", "foo.txt", ":/boot/efi/test.txt"},
@@ -258,7 +299,7 @@ func TestCopy(t *testing.T) {
 		},
 		{
 			name: "write and read from the boot/grub partition",
-			initfunc: func() {
+			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
 			validimages: []int{1, 2}, // Not valid for artifacts.
@@ -296,7 +337,7 @@ func TestCopy(t *testing.T) {
 		},
 		{
 			name: "check if artifact does not change name",
-			initfunc: func() {
+			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
 			validimages: []int{0},
@@ -378,7 +419,7 @@ func TestCopy(t *testing.T) {
 			os.Args = testargv
 
 			if test.initfunc != nil {
-				test.initfunc()
+				test.initfunc(imgpath)
 			}
 
 			old := os.Stdout // keep backup of the real stdout
