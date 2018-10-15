@@ -37,25 +37,17 @@ func validate(art io.Reader, key []byte) error {
 	// Some callers pass nil, others pass "", to indicate a missing public key.
 	keyIsSpecified := (key != nil) && (len(key) > 0)
 
-	verify := func(message, sig []byte) error {
-		verifyCallback := func(message, sig []byte) error {
-			return errors.New("artifact is signed but no verification key was provided")
-		}
+	ar := areader.NewReader(art)
+	ar.VerifySignatureCallback = func(message, sig []byte) error {
 		if keyIsSpecified {
 			s := artifact.NewVerifier(key)
-			verifyCallback = s.Verify
-		}
-
-		if verifyCallback != nil {
-			if err := verifyCallback(message, sig); err != nil {
+			if err := s.Verify(message, sig); err != nil {
 				validationError = err
 			}
 		}
 		return nil
 	}
 
-	ar := areader.NewReader(art)
-	ar.VerifySignatureCallback = verify
 	if err := ar.ReadArtifact(); err != nil {
 		return err
 	}

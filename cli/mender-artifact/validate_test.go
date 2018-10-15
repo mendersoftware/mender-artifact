@@ -72,7 +72,7 @@ var validateTests = []struct {
 		ErrInvalidSignature},
 	{2, []byte(PrivateValidateRSAKey), []byte(PublicValidateRSAKeyInvalid),
 		ErrInvalidSignature},
-	{2, []byte(PrivateValidateRSAKey), nil, ErrInvalidSignature},
+	{2, []byte(PrivateValidateRSAKey), nil, nil},
 	{2, nil, []byte(PublicValidateRSAKey), ErrInvalidSignature}, // MEN-2155
 }
 
