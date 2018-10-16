@@ -216,7 +216,7 @@ following sub sections define each field under each such bucket.
 #### artifact_depends
 
 The `artifact_depends` contains a set of parameters that the current artifact
-depends on. It can contain zero or more elements (in most cases at least
+depends on. It can contain zero or more key/value pairs (in most cases at least
 `device_type` should be present though).
 
 The given artifact will be installed, only if the device itself
@@ -278,16 +278,12 @@ It can also contain some additional parameters extending or modifying the global
 ```
 {
   "type": "rootfs-image"
-  "artifact_provides": [
-      {
-          "rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
-      },
-  ],
-  "artifact_depends": [
-      {
-          "rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
-      },
-  ],
+  "artifact_provides": {
+      "rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
+  },
+  "artifact_depends": {
+      "rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
+  },
 }
 ```
 
@@ -404,11 +400,9 @@ These files and attributes are allowed:
   ```
   {
     "type": "rootfs-image"
-    "artifact_depends": [
-        {
-            "rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
-        },
-    ],
+    "artifact_depends": {
+        "rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
+    },
   }
   ```
 
