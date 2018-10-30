@@ -50,10 +50,11 @@
 			"revisionTime": "2018-05-06T18:05:49Z"
 		},
 		{
-			"checksumSHA1": "LMu1NsthSqcXfKu0m6YGPAmwBcY=",
+			"checksumSHA1": "KRlS8eQZGK1oYVCOkIvcMDXabxk=",
 			"comment": "v1.19.1",
 			"path": "github.com/urfave/cli",
-			"revision": "0bdeddeeb0f650497d603c4ad7b20cfe685682f6"
+			"revision": "b67dcf995b6a7b7f14fad5fcb7cc5441b05e814b",
+			"revisionTime": "2018-10-29T21:32:00Z"
 		},
 		{
 			"checksumSHA1": "3z9+W+L8JVxJjZBUlW1tSCYSGTA=",
