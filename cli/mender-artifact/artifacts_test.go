@@ -60,14 +60,15 @@ func CreateFakeUpdate() (string, error) {
 }
 
 func WriteTestArtifact(version int, update string, key []byte) (io.Reader, error) {
+	comp := artifact.NewCompressorGzip()
 	buff := bytes.NewBuffer(nil)
 
 	aw := new(awriter.Writer)
 	if key != nil {
-		aw = awriter.NewWriterSigned(buff, artifact.NewSigner(key))
+		aw = awriter.NewWriterSigned(buff, comp, artifact.NewSigner(key))
 		fmt.Println("write signed artifact")
 	} else {
-		aw = awriter.NewWriter(buff)
+		aw = awriter.NewWriter(buff, comp)
 	}
 
 	var err error
@@ -79,13 +80,13 @@ func WriteTestArtifact(version int, update string, key []byte) (io.Reader, error
 		defer os.Remove(update)
 	}
 
-	rfs := handlers.NewRootfsV1(update)
+	rfs := handlers.NewRootfsV1(update, comp)
 
 	switch version {
 	case 1:
 		// we are alrady having v1 handlers; do nothing
 	case 2:
-		rfs = handlers.NewRootfsV2(update)
+		rfs = handlers.NewRootfsV2(update, comp)
 	}
 
 	updates := &awriter.Updates{U: []handlers.Composer{rfs}}
@@ -100,6 +101,8 @@ func WriteTestArtifact(version int, update string, key []byte) (io.Reader, error
 }
 
 func WriteArtifact(dir string, ver int, update string) error {
+	comp := artifact.NewCompressorGzip()
+
 	if err := func() error {
 		if update != "" {
 			return nil
@@ -126,14 +129,14 @@ func WriteArtifact(dir string, ver int, update string) error {
 	}
 	defer f.Close()
 
-	u := handlers.NewRootfsV1(update)
+	u := handlers.NewRootfsV1(update, comp)
 
-	aw := awriter.NewWriter(f)
+	aw := awriter.NewWriter(f, comp)
 	switch ver {
 	case 1:
 		// we are alrady having v1 handlers; do nothing
 	case 2:
-		u = handlers.NewRootfsV2(update)
+		u = handlers.NewRootfsV2(update, comp)
 	}
 
 	updates := &awriter.Updates{U: []handlers.Composer{u}}

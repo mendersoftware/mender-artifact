@@ -15,13 +15,33 @@
 package artifact
 
 import (
-	"testing"
+	"io"
+	"strings"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/pkg/errors"
 )
 
-func TestUpdateUtils(t *testing.T) {
-	assert.Equal(t, "data/0001", UpdatePath(1))
-	assert.Equal(t, "headers/0002", UpdateHeaderPath(2))
-	assert.Equal(t, "data/0003.tar", UpdateDataPath(3))
+type Compressor interface {
+	GetFileExtension() string
+	NewReader(r io.Reader) (io.ReadCloser, error)
+	NewWriter(w io.Writer) io.WriteCloser
+}
+
+func NewCompressorFromFileName(name string) (Compressor, error) {
+	if strings.HasSuffix(name, ".gz") {
+		return NewCompressorGzip(), nil
+	} else {
+		return NewCompressorNone(), nil
+	}
+}
+
+func NewCompressorFromId(id string) (Compressor, error) {
+	switch id {
+	case "gzip":
+		return NewCompressorGzip(), nil
+	case "none":
+		return NewCompressorNone(), nil
+	default:
+		return nil, errors.Errorf("invalid compressor id: %v", id)
+	}
 }

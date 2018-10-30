@@ -229,6 +229,15 @@ func run() error {
 		},
 	}
 
+	globalFlags := []cli.Flag{
+		cli.StringFlag{
+			Name:  "compression",
+			Value: "gzip",
+			Usage: "Compression to use for data and header inside the artifact, "+
+				"currently supports:  none, gzip.",
+		},
+	}
+
 	app.Commands = []cli.Command{
 		writeCommand,
 		readCommand,
@@ -239,5 +248,6 @@ func run() error {
 		cat,
 		install,
 	}
+	app.Flags = append([]cli.Flag{}, globalFlags...)
 	return app.Run(os.Args)
 }

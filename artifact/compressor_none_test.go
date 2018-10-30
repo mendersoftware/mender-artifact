@@ -15,13 +15,33 @@
 package artifact
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestUpdateUtils(t *testing.T) {
-	assert.Equal(t, "data/0001", UpdatePath(1))
-	assert.Equal(t, "headers/0002", UpdateHeaderPath(2))
-	assert.Equal(t, "data/0003.tar", UpdateDataPath(3))
+func TestCompressorNone(t *testing.T) {
+	c := NewCompressorNone()
+	assert.Equal(t, c.GetFileExtension(), "")
+
+	buf := bytes.NewBuffer(nil)
+	w := c.NewWriter(buf)
+
+	i, err := w.Write([]byte(testData))
+	assert.NoError(t, err)
+	assert.Equal(t, i, len(testData))
+	w.Close()
+
+	assert.Equal(t, len(testData), buf.Len())
+	assert.Equal(t, testData, buf.String())
+
+	r, err := c.NewReader(buf)
+	assert.NoError(t, err)
+
+	rbuf := make([]byte, len(testData))
+	i, err = r.Read(rbuf)
+	assert.NoError(t, err)
+	assert.Equal(t, i, len(testData))
+	assert.Equal(t, []byte(testData), rbuf)
 }

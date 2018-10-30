@@ -134,7 +134,7 @@ func unpackArtifact(name string) (string, error) {
 	return newNamePath, nil
 }
 
-func repack(artifactName string, from io.Reader, to io.Writer, key []byte,
+func repack(comp artifact.Compressor, artifactName string, from io.Reader, to io.Writer, key []byte,
 	newName string, dataFile string) (*areader.Reader, error) {
 	sDir, err := ioutil.TempDir(filepath.Dir(artifactName), "mender-repack")
 	if err != nil {
@@ -196,9 +196,9 @@ func repack(artifactName string, from io.Reader, to io.Writer, key []byte,
 	var h *handlers.Rootfs
 	switch info.Version {
 	case 1:
-		h = handlers.NewRootfsV1(data)
+		h = handlers.NewRootfsV1(data, comp)
 	case 2:
-		h = handlers.NewRootfsV2(data)
+		h = handlers.NewRootfsV2(data, comp)
 	default:
 		return nil, errors.Errorf("unsupported artifact version: %d", info.Version)
 	}
@@ -211,9 +211,9 @@ func repack(artifactName string, from io.Reader, to io.Writer, key []byte,
 		return nil, err
 	}
 
-	aWriter := awriter.NewWriter(to)
+	aWriter := awriter.NewWriter(to, comp)
 	if key != nil {
-		aWriter = awriter.NewWriterSigned(to, artifact.NewSigner(key))
+		aWriter = awriter.NewWriterSigned(to, comp, artifact.NewSigner(key))
 	}
 
 	name := ar.GetArtifactName()
@@ -226,7 +226,7 @@ func repack(artifactName string, from io.Reader, to io.Writer, key []byte,
 	return ar, err
 }
 
-func repackArtifact(artifact, rootfs, key, newName string) error {
+func repackArtifact(comp artifact.Compressor, artifact, rootfs, key, newName string) error {
 	art, err := os.Open(artifact)
 	if err != nil {
 		return err
@@ -249,7 +249,7 @@ func repackArtifact(artifact, rootfs, key, newName string) error {
 		}
 	}
 
-	if _, err = repack(artifact, art, tmp, privateKey, newName, rootfs); err != nil {
+	if _, err = repack(comp, artifact, art, tmp, privateKey, newName, rootfs); err != nil {
 		return err
 	}
 

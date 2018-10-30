@@ -1,4 +1,4 @@
-// Copyright 2017 Northern.tech AS
+// Copyright 2018 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ func checkTarElemsnts(r io.Reader, expected int) error {
 
 func TestWriteArtifact(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
-	w := NewWriter(buf)
+	w := NewWriter(buf, artifact.NewCompressorGzip())
 
 	err := w.WriteArtifact("mender", 1, []string{"asd"}, "name", &Updates{}, nil)
 	assert.NoError(t, err)
@@ -58,14 +58,16 @@ func TestWriteArtifact(t *testing.T) {
 }
 
 func TestWriteArtifactWithUpdates(t *testing.T) {
+	comp := artifact.NewCompressorGzip()
+
 	buf := bytes.NewBuffer(nil)
-	w := NewWriter(buf)
+	w := NewWriter(buf, comp)
 
 	upd, err := MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
 	defer os.Remove(upd)
 
-	u := handlers.NewRootfsV1(upd)
+	u := handlers.NewRootfsV1(upd, comp)
 	updates := &Updates{U: []handlers.Composer{u}}
 
 	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates, nil)
@@ -75,15 +77,17 @@ func TestWriteArtifactWithUpdates(t *testing.T) {
 }
 
 func TestWriteMultipleUpdates(t *testing.T) {
+	comp := artifact.NewCompressorGzip()
+
 	buf := bytes.NewBuffer(nil)
-	w := NewWriter(buf)
+	w := NewWriter(buf, comp)
 
 	upd, err := MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
 	defer os.Remove(upd)
 
-	u1 := handlers.NewRootfsV1(upd)
-	u2 := handlers.NewRootfsV1(upd)
+	u1 := handlers.NewRootfsV1(upd, comp)
+	u2 := handlers.NewRootfsV1(upd, comp)
 	updates := &Updates{U: []handlers.Composer{u1, u2}}
 
 	err = w.WriteArtifact("mender", 1, []string{"asd"}, "name", updates, nil)
@@ -110,16 +114,18 @@ r3rtT0ysHWd7l+Kx/SUCQGlitd5RDfdHl+gKrCwhNnRG7FzRLv5YOQV81+kh7SkU
 `
 
 func TestWriteArtifactV2(t *testing.T) {
+	comp := artifact.NewCompressorGzip()
+
 	buf := bytes.NewBuffer(nil)
 
 	s := artifact.NewSigner([]byte(PrivateKey))
-	w := NewWriterSigned(buf, s)
+	w := NewWriterSigned(buf, comp, s)
 
 	upd, err := MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
 	defer os.Remove(upd)
 
-	u := handlers.NewRootfsV2(upd)
+	u := handlers.NewRootfsV2(upd, comp)
 	updates := &Updates{U: []handlers.Composer{u}}
 
 	err = w.WriteArtifact("mender", 2, []string{"asd"}, "name", updates, nil)
@@ -147,14 +153,14 @@ func TestWriteArtifactV2(t *testing.T) {
 	assert.NoError(t, checkTarElemsnts(buf, 4))
 	buf.Reset()
 
-	w = NewWriterSigned(buf, nil)
+	w = NewWriterSigned(buf, comp, nil)
 	err = w.WriteArtifact("mender", 2, []string{"asd"}, "name", updates, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, checkTarElemsnts(buf, 4))
 	buf.Reset()
 
 	// error writing non-existing
-	u = handlers.NewRootfsV2("non-existing")
+	u = handlers.NewRootfsV2("non-existing", comp)
 	updates = &Updates{U: []handlers.Composer{u}}
 	err = w.WriteArtifact("mender", 3, []string{"asd"}, "name", updates, nil)
 	assert.Error(t, err)
@@ -162,14 +168,16 @@ func TestWriteArtifactV2(t *testing.T) {
 }
 
 func TestWithScripts(t *testing.T) {
+	comp := artifact.NewCompressorGzip()
+
 	buf := bytes.NewBuffer(nil)
-	w := NewWriter(buf)
+	w := NewWriter(buf, comp)
 
 	upd, err := MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
 	defer os.Remove(upd)
 
-	u := handlers.NewRootfsV1(upd)
+	u := handlers.NewRootfsV1(upd, comp)
 	updates := &Updates{U: []handlers.Composer{u}}
 
 	scr, err := ioutil.TempFile("", "ArtifactInstall_Enter_10_")

@@ -1,4 +1,4 @@
-// Copyright 2017 Northern.tech AS
+// Copyright 2018 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -22,13 +22,16 @@ import (
 	"os"
 	"testing"
 
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestHandlerRootfs(t *testing.T) {
+	comp := artifact.NewCompressorGzip()
+
 	// test if update type is reported correctly
-	r := NewRootfsV1("")
+	r := NewRootfsV1("", comp)
 	assert.Equal(t, "rootfs-image", r.GetType())
 
 	// test get update files
@@ -36,7 +39,7 @@ func TestHandlerRootfs(t *testing.T) {
 	assert.Equal(t, "update.ext4", r.GetUpdateFiles()[0].Name)
 	assert.Equal(t, 1, r.version)
 
-	r = NewRootfsV2("")
+	r = NewRootfsV2("", comp)
 	assert.Equal(t, "rootfs-image", r.GetType())
 
 	// test get update files
@@ -50,6 +53,8 @@ func TestHandlerRootfs(t *testing.T) {
 }
 
 func TestRootfsCompose(t *testing.T) {
+	comp := artifact.NewCompressorGzip()
+
 	buf := bytes.NewBuffer(nil)
 	tw := tar.NewWriter(buf)
 	defer tw.Close()
@@ -58,7 +63,7 @@ func TestRootfsCompose(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.Remove(f.Name())
 
-	r := NewRootfsV1(f.Name())
+	r := NewRootfsV1(f.Name(), comp)
 	err = r.ComposeHeader(tw, 1)
 	assert.NoError(t, err)
 
@@ -66,7 +71,7 @@ func TestRootfsCompose(t *testing.T) {
 	assert.NoError(t, err)
 
 	// error compose data with missing data file
-	r = NewRootfsV1("non-existing")
+	r = NewRootfsV1("non-existing", comp)
 	err = r.ComposeData(tw, 1)
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(),
@@ -74,7 +79,7 @@ func TestRootfsCompose(t *testing.T) {
 }
 
 func TestRootfsReadHeader(t *testing.T) {
-	r := NewRootfsV1("custom")
+	r := NewRootfsV1("custom", artifact.NewCompressorGzip())
 
 	tc := []struct {
 		data      string
