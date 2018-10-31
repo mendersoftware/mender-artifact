@@ -189,7 +189,9 @@ Format: JSON
         ]
     },
     "artifact_depends": {
-        "artifact_name": "release-1",
+        "artifact_name": [
+          "release-1"
+        ],
         "device_type": [
             "vexpress-qemu",
              "beaglebone"
@@ -226,10 +228,6 @@ of matching parameters. The complete list contains following parameters:
 * `artifact_name` is the name of the artifact currently installed on the device
 * `device_type` is the type of the device (see `device_provides` below)
 * `artifact_group` is the group of the artifacts current artifact belongs to
-* `update_types_supported` is the list of the update types Mender agent installed
-on the device can handle
-* `artifact_versions_supported` is the list of the versions of the artifacts
-agent installed on the device can handle
 
 
 #### artifact_provides

@@ -84,27 +84,28 @@ func (rp *Rootfs) Copy() Installer {
 	}
 }
 
-func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int) error {
+func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bool) error {
+	rp.version = version
 	switch {
 	case filepath.Base(path) == "files":
-		files, err := parseFiles(r)
-		if version == 3 {
-			if !rp.regularHeaderRead {
-				rp.regularHeaderRead = true
-				if err == nil {
-					return errors.New("ReadHeader: files-list should be empty")
-				}
-				return nil
-			}
+		if version >= 3 {
+			return errors.New("\"files\" entry found in version 3 artifact")
 		}
+		files, err := parseFiles(r)
 		if err != nil {
 			return err
+		} else if len(files.FileList) != 1 {
+			return errors.New("Rootfs image does not contain exactly one file")
 		}
 		rp.update.Name = files.FileList[0]
 	case filepath.Base(path) == "type-info",
-		filepath.Base(path) == "meta-data",
-		match(artifact.HeaderDirectory+"/*/signatures/*", path),
+		filepath.Base(path) == "meta-data":
+		// TODO: implement when needed
+	case match(artifact.HeaderDirectory+"/*/signatures/*", path),
 		match(artifact.HeaderDirectory+"/*/scripts/*/*", path):
+		if augmented {
+			return errors.New("signatures and scripts not allowed in augmented header")
+		}
 		// TODO: implement when needed
 	case match(artifact.HeaderDirectory+"/*/checksums/*", path):
 		buf := bytes.NewBuffer(nil)
@@ -128,22 +129,85 @@ func (rfs *Rootfs) Install(r io.Reader, info *os.FileInfo) error {
 }
 
 func (rfs *Rootfs) GetUpdateFiles() [](*DataFile) {
-	return [](*DataFile){rfs.update}
+	if rfs.version < 3 && rfs.update != nil {
+		// In versions < 3, update was kept in non-augmented data.
+		return [](*DataFile){rfs.update}
+	} else {
+		return [](*DataFile){}
+	}
+}
+
+func (rfs *Rootfs) SetUpdateFiles(files [](*DataFile)) error {
+	if rfs.version < 3 {
+		if len(files) == 1 {
+			rfs.update = files[0]
+			return nil
+		} else {
+			return errors.New("Wrong number of update files")
+		}
+	} else { // rfs.version >= 3
+		if len(files) == 0 {
+			return nil
+		} else {
+			return errors.New("No update files in original manifest in versions >= 3")
+		}
+	}
+}
+
+func (rfs *Rootfs) GetUpdateAugmentFiles() [](*DataFile) {
+	if rfs.version >= 3 && rfs.update != nil {
+		// In versions >= 3, update is kept in augmented data.
+		return [](*DataFile){rfs.update}
+	} else {
+		return [](*DataFile){}
+	}
+}
+
+func (rfs *Rootfs) SetUpdateAugmentFiles(files [](*DataFile)) error {
+	if rfs.version < 3 {
+		if len(files) == 0 {
+			return nil
+		} else {
+			return errors.New("No update files in augmented manifest in versions < 3")
+		}
+	} else { // rfs.version >= 3
+		if len(files) == 1 {
+			rfs.update = files[0]
+			return nil
+		} else {
+			return errors.New("Wrong number of update files")
+		}
+	}
+}
+
+func (rfs *Rootfs) GetUpdateAllFiles() [](*DataFile) {
+	if rfs.version >= 3 {
+		return rfs.GetUpdateAugmentFiles()
+	} else {
+		return rfs.GetUpdateFiles()
+	}
 }
 
 func (rfs *Rootfs) GetType() string {
 	return "rootfs-image"
 }
 
+func (rfs *Rootfs) GetUpdateDepends() *artifact.TypeInfoDepends {
+	return &artifact.TypeInfoDepends{}
+}
+
+func (rfs *Rootfs) GetUpdateProvides() *artifact.TypeInfoProvides {
+	return &artifact.TypeInfoProvides{}
+}
+
 func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 
-	updFiles := filepath.Base(rfs.update.Name)
 	path := artifact.UpdateHeaderPath(args.No)
 
 	switch rfs.version {
 	case 1, 2:
 		// first store files
-		if err := writeFiles(args.TarWriter, []string{updFiles},
+		if err := writeFiles(args.TarWriter, []string{filepath.Base(rfs.update.Name)},
 			path); err != nil {
 			return err
 		}
@@ -154,20 +218,9 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 
 	case 3:
 		if args.Augmented {
-			if err := writeFiles(args.TarWriter, []string{updFiles},
-				path); err != nil {
-				return err
-			}
-			// Remove the typeinfov3.depends, as this should not be written in the augmented-header.
+			// Remove the typeinfov3.provides, as this should not be written in the augmented-header.
 			if args.TypeInfoV3 != nil {
 				args.TypeInfoV3.ArtifactProvides = nil
-			}
-		} else {
-			// The header in a version 3 artifact will not contain the update,
-			// and hence there is no files in the files list.
-			if err := writeEmptyFiles(args.TarWriter, []string{updFiles},
-				path); err != nil {
-				return err
 			}
 		}
 
@@ -183,6 +236,9 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 
 	// store empty meta-data
 	// the file needs to be a part of artifact even if this one is empty
+	if len(args.MetaData) != 0 {
+		return errors.New("MetaData not empty in Rootfs.ComposeHeader. This is a bug in the application.")
+	}
 	sw := artifact.NewTarWriterStream(args.TarWriter)
 	if err := sw.Write(nil, filepath.Join(path, "meta-data")); err != nil {
 		return errors.Wrap(err, "update: can not store meta-data")

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -84,18 +85,29 @@ func readArtifact(c *cli.Context) error {
 	fmt.Printf("  Version: %d\n", info.Version)
 	fmt.Printf("  Signature: %s\n", sigInfo)
 	fmt.Printf("  Compatible devices: '%s'\n", r.GetCompatibleDevices())
+	provides := ar.GetArtifactProvides()
+	if provides != nil {
+		fmt.Printf("  Provides group: %s\n", provides.ArtifactGroup)
+	}
+
+	depends := ar.GetArtifactDepends()
+	if depends != nil {
+		fmt.Printf("  Depends on one of artifact(s): [%s]\n", strings.Join(depends.ArtifactName, ", "))
+		fmt.Printf("  Depends on one of group(s): [%s]\n", strings.Join(depends.ArtifactGroup, ", "))
+	}
+
 	if len(scripts) > -1 {
 		fmt.Printf("  State scripts:\n")
 	}
 	for _, scr := range scripts {
 		fmt.Printf("    %s\n", scr)
 	}
-	fmt.Printf("\nUpdates:\n")
 
+	fmt.Printf("\nUpdates:\n")
 	for k, p := range inst {
 		fmt.Printf("  %3d:\n", k)
 		fmt.Printf("    Type:   %s\n", p.GetType())
-		for _, f := range p.GetUpdateFiles() {
+		for _, f := range p.GetUpdateAllFiles() {
 			fmt.Printf("    Files:\n")
 			fmt.Printf("      name:     %s\n", f.Name)
 			fmt.Printf("      size:     %d\n", f.Size)

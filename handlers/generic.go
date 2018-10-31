@@ -26,21 +26,21 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Generic struct {
+type GenericV1V2 struct {
 	updateType        string
 	version           int
 	regularHeaderRead bool
 	files             map[string](*DataFile)
 }
 
-func NewGeneric(t string) *Generic {
-	return &Generic{
+func NewGenericV1V2(t string) *GenericV1V2 {
+	return &GenericV1V2{
 		updateType: t,
 		files:      make(map[string](*DataFile)),
 	}
 }
 
-func (g *Generic) GetUpdateFiles() [](*DataFile) {
+func (g *GenericV1V2) GetUpdateFiles() [](*DataFile) {
 	list := make([](*DataFile), len(g.files))
 	i := 0
 	for _, f := range g.files {
@@ -50,13 +50,57 @@ func (g *Generic) GetUpdateFiles() [](*DataFile) {
 	return list
 }
 
-func (g *Generic) GetType() string {
+func (g *GenericV1V2) SetUpdateFiles(files [](*DataFile)) error {
+	// In version 1 and 2, the files list is fetched from the "files"
+	// header, so just make sure they match with the manifest.
+	check := make(map[string]bool)
+	for file := range g.files {
+		check[file] = true
+	}
+	retErr := errors.New("SetUpdateFiles: manifest does not match \"files\" list")
+	if len(check) != len(files) {
+		return retErr
+	}
+	for _, file := range files {
+		if _, ok := check[file.Name]; !ok {
+			return retErr
+		}
+	}
+	return nil
+}
+
+func (g *GenericV1V2) GetUpdateAugmentFiles() [](*DataFile) {
+	// No such thing for V1 and V2
+	return [](*DataFile){}
+}
+
+func (g *GenericV1V2) SetUpdateAugmentFiles(files [](*DataFile)) error {
+	// No such thing for V1 and V2
+	if len(files) != 0 {
+		return errors.New("Augmented files not allowed for GenericV1V2 handler")
+	}
+	return nil
+}
+
+func (g *GenericV1V2) GetUpdateAllFiles() [](*DataFile) {
+	return g.GetUpdateFiles()
+}
+
+func (g *GenericV1V2) GetType() string {
 	return g.updateType
 }
 
+func (g *GenericV1V2) GetUpdateDepends() *artifact.TypeInfoDepends {
+	return nil
+}
+
+func (g *GenericV1V2) GetUpdateProvides() *artifact.TypeInfoProvides {
+	return nil
+}
+
 // Copy is implemented only to satisfy Installer interface.
-// Generic parser is not supposed to be copied.
-func (g *Generic) Copy() Installer {
+// GenericV1V2 parser is not supposed to be copied.
+func (g *GenericV1V2) Copy() Installer {
 	return nil
 }
 
@@ -65,19 +109,11 @@ func stripSum(path string) string {
 	return strings.TrimSuffix(bName, filepath.Ext(bName))
 }
 
-func (g *Generic) ReadHeader(r io.Reader, path string, version int) error {
+func (g *GenericV1V2) ReadHeader(r io.Reader, path string, version int, augmented bool) error {
+	g.version = version
 	switch {
 	case filepath.Base(path) == "files":
 		files, err := parseFiles(r)
-		if version == 3 {
-			if !g.regularHeaderRead {
-				g.regularHeaderRead = true
-				if err == nil {
-					return errors.New("ReadHeader: files-list should be empty")
-				}
-				return nil
-			}
-		}
 		if err != nil {
 			return err
 		}
@@ -111,7 +147,7 @@ func (g *Generic) ReadHeader(r io.Reader, path string, version int) error {
 	return nil
 }
 
-func (g *Generic) Install(r io.Reader, info *os.FileInfo) error {
+func (g *GenericV1V2) Install(r io.Reader, info *os.FileInfo) error {
 	_, err := io.Copy(ioutil.Discard, r)
 	return err
 }
