@@ -253,18 +253,6 @@ itself can read and send to the Mender server when needed. The full list of
 * `device_type` is the current device type
 
 
-### files
-
-Format: JSON
-
-Contains a JSON list of file names that make up the payload for this update (the
-image file / package file / etc.), listed as bare file names. There may be one
-or multiple files listed.  For example:
-
-```
-{ "files" : ["core-image-minimal-201608110900.ext4", "core-image-base-201608110900.ext4"]}
-```
-
 ### type-info
 
 Format: JSON
@@ -427,15 +415,14 @@ to apply it, hence this precaution.
 It is legal for an update file to not contain any `data` files at all. In such
 cases it is expected that the update type in question will receive the update
 payload by using alternative means, such as providing a download link in
-`type-info`.
+`type-info` or `meta-data`.
 
 Each file in the `data` folder should be a file of the format `xxxx.tar.gz`,
 where `xxxx` are four digits corresponding to each entry in the `updates` list
-in `header-info`, in order. Each file inside the `xxxx.tar.gz` archive should be
-a file name corresponding exactly to a filename from the `files` header under
-the corresponding header bucket. If the list of files found inside `xxxx.tar.gz`
-is in any way different from the files listed in `files`, an error should be
-produced and the update should fail.
+in `header-info`, in order. If any file appears in the data directory that
+doesn't have a corresponding header number (e.g. "0000"), or if any file inside
+the archive appears that isn't listed in any of the manifest files, an error
+should be produced and the update should fail.
 
 
 Ordering
@@ -461,8 +448,7 @@ For the embedded `header.tar.gz` file:
 | `header-info`   | First in `header.tar.gz` file |
 | `scripts`       | Optional after `header-info`  |
 | `headers`       | After `scripts`               |
-| `files`         | First in every `xxxx` bucket  |
-| `type-info`     | After `files`                 |
+| `type-info`     | First in every `xxxx` bucket  |
 | `meta-data`     | After `type-info`             |
 
 The fact that many files/directories inside `header.tar.gz` have ambiguous rules
