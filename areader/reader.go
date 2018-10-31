@@ -40,11 +40,14 @@ type Reader struct {
 	ScriptsReadCallback       ScriptsReadFn
 	VerifySignatureCallback   SignatureVerifyFn
 	IsSigned                  bool
+
 	shouldBeSigned            bool
 	hInfo                     artifact.HeaderInfoer
-	augmentedhInfo            *artifact.AugmentedHeaderInfoV3
+	augmentedhInfo            artifact.HeaderInfoer
 	info                      *artifact.Info
 	r                         io.Reader
+	files                     []handlers.DataFile
+	augmentFiles              []handlers.DataFile
 	handlers                  map[string]handlers.Installer
 	installers                map[int]handlers.Installer
 }
@@ -133,12 +136,10 @@ func (ar *Reader) readHeader(tReader io.Reader, headerSum []byte) error {
 
 	// Next step is setting correct installers based on update types being
 	// part of the artifact.
-	if err = ar.setInstallers(ar.GetUpdates()); err != nil {
-		return err
-	}
+	ar.setInstallers(ar.GetUpdates())
 
 	// At the end read rest of the header using correct installers.
-	if err = ar.readHeaderUpdate(tr, &hdr); err != nil {
+	if err = ar.readHeaderUpdate(tr, &hdr, false); err != nil {
 		return err
 	}
 
@@ -179,7 +180,7 @@ func (ar *Reader) readAugmentedHeader(tReader io.Reader, headerSum []byte) error
 	tr := tar.NewReader(gz)
 
 	// first part of header must always be header-info
-	hInfo := new(artifact.AugmentedHeaderInfoV3)
+	hInfo := new(artifact.HeaderInfoV3)
 	if err = readNext(tr, hInfo, "header-info"); err != nil {
 		return err
 	}
@@ -192,12 +193,10 @@ func (ar *Reader) readAugmentedHeader(tReader io.Reader, headerSum []byte) error
 
 	// Next step is setting correct installers based on update types being
 	// part of the artifact.
-	if err = ar.setInstallers(hInfo.Updates); err != nil {
-		return err
-	}
+	ar.setInstallers(hInfo.Updates)
 
 	// At the end read rest of the header using correct installers.
-	if err = ar.readHeaderUpdate(tr, hdr); err != nil {
+	if err = ar.readHeaderUpdate(tr, hdr, true); err != nil {
 		return err
 	}
 
@@ -290,7 +289,7 @@ func signatureReadAndVerify(tReader *tar.Reader, message []byte,
 }
 
 func verifyVersion(ver []byte, manifest *artifact.ChecksumStore) error {
-	verSum, err := manifest.Get("version")
+	verSum, err := manifest.GetAndMark("version")
 	if err != nil {
 		return err
 	}
@@ -354,7 +353,7 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 		if err != nil {
 			return nil, fmt.Errorf("Invalid structure: %s, wrong element: %s", parsePath, parsePath[len(parsePath)-1])
 		}
-		err = handleHeaderReads(nextParseToken, tReader, manifestChecksumStore, ar, version)
+		err = ar.handleHeaderReads(nextParseToken, tReader, manifestChecksumStore, version)
 		if err != nil {
 			return nil, errors.Wrap(err, "readHeaderV3")
 		}
@@ -367,14 +366,27 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 			break // return and process the /data records in ReadArtifact()
 		}
 	}
+
+	// Now assign all the files we got in the manifest to the correct
+	// installers. The files are indexed by their `data/xxxx` prefix.
+	if err := ar.assignUpdateFiles(); err != nil {
+		return nil, err
+	}
+
 	return manifestChecksumStore, nil
 }
 
-func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumStore *artifact.ChecksumStore, ar *Reader, version []byte) (err error) {
+func (ar *Reader) handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumStore *artifact.ChecksumStore, version []byte) (error) {
+	var err error
 	switch headerName {
 	case "manifest":
 		// Get the data from the manifest.
-		return readManifestHeader(ar, tReader, manifestChecksumStore)
+		ar.files, err = readManifestHeader(ar, tReader, manifestChecksumStore)
+		// verify checksums of version
+		if err = verifyVersion(version, manifestChecksumStore); err != nil {
+			return err
+		}
+		return err
 	case "manifest.sig":
 		ar.IsSigned = true
 		// First read and verify signature
@@ -382,16 +394,13 @@ func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumS
 			ar.VerifySignatureCallback, ar.shouldBeSigned); err != nil {
 			return err
 		}
-		// verify checksums of version
-		if err = verifyVersion(version, manifestChecksumStore); err != nil {
-			return err
-		}
 	case "manifest-augment":
 		// Get the data from the augmented manifest.
-		return readManifestHeader(ar, tReader, manifestChecksumStore)
+		ar.augmentFiles, err = readManifestHeader(ar, tReader, manifestChecksumStore)
+		return err
 	case "header.tar.gz":
 		// Get and verify checksums of header.
-		hc, err := manifestChecksumStore.Get("header.tar.gz")
+		hc, err := manifestChecksumStore.GetAndMark("header.tar.gz")
 		if err != nil {
 			return err
 		}
@@ -401,7 +410,7 @@ func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumS
 		}
 	case "header-augment.tar.gz":
 		// Get and verify checksums of the augmented header.
-		hc, err := manifestChecksumStore.Get("header-augment.tar.gz")
+		hc, err := manifestChecksumStore.GetAndMark("header-augment.tar.gz")
 		if err != nil {
 			return err
 		}
@@ -415,17 +424,29 @@ func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumS
 	return nil
 }
 
-func readManifestHeader(ar *Reader, tReader *tar.Reader, manifestChecksumStore *artifact.ChecksumStore) error {
+func readManifestHeader(ar *Reader, tReader *tar.Reader, manifestChecksumStore *artifact.ChecksumStore) ([]handlers.DataFile, error) {
 	buf := bytes.NewBuffer(nil)
 	_, err := io.Copy(buf, tReader)
 	if err != nil {
-		return errors.Wrap(err, "readHeaderV3: Failed to copy to the byte buffer, from the tar reader")
+		return nil, errors.Wrap(err, "readHeaderV3: Failed to copy to the byte buffer, from the tar reader")
 	}
 	err = manifestChecksumStore.ReadRaw(buf.Bytes())
 	if err != nil {
-		return errors.Wrap(err, "readHeaderV3: Failed to populate the manifest's checksum store")
+		return nil, errors.Wrap(err, "readHeaderV3: Failed to populate the manifest's checksum store")
 	}
-	return nil
+	lines := bytes.Split(buf.Bytes(), []byte("\n"))
+	files := make([]handlers.DataFile, 0, len(lines))
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		split := bytes.SplitN(line, []byte("  "), 2)
+		if len(split) != 2 {
+			return nil, fmt.Errorf("Garbled entry in manifest: '%s'", line)
+		}
+		files = append(files, handlers.DataFile{Name: string(split[1])})
+	}
+	return files, nil
 }
 
 func (ar *Reader) readHeaderV2(tReader *tar.Reader,
@@ -475,8 +496,13 @@ func (ar *Reader) readHeaderV2(tReader *tar.Reader,
 
 	case "header.tar.gz":
 		// get and verify checksums of header
-		hc, err := manifest.Get("header.tar.gz")
+		hc, err := manifest.GetAndMark("header.tar.gz")
 		if err != nil {
+			return nil, err
+		}
+
+		// verify checksums of version
+		if err = verifyVersion(version, manifest); err != nil {
 			return nil, err
 		}
 
@@ -525,7 +551,18 @@ func (ar *Reader) ReadArtifact() error {
 	default:
 		return errors.Errorf("reader: unsupported version: %d", ver.Version)
 	}
-	return ar.readData(tReader, s)
+	err = ar.readData(tReader, s)
+	if err != nil {
+		return err
+	}
+	if s != nil {
+		notMarked := s.FilesNotMarked()
+		if len(notMarked) > 0 {
+			return fmt.Errorf("Files found in manifest(s), that were not part of artifact: %s", strings.Join(notMarked, ", "))
+		}
+	}
+
+	return nil
 }
 
 func (ar *Reader) GetCompatibleDevices() []string {
@@ -555,47 +592,70 @@ func (ar *Reader) GetUpdates() []artifact.UpdateType {
 
 // GetArtifactProvides is version 3 specific.
 func (ar *Reader) GetArtifactProvides() *artifact.ArtifactProvides {
-	h3, ok := ar.hInfo.(*artifact.HeaderInfoV3)
-	if !ok {
-		return nil
-	}
-	return h3.ArtifactProvides
+	print("TODO\n")
+	return ar.hInfo.GetArtifactProvides()
 }
 
 // GetArtifactDepends is version 3 specific.
 func (ar *Reader) GetArtifactDepends() *artifact.ArtifactDepends {
-	h3, ok := ar.hInfo.(*artifact.HeaderInfoV3)
-	if !ok {
-		return nil
-	}
-	return h3.ArtifactDepends
+	print("TODO\n")
+	return ar.hInfo.GetArtifactDepends()
 }
 
-func (ar *Reader) setInstallers(upd []artifact.UpdateType) error {
+func (ar *Reader) setInstallers(upd []artifact.UpdateType) {
 	for i, update := range upd {
 		// set installer for given update type
 		if w, ok := ar.handlers[update.Type]; ok {
-			// NOTE ArtifactV3 specific:
-			// If the update-type has not changed, do not update the installer.
-			// The installer has internal state in order to handle the diffence between a read in an
-			// augmented and a regular header.
-			if installer, ok := ar.installers[i]; ok {
-				if installer.GetType() == update.Type {
-					continue
-				}
-			}
 			ar.installers[i] = w.Copy()
+		} else if ar.info.Version >= 3 {
+			// For version 3 onwards, use modules for unknown update
+			// types.
+			ar.installers[i] = handlers.NewModuleImage(update.Type)
+		} else {
+			// For older versions, use GenericV1V2, which is a stub.
+			ar.installers[i] = handlers.NewGenericV1V2(update.Type)
+		}
+	}
+}
+
+func (ar *Reader) buildInstallerIndexedFileLists(files []handlers.DataFile) ([][]*handlers.DataFile, error) {
+	fileLists := make([][](*handlers.DataFile), len(ar.installers))
+	for _, file := range files {
+		if !strings.HasPrefix(file.Name, "data" + string(os.PathSeparator)) {
 			continue
 		}
-		// NOTE: ArtifactV3 specific:
-		// Do not update the installer between the reads of the regular and augmented header,
-		// as the installer has internal state.
-		if ar.installers[i] != nil {
-			return nil
+		index, remainder, err := getUpdateNoFromManifestPath(file.Name)
+		if err != nil {
+			return nil, err
 		}
-		// if nothing else worked set generic installer for given update
-		ar.installers[i] = handlers.NewGeneric(update.Type)
+		if index < 0 || index >= len(ar.installers) {
+			return nil, fmt.Errorf("File in manifest does not belong to any update: %s", file)
+		}
+
+		fileLists[index] = append(fileLists[index], &handlers.DataFile{Name: remainder})
 	}
+	return fileLists, nil
+}
+
+func (ar *Reader) assignUpdateFiles() error {
+	fileLists, err := ar.buildInstallerIndexedFileLists(ar.files)
+	if err != nil {
+		return err
+	}
+	augmentedFileLists, err := ar.buildInstallerIndexedFileLists(ar.augmentFiles)
+	if err != nil {
+		return err
+	}
+
+	for n, inst := range ar.installers {
+		if err := inst.SetUpdateFiles(fileLists[n]); err != nil {
+			return err
+		}
+		if err := inst.SetUpdateAugmentFiles(augmentedFileLists[n]); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -614,21 +674,43 @@ func getUpdateNoFromDataPath(path string) (int, error) {
 	return strconv.Atoi(no)
 }
 
-func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header) error {
+// should be data/0000/file
+func getUpdateNoFromManifestPath(path string) (int, string, error) {
+	components := strings.Split(path, string(os.PathSeparator))
+	if len(components) != 3 || components[0] != "data" {
+		return 0, "", fmt.Errorf("Malformed manifest entry: '%s'", path)
+	}
+	if len(components[1]) != 4 {
+		return 0, "", fmt.Errorf("Manifest entry does not contain four digits: '%s'", path)
+	}
+	index, err := strconv.Atoi(components[1])
+	if err != nil {
+		return 0, "", errors.Wrapf(err, "Invalid index in manifest entry: '%s'", path)
+	}
+	return index, components[2], nil
+}
+
+func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header, augmented bool) error {
 	for {
-		updNo, err := getUpdateNoFromHeaderPath(hdr.Name)
-		if err != nil {
-			return errors.Wrapf(err, "reader: error getting header update number")
+		// Skip pure directories. mender-artifact doesn't create them,
+		// but they may exist if another tool was used to create the
+		// artifact.
+		if hdr.Typeflag != tar.TypeDir {
+			updNo, err := getUpdateNoFromHeaderPath(hdr.Name)
+			if err != nil {
+				return errors.Wrapf(err, "reader: error getting header update number")
+			}
+
+			inst, ok := ar.installers[updNo]
+			if !ok {
+				return errors.Errorf("reader: can not find parser for update: %v", hdr.Name)
+			}
+			if hErr := inst.ReadHeader(tr, hdr.Name, ar.info.Version, augmented); hErr != nil {
+				return errors.Wrap(hErr, "reader: can not read header")
+			}
 		}
 
-		inst, ok := ar.installers[updNo]
-		if !ok {
-			return errors.Errorf("reader: can not find parser for update: %v", hdr.Name)
-		}
-		if hErr := inst.ReadHeader(tr, hdr.Name, ar.info.Version); hErr != nil {
-			return errors.Wrap(hErr, "reader: can not read header")
-		}
-
+		var err error
 		hdr, err = getNext(tr)
 		if err == io.EOF {
 			return nil
@@ -703,7 +785,7 @@ func getNext(tr *tar.Reader) (*tar.Header, error) {
 }
 
 func getDataFile(i handlers.Installer, name string) *handlers.DataFile {
-	for _, file := range i.GetUpdateFiles() {
+	for _, file := range i.GetUpdateAllFiles() {
 		if name == file.Name {
 			return file
 		}
@@ -745,7 +827,7 @@ func readAndInstall(r io.Reader, i handlers.Installer,
 		// all the names of the data files in manifest are written with the
 		// archive relative path: data/0000/update.ext4
 		if manifest != nil {
-			df.Checksum, err = manifest.Get(filepath.Join(artifact.UpdatePath(no),
+			df.Checksum, err = manifest.GetAndMark(filepath.Join(artifact.UpdatePath(no),
 				hdr.FileInfo().Name()))
 			if err != nil {
 				return errors.Wrapf(err, "update: checksum missing")
@@ -766,5 +848,6 @@ func readAndInstall(r io.Reader, i handlers.Installer,
 			return errors.Wrap(err, "reader: error reading data")
 		}
 	}
+
 	return nil
 }

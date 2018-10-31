@@ -55,12 +55,9 @@ func decode(p []byte, data WriteValidator) error {
 	}
 
 	dec := json.NewDecoder(bytes.NewReader(p))
-	for {
-		if err := dec.Decode(data); err != io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
+	err := dec.Decode(data)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -73,7 +70,7 @@ func (i *Info) Write(p []byte) (n int, err error) {
 }
 
 // UpdateType provides information about the type of update.
-// At the moment we are supporting only "rootfs-image" type.
+// At the moment the only built-in type is "rootfs-image".
 type UpdateType struct {
 	Type string `json:"type"`
 }
@@ -85,6 +82,8 @@ type HeaderInfoer interface {
 	GetArtifactName() string
 	GetCompatibleDevices() []string
 	GetUpdates() []UpdateType
+	GetArtifactDepends() *ArtifactDepends
+	GetArtifactProvides() *ArtifactProvides
 }
 
 // HeaderInfo contains information of number and type of update files
@@ -151,6 +150,14 @@ func (hi *HeaderInfo) Write(p []byte) (n int, err error) {
 		return 0, err
 	}
 	return len(p), nil
+}
+
+func (hi *HeaderInfo) GetArtifactDepends() *ArtifactDepends {
+	return nil
+}
+
+func (hi *HeaderInfo) GetArtifactProvides() *ArtifactProvides {
+	return nil
 }
 
 type HeaderInfoV3 struct {
@@ -248,40 +255,10 @@ func (hi *HeaderInfoV3) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// AugmentedHeaderInfoV3 has some limitations as compared to the HeaderInfoV3.
-// This header can only contain:
-// - The type of the update.
-type AugmentedHeaderInfoV3 struct {
-	Updates []UpdateType `json:"updates"`
-}
-
-// Validate validates the correctness of the augmented-header version3.
-func (hi *AugmentedHeaderInfoV3) Validate() error {
-	// Artifact must have an update with them.
-	if len(hi.Updates) == 0 {
-		return errors.Wrap(ErrValidatingData, "Augmented Header info requires at least one update")
-	}
-	// No empty updates.
-	for _, update := range hi.Updates {
-		if update == (UpdateType{}) {
-			return errors.Wrap(ErrValidatingData, "Augmented-header requires an update type")
-		}
-	}
-	return nil
-}
-
-func (hi *AugmentedHeaderInfoV3) Write(p []byte) (n int, err error) {
-	if err := decode(p, hi); err != nil {
-		return 0, err
-	}
-	return len(p), nil
-}
-
 type ArtifactDepends struct {
 	ArtifactName         []string `json:"artifact_name,omitempty"`
 	CompatibleDevices    []string `json:"device_type,omitempty"`
 	ArtifactGroup        []string `json:"artifact_group,omitempty"`
-	UpdateTypesSupported []string `json:"update_types_supported,omitempty"`
 }
 
 type ArtifactProvides struct {
@@ -311,13 +288,9 @@ func (ti *TypeInfo) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-type TypeInfoDepends struct {
-	RootfsChecksum string `json:"rootfs_image_checksum"`
-}
+type TypeInfoDepends map[string]string
 
-type TypeInfoProvides struct {
-	RootfsChecksum string `json:"rootfs_image_checksum"`
-}
+type TypeInfoProvides map[string]string
 
 // TypeInfoV3 provides information about the type of update contained within the
 // headerstructure.
@@ -345,6 +318,14 @@ func (ti *TypeInfoV3) Write(b []byte) (n int, err error) {
 		return 0, err
 	}
 	return len(b), nil
+}
+
+func (hi *HeaderInfoV3) GetArtifactDepends() *ArtifactDepends {
+	return hi.ArtifactDepends
+}
+
+func (hi *HeaderInfoV3) GetArtifactProvides() *ArtifactProvides {
+	return hi.ArtifactProvides
 }
 
 // Metadata contains artifacts metadata information. The exact metadata fields
@@ -379,9 +360,6 @@ type Files struct {
 
 // Validate checks format of Files.
 func (f Files) Validate() error {
-	if len(f.FileList) == 0 {
-		return errors.Wrap(ErrValidatingData, "Files list cannot be empty")
-	}
 	for _, f := range f.FileList {
 		if len(f) == 0 {
 			return errors.Wrap(ErrValidatingData, "File in FileList requires a name")
@@ -395,16 +373,4 @@ func (f *Files) Write(p []byte) (n int, err error) {
 		return 0, err
 	}
 	return len(p), nil
-}
-
-// FilesV3 can contain no files, as opposed to Files in version 1 and 2,
-// as the update is now stored in the augmented-header.
-type FilesV3 struct {
-	*Files
-}
-
-func (f FilesV3) Validate() error {
-	// Do not enforce any structure on the files format,
-	// since in version 3, a header can have an empty payload.
-	return nil
 }
