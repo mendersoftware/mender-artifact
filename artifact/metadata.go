@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"io"
 	"strings"
+	"text/template"
 
 	"github.com/pkg/errors"
 )
@@ -284,10 +285,44 @@ type ArtifactDepends struct {
 	UpdateTypesSupported []string `json:"update_types_supported,omitempty"`
 }
 
+func (a *ArtifactDepends) FormattedString() string {
+	funcMap := template.FuncMap{
+		"join": strings.Join,
+	}
+	tmpl := `{{if .ArtifactName}}{{"\tArtifact Name:\n"}}{{range .ArtifactName}}{{println "\t\t-" .}}{{end}}{{end}}
+{{- if .CompatibleDevices}}{{"\tCompatible Devices:\n"}}{{range .CompatibleDevices}}{{println "\t\t-" .}}{{end}}{{end}}
+{{- if .ArtifactGroup}}{{"\tArtifact Group:\n"}}{{range .ArtifactGroup}}{{println "\t\t-" .}}{{end}}{{end}}
+{{- if .UpdateTypesSupported}}{{"\tUpdate Types Supported:\n"}}{{range .UpdateTypesSupported}}{{println "\t\t-" .}}{{end}}{{end}}`
+	tmp := template.Must(template.New("pretty").Funcs(funcMap).Parse(tmpl))
+	buf := new(bytes.Buffer)
+	tmp.Execute(buf, a)
+	if buf.Len() > 0 {
+		return "Artifact Depends:\n" + buf.String()
+	}
+	return ""
+}
+
 type ArtifactProvides struct {
 	ArtifactName         string   `json:"artifact_name"`
 	ArtifactGroup        string   `json:"artifact_group,omitempty"`
 	SupportedUpdateTypes []string `json:"update_types_supported"` // e.g. rootfs, delta.
+}
+
+func (a *ArtifactProvides) FormattedString() string {
+	funcMap := template.FuncMap{
+		"join": strings.Join,
+	}
+	tmpl := `{{if .ArtifactName}}{{"\tArtifact Name:\n"}}{{println "\t\t-" .ArtifactName}}{{end}}
+{{- if .ArtifactGroup}}{{"\tArtifact Group:\n"}}{{println "\t\t-" .ArtifactGroup}}{{end}}
+{{- if .SupportedUpdateTypes}}{{"\tUpdate Types Supported:\n"}}{{range .SupportedUpdateTypes}}{{println "\t\t-" .}}{{end}}{{end}}`
+	tmp := template.Must(template.New("pretty").Funcs(funcMap).Parse(tmpl))
+	buf := new(bytes.Buffer)
+	tmp.Execute(buf, a)
+	if buf.Len() > 0 {
+		return "Artifact Provides:\n" + buf.String()
+	}
+	return ""
+
 }
 
 // TypeInfo provides information of type of individual updates

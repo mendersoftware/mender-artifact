@@ -252,9 +252,27 @@ func run() error {
 		},
 	}
 
+	readProvides := cli.Command{
+		Name:        "read-provides",
+		Usage:       "List all artifact-provides",
+		Action:      listProvides,
+		UsageText:   "mender-artifact read-provides <pathspec>",
+		Description: "This command lists all the provides of a Mender image or an artifact",
+	}
+
+	readDepends := cli.Command{
+		Name:        "read-depends",
+		Usage:       "List all artifact-depends",
+		Action:      listDepends,
+		UsageText:   "mender-artifact read-depends <pathspec>",
+		Description: "This command lists all the depends of a Mender image or an artifact",
+	}
+
 	app.Commands = []cli.Command{
 		writeCommand,
 		readCommand,
+		readProvides,
+		readDepends,
 		validate,
 		sign,
 		modify,

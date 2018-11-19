@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -483,4 +484,35 @@ func TestHeaderInfo(t *testing.T) {
 	assert.Equal(t, hi.GetArtifactName(), "release-1")
 	assert.Equal(t, hi.Updates[0].Type, "rootfs-image")
 	assert.Equal(t, hi.GetCompatibleDevices()[0], "vexpress-qemu")
+}
+
+func TestArtifactDependsFormattedString(t *testing.T) {
+	a := &ArtifactDepends{ArtifactName: []string{"release-0", "release-1"}, UpdateTypesSupported: []string{"rootfs-image"}}
+	expected := `
+Artifact Depends:
+	Artifact Name:
+		- release-0
+		- release-1
+	Update Types Supported:
+		- rootfs-image
+`
+	assert.Equal(t, strings.TrimLeft(expected, "\n"), a.FormattedString())
+	// Empty depends returns nothing.
+	a = &ArtifactDepends{}
+	assert.Equal(t, "", a.FormattedString())
+}
+
+func TestArtifactProvidesFormattedString(t *testing.T) {
+	a := &ArtifactProvides{ArtifactName: "release-1", SupportedUpdateTypes: []string{"rootfs-image"}}
+	expected := `
+Artifact Provides:
+	Artifact Name:
+		- release-1
+	Update Types Supported:
+		- rootfs-image
+`
+	assert.Equal(t, strings.TrimLeft(expected, "\n"), a.FormattedString())
+	// Empty provides returns nothing.
+	a = &ArtifactProvides{}
+	assert.Equal(t, "", a.FormattedString())
 }

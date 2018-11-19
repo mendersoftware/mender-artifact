@@ -49,4 +49,28 @@ func TestArtifactsRead(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, errArtifactOpen, lastExitCode)
 	assert.Contains(t, fakeErrWriter.String(), "no such file")
+
+	err = WriteArtifact(updateTestDir, 3, "")
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "read", filepath.Join(updateTestDir, "artifact.mender")}
+	err = run()
+	assert.NoError(t, err)
+}
+
+func TestReadDependsAndProvides(t *testing.T) {
+	// first create archive, that we will be able to read
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	err := WriteArtifact(updateTestDir, 3, "")
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "read-depends", filepath.Join(updateTestDir, "artifact.mender")}
+	err = run()
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "read-provides", filepath.Join(updateTestDir, "artifact.mender")}
+	err = run()
+	assert.NoError(t, run(), "Failed to list artifact-provides")
 }
