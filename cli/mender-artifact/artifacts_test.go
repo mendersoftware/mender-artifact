@@ -134,20 +134,30 @@ func WriteArtifact(dir string, ver int, update string) error {
 	u := handlers.NewRootfsV1(update)
 
 	aw := awriter.NewWriter(f)
+	var depends *artifact.ArtifactDepends
+	var provides *artifact.ArtifactProvides
 	switch ver {
 	case 1:
 		// we are alrady having v1 handlers; do nothing
 	case 2:
 		u = handlers.NewRootfsV2(update)
+	case 3:
+		u = handlers.NewRootfsV3(update)
+		depends = &artifact.ArtifactDepends{
+			ArtifactName:      []string{"release-0", "release-1"},
+			CompatibleDevices: []string{"vexpress-qemu", "beaglebone-black"}}
+		provides = &artifact.ArtifactProvides{ArtifactName: "release-2", SupportedUpdateTypes: []string{"rootfs-image"}}
 	}
 
 	updates := &awriter.Updates{U: []handlers.Composer{u}}
 	return aw.WriteArtifact(&awriter.WriteArtifactArgs{
-		Format:  "mender",
-		Name:    "test-artifact",
-		Version: ver,
-		Devices: []string{"vexpress"},
-		Updates: updates,
+		Format:   "mender",
+		Name:     "test-artifact",
+		Version:  ver,
+		Devices:  []string{"vexpress"},
+		Updates:  updates,
+		Depends:  depends,
+		Provides: provides,
 	})
 }
 

@@ -83,7 +83,12 @@ func readArtifact(c *cli.Context) error {
 	fmt.Printf("  Format: %s\n", info.Format)
 	fmt.Printf("  Version: %d\n", info.Version)
 	fmt.Printf("  Signature: %s\n", sigInfo)
-	fmt.Printf("  Compatible devices: '%s'\n", r.GetCompatibleDevices())
+	if info.Version == 3 {
+		fmt.Printf("\n%s", r.GetArtifactDepends())
+		fmt.Printf("\n%s\n", r.GetArtifactProvides())
+	} else {
+		fmt.Printf("  Compatible devices: '%s'\n", r.GetCompatibleDevices())
+	}
 	if len(scripts) > -1 {
 		fmt.Printf("  State scripts:\n")
 	}
@@ -103,5 +108,61 @@ func readArtifact(c *cli.Context) error {
 			fmt.Printf("      checksum: %s\n", f.Checksum)
 		}
 	}
+	return nil
+}
+
+func listDepends(c *cli.Context) error {
+	if c.NArg() == 0 {
+		return cli.NewExitError("Nothing specified, nothing read. \nMaybe you wanted"+
+			" to say 'artifacts read-depends <pathspec>'?", errArtifactInvalidParameters)
+	}
+
+	f, err := os.Open(c.Args().First())
+	if err != nil {
+		return cli.NewExitError("Can not open artifact: "+c.Args().First(),
+			errArtifactOpen)
+	}
+	defer f.Close()
+
+	ar := areader.NewReader(f)
+	r, err := read(ar, nil, nil)
+	if err != nil {
+		return cli.NewExitError(err.Error(), 0)
+	}
+
+	info := r.GetInfo()
+	if info.Version != 3 {
+		return cli.NewExitError("Artifact Depends are only available in version 3 of the artifact format", 1)
+	}
+	depends := r.GetArtifactDepends()
+	fmt.Printf("%s", depends)
+	return nil
+}
+
+func listProvides(c *cli.Context) error {
+	if c.NArg() == 0 {
+		return cli.NewExitError("Nothing specified, nothing read. \nMaybe you wanted"+
+			" to say 'artifacts read-provides <pathspec>'?", errArtifactInvalidParameters)
+	}
+
+	f, err := os.Open(c.Args().First())
+	if err != nil {
+		return cli.NewExitError("Can not open artifact: "+c.Args().First(),
+			errArtifactOpen)
+	}
+	defer f.Close()
+
+	ar := areader.NewReader(f)
+	r, err := read(ar, nil, nil)
+	if err != nil {
+		return cli.NewExitError(err.Error(), 0)
+	}
+
+	info := r.GetInfo()
+	if info.Version != 3 {
+		return cli.NewExitError("Artifact Depends are only available in version 3 of the artifact format", 1)
+	}
+	provides := r.GetArtifactProvides()
+	fmt.Printf("%s", provides)
 	return nil
 }
