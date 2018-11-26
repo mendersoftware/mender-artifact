@@ -29,6 +29,11 @@ import (
 )
 
 func modifyArtifact(c *cli.Context) error {
+	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
+	if err != nil {
+		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
+	}
+
 	if c.NArg() == 0 {
 		return cli.NewExitError("Nothing specified, nothing will be modified. \n"+
 			"Maybe you wanted to say 'artifacts read <pathspec>'?", 1)
@@ -76,7 +81,7 @@ func modifyArtifact(c *cli.Context) error {
 
 	if isArtifact {
 		// re-create the artifact
-		err := repackArtifact(c.Args().First(), modifyCandidates[0].path,
+		err := repackArtifact(comp, c.Args().First(), modifyCandidates[0].path,
 			c.String("key"), c.String("name"))
 		if err != nil {
 			return cli.NewExitError("Can not recreate artifact: "+err.Error(), 1)

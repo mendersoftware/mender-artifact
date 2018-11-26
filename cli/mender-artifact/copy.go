@@ -21,18 +21,23 @@ import (
 	"regexp"
 
 	"github.com/urfave/cli"
+	"github.com/mendersoftware/mender-artifact/artifact"
 )
 
 var isimg = regexp.MustCompile(`\.(mender|sdimg|uefiimg)`)
 
 func Cat(c *cli.Context) (err error) {
+	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
+	if err != nil {
+		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
+	}
 	if c.NArg() != 1 {
 		return cli.NewExitError(fmt.Sprintf("Got %d arguments, wants one", c.NArg()), 1)
 	}
 	if !isimg.MatchString(c.Args().First()) {
 		return cli.NewExitError("The input image does not seem to be a valid image", 1)
 	}
-	r, err := NewPartitionFile(c.Args().First(), c.String("key"))
+	r, err := NewPartitionFile(comp, c.Args().First(), c.String("key"))
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)
 	}
@@ -44,6 +49,11 @@ func Cat(c *cli.Context) (err error) {
 }
 
 func Copy(c *cli.Context) (err error) {
+	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
+	if err != nil {
+		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
+	}
+
 	var r io.ReadCloser
 	var w io.WriteCloser
 	switch parseCLIOptions(c) {
@@ -53,20 +63,20 @@ func Copy(c *cli.Context) (err error) {
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		w, err = NewPartitionFile(c.Args().Get(1), c.String("key"))
+		w, err = NewPartitionFile(comp, c.Args().Get(1), c.String("key"))
 		if err != nil {
 			w.Close()
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 	case copyinstdin:
 		r = os.Stdin
-		w, err = NewPartitionFile(c.Args().First(), c.String("key"))
+		w, err = NewPartitionFile(comp, c.Args().First(), c.String("key"))
 		if err != nil {
 			w.Close()
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 	case copyout:
-		r, err = NewPartitionFile(c.Args().First(), c.String("key"))
+		r, err = NewPartitionFile(comp, c.Args().First(), c.String("key"))
 		defer r.Close()
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
@@ -95,6 +105,11 @@ func Copy(c *cli.Context) (err error) {
 // Install installs a file from the host filesystem onto either
 // a mender artifact, or an sdimg.
 func Install(c *cli.Context) (err error) {
+	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
+	if err != nil {
+		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
+	}
+
 	var r io.ReadCloser
 	var w io.WriteCloser
 	switch parseCLIOptions(c) {
@@ -109,7 +124,7 @@ func Install(c *cli.Context) (err error) {
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		w, err = NewPartitionFile(c.Args().Get(1), c.String("key"))
+		w, err = NewPartitionFile(comp, c.Args().Get(1), c.String("key"))
 		defer w.Close()
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)

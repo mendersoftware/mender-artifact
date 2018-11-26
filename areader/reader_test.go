@@ -1,4 +1,4 @@
-// Copyright 2017 Northern.tech AS
+// Copyright 2018 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ package areader
 import (
 	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"io"
 	"io/ioutil"
 	"os"
@@ -71,20 +70,22 @@ func MakeRootfsImageArtifact(version int, signed bool,
 	}
 	defer os.Remove(upd)
 
+	comp := artifact.NewCompressorGzip()
+
 	art := bytes.NewBuffer(nil)
 	var aw *awriter.Writer
 	if !signed {
-		aw = awriter.NewWriter(art)
+		aw = awriter.NewWriter(art, comp)
 	} else {
 		s := artifact.NewSigner([]byte(PrivateKey))
-		aw = awriter.NewWriterSigned(art, s)
+		aw = awriter.NewWriterSigned(art, comp, s)
 	}
 	var u handlers.Composer
 	switch version {
 	case 1:
-		u = handlers.NewRootfsV1(upd)
+		u = handlers.NewRootfsV1(upd, comp)
 	case 2:
-		u = handlers.NewRootfsV2(upd)
+		u = handlers.NewRootfsV2(upd, comp)
 	}
 
 	scr := artifact.Scripts{}
@@ -308,8 +309,10 @@ func (i *installer) Install(r io.Reader, info *os.FileInfo) error {
 }
 
 func writeDataFile(t *testing.T, name, data string) io.Reader {
+	comp := artifact.NewCompressorGzip()
+
 	buf := bytes.NewBuffer(nil)
-	gz := gzip.NewWriter(buf)
+	gz := comp.NewWriter(buf)
 	tw := tar.NewWriter(gz)
 	sw := artifact.NewTarWriterStream(tw)
 	err := sw.Write([]byte(data), name)
@@ -323,7 +326,9 @@ func writeDataFile(t *testing.T, name, data string) io.Reader {
 }
 
 func TestReadAndInstall(t *testing.T) {
-	err := readAndInstall(bytes.NewBuffer(nil), nil, nil, 1)
+	comp := artifact.NewCompressorGzip()
+
+	err := readAndInstall(bytes.NewBuffer(nil), nil, nil, 1, comp)
 	assert.Error(t, err)
 	assert.Equal(t, "EOF", errors.Cause(err).Error())
 
@@ -335,7 +340,7 @@ func TestReadAndInstall(t *testing.T) {
 		},
 	}
 	r := writeDataFile(t, "update.ext4", "data")
-	err = readAndInstall(r, i, nil, 1)
+	err = readAndInstall(r, i, nil, 1, comp)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(len("data")), i.GetUpdateFiles()[0].Size)
 
@@ -346,7 +351,7 @@ func TestReadAndInstall(t *testing.T) {
 		},
 	}
 	r = writeDataFile(t, "update.ext4", "data")
-	err = readAndInstall(r, i, nil, 1)
+	err = readAndInstall(r, i, nil, 1, comp)
 	assert.Error(t, err)
 	assert.Equal(t, "update: can not find data file: update.ext4",
 		errors.Cause(err).Error())
@@ -358,7 +363,7 @@ func TestReadAndInstall(t *testing.T) {
 		},
 	}
 	r = writeDataFile(t, "update.ext4", "data")
-	err = readAndInstall(r, i, nil, 1)
+	err = readAndInstall(r, i, nil, 1, comp)
 	assert.Error(t, err)
 	assert.Equal(t, "update: checksum missing for file: update.ext4",
 		errors.Cause(err).Error())
@@ -372,7 +377,7 @@ func TestReadAndInstall(t *testing.T) {
 		},
 	}
 	r = writeDataFile(t, "update.ext4", "data")
-	err = readAndInstall(r, i, m, 1)
+	err = readAndInstall(r, i, m, 1, comp)
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(), "checksum missing")
 
@@ -384,7 +389,7 @@ func TestReadAndInstall(t *testing.T) {
 		},
 	}
 	r = writeDataFile(t, "update.ext4", "data")
-	err = readAndInstall(r, i, nil, 1)
+	err = readAndInstall(r, i, nil, 1, comp)
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(), "invalid checksum")
 
@@ -392,7 +397,7 @@ func TestReadAndInstall(t *testing.T) {
 	err = m.Add("update.ext4", []byte("3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7"))
 	assert.NoError(t, err)
 	r = writeDataFile(t, "update.ext4", "data")
-	err = readAndInstall(r, i, m, 1)
+	err = readAndInstall(r, i, m, 1, comp)
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(), "checksum missing")
 }
