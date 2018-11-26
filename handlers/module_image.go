@@ -15,9 +15,8 @@
 package handlers
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -28,11 +27,15 @@ import (
 )
 
 type ModuleImage struct {
-	version      int
-	updateType   string
-	files        [](*DataFile)
-	augmentFiles [](*DataFile)
-	typeInfoV3   *artifact.TypeInfoV3
+	version    int
+	updateType string
+	files      [](*DataFile)
+	typeInfoV3 *artifact.TypeInfoV3
+	metaData   map[string]interface{}
+
+	// If this is an augmented ModuleImage instance, pointer to the
+	// original. This is nil, if this instance is the original.
+	original ArtifactUpdate
 }
 
 func NewModuleImage(updateType string) *ModuleImage {
@@ -43,63 +46,337 @@ func NewModuleImage(updateType string) *ModuleImage {
 	return &mi
 }
 
-func (img *ModuleImage) Copy() Installer {
+func NewAugmentedModuleImage(orig ArtifactUpdate, updateType string) *ModuleImage {
+	mi := NewModuleImage(updateType)
+	mi.original = orig
+	return mi
+}
+
+func (img *ModuleImage) NewAugmentedInstance(orig ArtifactUpdate) (Installer, error) {
+	return NewAugmentedModuleImage(orig, img.updateType), nil
+}
+
+func (img *ModuleImage) NewInstance() Installer {
 	newImg := ModuleImage{
-		version:      img.version,
-		updateType:   img.updateType,
-		files:        make([](*DataFile), len(img.files)),
-		augmentFiles: make([](*DataFile), len(img.augmentFiles)),
+		version:    img.version,
+		updateType: img.updateType,
 	}
-	for n, f := range img.files {
-		newImg.files[n] = new(DataFile)
-		*newImg.files[n] = *f
-	}
-	for n, f := range img.augmentFiles {
-		newImg.augmentFiles[n] = new(DataFile)
-		*newImg.augmentFiles[n] = *f
-	}
+
 	return &newImg
 }
 
-func (img *ModuleImage) GetType() string {
+func (img *ModuleImage) GetVersion() int {
+	return img.version
+}
+
+func (img *ModuleImage) GetUpdateType() string {
 	return img.updateType
 }
 
+func (img *ModuleImage) GetUpdateOriginalType() string {
+	if img.original != nil {
+		return img.original.GetUpdateType()
+	} else {
+		return ""
+	}
+}
+
 func (img *ModuleImage) GetUpdateFiles() [](*DataFile) {
-	return img.files
+	if img.original == nil {
+		return img.files
+	} else {
+		return img.original.GetUpdateFiles()
+	}
 }
 
 func (img *ModuleImage) GetUpdateAugmentFiles() [](*DataFile) {
-	return img.augmentFiles
+	if img.original == nil {
+		// Not an augmented updater.
+		return []*DataFile{}
+	} else {
+		return img.files
+	}
 }
 
 func (img *ModuleImage) SetUpdateFiles(files [](*DataFile)) error {
-	img.files = files
-	return nil
+	if img.original == nil {
+		img.files = files
+		return nil
+	} else {
+		return img.original.SetUpdateFiles(files)
+	}
 }
 
 func (img *ModuleImage) SetUpdateAugmentFiles(files [](*DataFile)) error {
-	img.augmentFiles = files
+	if img.original == nil {
+		if len(files) > 0 {
+			return errors.New("Cannot add augmented files to non-augmented update")
+		}
+	} else {
+		img.files = files
+	}
 	return nil
 }
 
 func (img *ModuleImage) GetUpdateAllFiles() [](*DataFile) {
-	allFiles := make([](*DataFile), 0, len(img.files)+len(img.augmentFiles))
-	for n := range img.files {
-		allFiles = append(allFiles, img.files[n])
+	files := img.GetUpdateFiles()
+	augmentFiles := img.GetUpdateAugmentFiles()
+	allFiles := make([](*DataFile), 0, len(files)+len(augmentFiles))
+	for n := range files {
+		allFiles = append(allFiles, files[n])
 	}
-	for n := range img.augmentFiles {
-		allFiles = append(allFiles, img.augmentFiles[n])
+	for n := range augmentFiles {
+		allFiles = append(allFiles, augmentFiles[n])
 	}
 	return allFiles
 }
 
-func (img *ModuleImage) GetUpdateDepends() *artifact.TypeInfoDepends {
-	return img.typeInfoV3.ArtifactDepends
+func (img *ModuleImage) GetUpdateOriginalDepends() *artifact.TypeInfoDepends {
+	if img.original == nil {
+		return img.typeInfoV3.ArtifactDepends
+	} else {
+		return img.original.GetUpdateOriginalDepends()
+	}
 }
 
-func (img *ModuleImage) GetUpdateProvides() *artifact.TypeInfoProvides {
-	return img.typeInfoV3.ArtifactProvides
+func (img *ModuleImage) GetUpdateOriginalProvides() *artifact.TypeInfoProvides {
+	if img.original == nil {
+		return img.typeInfoV3.ArtifactProvides
+	} else {
+		return img.original.GetUpdateOriginalProvides()
+	}
+}
+
+func (img *ModuleImage) GetUpdateOriginalMetaData() map[string]interface{} {
+	if img.original == nil {
+		return img.metaData
+	} else {
+		return img.original.GetUpdateOriginalMetaData()
+	}
+}
+
+func (img *ModuleImage) setUpdateOriginalMetaData(metaData map[string]interface{}) error {
+	if img.original == nil {
+		img.metaData = metaData
+		return nil
+	} else {
+		return errors.New("Cannot set original meta-data after augmented instance has been created")
+	}
+}
+
+func (img *ModuleImage) GetUpdateAugmentDepends() *artifact.TypeInfoDepends {
+	if img.original == nil {
+		ret := make(artifact.TypeInfoDepends)
+		return &ret
+	} else {
+		return img.typeInfoV3.ArtifactDepends
+	}
+}
+
+func (img *ModuleImage) GetUpdateAugmentProvides() *artifact.TypeInfoProvides {
+	if img.original == nil {
+		ret := make(artifact.TypeInfoProvides)
+		return &ret
+	} else {
+		return img.typeInfoV3.ArtifactProvides
+	}
+}
+
+func (img *ModuleImage) GetUpdateAugmentMetaData() map[string]interface{} {
+	if img.original == nil {
+		return make(map[string]interface{})
+	} else {
+		return img.metaData
+	}
+}
+
+func (img *ModuleImage) setUpdateAugmentMetaData(metaData map[string]interface{}) error {
+	if img.original == nil {
+		if len(metaData) > 0 {
+			return errors.New("Tried to set augmented meta-data on a non-augmented update")
+		}
+	} else {
+		img.metaData = metaData
+
+		// Check that we can merge original and augmented meta data.
+		_, err := mergeJsonStructures(img.GetUpdateOriginalMetaData(), img.GetUpdateAugmentMetaData())
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Copies JSON structures, with the additional restriction that lists cannot
+// contain any object or list.
+func jsonDeepCopy(src interface{}) (interface{}, error) {
+	switch item := src.(type) {
+	case map[string]interface{}:
+		dst := make(map[string]interface{})
+		for key := range item {
+			obj, err := jsonDeepCopy(item[key])
+			if err != nil {
+				return nil, errors.Wrap(err, key)
+			}
+			dst[key] = obj
+		}
+		return dst, nil
+	case []interface{}:
+		dst := make([]interface{}, 0, len(item))
+		for n := range item {
+			switch item[n].(type) {
+			case map[string]interface{}, []interface{}:
+				return nil, errors.New("List cannot contain JSON object or list")
+			}
+			dst = append(dst, item[n])
+		}
+		return dst, nil
+	default:
+		return src, nil
+	}
+}
+
+func mergeJsonStructures(orig, override map[string]interface{}) (map[string]interface{}, error) {
+	// TODO: this function needs to take security into account. See the
+	// 'PermittedAugmentedHeaders' section of the update modules spec.
+
+	copy, err := jsonDeepCopy(orig)
+	if err != nil {
+		return nil, err
+	}
+	merged := copy.(map[string]interface{})
+	for key := range override {
+		if _, ok := merged[key]; !ok {
+			merged[key], err = jsonDeepCopy(override[key])
+			if err != nil {
+				return nil, errors.Wrap(err, key)
+			}
+			continue
+		}
+
+		switch overrideValue := override[key].(type) {
+		case map[string]interface{}:
+			var origValue map[string]interface{}
+			var ok bool
+			if origValue, ok = orig[key].(map[string]interface{}); !ok {
+				return nil, fmt.Errorf("%s: Cannot combine JSON object with non-object.")
+			}
+			var err error
+			merged[key], err = mergeJsonStructures(origValue, overrideValue)
+			if err != nil {
+				return nil, errors.Wrap(err, key)
+			}
+			continue
+
+		case []interface{}:
+			if _, ok := orig[key].([]interface{}); !ok {
+				return nil, fmt.Errorf("%s: Type conflict: list/non-list")
+			}
+			// fall through to bottom
+
+		default:
+			if _, ok := orig[key].(map[string]interface{}); ok {
+				return nil, fmt.Errorf("%s: Type conflict: object/non-object")
+			}
+			if _, ok := orig[key].([]interface{}); ok {
+				return nil, fmt.Errorf("%s: Type conflict: list/non-list")
+			}
+			// fall through to bottom
+		}
+
+		obj, err := jsonDeepCopy(override[key])
+		if err != nil {
+			return nil, errors.Wrap(err, key)
+		}
+		merged[key] = obj
+	}
+	return merged, nil
+}
+
+// Transforms JSON from structs into a generic map[string]interface{}
+// structure. It's a bit heavy handed, but allows us to use mergeJsonStructures,
+// since this function would be complicated to reimplement for specific
+// structures.
+func transformStructToGenericMap(data interface{}) (map[string]interface{}, error) {
+	origJson, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	var generic map[string]interface{}
+	err = json.Unmarshal(origJson, &generic)
+	if err != nil {
+		return nil, err
+	}
+	return generic, nil
+}
+
+// Inverse of the above function.
+func transformGenericMapToStruct(src map[string]interface{}, dst interface{}) error {
+	origJson, err := json.Marshal(src)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(origJson, dst)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (img *ModuleImage) GetUpdateDepends() (*artifact.TypeInfoDepends, error) {
+	orig, err := transformStructToGenericMap(img.GetUpdateOriginalDepends())
+	if err != nil {
+		return nil, err
+	}
+	augm, err := transformStructToGenericMap(img.GetUpdateAugmentDepends())
+	if err != nil {
+		return nil, err
+	}
+
+	merged, err := mergeJsonStructures(orig, augm)
+	if err != nil {
+		return nil, err
+	}
+
+	var depends artifact.TypeInfoDepends
+	err = transformGenericMapToStruct(merged, &depends)
+	if err != nil {
+		return nil, err
+	}
+
+	return &depends, nil
+}
+
+func (img *ModuleImage) GetUpdateProvides() (*artifact.TypeInfoProvides, error) {
+	orig, err := transformStructToGenericMap(img.GetUpdateOriginalProvides())
+	if err != nil {
+		return nil, err
+	}
+	augm, err := transformStructToGenericMap(img.GetUpdateAugmentProvides())
+	if err != nil {
+		return nil, err
+	}
+
+	merged, err := mergeJsonStructures(orig, augm)
+	if err != nil {
+		return nil, err
+	}
+
+	var provides artifact.TypeInfoProvides
+	err = transformGenericMapToStruct(merged, &provides)
+	if err != nil {
+		return nil, err
+	}
+
+	return &provides, nil
+}
+
+func (img *ModuleImage) GetUpdateMetaData() (map[string]interface{}, error) {
+	merged, err := mergeJsonStructures(img.GetUpdateOriginalMetaData(), img.GetUpdateAugmentMetaData())
+	if err != nil {
+		return nil, err
+	}
+	return merged, nil
 }
 
 func (img *ModuleImage) ComposeHeader(args *ComposeHeaderArgs) error {
@@ -132,62 +409,41 @@ func (img *ModuleImage) ComposeHeader(args *ComposeHeaderArgs) error {
 	return nil
 }
 
-func (img *ModuleImage) ComposeData(tw *tar.Writer, no int) error {
-	f, ferr := ioutil.TempFile("", "data")
-	if ferr != nil {
-		return errors.New("update: can not create temporary data file")
-	}
-	defer os.Remove(f.Name())
-
-	err := func() error {
-		gz := gzip.NewWriter(f)
-		defer gz.Close()
-
-		tarw := tar.NewWriter(gz)
-		defer tarw.Close()
-
-		for _, file := range img.GetUpdateAllFiles() {
-			df, err := os.Open(file.Name)
-			if err != nil {
-				return errors.Wrapf(err, "update: can not open data file: %s", file.Name)
-			}
-			fw := artifact.NewTarWriterFile(tarw)
-			if err := fw.Write(df, filepath.Base(file.Name)); err != nil {
-				df.Close()
-				return errors.Wrapf(err,
-					"update: can not write tar temp data header: %v", file)
-			}
-			df.Close()
-		}
-		return nil
-	}()
-
-	if err != nil {
-		return err
-	}
-
-	if _, err = f.Seek(0, 0); err != nil {
-		return errors.Wrap(err, "update: can not reset file position")
-	}
-
-	dfw := artifact.NewTarWriterFile(tw)
-	if err = dfw.Write(f, artifact.UpdateDataPath(no)); err != nil {
-		return errors.Wrap(err, "update: can not write tar data header")
-	}
-	return nil
-}
-
 func (img *ModuleImage) ReadHeader(r io.Reader, path string, version int, augmented bool) error {
+	// Check that augmented flag and our image original instance match.
+	if augmented != (img.original != nil) {
+		return errors.New("ModuleImage.ReadHeader called with unexpected augmented parameter")
+	}
+
 	img.version = version
 	switch {
-	case filepath.Base(path) == "type-info",
-		filepath.Base(path) == "meta-data":
-		// TODO: implement when needed
-	case match(artifact.HeaderDirectory+"/*/scripts/*/*", path):
-		if augmented {
-			return errors.New("scripts not allowed in augmented header")
+	case filepath.Base(path) == "type-info":
+		dec := json.NewDecoder(r)
+		err := dec.Decode(&img.typeInfoV3)
+		if err != nil {
+			return errors.Wrap(err, "error reading type-info")
 		}
-		// TODO: implement when needed
+	case filepath.Base(path) == "meta-data":
+		dec := json.NewDecoder(r)
+		var data interface{}
+		err := dec.Decode(&data)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return errors.Wrap(err, "error reading meta-data")
+		}
+		jsonObj, ok := data.(map[string]interface{})
+		if !ok {
+			return errors.New("Top level object in meta-data must be a JSON object")
+		}
+		if augmented {
+			err = img.setUpdateAugmentMetaData(jsonObj)
+		} else {
+			err = img.setUpdateOriginalMetaData(jsonObj)
+		}
+		if err != nil {
+			return err
+		}
 	default:
 		return errors.Errorf("update: unsupported file: %v", path)
 	}
@@ -195,7 +451,6 @@ func (img *ModuleImage) ReadHeader(r io.Reader, path string, version int, augmen
 }
 
 func (img *ModuleImage) Install(r io.Reader, info *os.FileInfo) error {
-	print("TODO!!!\n")
 	io.Copy(ioutil.Discard, r)
 	return nil
 }

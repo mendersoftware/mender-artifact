@@ -18,8 +18,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"io"
-	"io/ioutil"
-	"os"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -29,7 +27,7 @@ import (
 func TestHandlerRootfs(t *testing.T) {
 	// test if update type is reported correctly
 	r := NewRootfsV1("")
-	require.Equal(t, "rootfs-image", r.GetType())
+	require.Equal(t, "rootfs-image", r.GetUpdateType())
 
 	// test get update files
 	r.update = &DataFile{Name: "update.ext4"}
@@ -37,7 +35,7 @@ func TestHandlerRootfs(t *testing.T) {
 	require.Equal(t, 1, r.version)
 
 	r = NewRootfsV2("")
-	require.Equal(t, "rootfs-image", r.GetType())
+	require.Equal(t, "rootfs-image", r.GetUpdateType())
 
 	// test get update files
 	r.update = &DataFile{Name: "update_next.ext4"}
@@ -45,64 +43,8 @@ func TestHandlerRootfs(t *testing.T) {
 	require.Equal(t, 2, r.version)
 
 	// test cppy
-	n := r.Copy()
+	n := r.NewInstance()
 	require.IsType(t, &Rootfs{}, n)
-}
-
-func TestRootfsCompose(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
-	tw := tar.NewWriter(buf)
-	defer tw.Close()
-
-	f, err := ioutil.TempFile("", "update")
-	require.NoError(t, err)
-	defer os.Remove(f.Name())
-
-	var r Composer
-	r = NewRootfsV1(f.Name())
-	err = r.ComposeHeader(&ComposeHeaderArgs{
-		TarWriter: tw,
-		No:        1,
-	})
-	require.NoError(t, err)
-
-	err = r.ComposeData(tw, 1)
-	require.NoError(t, err)
-
-	// error compose data with missing data file
-	r = NewRootfsV1("non-existing")
-	err = r.ComposeData(tw, 1)
-	require.Error(t, err)
-	require.Contains(t, errors.Cause(err).Error(),
-		"no such file or directory")
-
-	// Artifact format version 3
-	r = NewRootfsV3(f.Name())
-	err = r.ComposeHeader(&ComposeHeaderArgs{
-		TarWriter: tw,
-		No:        3,
-	})
-	require.NoError(t, err, "failed to compose the rootfs header - version 3")
-
-	// Artifact format version 3, augmented
-	r = NewRootfsV3(f.Name())
-	err = r.ComposeHeader(&ComposeHeaderArgs{
-		TarWriter: tw,
-		Augmented: true,
-		No:        3,
-	})
-	require.NoError(t, err, "failed to compose the rootfs header - version 3")
-
-	// Artifact format version 3, augmented - fail write.
-	r = NewRootfsV3(f.Name())
-	tw = tar.NewWriter(new(TestErrWriter))
-	err = r.ComposeHeader(&ComposeHeaderArgs{
-		TarWriter: tw,
-		Augmented: true,
-		No:        3,
-	})
-	require.Contains(t, err.Error(), "can not tar type-info")
-
 }
 
 type TestErrWriter bytes.Buffer
@@ -147,16 +89,16 @@ func TestRootfsReadHeader(t *testing.T) {
 		/////////////////////////
 		{rootfs: NewRootfsV3("custom"), data: `{"files":["update.ext4", "next_update.ext4"]}`,
 			name: "headers/0000/files", shouldErr: true, version: 3,
-			errMsg: "\"files\" entry found in version 3 artifact",
+			errMsg:             "\"files\" entry found in version 3 artifact",
 			shouldErrAugmented: true,
-			errMsgAugmented: "\"files\" entry found in version 3 artifact",},
+			errMsgAugmented:    "\"files\" entry found in version 3 artifact"},
 		{rootfs: NewRootfsV3("custom"), data: "",
 			name: "headers/0000/unexpected-file", shouldErr: true, version: 3,
-			errMsg: "unsupported file",
+			errMsg:             "unsupported file",
 			shouldErrAugmented: true,
-			errMsgAugmented: "unsupported file",},
+			errMsgAugmented:    "unsupported file"},
 		{rootfs: NewRootfsV3("custom"), data: "",
-			name: "headers/0000/type-info", shouldErr: false, version: 3,},
+			name: "headers/0000/type-info", shouldErr: false, version: 3},
 	}
 
 	for _, test := range tc {

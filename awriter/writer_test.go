@@ -79,7 +79,7 @@ func TestWriteArtifact(t *testing.T) {
 		Name:    "name",
 		Version: 1,
 		Devices: []string{"asd"},
-		Updates: &Updates{[]handlers.Composer{u}},
+		Updates: &Updates{Updates: []handlers.Composer{u}},
 	})
 	assert.NoError(t, err)
 
@@ -99,7 +99,7 @@ func TestWriteArtifactWithUpdates(t *testing.T) {
 	defer os.Remove(upd)
 
 	u := handlers.NewRootfsV1(upd)
-	updates := &Updates{U: []handlers.Composer{u}}
+	updates := &Updates{Updates: []handlers.Composer{u}}
 
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
@@ -123,7 +123,7 @@ func TestWriteMultipleUpdates(t *testing.T) {
 
 	u1 := handlers.NewRootfsV1(upd)
 	u2 := handlers.NewRootfsV1(upd)
-	updates := &Updates{U: []handlers.Composer{u1, u2}}
+	updates := &Updates{Updates: []handlers.Composer{u1, u2}}
 
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
@@ -165,7 +165,7 @@ func TestWriteArtifactV2(t *testing.T) {
 	defer os.Remove(upd)
 
 	u := handlers.NewRootfsV2(upd)
-	updates := &Updates{U: []handlers.Composer{u}}
+	updates := &Updates{Updates: []handlers.Composer{u}}
 
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
@@ -214,7 +214,7 @@ func TestWriteArtifactV3(t *testing.T) {
 	defer os.Remove(upd)
 
 	u := handlers.NewRootfsV3(upd)
-	updates := &Updates{U: []handlers.Composer{u}}
+	updates := &Updates{Updates: []handlers.Composer{u}}
 
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
@@ -237,16 +237,14 @@ func TestWriteArtifactV3(t *testing.T) {
 		"version",
 		"manifest",
 		"manifest.sig",
-		"manifest-augment",
 		"header.tar.gz",
-		"header-augment.tar.gz",
 		"0000.tar.gz",
 	}))
 	buf.Reset()
 
 	// error writing non-existing
 	u = handlers.NewRootfsV3("non-existing")
-	updates = &Updates{U: []handlers.Composer{u}}
+	updates = &Updates{Updates: []handlers.Composer{u}}
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
 		Version: 3,
@@ -274,7 +272,7 @@ func TestWriteArtifactV3(t *testing.T) {
 	defer os.Remove(upd)
 
 	u = handlers.NewRootfsV3(upd)
-	updates = &Updates{U: []handlers.Composer{u}}
+	updates = &Updates{Updates: []handlers.Composer{u}}
 
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
@@ -296,9 +294,7 @@ func TestWriteArtifactV3(t *testing.T) {
 	assert.NoError(t, checkTarElementsByName(buf, []string{
 		"version",
 		"manifest",
-		"manifest-augment",
 		"header.tar.gz",
-		"header-augment.tar.gz",
 		"0000.tar.gz",
 	}))
 	buf.Reset()
@@ -312,7 +308,7 @@ func TestWriteArtifactV3(t *testing.T) {
 	defer os.Remove(upd)
 
 	u = handlers.NewRootfsV3(upd)
-	updates = &Updates{U: []handlers.Composer{u}}
+	updates = &Updates{Updates: []handlers.Composer{u}}
 
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
@@ -335,16 +331,14 @@ func TestWriteArtifactV3(t *testing.T) {
 		"version",
 		"manifest",
 		"manifest.sig",
-		"manifest-augment",
 		"header.tar.gz",
-		"header-augment.tar.gz",
 		"0000.tar.gz",
 	}))
 	buf.Reset()
 
 	// error writing non-existing
 	u = handlers.NewRootfsV3("non-existing")
-	updates = &Updates{U: []handlers.Composer{u}}
+	updates = &Updates{Updates: []handlers.Composer{u}}
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
 		Version: 3,
@@ -374,7 +368,7 @@ func TestWriteArtifactV3(t *testing.T) {
 	failBuf := &TestErrWriter{FailOnWriteData: []byte("version")}
 	w = NewWriterSigned(failBuf, s)
 	u = handlers.NewRootfsV3(upd)
-	updates = &Updates{U: []handlers.Composer{u}} // Update existing.
+	updates = &Updates{Updates: []handlers.Composer{u}} // Update existing.
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
 		Version: 3,
@@ -435,6 +429,10 @@ func TestWriteArtifactV3(t *testing.T) {
 	})
 	assert.Contains(t, err.Error(), "writer: can not tar header")
 
+	u = handlers.NewRootfsV3("")
+	a := handlers.NewRootfsV3(upd)
+	updates = &Updates{Updates: []handlers.Composer{u}, Augments: []handlers.Composer{a}}
+
 	// Fail writing artifact header-augment.
 	failBuf = &TestErrWriter{FailOnWriteData: []byte("header-augment.tar.gz")}
 	w = NewWriterSigned(failBuf, s)
@@ -455,6 +453,84 @@ func TestWriteArtifactV3(t *testing.T) {
 		},
 	})
 	assert.Contains(t, err.Error(), "writer: can not tar augmented-header")
+
+	// Unsigned artifact V3 with augments section.
+	buf.Reset()
+	w = NewWriter(buf)
+	upd, err = MakeFakeUpdate("my test update")
+	assert.NoError(t, err)
+	defer os.Remove(upd)
+
+	u = handlers.NewRootfsV3("")
+	a = handlers.NewRootfsV3(upd)
+	updates = &Updates{Updates: []handlers.Composer{u}, Augments: []handlers.Composer{a}}
+
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates,
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      []string{"depends-name"},
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
+	})
+	assert.NoError(t, err)
+	assert.NoError(t, checkTarElementsByName(buf, []string{
+		"version",
+		"manifest",
+		"manifest-augment",
+		"header.tar.gz",
+		"header-augment.tar.gz",
+		"0000.tar.gz",
+	}))
+	buf.Reset()
+
+	// Signed artifact V3 with augments section.
+	buf.Reset()
+	s = artifact.NewSigner([]byte(PrivateKey))
+	w = NewWriterSigned(buf, s)
+	upd, err = MakeFakeUpdate("my test update")
+	assert.NoError(t, err)
+	defer os.Remove(upd)
+
+	u = handlers.NewRootfsV3("")
+	a = handlers.NewRootfsV3(upd)
+	updates = &Updates{Updates: []handlers.Composer{u}, Augments: []handlers.Composer{a}}
+
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates,
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      []string{"depends-name"},
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
+	})
+	assert.NoError(t, err)
+	assert.NoError(t, checkTarElementsByName(buf, []string{
+		"version",
+		"manifest",
+		"manifest.sig",
+		"manifest-augment",
+		"header.tar.gz",
+		"header-augment.tar.gz",
+		"0000.tar.gz",
+	}))
+	buf.Reset()
 }
 
 func TestWithScripts(t *testing.T) {
@@ -466,7 +542,7 @@ func TestWithScripts(t *testing.T) {
 	defer os.Remove(upd)
 
 	u := handlers.NewRootfsV1(upd)
-	updates := &Updates{U: []handlers.Composer{u}}
+	updates := &Updates{Updates: []handlers.Composer{u}}
 
 	scr, err := ioutil.TempFile("", "ArtifactInstall_Enter_10_")
 	assert.NoError(t, err)
@@ -502,6 +578,10 @@ func (t *TestErrWriter) Write(b []byte) (n int, err error) {
 }
 
 func TestWriteManifestVersion(t *testing.T) {
+	augmentedChecksumStore := artifact.NewChecksumStore()
+	// Add one file to force creation of the augment section.
+	augmentedChecksumStore.Add("dummy-file", []byte("dummy-checksum"))
+
 	testcases := map[string]struct {
 		version  int
 		signer   artifact.Signer
@@ -542,18 +622,20 @@ func TestWriteManifestVersion(t *testing.T) {
 		"version 3, fail write augmented-manifest": {
 			version: 3,
 			mchk:    artifact.NewChecksumStore(),
-			augmchk: artifact.NewChecksumStore(),
+			augmchk: augmentedChecksumStore,
 			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteData: []byte("manifest-augment")}),
 			signer:  artifact.NewSigner([]byte(PrivateKey)),
 			err:     "writer: can not write manifest stream",
 		},
 	}
 
-	for _, test := range testcases {
-		err := writeManifestVersion(test.version, test.signer, test.tw, test.mchk, test.augmchk, test.aistream)
-		if test.err != "" {
-			assert.Contains(t, err.Error(), test.err)
-		}
+	for desc, test := range testcases {
+		t.Run(desc, func(t *testing.T) {
+			err := writeManifestVersion(test.version, test.signer, test.tw, test.mchk, test.augmchk, test.aistream)
+			if test.err != "" {
+				assert.Contains(t, err.Error(), test.err)
+			}
+		})
 	}
 }
 
@@ -597,4 +679,60 @@ func MakeFakeUpdateDir(updateDir string, elements []TestDirEntry) error {
 		}
 	}
 	return nil
+}
+
+func TestRootfsCompose(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	tw := tar.NewWriter(buf)
+	defer tw.Close()
+
+	f, err := ioutil.TempFile("", "update")
+	require.NoError(t, err)
+	defer os.Remove(f.Name())
+
+	var r handlers.Composer
+	r = handlers.NewRootfsV1(f.Name())
+	err = r.ComposeHeader(&handlers.ComposeHeaderArgs{
+		TarWriter: tw,
+		No:        1,
+	})
+	require.NoError(t, err)
+
+	err = writeData(tw, &Updates{[]handlers.Composer{r}, nil})
+	require.NoError(t, err)
+
+	// error compose data with missing data file
+	r = handlers.NewRootfsV1("non-existing")
+	err = writeData(tw, &Updates{[]handlers.Composer{r}, nil})
+	require.Error(t, err)
+	require.Contains(t, errors.Cause(err).Error(),
+		"no such file or directory")
+
+	// Artifact format version 3
+	r = handlers.NewRootfsV3(f.Name())
+	err = r.ComposeHeader(&handlers.ComposeHeaderArgs{
+		TarWriter: tw,
+		No:        3,
+	})
+	require.NoError(t, err, "failed to compose the rootfs header - version 3")
+
+	// Artifact format version 3, augmented
+	r = handlers.NewRootfsV3(f.Name())
+	err = r.ComposeHeader(&handlers.ComposeHeaderArgs{
+		TarWriter: tw,
+		Augmented: true,
+		No:        3,
+	})
+	require.NoError(t, err, "failed to compose the rootfs header - version 3")
+
+	// Artifact format version 3, augmented - fail write.
+	r = handlers.NewRootfsV3(f.Name())
+	tw = tar.NewWriter(new(TestErrWriter))
+	err = r.ComposeHeader(&handlers.ComposeHeaderArgs{
+		TarWriter: tw,
+		Augmented: true,
+		No:        3,
+	})
+	require.Contains(t, err.Error(), "can not tar type-info")
+
 }

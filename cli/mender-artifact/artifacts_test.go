@@ -88,7 +88,7 @@ func WriteTestArtifact(version int, update string, key []byte) (io.Reader, error
 		rfs = handlers.NewRootfsV2(update)
 	}
 
-	updates := &awriter.Updates{U: []handlers.Composer{rfs}}
+	updates := &awriter.Updates{Updates: []handlers.Composer{rfs}}
 
 	err = aw.WriteArtifact(&awriter.WriteArtifactArgs{
 		Format:  "mender",
@@ -141,7 +141,7 @@ func WriteArtifact(dir string, ver int, update string) error {
 		u = handlers.NewRootfsV2(update)
 	}
 
-	updates := &awriter.Updates{U: []handlers.Composer{u}}
+	updates := &awriter.Updates{Updates: []handlers.Composer{u}}
 	return aw.WriteArtifact(&awriter.WriteArtifactArgs{
 		Format:  "mender",
 		Name:    "test-artifact",

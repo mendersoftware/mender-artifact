@@ -256,9 +256,9 @@ func (hi *HeaderInfoV3) Write(p []byte) (n int, err error) {
 }
 
 type ArtifactDepends struct {
-	ArtifactName         []string `json:"artifact_name,omitempty"`
-	CompatibleDevices    []string `json:"device_type,omitempty"`
-	ArtifactGroup        []string `json:"artifact_group,omitempty"`
+	ArtifactName      []string `json:"artifact_name,omitempty"`
+	CompatibleDevices []string `json:"device_type,omitempty"`
+	ArtifactGroup     []string `json:"artifact_group,omitempty"`
 }
 
 type ArtifactProvides struct {

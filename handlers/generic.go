@@ -86,22 +86,60 @@ func (g *GenericV1V2) GetUpdateAllFiles() [](*DataFile) {
 	return g.GetUpdateFiles()
 }
 
-func (g *GenericV1V2) GetType() string {
+func (g *GenericV1V2) GetVersion() int {
+	return g.version
+}
+
+func (g *GenericV1V2) GetUpdateType() string {
 	return g.updateType
 }
 
-func (g *GenericV1V2) GetUpdateDepends() *artifact.TypeInfoDepends {
+func (g *GenericV1V2) GetUpdateOriginalType() string {
+	return ""
+}
+
+func (g *GenericV1V2) GetUpdateDepends() (*artifact.TypeInfoDepends, error) {
+	return nil, nil
+}
+
+func (g *GenericV1V2) GetUpdateProvides() (*artifact.TypeInfoProvides, error) {
+	return nil, nil
+}
+
+func (g *GenericV1V2) GetUpdateMetaData() (map[string]interface{}, error) {
+	return nil, nil
+}
+
+func (g *GenericV1V2) GetUpdateOriginalDepends() *artifact.TypeInfoDepends {
 	return nil
 }
 
-func (g *GenericV1V2) GetUpdateProvides() *artifact.TypeInfoProvides {
+func (g *GenericV1V2) GetUpdateOriginalProvides() *artifact.TypeInfoProvides {
 	return nil
 }
 
-// Copy is implemented only to satisfy Installer interface.
-// GenericV1V2 parser is not supposed to be copied.
-func (g *GenericV1V2) Copy() Installer {
+func (g *GenericV1V2) GetUpdateOriginalMetaData() map[string]interface{} {
 	return nil
+}
+
+func (g *GenericV1V2) GetUpdateAugmentDepends() *artifact.TypeInfoDepends {
+	return nil
+}
+
+func (g *GenericV1V2) GetUpdateAugmentProvides() *artifact.TypeInfoProvides {
+	return nil
+}
+
+func (g *GenericV1V2) GetUpdateAugmentMetaData() map[string]interface{} {
+	return nil
+}
+
+func (g *GenericV1V2) NewInstance() Installer {
+	return NewGenericV1V2(g.updateType)
+}
+
+func (g *GenericV1V2) NewAugmentedInstance(orig ArtifactUpdate) (Installer, error) {
+	return nil, errors.New("Generic update type does not support augment sections")
 }
 
 func stripSum(path string) string {
