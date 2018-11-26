@@ -49,12 +49,21 @@ func NewWriterSigned(w io.Writer, manifestChecksumStore artifact.Signer) *Writer
 }
 
 type Updates struct {
-	U []handlers.Composer
+	// Both of these are indexed the same, so Augment at index X corresponds
+	// to Update at index X.
+	Updates  []handlers.Composer
+	Augments []handlers.Composer
 }
 
 // Iterate through all data files inside `upd` and calculate checksums.
 func calcDataHash(manifestChecksumStore *artifact.ChecksumStore, upd *Updates, augmented bool) error {
-	for i, u := range upd.U {
+	var updates []handlers.Composer
+	if augmented {
+		updates = upd.Augments
+	} else {
+		updates = upd.Updates
+	}
+	for i, u := range updates {
 		var files [](*handlers.DataFile)
 		if augmented {
 			files = u.GetUpdateAugmentFiles()
@@ -207,6 +216,7 @@ func (aw *Writer) writeArtifactV1V2(args *WriteArtifactArgs) error {
 }
 
 func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
+	augmentedDataPresent := (len(args.Updates.Augments) > 0)
 
 	// Holds the checksum for the update, and 'header.tar.gz', and the 'version' file.
 	manifestChecksumStore := artifact.NewChecksumStore()
@@ -228,11 +238,15 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 		return errors.Wrap(err, "writeArtifactV3: writing header")
 	}
 	defer os.Remove(tmpHdr.Name())
-	tmpAugHdr, err := writeTempHeader(augManifestChecksumStore, "header-augment", args, true)
-	if err != nil {
-		return errors.Wrap(err, "writeArtifactV3: writing augmented header")
+
+	var tmpAugHdr *os.File
+	if augmentedDataPresent {
+		tmpAugHdr, err = writeTempHeader(augManifestChecksumStore, "header-augment", args, true)
+		if err != nil {
+			return errors.Wrap(err, "writeArtifactV3: writing augmented header")
+		}
+		defer os.Remove(tmpAugHdr.Name())
 	}
-	defer os.Remove(tmpAugHdr.Name())
 
 	////////////////////////
 	// write version file //
@@ -269,12 +283,14 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 	/////////////////////////////
 	// Write augmented-header  //
 	/////////////////////////////
-	if _, err := tmpAugHdr.Seek(0, 0); err != nil {
-		return errors.Wrapf(err, "writer: error preparing tmp augment-header for writing")
-	}
-	fw = artifact.NewTarWriterFile(tw)
-	if err := fw.Write(tmpAugHdr, "header-augment.tar.gz"); err != nil {
-		return errors.Wrapf(err, "writer: can not tar augmented-header")
+	if augmentedDataPresent {
+		if _, err := tmpAugHdr.Seek(0, 0); err != nil {
+			return errors.Wrapf(err, "writer: error preparing tmp augment-header for writing")
+		}
+		fw = artifact.NewTarWriterFile(tw)
+		if err := fw.Write(tmpAugHdr, "header-augment.tar.gz"); err != nil {
+			return errors.Wrapf(err, "writer: can not tar augmented-header")
+		}
 	}
 
 	//////////////////////////
@@ -314,10 +330,12 @@ func writeManifestVersion(version int, signer artifact.Signer, tw *tar.Writer, m
 		if err := WriteSignature(tw, manifestChecksumStore.GetRaw(), signer); err != nil {
 			return err
 		}
-		// Write the augmented manifest.
-		sw = artifact.NewTarWriterStream(tw)
-		if err := sw.Write(augmanChecksumStore.GetRaw(), "manifest-augment"); err != nil {
-			return errors.Wrapf(err, "writer: can not write manifest stream")
+		// Write the augmented manifest, if any.
+		if len(augmanChecksumStore.GetRaw()) > 0 {
+			sw = artifact.NewTarWriterStream(tw)
+			if err := sw.Write(augmanChecksumStore.GetRaw(), "manifest-augment"); err != nil {
+				return errors.Wrapf(err, "writer: can not write manifest stream")
+			}
 		}
 	case 1:
 
@@ -344,18 +362,28 @@ func writeScripts(tw *tar.Writer, scr *artifact.Scripts) error {
 	return nil
 }
 
-func extractUpdateTypes(updates *Updates) []artifact.UpdateType {
+func extractUpdateTypes(updates []handlers.Composer) []artifact.UpdateType {
 	u := []artifact.UpdateType{}
-	for _, upd := range updates.U {
-		u = append(u, artifact.UpdateType{upd.GetType()})
+	for _, upd := range updates {
+		u = append(u, artifact.UpdateType{upd.GetUpdateType()})
 	}
 	return u
 }
 
 func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs, augmented bool) error {
+	var composers []handlers.Composer
+	if augmented {
+		composers = args.Updates.Augments
+	} else {
+		composers = args.Updates.Updates
+	}
+	if len(composers) == 0 {
+		return errors.New("writeHeader: No updates added")
+	}
+
 	// store header info
 	var hInfo artifact.WriteValidator
-	upds := extractUpdateTypes(args.Updates)
+	upds := extractUpdateTypes(composers)
 	switch args.Version {
 	case 1, 2:
 		hInfo = artifact.NewHeaderInfo(args.Name, upds, args.Devices)
@@ -379,7 +407,10 @@ func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs, augmented bool)
 		}
 	}
 
-	for i, upd := range args.Updates.U {
+	for i, upd := range composers {
+		// TODO: We only have one `args` variable here, so making more
+		// than one update is kind of useless. Should probably be made
+		// into a list as well.
 		composeHeaderArgs := handlers.ComposeHeaderArgs{
 			TarWriter: tarWriter,
 			No:        i,
@@ -401,10 +432,77 @@ func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs, augmented bool)
 }
 
 func writeData(tw *tar.Writer, updates *Updates) error {
-	for i, upd := range updates.U {
-		if err := upd.ComposeData(tw, i); err != nil {
+	for i, upd := range updates.Updates {
+		var augment handlers.Composer = nil
+		if i < len(updates.Augments) {
+			augment = updates.Augments[i]
+		}
+		if err := writeOneDataTar(tw, i, upd, augment); err != nil {
 			return errors.Wrapf(err, "writer: error writing data files")
 		}
 	}
+	return nil
+}
+
+func writeOneDataTar(tw *tar.Writer, no int, baseUpdate, augmentUpdate handlers.Composer) error {
+	f, ferr := ioutil.TempFile("", "data")
+	if ferr != nil {
+		return errors.New("update: can not create temporary data file")
+	}
+	defer os.Remove(f.Name())
+
+	err := func() error {
+		gz := gzip.NewWriter(f)
+		defer gz.Close()
+
+		tarw := tar.NewWriter(gz)
+		defer tarw.Close()
+
+		for _, file := range baseUpdate.GetUpdateFiles() {
+			err := writeOneDataFile(tarw, file)
+			if err != nil {
+				return err
+			}
+		}
+		if augmentUpdate == nil {
+			return nil
+		}
+
+		for _, file := range augmentUpdate.GetUpdateAugmentFiles() {
+			err := writeOneDataFile(tarw, file)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}()
+
+	if err != nil {
+		return err
+	}
+
+	if _, err = f.Seek(0, 0); err != nil {
+		return errors.Wrap(err, "update: can not reset file position")
+	}
+
+	dfw := artifact.NewTarWriterFile(tw)
+	if err = dfw.Write(f, artifact.UpdateDataPath(no)); err != nil {
+		return errors.Wrap(err, "update: can not write tar data header")
+	}
+	return nil
+}
+
+func writeOneDataFile(tarw *tar.Writer, file *handlers.DataFile) error {
+	df, err := os.Open(file.Name)
+	if err != nil {
+		return errors.Wrapf(err, "update: can not open data file: %s", file.Name)
+	}
+	fw := artifact.NewTarWriterFile(tarw)
+	if err := fw.Write(df, filepath.Base(file.Name)); err != nil {
+		df.Close()
+		return errors.Wrapf(err,
+			"update: can not write tar temp data header: %v", file)
+	}
+	df.Close()
 	return nil
 }

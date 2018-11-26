@@ -50,28 +50,53 @@ type ComposeHeaderArgs struct {
 }
 
 type ArtifactUpdate interface {
-	GetType() string
+	GetVersion() int
+
+	// Return type of this update, which could be augmented.
+	GetUpdateType() string
+
+	// Return type of original (non-augmented) update, if any.
+	GetUpdateOriginalType() string
+
+	// Operates on non-augmented files.
 	GetUpdateFiles() [](*DataFile)
 	SetUpdateFiles(files [](*DataFile)) error
+
+	// Operates on augmented files.
 	GetUpdateAugmentFiles() [](*DataFile)
 	SetUpdateAugmentFiles(files [](*DataFile)) error
+
 	// Gets both augmented and non-augmented files.
 	GetUpdateAllFiles() [](*DataFile)
-	GetUpdateDepends() *artifact.TypeInfoDepends
-	GetUpdateProvides() *artifact.TypeInfoProvides
+
+	// Returns merged data of non-augmented and augmented data, where the
+	// latter overrides the former. Returns error if they cannot be merged.
+	GetUpdateDepends() (*artifact.TypeInfoDepends, error)
+	GetUpdateProvides() (*artifact.TypeInfoProvides, error)
+	GetUpdateMetaData() (map[string]interface{}, error) // Generic JSON
+
+	// Returns non-augmented (original) data.
+	GetUpdateOriginalDepends() *artifact.TypeInfoDepends
+	GetUpdateOriginalProvides() *artifact.TypeInfoProvides
+	GetUpdateOriginalMetaData() map[string]interface{} // Generic JSON
+
+	// Returns augmented data.
+	GetUpdateAugmentDepends() *artifact.TypeInfoDepends
+	GetUpdateAugmentProvides() *artifact.TypeInfoProvides
+	GetUpdateAugmentMetaData() map[string]interface{} // Generic JSON
 }
 
 type Composer interface {
 	ArtifactUpdate
 	ComposeHeader(args *ComposeHeaderArgs) error
-	ComposeData(tw *tar.Writer, no int) error
 }
 
 type Installer interface {
 	ArtifactUpdate
 	ReadHeader(r io.Reader, path string, version int, augmented bool) error
 	Install(r io.Reader, info *os.FileInfo) error
-	Copy() Installer
+	NewInstance() Installer
+	NewAugmentedInstance(orig ArtifactUpdate) (Installer, error)
 }
 
 func parseFiles(r io.Reader) (*artifact.Files, error) {

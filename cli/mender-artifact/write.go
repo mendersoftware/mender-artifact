@@ -78,7 +78,7 @@ func writeRootfs(c *cli.Context) error {
 	}
 
 	upd := &awriter.Updates{
-		U: []handlers.Composer{h},
+		Updates: []handlers.Composer{h},
 	}
 
 	f, err := os.Create(name + ".tmp")
@@ -174,14 +174,15 @@ func writeModuleImage(ctx *cli.Context) error {
 	}
 	version := ctx.Int("version")
 
-	var h handlers.Composer
+	var handler, augmentHandler handlers.Composer
 	switch version {
 	case 1, 2:
 		return cli.NewExitError(
 			"Module images need at least artifact format version 3",
 			errArtifactInvalidParameters)
 	case 3:
-		h = handlers.NewModuleImage(ctx.String("type"))
+		handler = handlers.NewModuleImage(ctx.String("type"))
+		augmentHandler = handlers.NewAugmentedModuleImage(handler, ctx.String("augment-type"))
 	default:
 		return cli.NewExitError(
 			fmt.Sprintf("unsupported artifact version: %v", version),
@@ -193,16 +194,17 @@ func writeModuleImage(ctx *cli.Context) error {
 	for _, file := range ctx.StringSlice("file") {
 		dataFiles = append(dataFiles, &handlers.DataFile{Name: file})
 	}
-	h.SetUpdateFiles(dataFiles)
+	handler.SetUpdateFiles(dataFiles)
 
 	dataFiles = make([](*handlers.DataFile), 0, len(ctx.StringSlice("augment-file")))
 	for _, file := range ctx.StringSlice("augment-file") {
 		dataFiles = append(dataFiles, &handlers.DataFile{Name: file})
 	}
-	h.SetUpdateAugmentFiles(dataFiles)
+	augmentHandler.SetUpdateAugmentFiles(dataFiles)
 
 	upd := &awriter.Updates{
-		U: []handlers.Composer{h},
+		Updates:  []handlers.Composer{handler},
+		Augments: []handlers.Composer{augmentHandler},
 	}
 
 	f, err := os.Create(name + ".tmp")
@@ -290,7 +292,7 @@ func writeModuleImage(ctx *cli.Context) error {
 		ArtifactProvides: typeInfoProvides,
 	}
 	augmentTypeInfoV3 := artifact.TypeInfoV3{
-		Type:             ctx.String("type"),
+		Type:             ctx.String("augment-type"),
 		ArtifactDepends:  augmentTypeInfoDepends,
 		ArtifactProvides: augmentTypeInfoProvides,
 	}
@@ -353,8 +355,7 @@ func writeModuleImage(ctx *cli.Context) error {
 func extractKeyValues(params []string) (*map[string]string, error) {
 	var keyValues *map[string]string
 	if len(params) > 0 {
-		keyValues = new(map[string]string)
-		*keyValues = make(map[string]string)
+		keyValues = &map[string]string{}
 		for _, arg := range params {
 			split := strings.SplitN(arg, ":", 2)
 			if len(split) != 2 {

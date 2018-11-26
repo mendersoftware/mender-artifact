@@ -173,7 +173,7 @@ func run() error {
 			Usage: "The group(s) the artifact depends on",
 		},
 		cli.StringFlag{
-			Name:  "type, y",
+			Name:  "type, T",
 			Usage: "Type of update. This is the same as the name of the update module",
 		},
 		cli.StringSliceFlag{

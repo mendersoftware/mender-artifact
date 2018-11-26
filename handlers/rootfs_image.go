@@ -15,11 +15,9 @@
 package handlers
 
 import (
-	"archive/tar"
 	"bytes"
-	"compress/gzip"
+	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -32,6 +30,9 @@ type Rootfs struct {
 	version           int
 	update            *DataFile
 	regularHeaderRead bool
+
+	// If this is augmented instance: The original instance.
+	original ArtifactUpdate
 
 	InstallHandler func(io.Reader, *DataFile) error
 }
@@ -57,8 +58,13 @@ func NewRootfsV2(updFile string) *Rootfs {
 }
 
 func NewRootfsV3(updFile string) *Rootfs {
-	uf := &DataFile{
-		Name: updFile,
+	var uf *DataFile
+	if updFile != "" {
+		uf = &DataFile{
+			Name: updFile,
+		}
+	} else {
+		uf = nil
 	}
 	return &Rootfs{
 		update:  uf,
@@ -66,22 +72,43 @@ func NewRootfsV3(updFile string) *Rootfs {
 	}
 }
 
+func NewAugmentedRootfs(orig ArtifactUpdate, updFile string) *Rootfs {
+	rootfs := NewRootfsV3(updFile)
+	rootfs.original = orig
+	return rootfs
+}
+
 // NewRootfsInstaller is used by the artifact reader to read and install
 // rootfs-image update type.
 func NewRootfsInstaller() *Rootfs {
-	return &Rootfs{
-		update: new(DataFile),
-	}
+	return &Rootfs{}
 }
 
 // Copy creates a new instance of Rootfs handler from the existing one.
-func (rp *Rootfs) Copy() Installer {
+func (rp *Rootfs) NewInstance() Installer {
 	return &Rootfs{
 		version:           rp.version,
-		update:            new(DataFile),
 		InstallHandler:    rp.InstallHandler,
 		regularHeaderRead: rp.regularHeaderRead,
 	}
+}
+
+func (rp *Rootfs) NewAugmentedInstance(orig ArtifactUpdate) (Installer, error) {
+	if orig.GetVersion() < 3 {
+		return nil, errors.New("Rootfs update type version < 3 does not support augmented sections.")
+	}
+	if orig.GetUpdateType() != "rootfs-image" {
+		return nil, fmt.Errorf("rootfs-image type cannot be an augmented instance of %s type.",
+			orig.GetUpdateType())
+	}
+
+	newRootfs := rp.NewInstance().(*Rootfs)
+	newRootfs.original = orig
+	return newRootfs, nil
+}
+
+func (rp *Rootfs) GetVersion() int {
+	return rp.version
 }
 
 func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bool) error {
@@ -97,7 +124,7 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bo
 		} else if len(files.FileList) != 1 {
 			return errors.New("Rootfs image does not contain exactly one file")
 		}
-		rp.update.Name = files.FileList[0]
+		rp.SetUpdateFiles([]*DataFile{&DataFile{Name: files.FileList[0]}})
 	case filepath.Base(path) == "type-info",
 		filepath.Base(path) == "meta-data":
 		// TODO: implement when needed
@@ -129,8 +156,9 @@ func (rfs *Rootfs) Install(r io.Reader, info *os.FileInfo) error {
 }
 
 func (rfs *Rootfs) GetUpdateFiles() [](*DataFile) {
-	if rfs.version < 3 && rfs.update != nil {
-		// In versions < 3, update was kept in non-augmented data.
+	if rfs.original != nil {
+		return rfs.original.GetUpdateFiles()
+	} else if rfs.update != nil {
 		return [](*DataFile){rfs.update}
 	} else {
 		return [](*DataFile){}
@@ -138,25 +166,26 @@ func (rfs *Rootfs) GetUpdateFiles() [](*DataFile) {
 }
 
 func (rfs *Rootfs) SetUpdateFiles(files [](*DataFile)) error {
-	if rfs.version < 3 {
-		if len(files) == 1 {
-			rfs.update = files[0]
-			return nil
-		} else {
-			return errors.New("Wrong number of update files")
+	if rfs.original != nil {
+		if len(files) > 0 && len(rfs.GetUpdateAugmentFiles()) > 0 {
+			return errors.New("Rootfs: Cannot handle both augmented and non-augmented update file")
 		}
-	} else { // rfs.version >= 3
-		if len(files) == 0 {
-			return nil
-		} else {
-			return errors.New("No update files in original manifest in versions >= 3")
-		}
+		return rfs.original.SetUpdateFiles(files)
 	}
+
+	if len(files) == 0 {
+		rfs.update = nil
+		return nil
+	} else if len(files) != 1 {
+		return errors.New("Rootfs: Must provide exactly one update file")
+	}
+
+	rfs.update = files[0]
+	return nil
 }
 
 func (rfs *Rootfs) GetUpdateAugmentFiles() [](*DataFile) {
-	if rfs.version >= 3 && rfs.update != nil {
-		// In versions >= 3, update is kept in augmented data.
+	if rfs.original != nil && rfs.update != nil {
 		return [](*DataFile){rfs.update}
 	} else {
 		return [](*DataFile){}
@@ -164,40 +193,79 @@ func (rfs *Rootfs) GetUpdateAugmentFiles() [](*DataFile) {
 }
 
 func (rfs *Rootfs) SetUpdateAugmentFiles(files [](*DataFile)) error {
-	if rfs.version < 3 {
-		if len(files) == 0 {
-			return nil
+	if rfs.original == nil {
+		if len(files) > 0 {
+			return errors.New("Rootfs: Cannot set augmented data file on non-augmented instance.")
 		} else {
-			return errors.New("No update files in augmented manifest in versions < 3")
-		}
-	} else { // rfs.version >= 3
-		if len(files) == 1 {
-			rfs.update = files[0]
 			return nil
-		} else {
-			return errors.New("Wrong number of update files")
 		}
 	}
+
+	if len(files) == 0 {
+		rfs.update = nil
+		return nil
+	} else if len(files) != 1 {
+		return errors.New("Rootfs: Must provide exactly one update file")
+	}
+
+	if len(rfs.GetUpdateFiles()) > 0 {
+		return errors.New("Rootfs: Cannot handle both augmented and non-augmented update file")
+	}
+
+	rfs.update = files[0]
+	return nil
 }
 
 func (rfs *Rootfs) GetUpdateAllFiles() [](*DataFile) {
-	if rfs.version >= 3 {
-		return rfs.GetUpdateAugmentFiles()
-	} else {
-		return rfs.GetUpdateFiles()
-	}
+	allFiles := make([]*DataFile, 0, len(rfs.GetUpdateAugmentFiles())+len(rfs.GetUpdateFiles()))
+	allFiles = append(allFiles, rfs.GetUpdateFiles()...)
+	allFiles = append(allFiles, rfs.GetUpdateAugmentFiles()...)
+	return allFiles
 }
 
-func (rfs *Rootfs) GetType() string {
+func (rfs *Rootfs) GetUpdateType() string {
 	return "rootfs-image"
 }
 
-func (rfs *Rootfs) GetUpdateDepends() *artifact.TypeInfoDepends {
+func (rfs *Rootfs) GetUpdateOriginalType() string {
+	return ""
+}
+
+func (rfs *Rootfs) GetUpdateDepends() (*artifact.TypeInfoDepends, error) {
+	return rfs.GetUpdateOriginalDepends(), nil
+}
+
+func (rfs *Rootfs) GetUpdateProvides() (*artifact.TypeInfoProvides, error) {
+	return rfs.GetUpdateOriginalProvides(), nil
+}
+
+func (rfs *Rootfs) GetUpdateMetaData() (map[string]interface{}, error) {
+	// No metadata for rootfs update type.
+	return rfs.GetUpdateOriginalMetaData(), nil
+}
+
+func (rfs *Rootfs) GetUpdateOriginalDepends() *artifact.TypeInfoDepends {
 	return &artifact.TypeInfoDepends{}
 }
 
-func (rfs *Rootfs) GetUpdateProvides() *artifact.TypeInfoProvides {
+func (rfs *Rootfs) GetUpdateOriginalProvides() *artifact.TypeInfoProvides {
 	return &artifact.TypeInfoProvides{}
+}
+
+func (rfs *Rootfs) GetUpdateOriginalMetaData() map[string]interface{} {
+	return nil
+}
+
+func (rfs *Rootfs) GetUpdateAugmentDepends() *artifact.TypeInfoDepends {
+	return nil
+}
+
+func (rfs *Rootfs) GetUpdateAugmentProvides() *artifact.TypeInfoProvides {
+	return nil
+}
+
+func (rfs *Rootfs) GetUpdateAugmentMetaData() map[string]interface{} {
+	return nil
 }
 
 func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
@@ -250,49 +318,6 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 			filepath.Join(path, "checksums")); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func (rfs *Rootfs) ComposeData(tw *tar.Writer, no int) error {
-	f, ferr := ioutil.TempFile("", "data")
-	if ferr != nil {
-		return errors.New("update: can not create temporary data file")
-	}
-	defer os.Remove(f.Name())
-
-	err := func() error {
-		gz := gzip.NewWriter(f)
-		defer gz.Close()
-
-		tarw := tar.NewWriter(gz)
-		defer tarw.Close()
-
-		df, err := os.Open(rfs.update.Name)
-		if err != nil {
-			return errors.Wrapf(err, "update: can not open data file: %v", rfs.update)
-		}
-		defer df.Close()
-
-		fw := artifact.NewTarWriterFile(tarw)
-		if err := fw.Write(df, filepath.Base(rfs.update.Name)); err != nil {
-			return errors.Wrapf(err,
-				"update: can not write tar temp data header: %v", rfs.update)
-		}
-		return nil
-	}()
-
-	if err != nil {
-		return err
-	}
-
-	if _, err = f.Seek(0, 0); err != nil {
-		return errors.Wrapf(err, "update: can not read data file: %v", rfs.update)
-	}
-
-	dfw := artifact.NewTarWriterFile(tw)
-	if err = dfw.Write(f, artifact.UpdateDataPath(no)); err != nil {
-		return errors.Wrapf(err, "update: can not write tar data header: %v", rfs.update)
 	}
 	return nil
 }

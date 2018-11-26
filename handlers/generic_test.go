@@ -27,10 +27,11 @@ func TestHandlerGenericV1V2(t *testing.T) {
 	// test if update type is reported correctly
 	uType := "custom-type"
 	g := NewGenericV1V2(uType)
-	assert.Equal(t, uType, g.GetType())
+	assert.Equal(t, uType, g.GetUpdateType())
 
-	// test we can not copy generic parser
-	assert.Nil(t, g.Copy())
+	// test we can copy generic parser
+	n := g.NewInstance()
+	assert.IsType(t, &GenericV1V2{}, n)
 
 	// test get update files
 	g.files["custom"] = &DataFile{Name: "update.ext4"}
