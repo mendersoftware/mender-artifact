@@ -14,8 +14,13 @@
 
 package main
 
-import "testing"
-import "github.com/stretchr/testify/assert"
+import (
+	"fmt"
+	"os"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestFsck(t *testing.T) {
 	err := debugfsRunFsck("mender_test.img.broken")
@@ -23,4 +28,23 @@ func TestFsck(t *testing.T) {
 
 	err = debugfsRunFsck("mender_test.img")
 	assert.NoError(t, err)
+}
+
+func TestExecuteCommand(t *testing.T) {
+	tests := map[string]struct {
+		cmd      string
+		expected string
+	}{
+		"non-existing directory": {
+			cmd:      "cd /mender",
+			expected: "File not found by ext2_lookup",
+		},
+	}
+
+	for name, test := range tests {
+		err := executeCommand(test.cmd, "mender_test.img")
+		t.Log(name)
+		fmt.Fprintf(os.Stderr, "err: %s\n", err)
+		assert.Contains(t, err.Error(), test.expected, "Unexpected error")
+	}
 }
