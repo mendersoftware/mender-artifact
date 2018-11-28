@@ -140,7 +140,7 @@ func executeCommand(cmdstr, image string) error {
 	if len(loc) == 0 {
 		return fmt.Errorf("debugfs: prompt not found in: %s", string(data))
 	}
-	datastr := string(data[loc[1]-1]) // Strip debugfs: (version) ...
+	datastr := string(data[loc[1]-1:]) // Strip debugfs: (version) ...
 	if len(datastr) > 1 {
 		return fmt.Errorf("debugfs: error running command: %q, err: %s", cmdstr, datastr)
 	}
