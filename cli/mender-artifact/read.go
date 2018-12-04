@@ -15,8 +15,10 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"encoding/json"
 	"os"
 	"strings"
 
@@ -107,6 +109,55 @@ func readArtifact(c *cli.Context) error {
 	for k, p := range inst {
 		fmt.Printf("  %3d:\n", k)
 		fmt.Printf("    Type:   %s\n", p.GetUpdateType())
+
+		provides, err := p.GetUpdateProvides()
+		fmt.Printf("    Provides:")
+		if err != nil {
+			fmt.Printf(" Invalid provides section: %s\n", err.Error())
+		} else if provides == nil || len(*provides) == 0 {
+			fmt.Printf(" Nothing\n")
+		} else {
+			fmt.Printf("\n")
+			for provideKey, provideValue := range *provides {
+				fmt.Printf("\t%s: %s\n", provideKey, provideValue)
+			}
+		}
+
+		depends, err := p.GetUpdateDepends()
+		fmt.Printf("    Depends:")
+		if err != nil {
+			fmt.Printf(" Invalid depends section: %s\n", err.Error())
+		} else if depends == nil || len(*depends) == 0 {
+			fmt.Printf(" Nothing\n")
+		} else {
+			fmt.Printf("\n")
+			for dependKey, dependValue := range *depends {
+				fmt.Printf("\t%s: %s\n", dependKey, dependValue)
+			}
+		}
+
+		metaData, err := p.GetUpdateMetaData()
+		fmt.Printf("    Metadata:")
+		if err != nil {
+			fmt.Printf(" Invalid metadata section: %s\n", err.Error())
+		} else if len(metaData) == 0 {
+			fmt.Printf(" Nothing\n")
+		} else {
+			var metaDataSlice []byte
+			if err == nil {
+				metaDataSlice, err = json.Marshal(metaData)
+			}
+			var metaDataBuf bytes.Buffer
+			if err == nil {
+				err = json.Indent(&metaDataBuf, metaDataSlice, "\t", "  ")
+			}
+			if err != nil {
+				fmt.Printf(" Invalid metadata section: %s\n", err.Error())
+			} else {
+				fmt.Printf("\n\t%s\n", metaDataBuf.String())
+			}
+		}
+
 		for _, f := range p.GetUpdateAllFiles() {
 			fmt.Printf("    Files:\n")
 			fmt.Printf("      name:     %s\n", f.Name)
