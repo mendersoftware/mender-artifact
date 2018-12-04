@@ -97,26 +97,29 @@ func run() error {
 		/////////////////////////
 		// Version 3 specifics.//
 		/////////////////////////
-		cli.StringSliceFlag{
-			Name:  "artifact-name-depends",
-			Usage: "Sets the name(s) of the artifact(s) which this update depends upon",
-		},
-		cli.StringFlag{
-			Name:  "provides-group",
-			Usage: "The group the artifact provides",
-		},
-		cli.StringSliceFlag{
-			Name:  "depends-groups",
-			Usage: "The group(s) the artifact depends on",
-		},
-		cli.StringFlag{
-			Name:  "depends-rootfs-image-checksum",
-			Usage: "The checksum of the rootfs image which this artifact depends upon",
-		},
-		cli.StringFlag{
-			Name:  "provides-rootfs-image-checksum",
-			Usage: "The checksum of the rootfs image which this artifact provides",
-		},
+		// Hiding these for now. We are not enforcing them on the client
+		// so we should not set these yet.
+		//
+		// cli.StringSliceFlag{
+		// 	Name:  "artifact-name-depends, N",
+		// 	Usage: "Sets the name(s) of the artifact(s) which this update depends upon",
+		// },
+		// cli.StringFlag{
+		// 	Name:  "provides-group, g",
+		// 	Usage: "The group the artifact provides",
+		// },
+		// cli.StringSliceFlag{
+		// 	Name:  "depends-groups, G",
+		// 	Usage: "The group(s) the artifact depends on",
+		// },
+		// cli.StringFlag{
+		// 	Name:  "depends-rootfs-image-checksum",
+		// 	Usage: "The checksum of the rootfs image which this artifact depends upon",
+		// },
+		// cli.StringFlag{
+		// 	Name:  "provides-rootfs-image-checksum",
+		// 	Usage: "The checksum of the rootfs image which this artifact provides",
+		// },
 	}
 
 	//
