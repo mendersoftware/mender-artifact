@@ -312,10 +312,11 @@ func writeDataFile(t *testing.T, name, data string) io.Reader {
 	comp := artifact.NewCompressorGzip()
 
 	buf := bytes.NewBuffer(nil)
-	gz := comp.NewWriter(buf)
+	gz, err := comp.NewWriter(buf)
+	assert.NoError(t, err)
 	tw := tar.NewWriter(gz)
 	sw := artifact.NewTarWriterStream(tw)
-	err := sw.Write([]byte(data), name)
+	err = sw.Write([]byte(data), name)
 	assert.NoError(t, err)
 	err = tw.Close()
 	assert.NoError(t, err)

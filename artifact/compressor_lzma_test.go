@@ -11,34 +11,36 @@
 //    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
+// +build !nolzma
 
 package artifact
 
 import (
-	"compress/gzip"
-	"io"
+	"bytes"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type CompressorGzip struct {
-	c Compressor
-}
+func TestCompressorLzma(t *testing.T) {
+	c := NewCompressorLzma()
+	assert.Equal(t, c.GetFileExtension(), ".xz")
 
-func NewCompressorGzip() Compressor {
-	return &CompressorGzip{}
-}
+	buf := bytes.NewBuffer(nil)
+	w, err := c.NewWriter(buf)
+	assert.NoError(t, err)
 
-func (c *CompressorGzip) GetFileExtension() string {
-	return ".gz"
-}
+	i, err := w.Write([]byte(testData))
+	assert.NoError(t, err)
+	assert.Equal(t, i, len(testData))
+	w.Close()
 
-func (c *CompressorGzip) NewReader(r io.Reader) (io.ReadCloser, error) {
-	return gzip.NewReader(r)
-}
+	r, err := c.NewReader(buf)
+	assert.NoError(t, err)
 
-func (c *CompressorGzip) NewWriter(w io.Writer) (io.WriteCloser, error) {
-	return gzip.NewWriter(w), nil
-}
-
-func init() {
-	RegisterCompressor("gzip", &CompressorGzip{})
+	rbuf := make([]byte, len(testData))
+	i, err = r.Read(rbuf)
+	assert.NoError(t, err)
+	assert.Equal(t, i, len(testData))
+	assert.Equal(t, []byte(testData), rbuf)
 }

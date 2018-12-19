@@ -15,7 +15,10 @@
 package main
 
 import (
+	"fmt"
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"os"
+	"strings"
 
 	"github.com/urfave/cli"
 )
@@ -229,12 +232,13 @@ func run() error {
 		},
 	}
 
+	compressors := artifact.GetRegisteredCompressorIds()
 	globalFlags := []cli.Flag{
 		cli.StringFlag{
 			Name:  "compression",
 			Value: "gzip",
-			Usage: "Compression to use for data and header inside the artifact, "+
-				"currently supports:  none, gzip.",
+			Usage: fmt.Sprintf("Compression to use for data and header inside the artifact, "+
+				"currently supports: %v.", strings.Join(compressors, ", ")),
 		},
 	}
 
