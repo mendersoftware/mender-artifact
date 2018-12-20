@@ -41,12 +41,11 @@ func Cat(c *cli.Context) (err error) {
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)
 	}
-	defer r.Close()
 	var w io.WriteCloser = os.Stdout
 	if _, err = io.Copy(w, r); err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to copy from: %s to stdout: err: %v", c.Args().First(), err), 1)
 	}
-	return nil
+	return r.Close()
 }
 
 func Copy(c *cli.Context) (err error) {
