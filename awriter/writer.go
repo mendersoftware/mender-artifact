@@ -86,10 +86,7 @@ func writeTempHeader(c artifact.Compressor, s *artifact.ChecksumStore, devices [
 	// use function to make sure to close gz and tar before
 	// calculating checksum
 	err = func() error {
-		gz, err := c.NewWriter(ch)
-		if err != nil {
-			return errors.Wrapf(err, "writer: can not open compressor")
-		}
+		gz := c.NewWriter(ch)
 		defer gz.Close()
 
 		htw := tar.NewWriter(gz)

@@ -13,12 +13,6 @@
 			"revision": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d"
 		},
 		{
-			"checksumSHA1": "Uh9wFcTmKv1Y91zro3XPdKr0z1M=",
-			"path": "github.com/mendersoftware/go-liblzma",
-			"revision": "7c43a54b162c2031114bdeb3be8d64e3f507e73b",
-			"revisionTime": "2018-12-18T07:42:49Z"
-		},
-		{
 			"checksumSHA1": "8VREmaKpYjppYOd/OEl0RN5VEdU=",
 			"path": "github.com/mendersoftware/mendertesting",
 			"revision": "1c608df9fa68d7be58a8abeb4ff6911cd026ffec",
