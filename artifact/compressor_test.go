@@ -46,7 +46,19 @@ func TestCompressorFromFileName(t *testing.T) {
 	assert.NoError(t, err, nil)
 	assert.Equal(t, c.GetFileExtension(), "")
 
-	c, err = NewCompressorFromFileName("file.tar.xz")
+	c, err = NewCompressorFromFileName("file.tar.foo")
 	assert.NoError(t, err, nil)
 	assert.Equal(t, c.GetFileExtension(), "")
+}
+
+func TestRegisteredCompressors(t *testing.T) {
+	compressorIds := GetRegisteredCompressorIds()
+
+	// Verify the list contains all non-optional compressors
+	assert.True(t, len(compressorIds) >= 2)
+	assert.Contains(t, compressorIds, "none")
+	assert.Contains(t, compressorIds, "gzip")
+
+	// Verify 'none' is at the beginning of the list
+	assert.Equal(t, "none", compressorIds[0])
 }
