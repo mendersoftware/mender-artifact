@@ -26,8 +26,7 @@ func TestCompressorNone(t *testing.T) {
 	assert.Equal(t, c.GetFileExtension(), "")
 
 	buf := bytes.NewBuffer(nil)
-	w, err := c.NewWriter(buf)
-	assert.NoError(t, err)
+	w := c.NewWriter(buf)
 
 	i, err := w.Write([]byte(testData))
 	assert.NoError(t, err)
