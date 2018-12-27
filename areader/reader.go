@@ -40,6 +40,7 @@ type Reader struct {
 	ScriptsReadCallback       ScriptsReadFn
 	VerifySignatureCallback   SignatureVerifyFn
 	IsSigned                  bool
+	ForbidUnknownHandlers     bool
 
 	shouldBeSigned bool
 	hInfo          artifact.HeaderInfoer
@@ -620,6 +621,9 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error
 			} else {
 				ar.installers[i] = w.NewInstance()
 			}
+		} else if ar.ForbidUnknownHandlers {
+			return fmt.Errorf("Cannot load handler for unknown update type '%s'",
+				update.Type)
 		} else if ar.info.Version >= 3 {
 			// For version 3 onwards, use modules for unknown update
 			// types.
