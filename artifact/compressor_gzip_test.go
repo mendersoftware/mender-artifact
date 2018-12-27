@@ -27,7 +27,8 @@ func TestCompressorGzip(t *testing.T) {
 	assert.Equal(t, c.GetFileExtension(), ".gz")
 
 	buf := bytes.NewBuffer(nil)
-	w := c.NewWriter(buf)
+	w, err := c.NewWriter(buf)
+	assert.NoError(t, err)
 
 	i, err := w.Write([]byte(testData))
 	assert.NoError(t, err)
