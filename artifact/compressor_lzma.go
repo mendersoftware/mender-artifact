@@ -11,13 +11,14 @@
 //    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
-// +build !nolzma
+// +build !nolzma,cgo
 
 package artifact
 
 import (
-	"github.com/mendersoftware/go-liblzma"
 	"io"
+
+	"github.com/mendersoftware/go-liblzma"
 )
 
 type CompressorLzma struct {
