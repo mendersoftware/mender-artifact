@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -259,7 +259,7 @@ func mergeJsonStructures(orig, override map[string]interface{}) (map[string]inte
 			var origValue map[string]interface{}
 			var ok bool
 			if origValue, ok = orig[key].(map[string]interface{}); !ok {
-				return nil, fmt.Errorf("%s: Cannot combine JSON object with non-object.")
+				return nil, fmt.Errorf("%s: Cannot combine JSON object with non-object.", key)
 			}
 			var err error
 			merged[key], err = mergeJsonStructures(origValue, overrideValue)
@@ -270,16 +270,16 @@ func mergeJsonStructures(orig, override map[string]interface{}) (map[string]inte
 
 		case []interface{}:
 			if _, ok := orig[key].([]interface{}); !ok {
-				return nil, fmt.Errorf("%s: Type conflict: list/non-list")
+				return nil, fmt.Errorf("%s: Type conflict: list/non-list", key)
 			}
 			// fall through to bottom
 
 		default:
 			if _, ok := orig[key].(map[string]interface{}); ok {
-				return nil, fmt.Errorf("%s: Type conflict: object/non-object")
+				return nil, fmt.Errorf("%s: Type conflict: object/non-object", key)
 			}
 			if _, ok := orig[key].([]interface{}); ok {
-				return nil, fmt.Errorf("%s: Type conflict: list/non-list")
+				return nil, fmt.Errorf("%s: Type conflict: list/non-list", key)
 			}
 			// fall through to bottom
 		}

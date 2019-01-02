@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -650,7 +650,7 @@ func (ar *Reader) buildInstallerIndexedFileLists(files []handlers.DataFile) ([][
 			return nil, err
 		}
 		if index < 0 || index >= len(ar.installers) {
-			return nil, fmt.Errorf("File in manifest does not belong to any update: %s", file)
+			return nil, fmt.Errorf("File in manifest does not belong to any update: %s", file.Name)
 		}
 
 		fileLists[index] = append(fileLists[index], &handlers.DataFile{Name: baseName})
