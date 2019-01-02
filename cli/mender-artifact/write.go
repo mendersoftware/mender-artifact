@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -166,25 +166,20 @@ func artifactWriter(f *os.File, key string,
 	return awriter.NewWriter(f), nil
 }
 
-func writeModuleImage(ctx *cli.Context) error {
-	// set the default name
-	name := "artifact.mender"
-	if len(ctx.String("output-path")) > 0 {
-		name = ctx.String("output-path")
-	}
+func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
 	version := ctx.Int("version")
 
 	var handler, augmentHandler handlers.Composer
 	switch version {
 	case 1, 2:
-		return cli.NewExitError(
+		return nil, cli.NewExitError(
 			"Module images need at least artifact format version 3",
 			errArtifactInvalidParameters)
 	case 3:
 		handler = handlers.NewModuleImage(ctx.String("type"))
 		augmentHandler = handlers.NewAugmentedModuleImage(handler, ctx.String("augment-type"))
 	default:
-		return cli.NewExitError(
+		return nil, cli.NewExitError(
 			fmt.Sprintf("unsupported artifact version: %v", version),
 			errArtifactUnsupportedVersion,
 		)
@@ -205,6 +200,110 @@ func writeModuleImage(ctx *cli.Context) error {
 	upd := &awriter.Updates{
 		Updates:  []handlers.Composer{handler},
 		Augments: []handlers.Composer{augmentHandler},
+	}
+
+	return upd, nil
+}
+
+func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3, error) {
+	// Make key value pairs from the type-info fields supplied on command
+	// line.
+	var keyValues *map[string]string
+
+	var typeInfoDepends *artifact.TypeInfoDepends
+	keyValues, err := extractKeyValues(ctx.StringSlice("depends"))
+	if err != nil {
+		return nil, nil, err
+	} else if keyValues != nil {
+		typeInfoDepends = new(artifact.TypeInfoDepends)
+		*typeInfoDepends = *keyValues
+	}
+
+	var typeInfoProvides *artifact.TypeInfoProvides
+	keyValues, err = extractKeyValues(ctx.StringSlice("provides"))
+	if err != nil {
+		return nil, nil, err
+	} else if keyValues != nil {
+		typeInfoProvides = new(artifact.TypeInfoProvides)
+		*typeInfoProvides = *keyValues
+	}
+
+	var augmentTypeInfoDepends *artifact.TypeInfoDepends
+	keyValues, err = extractKeyValues(ctx.StringSlice("augment-depends"))
+	if err != nil {
+		return nil, nil, err
+	} else if keyValues != nil {
+		augmentTypeInfoDepends = new(artifact.TypeInfoDepends)
+		*augmentTypeInfoDepends = *keyValues
+	}
+
+	var augmentTypeInfoProvides *artifact.TypeInfoProvides
+	keyValues, err = extractKeyValues(ctx.StringSlice("augment-provides"))
+	if err != nil {
+		return nil, nil, err
+	} else if keyValues != nil {
+		augmentTypeInfoProvides = new(artifact.TypeInfoProvides)
+		*augmentTypeInfoProvides = *keyValues
+	}
+
+	typeInfoV3 := &artifact.TypeInfoV3{
+		Type:             ctx.String("type"),
+		ArtifactDepends:  typeInfoDepends,
+		ArtifactProvides: typeInfoProvides,
+	}
+	augmentTypeInfoV3 := &artifact.TypeInfoV3{
+		Type:             ctx.String("augment-type"),
+		ArtifactDepends:  augmentTypeInfoDepends,
+		ArtifactProvides: augmentTypeInfoProvides,
+	}
+
+	return typeInfoV3, augmentTypeInfoV3, nil
+}
+
+func makeMetaData(ctx *cli.Context) (map[string]interface{}, map[string]interface{}, error) {
+	var metaData map[string]interface{}
+	var augmentMetaData map[string]interface{}
+
+	if len(ctx.String("meta-data")) > 0 {
+		file, err := os.Open(ctx.String("meta-data"))
+		if err != nil {
+			return metaData, augmentMetaData, cli.NewExitError(err, errArtifactInvalidParameters)
+		}
+		defer file.Close()
+		dec := json.NewDecoder(file)
+		err = dec.Decode(&metaData)
+		if err != nil {
+			return metaData, augmentMetaData, cli.NewExitError(err, errArtifactInvalidParameters)
+		}
+	}
+
+	if len(ctx.String("augment-meta-data")) > 0 {
+		file, err := os.Open(ctx.String("augment-meta-data"))
+		if err != nil {
+			return metaData, augmentMetaData, cli.NewExitError(err, errArtifactInvalidParameters)
+		}
+		defer file.Close()
+		dec := json.NewDecoder(file)
+		err = dec.Decode(&augmentMetaData)
+		if err != nil {
+			return metaData, augmentMetaData, cli.NewExitError(err, errArtifactInvalidParameters)
+		}
+	}
+
+	return metaData, augmentMetaData, nil
+}
+
+func writeModuleImage(ctx *cli.Context) error {
+	// set the default name
+	name := "artifact.mender"
+	if len(ctx.String("output-path")) > 0 {
+		name = ctx.String("output-path")
+	}
+	version := ctx.Int("version")
+
+	upd, err := makeUpdates(ctx)
+	if err != nil {
+		return err
 	}
 
 	f, err := os.Create(name + ".tmp")
@@ -246,83 +345,14 @@ func writeModuleImage(ctx *cli.Context) error {
 		SupportedUpdateTypes: updateTypesSupported,
 	}
 
-	// Make key value pairs from the type-info fields supplied on command
-	// line.
-	var keyValues *map[string]string
-
-	var typeInfoDepends *artifact.TypeInfoDepends
-	keyValues, err = extractKeyValues(ctx.StringSlice("depends"))
+	typeInfoV3, augmentTypeInfoV3, err := makeTypeInfo(ctx)
 	if err != nil {
 		return err
-	} else if keyValues != nil {
-		typeInfoDepends = new(artifact.TypeInfoDepends)
-		*typeInfoDepends = *keyValues
 	}
 
-	var typeInfoProvides *artifact.TypeInfoProvides
-	keyValues, err = extractKeyValues(ctx.StringSlice("provides"))
+	metaData, augmentMetaData, err := makeMetaData(ctx)
 	if err != nil {
 		return err
-	} else if keyValues != nil {
-		typeInfoProvides = new(artifact.TypeInfoProvides)
-		*typeInfoProvides = *keyValues
-	}
-
-	var augmentTypeInfoDepends *artifact.TypeInfoDepends
-	keyValues, err = extractKeyValues(ctx.StringSlice("augment-depends"))
-	if err != nil {
-		return err
-	} else if keyValues != nil {
-		augmentTypeInfoDepends = new(artifact.TypeInfoDepends)
-		*augmentTypeInfoDepends = *keyValues
-	}
-
-	var augmentTypeInfoProvides *artifact.TypeInfoProvides
-	keyValues, err = extractKeyValues(ctx.StringSlice("augment-provides"))
-	if err != nil {
-		return err
-	} else if keyValues != nil {
-		augmentTypeInfoProvides = new(artifact.TypeInfoProvides)
-		*augmentTypeInfoProvides = *keyValues
-	}
-
-	typeInfoV3 := artifact.TypeInfoV3{
-		Type:             ctx.String("type"),
-		ArtifactDepends:  typeInfoDepends,
-		ArtifactProvides: typeInfoProvides,
-	}
-	augmentTypeInfoV3 := artifact.TypeInfoV3{
-		Type:             ctx.String("augment-type"),
-		ArtifactDepends:  augmentTypeInfoDepends,
-		ArtifactProvides: augmentTypeInfoProvides,
-	}
-
-	var metaData map[string]interface{}
-	if len(ctx.String("meta-data")) > 0 {
-		file, err := os.Open(ctx.String("meta-data"))
-		if err != nil {
-			return cli.NewExitError(err, errArtifactInvalidParameters)
-		}
-		defer file.Close()
-		dec := json.NewDecoder(file)
-		err = dec.Decode(&metaData)
-		if err != nil {
-			return cli.NewExitError(err, errArtifactInvalidParameters)
-		}
-	}
-
-	var augmentMetaData map[string]interface{}
-	if len(ctx.String("augment-meta-data")) > 0 {
-		file, err := os.Open(ctx.String("augment-meta-data"))
-		if err != nil {
-			return cli.NewExitError(err, errArtifactInvalidParameters)
-		}
-		defer file.Close()
-		dec := json.NewDecoder(file)
-		err = dec.Decode(&augmentMetaData)
-		if err != nil {
-			return cli.NewExitError(err, errArtifactInvalidParameters)
-		}
 	}
 
 	err = aw.WriteArtifact(
@@ -335,9 +365,9 @@ func writeModuleImage(ctx *cli.Context) error {
 			Scripts:           scr,
 			Depends:           &depends,
 			Provides:          &provides,
-			TypeInfoV3:        &typeInfoV3,
+			TypeInfoV3:        typeInfoV3,
 			MetaData:          metaData,
-			AugmentTypeInfoV3: &augmentTypeInfoV3,
+			AugmentTypeInfoV3: augmentTypeInfoV3,
 			AugmentMetaData:   augmentMetaData,
 		})
 	if err != nil {
