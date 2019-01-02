@@ -97,25 +97,123 @@ func run() error {
 		/////////////////////////
 		// Version 3 specifics.//
 		/////////////////////////
+		// Hiding these for now. We are not enforcing them on the client
+		// so we should not set these yet.
+		//
+		// cli.StringSliceFlag{
+		// 	Name:  "artifact-name-depends, N",
+		// 	Usage: "Sets the name(s) of the artifact(s) which this update depends upon",
+		// },
+		// cli.StringFlag{
+		// 	Name:  "provides-group, g",
+		// 	Usage: "The group the artifact provides",
+		// },
+		// cli.StringSliceFlag{
+		// 	Name:  "depends-groups, G",
+		// 	Usage: "The group(s) the artifact depends on",
+		// },
+		// cli.StringFlag{
+		// 	Name:  "depends-rootfs-image-checksum",
+		// 	Usage: "The checksum of the rootfs image which this artifact depends upon",
+		// },
+		// cli.StringFlag{
+		// 	Name:  "provides-rootfs-image-checksum",
+		// 	Usage: "The checksum of the rootfs image which this artifact provides",
+		// },
+	}
+
+	//
+	// Update modules: module-image
+	//
+	writeModuleCommand := cli.Command{
+		Name:   "module-image",
+		Action: writeModuleImage,
+		Usage:  "Writes Mender artifact for an update module",
+		UsageText: "Writes a generic Mender artifact that will be used by an update module. " +
+			"This command is not meant to be used directly, but should rather be wrapped by an " +
+			"update module build command, which prepares all the necessary files and headers " +
+			"for that update module.",
+	}
+
+	writeModuleCommand.Flags = []cli.Flag{
 		cli.StringSliceFlag{
-			Name:  "artifact-name-depends",
+			Name: "device-type, t",
+			Usage: "Type of device(s) supported by the update. You can specify multiple " +
+				"compatible devices providing this parameter multiple times.",
+		},
+		cli.StringFlag{
+			Name:  "artifact-name, n",
+			Usage: "Name of the artifact",
+		},
+		cli.StringFlag{
+			Name:  "output-path, o",
+			Usage: "Full path to output artifact file.",
+		},
+		cli.IntFlag{
+			Name:  "version, v",
+			Usage: "Version of the artifact.",
+			Value: LatestFormatVersion,
+		},
+		cli.StringFlag{
+			Name:  "key, k",
+			Usage: "Full path to the private key that will be used to sign the artifact.",
+		},
+		cli.StringSliceFlag{
+			Name: "script, s",
+			Usage: "Full path to the state script(s). You can specify multiple " +
+				"scripts providing this parameter multiple times.",
+		},
+		cli.StringSliceFlag{
+			Name:  "artifact-name-depends, N",
 			Usage: "Sets the name(s) of the artifact(s) which this update depends upon",
 		},
 		cli.StringFlag{
-			Name:  "provides-group",
+			Name:  "provides-group, g",
 			Usage: "The group the artifact provides",
 		},
 		cli.StringSliceFlag{
-			Name:  "depends-groups",
+			Name:  "depends-groups, G",
 			Usage: "The group(s) the artifact depends on",
 		},
 		cli.StringFlag{
-			Name:  "depends-rootfs-image-checksum",
-			Usage: "The checksum of the rootfs image which this artifact depends upon",
+			Name:  "type, T",
+			Usage: "Type of update. This is the same as the name of the update module",
+		},
+		cli.StringSliceFlag{
+			Name:  "provides, p",
+			Usage: "Generic `KEY:VALUE` which is added to the type-info -> artifact_provides section. Can be given multiple times",
+		},
+		cli.StringSliceFlag{
+			Name:  "depends, d",
+			Usage: "Generic `KEY:VALUE` which is added to the type-info -> artifact_depends section. Can be given multiple times",
 		},
 		cli.StringFlag{
-			Name:  "provides-rootfs-image-checksum",
-			Usage: "The checksum of the rootfs image which this artifact provides",
+			Name:  "meta-data, m",
+			Usage: "The meta-data JSON `FILE` for this update module",
+		},
+		cli.StringSliceFlag{
+			Name:  "file, f",
+			Usage: "Include `FILE` in update. Can be given more than once.",
+		},
+		cli.StringFlag{
+			Name:  "augment-type",
+			Usage: "Type of augmented update. This is the same as the name of the update module",
+		},
+		cli.StringSliceFlag{
+			Name:  "augment-provides",
+			Usage: "Generic `KEY:VALUE` which is added to the augmented type-info -> artifact_provides section. Can be given multiple times",
+		},
+		cli.StringSliceFlag{
+			Name:  "augment-depends",
+			Usage: "Generic `KEY:VALUE` which is added to the augmented type-info -> artifact_depends section. Can be given multiple times",
+		},
+		cli.StringFlag{
+			Name:  "augment-meta-data",
+			Usage: "The meta-data JSON `FILE` for this update module, for the augmented section",
+		},
+		cli.StringSliceFlag{
+			Name:  "augment-file",
+			Usage: "Include `FILE` in updatein the augment section. Can be given more than once.",
 		},
 	}
 
@@ -124,6 +222,7 @@ func run() error {
 		Usage: "Writes artifact file.",
 		Subcommands: []cli.Command{
 			writeRootfsCommand,
+			writeModuleCommand,
 		},
 	}
 
