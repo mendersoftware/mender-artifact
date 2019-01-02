@@ -22,6 +22,8 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -65,13 +67,78 @@ XwaUNml5EhW79AdibBXZiZt8fMhCjUd/4ce3rLNjnbIn1o9L6pzV4CcVJ8+iNhne
 -----END PUBLIC KEY-----`
 )
 
-func MakeRootfsImageArtifact(version int, signed bool,
-	hasScripts bool) (io.Reader, error) {
+func MakeRootfsImageArtifact(version int, signed, hasScripts, augmented bool) (io.Reader, error) {
+
 	upd, err := MakeFakeUpdate(TestUpdateFileContent)
 	if err != nil {
 		return nil, err
 	}
 	defer os.Remove(upd)
+
+	var composer, augment handlers.Composer
+	switch version {
+	case 1:
+		composer = handlers.NewRootfsV1(upd)
+	case 2:
+		composer = handlers.NewRootfsV2(upd)
+	case 3:
+		if augmented {
+			composer = handlers.NewRootfsV3("")
+			augment = handlers.NewAugmentedRootfs(composer, upd)
+		} else {
+			composer = handlers.NewRootfsV3(upd)
+		}
+	default:
+		return nil, fmt.Errorf("Unsupported artifact version: %d", version)
+	}
+
+	updates := awriter.Updates{
+		Updates: []handlers.Composer{composer},
+	}
+	if augmented {
+		updates.Augments = []handlers.Composer{augment}
+	}
+
+	return MakeAnyImageArtifact(version, signed, hasScripts, &updates)
+}
+
+func MakeModuleImageArtifact(signed, hasScripts bool, updateType string,
+	numFiles, numAugmentFiles int) (io.Reader, error) {
+
+	updates := awriter.Updates{}
+
+	compose := handlers.NewModuleImage(updateType)
+
+	files := make([]*handlers.DataFile, numFiles)
+	for index := 0; index < numFiles; index++ {
+		file, err := MakeFakeUpdate("test-file")
+		if err != nil {
+			return nil, err
+		}
+		files[index] = &handlers.DataFile{Name: file}
+	}
+	compose.SetUpdateFiles(files)
+	updates.Updates = []handlers.Composer{compose}
+
+	if numAugmentFiles > 0 {
+		compose = handlers.NewAugmentedModuleImage(compose, updateType)
+		augmentFiles := make([]*handlers.DataFile, numAugmentFiles)
+		for index := 0; index < numAugmentFiles; index++ {
+			file, err := MakeFakeUpdate("test-file")
+			if err != nil {
+				return nil, err
+			}
+			augmentFiles[index] = &handlers.DataFile{Name: file}
+		}
+		compose.SetUpdateAugmentFiles(augmentFiles)
+		updates.Augments = []handlers.Composer{compose}
+	}
+
+	return MakeAnyImageArtifact(3, signed, hasScripts, &updates)
+}
+
+func MakeAnyImageArtifact(version int, signed bool,
+	hasScripts bool, updates *awriter.Updates) (io.Reader, error) {
 
 	art := bytes.NewBuffer(nil)
 	var aw *awriter.Writer
@@ -80,17 +147,6 @@ func MakeRootfsImageArtifact(version int, signed bool,
 	} else {
 		s := artifact.NewSigner([]byte(PrivateKey))
 		aw = awriter.NewWriterSigned(art, s)
-	}
-	var u handlers.Composer
-	switch version {
-	case 1:
-		u = handlers.NewRootfsV1(upd)
-	case 2:
-		u = handlers.NewRootfsV2(upd)
-	case 3:
-		u = handlers.NewRootfsV3(upd)
-	default:
-		return nil, fmt.Errorf("Unsupported artifact version: %d", version)
 	}
 
 	scr := artifact.Scripts{}
@@ -108,9 +164,7 @@ func MakeRootfsImageArtifact(version int, signed bool,
 		}
 	}
 
-	updates := &awriter.Updates{U: []handlers.Composer{u}}
-
-	err = aw.WriteArtifact(&awriter.WriteArtifactArgs{
+	err := aw.WriteArtifact(&awriter.WriteArtifactArgs{
 		Format:  "mender",
 		Version: version,
 		Devices: []string{"vexpress"},
@@ -142,7 +196,7 @@ func TestReadArtifact(t *testing.T) {
 		return err
 	}
 
-	rfh := func(version int) handlers.Installer {
+	rfh := func() handlers.Installer {
 		rfh := handlers.NewRootfsInstaller()
 		rfh.InstallHandler = copy
 		return rfh
@@ -155,60 +209,62 @@ func TestReadArtifact(t *testing.T) {
 		verifier  artifact.Verifier
 		readError error
 	}{
-		"version 1":        {1, false, rfh(1), nil, nil},
-		"version 2 pass":   {2, false, rfh(1), nil, nil},
-		"version 2 signed": {2, true, rfh(2), artifact.NewVerifier([]byte(PublicKey)), nil},
-		"version 2 - public key error": {2, true, rfh(2), artifact.NewVerifier([]byte(PublicKeyError)),
+		"version 1":        {1, false, rfh(), nil, nil},
+		"version 2 pass":   {2, false, rfh(), nil, nil},
+		"version 2 signed": {2, true, rfh(), artifact.NewVerifier([]byte(PublicKey)), nil},
+		"version 2 - public key error": {2, true, rfh(), artifact.NewVerifier([]byte(PublicKeyError)),
 			errors.New("reader: invalid signature: crypto/rsa: verification error")},
 		// test that we do not need a verifier for signed artifact
-		"version 2 - no verifier needed for a signed artifact": {2, true, rfh(2), nil, nil},
+		"version 2 - no verifier needed for a signed artifact": {2, true, rfh(), nil, nil},
 		// Version 3 tests.
-		"version 3 - base case": {3, false, rfh(3), nil, nil},
-		"version 3 - signed":    {3, true, rfh(3), artifact.NewVerifier([]byte(PublicKey)), nil},
-		"version 3 - public key error": {3, true, rfh(3), artifact.NewVerifier([]byte(PublicKeyError)),
+		"version 3 - base case": {3, false, rfh(), nil, nil},
+		"version 3 - signed":    {3, true, rfh(), artifact.NewVerifier([]byte(PublicKey)), nil},
+		"version 3 - public key error": {3, true, rfh(), artifact.NewVerifier([]byte(PublicKeyError)),
 			errors.New("readHeaderV3: reader: invalid signature: crypto/rsa: verification error")},
 	}
 
 	// first create archive, that we will be able to read
 	for name, test := range tc {
-		art, err := MakeRootfsImageArtifact(test.version, test.signed, false)
-		assert.NoError(t, err)
+		t.Run(name, func(t *testing.T) {
+			art, err := MakeRootfsImageArtifact(test.version, test.signed, false, false)
+			assert.NoError(t, err)
 
-		aReader := NewReader(art)
-		if test.handler != nil {
-			aReader.RegisterHandler(test.handler)
-		}
+			aReader := NewReader(art)
+			if test.handler != nil {
+				require.NoError(t, aReader.RegisterHandler(test.handler))
+			}
 
-		if test.verifier != nil {
-			aReader.VerifySignatureCallback = test.verifier.Verify
-		}
+			if test.verifier != nil {
+				aReader.VerifySignatureCallback = test.verifier.Verify
+			}
 
-		err = aReader.ReadArtifact()
-		if test.readError != nil {
-			assert.NotNil(t, err, name+"Test expected an error, but ReadArtifact did not return an error")
-			assert.Equal(t, test.readError.Error(), err.Error())
-			continue
-		}
-		require.NoError(t, err)
-		assert.Equal(t, TestUpdateFileContent, updFileContent.String())
+			err = aReader.ReadArtifact()
+			if test.readError != nil {
+				assert.NotNil(t, err, name+"Test expected an error, but ReadArtifact did not return an error")
+				assert.Equal(t, test.readError.Error(), err.Error())
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, TestUpdateFileContent, updFileContent.String())
 
-		devComp := aReader.GetCompatibleDevices()
-		require.Len(t, devComp, 1)
-		assert.Equal(t, "vexpress", devComp[0])
+			devComp := aReader.GetCompatibleDevices()
+			require.Len(t, devComp, 1)
+			assert.Equal(t, "vexpress", devComp[0])
 
-		if test.handler != nil {
-			assert.Len(t, aReader.GetHandlers(), 1)
-			assert.Equal(t, test.handler.GetType(), aReader.GetHandlers()[0].GetType())
-		}
-		assert.Equal(t, "mender-1.1", aReader.GetArtifactName())
+			if test.handler != nil {
+				assert.Len(t, aReader.GetHandlers(), 1)
+				assert.Equal(t, test.handler.GetUpdateType(), aReader.GetHandlers()[0].GetUpdateType())
+			}
+			assert.Equal(t, "mender-1.1", aReader.GetArtifactName())
 
-		// clean the buffer
-		updFileContent.Reset()
+			// clean the buffer
+			updFileContent.Reset()
+		})
 	}
 }
 
 func TestReadSigned(t *testing.T) {
-	art, err := MakeRootfsImageArtifact(2, true, false)
+	art, err := MakeRootfsImageArtifact(2, true, false, false)
 	assert.NoError(t, err)
 	aReader := NewReaderSigned(art)
 	err = aReader.ReadArtifact()
@@ -216,7 +272,7 @@ func TestReadSigned(t *testing.T) {
 	assert.Contains(t, err.Error(),
 		"reader: verify signature callback not registered")
 
-	art, err = MakeRootfsImageArtifact(2, false, false)
+	art, err = MakeRootfsImageArtifact(2, false, false, false)
 	assert.NoError(t, err)
 	aReader = NewReaderSigned(art)
 	err = aReader.ReadArtifact()
@@ -224,13 +280,13 @@ func TestReadSigned(t *testing.T) {
 	assert.Contains(t, err.Error(),
 		"reader: expecting signed artifact, but no signature file found")
 
-	art, err = MakeRootfsImageArtifact(2, true, false)
+	art, err = MakeRootfsImageArtifact(2, true, false, false)
 	assert.NoError(t, err)
 	aReader = NewReader(art)
 	err = aReader.ReadArtifact()
 	assert.NoError(t, err)
 
-	art, err = MakeRootfsImageArtifact(1, false, false)
+	art, err = MakeRootfsImageArtifact(1, false, false, false)
 	assert.NoError(t, err)
 	aReader = NewReaderSigned(art)
 	err = aReader.ReadArtifact()
@@ -238,7 +294,7 @@ func TestReadSigned(t *testing.T) {
 	assert.Contains(t, err.Error(),
 		"reader: expecting signed artifact")
 
-	art, err = MakeRootfsImageArtifact(3, true, false)
+	art, err = MakeRootfsImageArtifact(3, true, false, false)
 	assert.NoError(t, err)
 	aReader = NewReaderSigned(art)
 	err = aReader.ReadArtifact()
@@ -246,7 +302,7 @@ func TestReadSigned(t *testing.T) {
 	assert.Contains(t, err.Error(),
 		"reader: verify signature callback not registered")
 
-	art, err = MakeRootfsImageArtifact(3, false, false)
+	art, err = MakeRootfsImageArtifact(3, false, false, false)
 	assert.NoError(t, err)
 	aReader = NewReaderSigned(art)
 	err = aReader.ReadArtifact()
@@ -254,7 +310,7 @@ func TestReadSigned(t *testing.T) {
 	assert.Contains(t, err.Error(),
 		"reader: expecting signed artifact, but no signature file found")
 
-	art, err = MakeRootfsImageArtifact(3, true, false)
+	art, err = MakeRootfsImageArtifact(3, true, false, false)
 	assert.NoError(t, err)
 	aReader = NewReader(art)
 	err = aReader.ReadArtifact()
@@ -274,7 +330,7 @@ func TestRegisterMultipleHandlers(t *testing.T) {
 }
 
 func TestReadNoHandler(t *testing.T) {
-	art, err := MakeRootfsImageArtifact(1, false, false)
+	art, err := MakeRootfsImageArtifact(1, false, false, false)
 	assert.NoError(t, err)
 
 	aReader := NewReader(art)
@@ -282,7 +338,7 @@ func TestReadNoHandler(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Len(t, aReader.GetHandlers(), 1)
-	assert.Equal(t, "rootfs-image", aReader.GetHandlers()[0].GetType())
+	assert.Equal(t, "rootfs-image", aReader.GetHandlers()[0].GetUpdateType())
 }
 
 func TestReadBroken(t *testing.T) {
@@ -299,7 +355,7 @@ func TestReadBroken(t *testing.T) {
 }
 
 func TestReadWithScripts(t *testing.T) {
-	art, err := MakeRootfsImageArtifact(2, false, true)
+	art, err := MakeRootfsImageArtifact(2, false, true, false)
 	assert.NoError(t, err)
 
 	aReader := NewReader(art)
@@ -337,22 +393,92 @@ func MakeFakeUpdate(data string) (string, error) {
 }
 
 type installer struct {
-	Data *handlers.DataFile
+	t          *testing.T
+	Data       *handlers.DataFile
+	updateType string
 }
 
 func (i *installer) GetUpdateFiles() [](*handlers.DataFile) {
 	return [](*handlers.DataFile){i.Data}
 }
 
-func (i *installer) GetType() string {
+func (i *installer) GetUpdateAugmentFiles() [](*handlers.DataFile) {
+	return make([](*handlers.DataFile), 0)
+}
+
+func (i *installer) GetUpdateAllFiles() [](*handlers.DataFile) {
+	return i.GetUpdateFiles()
+}
+
+func (i *installer) SetUpdateFiles(files [](*handlers.DataFile)) error {
+	// Should not be called in this test.
+	i.t.Fail()
+	return nil
+}
+
+func (i *installer) SetUpdateAugmentFiles(files [](*handlers.DataFile)) error {
+	// Should not be called in this test.
+	i.t.Fail()
+	return nil
+}
+
+func (i *installer) GetUpdateDepends() (*artifact.TypeInfoDepends, error) {
+	return &artifact.TypeInfoDepends{}, nil
+}
+
+func (i *installer) GetUpdateProvides() (*artifact.TypeInfoProvides, error) {
+	return &artifact.TypeInfoProvides{}, nil
+}
+
+func (i *installer) GetUpdateMetaData() (map[string]interface{}, error) {
+	return nil, nil
+}
+
+func (i *installer) GetUpdateOriginalDepends() *artifact.TypeInfoDepends {
+	return &artifact.TypeInfoDepends{}
+}
+
+func (i *installer) GetUpdateOriginalProvides() *artifact.TypeInfoProvides {
+	return &artifact.TypeInfoProvides{}
+}
+
+func (i *installer) GetUpdateOriginalMetaData() map[string]interface{} {
+	return nil
+}
+
+func (i *installer) GetUpdateAugmentDepends() *artifact.TypeInfoDepends {
+	return &artifact.TypeInfoDepends{}
+}
+
+func (i *installer) GetUpdateAugmentProvides() *artifact.TypeInfoProvides {
+	return &artifact.TypeInfoProvides{}
+}
+
+func (i *installer) GetUpdateAugmentMetaData() map[string]interface{} {
+	return nil
+}
+
+func (i *installer) GetVersion() int {
+	return 3
+}
+
+func (i *installer) GetUpdateType() string {
+	return i.updateType
+}
+
+func (i *installer) GetUpdateOriginalType() string {
 	return ""
 }
 
-func (i *installer) Copy() handlers.Installer {
+func (i *installer) NewInstance() handlers.Installer {
 	return i
 }
 
-func (i *installer) ReadHeader(r io.Reader, path string, version int) error {
+func (i *installer) NewAugmentedInstance(orig handlers.ArtifactUpdate) (handlers.Installer, error) {
+	return nil, nil
+}
+
+func (i *installer) ReadHeader(r io.Reader, path string, version int, augmented bool) error {
 	return nil
 }
 
@@ -382,6 +508,7 @@ func TestReadAndInstall(t *testing.T) {
 	assert.Equal(t, "EOF", errors.Cause(err).Error())
 
 	i := &installer{
+		t: t,
 		Data: &handlers.DataFile{
 			Name: "update.ext4",
 			// this is a calculated checksum of `data` string
@@ -395,6 +522,7 @@ func TestReadAndInstall(t *testing.T) {
 
 	// test missing data file
 	i = &installer{
+		t: t,
 		Data: &handlers.DataFile{
 			Name: "non-existing",
 		},
@@ -407,6 +535,7 @@ func TestReadAndInstall(t *testing.T) {
 
 	// test missing checksum
 	i = &installer{
+		t: t,
 		Data: &handlers.DataFile{
 			Name: "update.ext4",
 		},
@@ -420,6 +549,7 @@ func TestReadAndInstall(t *testing.T) {
 	// test with manifest
 	m := artifact.NewChecksumStore()
 	i = &installer{
+		t: t,
 		Data: &handlers.DataFile{
 			Name:     "update.ext4",
 			Checksum: []byte("3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7"),
@@ -432,6 +562,7 @@ func TestReadAndInstall(t *testing.T) {
 
 	// test invalid checksum
 	i = &installer{
+		t: t,
 		Data: &handlers.DataFile{
 			Name:     "update.ext4",
 			Checksum: []byte("12121212121212"),
@@ -501,7 +632,7 @@ func TestValidParsePathV3(t *testing.T) {
 }
 
 func TestReadArtifactDependsAndProvides(t *testing.T) {
-	art, err := MakeRootfsImageArtifact(3, true, false)
+	art, err := MakeRootfsImageArtifact(3, true, false, false)
 	require.NoError(t, err)
 	ar := NewReader(art)
 	err = ar.ReadArtifact()
@@ -513,4 +644,424 @@ func TestReadArtifactDependsAndProvides(t *testing.T) {
 	assert.Equal(t, *ar.GetArtifactDepends(), artifact.ArtifactDepends{
 		ArtifactName:      []string{"mender-1.0"},
 		CompatibleDevices: []string{"vexpress"}})
+}
+
+func assembleSubset(flags []string, tmpdir string) []string {
+	assembleOrder := []string{
+		"version",
+		"manifest",
+		"manifest.sig",
+		"manifest-augment",
+		"header.tar.gz",
+		"header-augment.tar.gz",
+		"data/0000.tar.gz",
+		"data/0001.tar.gz",
+	}
+	subset := make([]string, len(flags), len(flags)+len(assembleOrder))
+	copy(subset, flags)
+	for index := range assembleOrder {
+		if _, err := os.Stat(filepath.Join(tmpdir, assembleOrder[index])); !os.IsNotExist(err) {
+			subset = append(subset, assembleOrder[index])
+		}
+	}
+	return subset
+}
+
+func TestReadBrokenArtifact(t *testing.T) {
+	type testCase struct {
+		manipulateArtifact func(tmpdir string)
+		successful         bool
+		errorStr           string
+		rootfsImage        bool
+		numFiles           int
+		numAugmentFiles    int
+	}
+	cases := map[string]testCase{
+		"rootfs-image, Everything ok": {
+			manipulateArtifact: func(tmpdir string) {
+				// Do nothing. Just checking that the tar cmd works.
+			},
+			successful:  true,
+			rootfsImage: true,
+			numFiles:    1,
+		},
+		"rootfs-image, version missing": {
+			manipulateArtifact: func(tmpdir string) {
+				os.Remove(filepath.Join(tmpdir, "version"))
+			},
+			successful:  false,
+			rootfsImage: true,
+		},
+		"rootfs-image, header.tar.gz missing": {
+			manipulateArtifact: func(tmpdir string) {
+				os.Remove(filepath.Join(tmpdir, "header.tar.gz"))
+			},
+			successful:  false,
+			rootfsImage: true,
+		},
+		"rootfs-image, header-augment.tar.gz missing": {
+			manipulateArtifact: func(tmpdir string) {
+				os.Remove(filepath.Join(tmpdir, "header-augment.tar.gz"))
+			},
+			successful:      false,
+			rootfsImage:     true,
+			numAugmentFiles: 1,
+		},
+		"Everything ok": {
+			manipulateArtifact: func(tmpdir string) {
+				// Do nothing. Just checking that the tar cmd works.
+			},
+			successful: true,
+		},
+		"Everything ok, augmented files present": {
+			manipulateArtifact: func(tmpdir string) {
+				// Do nothing. Just checking that the tar cmd works.
+			},
+			successful:      true,
+			numAugmentFiles: 1,
+		},
+		"version missing": {
+			manipulateArtifact: func(tmpdir string) {
+				os.Remove(filepath.Join(tmpdir, "version"))
+			},
+			successful: false,
+		},
+		"header.tar.gz missing": {
+			manipulateArtifact: func(tmpdir string) {
+				os.Remove(filepath.Join(tmpdir, "header.tar.gz"))
+			},
+			successful: false,
+		},
+		"no manifest-augment": {
+			manipulateArtifact: func(tmpdir string) {
+				os.Remove(filepath.Join(tmpdir, "manifest-augment"))
+			},
+			successful:      false,
+			errorStr:        "invalid data file",
+			numAugmentFiles: 1,
+		},
+		"augmented files, but header-augment.tar.gz missing": {
+			manipulateArtifact: func(tmpdir string) {
+				os.Remove(filepath.Join(tmpdir, "header-augment.tar.gz"))
+			},
+			successful:      false,
+			numAugmentFiles: 1,
+			errorStr:        "Invalid structure",
+		},
+		"data files broken checksum": {
+			manipulateArtifact: func(tmpdir string) {
+				file, err := os.OpenFile(filepath.Join(tmpdir, "manifest"), os.O_RDWR, 0)
+				require.NoError(t, err)
+				defer file.Close()
+				stat, _ := file.Stat()
+				buf := make([]byte, stat.Size())
+				file.Read(buf)
+				lines := bytes.Split(buf, []byte("\n"))
+				for _, line := range lines {
+					if len(line) == 0 {
+						continue
+					}
+					if bytes.HasPrefix(bytes.Split(line, []byte("  "))[1], []byte("data")) {
+						// Flip one bit.
+						line[0] ^= 0x1
+						break
+					}
+				}
+				file.Seek(0, 0)
+				file.Write(buf)
+			},
+			successful: false,
+			numFiles:   1,
+		},
+		"data/0000.tar.gz missing": {
+			manipulateArtifact: func(tmpdir string) {
+				os.Remove(filepath.Join(tmpdir, "data/0000.tar.gz"))
+			},
+			successful: false,
+			numFiles:   1,
+		},
+		"data file missing from manifest": {
+			manipulateArtifact: func(tmpdir string) {
+				file, err := os.OpenFile(filepath.Join(tmpdir, "manifest"), os.O_RDWR, 0)
+				require.NoError(t, err)
+				defer file.Close()
+				stat, _ := file.Stat()
+				buf := make([]byte, stat.Size())
+				newbuf := make([]byte, 0, stat.Size())
+				file.Read(buf)
+				lines := bytes.Split(buf, []byte("\n"))
+				for _, line := range lines {
+					if len(line) != 0 && bytes.HasPrefix(bytes.Split(line, []byte("  "))[1], []byte("data")) {
+						// Skip line.
+						continue
+					}
+					for _, char := range line {
+						newbuf = append(newbuf, char)
+					}
+					newbuf = append(newbuf, byte('\n'))
+				}
+				file.Seek(0, 0)
+				file.Write(newbuf)
+				file.Truncate(int64(len(newbuf)))
+			},
+			successful: false,
+			errorStr:   "can not find data file",
+			numFiles:   1,
+		},
+		"Too many files in manifest": {
+			manipulateArtifact: func(tmpdir string) {
+				file, err := os.OpenFile(filepath.Join(tmpdir, "manifest"), os.O_WRONLY|os.O_APPEND, 0)
+				require.NoError(t, err)
+				file.Write([]byte("0000000000000000000000000000000000000000000000000000000000000000  missing_file\n"))
+				file.Close()
+			},
+			successful: false,
+			numFiles:   1,
+			errorStr:   "not part of artifact",
+		},
+		"Too many files in empty manifest": {
+			manipulateArtifact: func(tmpdir string) {
+				file, err := os.OpenFile(filepath.Join(tmpdir, "manifest"), os.O_WRONLY|os.O_APPEND, 0)
+				require.NoError(t, err)
+				file.Write([]byte("0000000000000000000000000000000000000000000000000000000000000000  missing_file\n"))
+				file.Close()
+			},
+			successful: false,
+			errorStr:   "not part of artifact",
+		},
+		"augmented data files broken checksum": {
+			manipulateArtifact: func(tmpdir string) {
+				file, err := os.OpenFile(filepath.Join(tmpdir, "manifest-augment"), os.O_RDWR, 0)
+				require.NoError(t, err)
+				defer file.Close()
+				stat, _ := file.Stat()
+				buf := make([]byte, stat.Size())
+				file.Read(buf)
+				lines := bytes.Split(buf, []byte("\n"))
+				for _, line := range lines {
+					if len(line) == 0 {
+						continue
+					}
+					if bytes.HasPrefix(bytes.Split(line, []byte("  "))[1], []byte("data")) {
+						// Flip one bit.
+						line[0] ^= 0x1
+						break
+					}
+				}
+				file.Seek(0, 0)
+				file.Write(buf)
+			},
+			successful:      false,
+			numAugmentFiles: 1,
+		},
+		"augmented data file missing from manifest": {
+			manipulateArtifact: func(tmpdir string) {
+				file, err := os.OpenFile(filepath.Join(tmpdir, "manifest-augment"), os.O_RDWR, 0)
+				require.NoError(t, err)
+				defer file.Close()
+				stat, _ := file.Stat()
+				buf := make([]byte, stat.Size())
+				newbuf := make([]byte, 0, stat.Size())
+				file.Read(buf)
+				lines := bytes.Split(buf, []byte("\n"))
+				for _, line := range lines {
+					if len(line) != 0 && bytes.HasPrefix(bytes.Split(line, []byte("  "))[1], []byte("data")) {
+						// Skip line.
+						continue
+					}
+					for _, char := range line {
+						newbuf = append(newbuf, char)
+					}
+					newbuf = append(newbuf, byte('\n'))
+				}
+				file.Seek(0, 0)
+				file.Write(newbuf)
+				file.Truncate(int64(len(newbuf)))
+			},
+			successful:      false,
+			errorStr:        "can not find data file",
+			numAugmentFiles: 1,
+		},
+		"Too many files in manifest-augment": {
+			manipulateArtifact: func(tmpdir string) {
+				file, err := os.OpenFile(filepath.Join(tmpdir, "manifest-augment"), os.O_WRONLY|os.O_APPEND, 0)
+				require.NoError(t, err)
+				file.Write([]byte("0000000000000000000000000000000000000000000000000000000000000000  missing_file\n"))
+				file.Close()
+			},
+			successful:      false,
+			numAugmentFiles: 1,
+			errorStr:        "not part of artifact",
+		},
+		"Too many files in empty manifest-augment": {
+			manipulateArtifact: func(tmpdir string) {
+				file, err := os.OpenFile(filepath.Join(tmpdir, "manifest-augment"), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+				require.NoError(t, err)
+				file.Write([]byte("0000000000000000000000000000000000000000000000000000000000000000  missing_file\n"))
+				file.Close()
+			},
+			successful: false,
+			errorStr:   "Invalid structure",
+		},
+		"Files in both manifest files": {
+			manipulateArtifact: func(tmpdir string) {
+				// Do nothing.
+			},
+			successful:      true,
+			numFiles:        1,
+			numAugmentFiles: 1,
+		},
+		"Conflicting checksums in manifest files": {
+			manipulateArtifact: func(tmpdir string) {
+				file, err := os.OpenFile(filepath.Join(tmpdir, "manifest"), os.O_RDWR, 0)
+				require.NoError(t, err)
+				defer file.Close()
+
+				// Copy the valid checksums to manifest-augment
+				augm, err := os.OpenFile(filepath.Join(tmpdir, "manifest-augment"),
+					os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+				require.NoError(t, err)
+				defer augm.Close()
+				_, err = io.Copy(augm, file)
+				require.NoError(t, err)
+				file.Seek(0, 0)
+
+				// Now corrupt the one in the original manifest.
+				stat, _ := file.Stat()
+				buf := make([]byte, stat.Size())
+				file.Read(buf)
+				lines := bytes.Split(buf, []byte("\n"))
+				for _, line := range lines {
+					if len(line) == 0 {
+						continue
+					}
+					if bytes.HasPrefix(bytes.Split(line, []byte("  "))[1], []byte("data")) {
+						// Flip one bit.
+						line[0] ^= 0x1
+						break
+					}
+				}
+				file.Seek(0, 0)
+				file.Write(buf)
+			},
+			successful: false,
+			errorStr:   "file already exists",
+			numFiles:   1,
+		},
+		"Several files": {
+			manipulateArtifact: func(tmpdir string) {
+				// Do nothing, but check that file number is correct.
+				manifest, err := os.Open(filepath.Join(tmpdir, "manifest"))
+				require.NoError(t, err)
+				stat, _ := manifest.Stat()
+				buf := make([]byte, stat.Size())
+				_, err = manifest.Read(buf)
+				require.NoError(t, err)
+				// version + header.tar.gz + 2 files
+				assert.Equal(t, 4, len(bytes.Split(bytes.TrimSpace(buf), []byte("\n"))))
+
+				manifest, err = os.Open(filepath.Join(tmpdir, "manifest-augment"))
+				require.NoError(t, err)
+				stat, _ = manifest.Stat()
+				buf = make([]byte, stat.Size())
+				_, err = manifest.Read(buf)
+				require.NoError(t, err)
+				// header-augment.tar.gz + 4 files
+				assert.Equal(t, 5, len(bytes.Split(bytes.TrimSpace(buf), []byte("\n"))))
+			},
+			successful:      true,
+			numFiles:        2,
+			numAugmentFiles: 4,
+		},
+		"version file in wrong manifest": {
+			manipulateArtifact: func(tmpdir string) {
+				manifestFd, err := os.OpenFile(filepath.Join(tmpdir, "manifest"), os.O_RDWR, 0)
+				require.NoError(t, err)
+				defer manifestFd.Close()
+				augmFd, err := os.OpenFile(filepath.Join(tmpdir, "manifest-augment"), os.O_WRONLY|os.O_APPEND, 0)
+				require.NoError(t, err)
+				defer augmFd.Close()
+
+				stat, _ := manifestFd.Stat()
+				buf := make([]byte, stat.Size())
+				_, err = manifestFd.Read(buf)
+				require.NoError(t, err)
+
+				manifestLines := bytes.Split(bytes.TrimSpace(buf), []byte("\n"))
+				for n, line := range manifestLines {
+					if string(bytes.SplitN(line, []byte("  "), 2)[1]) == "version" {
+						_, err = augmFd.Write(line)
+						require.NoError(t, err)
+
+						copy(manifestLines[n:], manifestLines[n+1:])
+						manifestLines = manifestLines[:len(manifestLines)-1]
+						break
+					}
+				}
+				manifestFd.Seek(0, 0)
+				buf = bytes.Join(manifestLines, []byte("\n"))
+				_, err = manifestFd.Write(buf)
+				require.NoError(t, err)
+				_, err = manifestFd.Write([]byte("\n"))
+				require.NoError(t, err)
+				manifestFd.Truncate(int64(len(buf) + 1))
+			},
+			successful:      false,
+			errorStr:        "checksum missing for file: 'version'",
+			numFiles:        1,
+			numAugmentFiles: 1,
+		},
+	}
+
+	for desc, c := range cases {
+		t.Run(desc, func(t *testing.T) {
+			// Make basic artifact.
+			var art io.Reader
+			var err error
+			augmented := (c.numAugmentFiles > 0)
+			if c.rootfsImage {
+				art, err = MakeRootfsImageArtifact(3, false, false, augmented)
+			} else {
+				art, err = MakeModuleImageArtifact(false, false, "test-type", c.numFiles, c.numAugmentFiles)
+			}
+			require.NoError(t, err)
+
+			// Perform manipulation of artifact
+			tmpdir, err := ioutil.TempDir("", "mender-TestReadBrokenArtifact")
+			require.NoError(t, err)
+			defer os.RemoveAll(tmpdir)
+
+			cmd := exec.Command("tar", "x")
+			cmd.Stdin = art
+			cmd.Dir = tmpdir
+			require.NoError(t, cmd.Run())
+
+			c.manipulateArtifact(tmpdir)
+
+			pipeR, pipeW := io.Pipe()
+			cmd = exec.Command("tar", assembleSubset([]string{"c"}, tmpdir)...)
+			cmd.Stdout = pipeW
+			cmd.Dir = tmpdir
+			require.NoError(t, cmd.Start())
+			art = pipeR
+
+			// Validate test case.
+			r := NewReader(art)
+			err = r.ReadArtifact()
+			if c.successful {
+				assert.NoError(t, err, desc)
+			} else {
+				require.Error(t, err, desc)
+				if len(c.errorStr) > 0 {
+					assert.Contains(t, err.Error(), c.errorStr)
+				}
+				return
+			}
+
+			assert.Equal(t, 1, len(r.GetHandlers()))
+			handler := r.GetHandlers()[0]
+			assert.Equal(t, c.numFiles, len(handler.GetUpdateFiles()))
+			assert.Equal(t, c.numAugmentFiles, len(handler.GetUpdateAugmentFiles()))
+		})
+	}
 }

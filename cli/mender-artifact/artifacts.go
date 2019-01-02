@@ -206,7 +206,7 @@ func repack(artifactName string, from io.Reader, to io.Writer, key []byte,
 	}
 
 	upd := &awriter.Updates{
-		U: []handlers.Composer{h},
+		Updates: []handlers.Composer{h},
 	}
 	scr, err := scripts([]string{sDir})
 	if err != nil {

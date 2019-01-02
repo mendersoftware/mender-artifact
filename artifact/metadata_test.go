@@ -350,35 +350,6 @@ func TestWriteTypeInfoV3(t *testing.T) {
 	}
 }
 
-func TestAugmentedHeaderInfoV3(t *testing.T) {
-	var validateTests = map[string]struct {
-		in  AugmentedHeaderInfoV3
-		err error
-	}{
-		"Fail - Missing update": {AugmentedHeaderInfoV3{}, ErrValidatingData},
-		"Update-type present":   {AugmentedHeaderInfoV3{Updates: []UpdateType{UpdateType{Type: "delta"}}}, nil},
-	}
-
-	for _, tt := range validateTests {
-		err := tt.in.Validate()
-		assert.Equal(t, errors.Cause(err), tt.err)
-	}
-}
-
-func TestWriteAugmentedHeaderInfoV3(t *testing.T) {
-	var validateTests = map[string]struct {
-		in  AugmentedHeaderInfoV3
-		err error
-	}{
-		"dummy": {AugmentedHeaderInfoV3{}, nil},
-	}
-
-	for _, tt := range validateTests {
-		_, err := io.Copy(&tt.in, bytes.NewBuffer([]byte(`{"type":"delta"}`)))
-		assert.Nil(t, err)
-	}
-}
-
 func TestMarshalJSONTypeInfoV3(t *testing.T) {
 	tests := map[string]struct {
 		ti       TypeInfoV3
@@ -388,10 +359,10 @@ func TestMarshalJSONTypeInfoV3(t *testing.T) {
 			ti: TypeInfoV3{
 				Type: "delta",
 				ArtifactDepends: &TypeInfoDepends{
-					RootfsChecksum: "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619",
+					"rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619",
 				},
 				ArtifactProvides: &TypeInfoProvides{
-					RootfsChecksum: "853jsdfh342789sdflkjsdf987324kljsdf987234kjljsdf987234klsdf987d8",
+					"rootfs_image_checksum": "853jsdfh342789sdflkjsdf987324kljsdf987234kjljsdf987234klsdf987d8",
 				},
 			},
 			expected: `{
@@ -461,20 +432,6 @@ func TestValidateFiles(t *testing.T) {
 		} else if e != nil && tt.err == nil {
 			t.Fatalf("[%d] Failed with error: %q, when no error expected.", idx, e)
 		}
-	}
-}
-
-func TestValideFilesV3(t *testing.T) {
-	tests := map[string]struct {
-		in  FilesV3
-		err error
-	}{
-		// FilesV3 should validate everything, files or no-files.
-		"test1": {FilesV3{&Files{[]string{"foobar"}}}, nil},
-		"test2": {FilesV3{&Files{}}, nil},
-	}
-	for _, tt := range tests {
-		assert.Nil(t, tt.in.Validate())
 	}
 }
 

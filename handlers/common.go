@@ -45,21 +45,58 @@ type ComposeHeaderArgs struct {
 	Version    int
 	Augmented  bool
 	TypeInfoV3 *artifact.TypeInfoV3
+	MetaData   map[string]interface{} // Generic JSON
+	Files      []string
+}
+
+type ArtifactUpdate interface {
+	GetVersion() int
+
+	// Return type of this update, which could be augmented.
+	GetUpdateType() string
+
+	// Return type of original (non-augmented) update, if any.
+	GetUpdateOriginalType() string
+
+	// Operates on non-augmented files.
+	GetUpdateFiles() [](*DataFile)
+	SetUpdateFiles(files [](*DataFile)) error
+
+	// Operates on augmented files.
+	GetUpdateAugmentFiles() [](*DataFile)
+	SetUpdateAugmentFiles(files [](*DataFile)) error
+
+	// Gets both augmented and non-augmented files.
+	GetUpdateAllFiles() [](*DataFile)
+
+	// Returns merged data of non-augmented and augmented data, where the
+	// latter overrides the former. Returns error if they cannot be merged.
+	GetUpdateDepends() (*artifact.TypeInfoDepends, error)
+	GetUpdateProvides() (*artifact.TypeInfoProvides, error)
+	GetUpdateMetaData() (map[string]interface{}, error) // Generic JSON
+
+	// Returns non-augmented (original) data.
+	GetUpdateOriginalDepends() *artifact.TypeInfoDepends
+	GetUpdateOriginalProvides() *artifact.TypeInfoProvides
+	GetUpdateOriginalMetaData() map[string]interface{} // Generic JSON
+
+	// Returns augmented data.
+	GetUpdateAugmentDepends() *artifact.TypeInfoDepends
+	GetUpdateAugmentProvides() *artifact.TypeInfoProvides
+	GetUpdateAugmentMetaData() map[string]interface{} // Generic JSON
 }
 
 type Composer interface {
-	GetUpdateFiles() [](*DataFile)
-	GetType() string
+	ArtifactUpdate
 	ComposeHeader(args *ComposeHeaderArgs) error
-	ComposeData(tw *tar.Writer, no int) error
 }
 
 type Installer interface {
-	GetUpdateFiles() [](*DataFile)
-	GetType() string
-	ReadHeader(r io.Reader, path string, version int) error
+	ArtifactUpdate
+	ReadHeader(r io.Reader, path string, version int, augmented bool) error
 	Install(r io.Reader, info *os.FileInfo) error
-	Copy() Installer
+	NewInstance() Installer
+	NewAugmentedInstance(orig ArtifactUpdate) (Installer, error)
 }
 
 func parseFiles(r io.Reader) (*artifact.Files, error) {
@@ -87,24 +124,6 @@ func writeFiles(tw *tar.Writer, updFiles []string, dir string) error {
 		files.FileList = append(files.FileList, u)
 	}
 
-	sa := artifact.NewTarWriterStream(tw)
-	stream, err := artifact.ToStream(files)
-	if err != nil {
-		return errors.Wrap(err, "writeFiles: ")
-	}
-	if err := sa.Write(stream,
-		filepath.Join(dir, "files")); err != nil {
-		return errors.Wrapf(err, "writer: can not tar files")
-	}
-	return nil
-}
-
-// writeEmptyFiles Writes an empty files list to the update header, as
-// the V3 format contains the updates in the augmented header, the regular
-// header will not contain any update, thus this method is needed to bypass
-// the empty files list check in version 1 and 2.
-func writeEmptyFiles(tw *tar.Writer, updFiles []string, dir string) error {
-	files := new(artifact.FilesV3)
 	sa := artifact.NewTarWriterStream(tw)
 	stream, err := artifact.ToStream(files)
 	if err != nil {

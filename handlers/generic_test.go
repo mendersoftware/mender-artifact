@@ -23,14 +23,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestHandlerGeneric(t *testing.T) {
+func TestHandlerGenericV1V2(t *testing.T) {
 	// test if update type is reported correctly
 	uType := "custom-type"
-	g := NewGeneric(uType)
-	assert.Equal(t, uType, g.GetType())
+	g := NewGenericV1V2(uType)
+	assert.Equal(t, uType, g.GetUpdateType())
 
-	// test we can not copy generic parser
-	assert.Nil(t, g.Copy())
+	// test we can copy generic parser
+	n := g.NewInstance()
+	assert.IsType(t, &GenericV1V2{}, n)
 
 	// test get update files
 	g.files["custom"] = &DataFile{Name: "update.ext4"}
@@ -40,14 +41,14 @@ func TestHandlerGeneric(t *testing.T) {
 
 func TestReadData(t *testing.T) {
 	buf := bytes.NewBuffer([]byte("data"))
-	g := NewGeneric("custom")
+	g := NewGenericV1V2("custom")
 
 	err := g.Install(buf, nil)
 	assert.NoError(t, err)
 }
 
 func TestReadHeader(t *testing.T) {
-	g := NewGeneric("custom")
+	g := NewGenericV1V2("custom")
 
 	tc := []struct {
 		data      string
@@ -57,7 +58,7 @@ func TestReadHeader(t *testing.T) {
 		errMsg    string
 	}{
 		{data: "invalid", name: "headers/0000/files", shouldErr: true,
-			errMsg: "error validating data", version: 2},
+			errMsg: "invalid character 'i'", version: 2},
 		{data: `{"files":["update.ext4", "next_update.ext4"]}`,
 			name: "headers/0000/files", shouldErr: false, version: 2},
 		{data: `1212121212121212121212121212`,
@@ -70,11 +71,10 @@ func TestReadHeader(t *testing.T) {
 		{data: "", name: "headers/0000/scripts/post/my_script", shouldErr: false, version: 2},
 		{data: "", name: "headers/0000/scripts/check/my_script", shouldErr: false, version: 2},
 		{data: "", name: "headers/0000/signatures/update.sig", shouldErr: false, version: 2},
-		// Version 3 specifics:
-		{data: `{"files":["update.ext4", "next_update.ext4"]}`, name: "headers/0000/files", shouldErr: true, version: 3},
 	}
 
 	for _, test := range tc {
+
 		buf := bytes.NewBuffer(nil)
 
 		tw := tar.NewWriter(buf)
@@ -92,7 +92,7 @@ func TestReadHeader(t *testing.T) {
 		_, err = tr.Next()
 		assert.NoError(t, err)
 
-		err = g.ReadHeader(buf, test.name, test.version)
+		err = g.ReadHeader(buf, test.name, test.version, false)
 		if test.shouldErr {
 			assert.Error(t, err)
 			if test.errMsg != "" {
@@ -100,7 +100,7 @@ func TestReadHeader(t *testing.T) {
 			}
 			// Second read in version 3 should accept files in the header.
 			if test.version == 3 {
-				err = g.ReadHeader(bytes.NewReader([]byte(test.data)), test.name, test.version)
+				err = g.ReadHeader(bytes.NewReader([]byte(test.data)), test.name, test.version, true)
 				assert.NoError(t, err)
 			}
 		} else {
