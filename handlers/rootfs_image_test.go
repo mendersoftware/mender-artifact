@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -145,20 +145,4 @@ func TestRootfsReadHeader(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}
-}
-
-func TestRootfsReadData(t *testing.T) {
-	r := NewRootfsInstaller()
-
-	buf := bytes.NewBuffer([]byte("some data"))
-
-	data := bytes.NewBuffer(nil)
-	r.InstallHandler = func(r io.Reader, df *DataFile) error {
-		_, err := io.Copy(data, r)
-		return err
-	}
-	err := r.Install(buf, nil)
-	require.NoError(t, err)
-	require.Equal(t, "some data", data.String())
-
 }

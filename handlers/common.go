@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import (
 	"archive/tar"
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -91,12 +92,45 @@ type Composer interface {
 	ComposeHeader(args *ComposeHeaderArgs) error
 }
 
+type UpdateStorer interface {
+	StoreUpdate(r io.Reader, info os.FileInfo) error
+}
+
+type UpdateStorerProducer interface {
+	NewUpdateStorer(payloadNum int) (UpdateStorer, error)
+}
+
 type Installer interface {
 	ArtifactUpdate
+	UpdateStorerProducer
 	ReadHeader(r io.Reader, path string, version int, augmented bool) error
-	Install(r io.Reader, info *os.FileInfo) error
+	SetUpdateStorerProducer(producer UpdateStorerProducer)
 	NewInstance() Installer
 	NewAugmentedInstance(orig ArtifactUpdate) (Installer, error)
+}
+
+type installerBase struct {
+	updateStorerProducer UpdateStorerProducer
+}
+
+type devNullUpdateStorer struct {
+}
+
+func (i *installerBase) SetUpdateStorerProducer(producer UpdateStorerProducer) {
+	i.updateStorerProducer = producer
+}
+
+func (i *installerBase) NewUpdateStorer(payloadNum int) (UpdateStorer, error) {
+	if i.updateStorerProducer != nil {
+		return i.updateStorerProducer.NewUpdateStorer(payloadNum)
+	} else {
+		return &devNullUpdateStorer{}, nil
+	}
+}
+
+func (s *devNullUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
+	_, err := io.Copy(ioutil.Discard, r)
+	return err
 }
 
 func parseFiles(r io.Reader) (*artifact.Files, error) {
