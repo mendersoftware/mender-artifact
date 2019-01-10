@@ -151,7 +151,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 				},
 			},
 			expected: `{
-				      "updates": [
+				      "payloads": [
 					      {
 						      "type": "rootfs-image"
 					      }
@@ -186,7 +186,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 				},
 			},
 			expected: `{
-				      "updates": [
+				      "payloads": [
 					      {
 						      "type": "rootfs-image"
 					      },
@@ -224,7 +224,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 				},
 			},
 			expected: `{
-				      "updates": [
+				      "payloads": [
 					      {
 						      "type": "rootfs-image"
 					      },
@@ -259,7 +259,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 				},
 			},
 			expected: `{
-				      "updates": [
+				      "payloads": [
 					      {
 						      "type": "rootfs-image"
 					      },
