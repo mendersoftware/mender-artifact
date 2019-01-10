@@ -105,9 +105,6 @@ func writeRootfs(c *cli.Context) error {
 		return cli.NewExitError("can not use scripts artifact with version 1", 1)
 	}
 
-	// NOTE: Update-types supported is currently hardcoded into the artifact!
-	updateTypesSupported := []string{"rootfs-image"}
-
 	depends := artifact.ArtifactDepends{
 		ArtifactName:      c.StringSlice("artifact-name-depends"),
 		CompatibleDevices: c.StringSlice("device-type"),
@@ -115,13 +112,12 @@ func writeRootfs(c *cli.Context) error {
 	}
 
 	provides := artifact.ArtifactProvides{
-		ArtifactName:         c.String("artifact-name"),
-		ArtifactGroup:        c.String("provides-group"),
-		SupportedUpdateTypes: updateTypesSupported,
+		ArtifactName:  c.String("artifact-name"),
+		ArtifactGroup: c.String("provides-group"),
 	}
 
 	typeInfoV3 := artifact.TypeInfoV3{
-		Type:             updateTypesSupported[0],
+		Type:             "rootfs-image",
 		ArtifactDepends:  &artifact.TypeInfoDepends{"rootfs_image_checksum": c.String("depends-rootfs-image-checksum")},
 		ArtifactProvides: &artifact.TypeInfoProvides{"rootfs_image_checksum": c.String("provides-rootfs-image-checksum")},
 	}
@@ -330,9 +326,6 @@ func writeModuleImage(ctx *cli.Context) error {
 		return cli.NewExitError("can not use scripts artifact with version 1", 1)
 	}
 
-	// NOTE: Update-types supported is currently hardcoded into the artifact!
-	updateTypesSupported := []string{"TODO"}
-
 	depends := artifact.ArtifactDepends{
 		ArtifactName:      ctx.StringSlice("artifact-name-depends"),
 		CompatibleDevices: ctx.StringSlice("device-type"),
@@ -340,9 +333,8 @@ func writeModuleImage(ctx *cli.Context) error {
 	}
 
 	provides := artifact.ArtifactProvides{
-		ArtifactName:         ctx.String("artifact-name"),
-		ArtifactGroup:        ctx.String("provides-group"),
-		SupportedUpdateTypes: updateTypesSupported,
+		ArtifactName:  ctx.String("artifact-name"),
+		ArtifactGroup: ctx.String("provides-group"),
 	}
 
 	typeInfoV3, augmentTypeInfoV3, err := makeTypeInfo(ctx)

@@ -92,9 +92,8 @@ func TestValidateHeaderInfoV3(t *testing.T) {
 					{Type: "rootfs-image"},
 					{Type: "delta"}},
 				ArtifactProvides: &ArtifactProvides{
-					ArtifactName:         "release-2",
-					ArtifactGroup:        "group-1",
-					SupportedUpdateTypes: []string{"rootfs", "delta"},
+					ArtifactName:  "release-2",
+					ArtifactGroup: "group-1",
 				},
 				ArtifactDepends: &ArtifactDepends{
 					ArtifactName:      []string{"release-2"},
@@ -111,9 +110,6 @@ func TestValidateHeaderInfoV3(t *testing.T) {
 		"Empty Artifact name": {
 			in:  HeaderInfoV3{Updates: []UpdateType{UpdateType{}}, ArtifactProvides: &ArtifactProvides{}},
 			err: "Artifact name"},
-		"Empty supported update type": {
-			in:  HeaderInfoV3{Updates: []UpdateType{UpdateType{}}, ArtifactProvides: &ArtifactProvides{}},
-			err: "Supported update type"},
 	}
 	for name, tt := range tests {
 		e := tt.in.Validate()
@@ -126,7 +122,7 @@ func TestValidateHeaderInfoV3(t *testing.T) {
 
 func TestHeaderInfoV3(t *testing.T) {
 	ut := []UpdateType{UpdateType{Type: "rootfs-image"}}
-	provides := &ArtifactProvides{ArtifactName: "release-1", SupportedUpdateTypes: []string{"rootfs-image"}}
+	provides := &ArtifactProvides{ArtifactName: "release-1"}
 	depends := &ArtifactDepends{CompatibleDevices: []string{"vexpress-qemu"}}
 	hi := NewHeaderInfoV3(ut, provides, depends)
 
@@ -146,9 +142,8 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 			hi: HeaderInfoV3{
 				Updates: []UpdateType{UpdateType{"rootfs-image"}},
 				ArtifactProvides: &ArtifactProvides{
-					ArtifactName:         "release-2",
-					ArtifactGroup:        "fix",
-					SupportedUpdateTypes: []string{"rootfs-image"},
+					ArtifactName:  "release-2",
+					ArtifactGroup: "fix",
 				},
 				ArtifactDepends: &ArtifactDepends{
 					ArtifactName:      []string{"release-1"},
@@ -185,9 +180,8 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 					UpdateType{"delta-image"},
 				},
 				ArtifactProvides: &ArtifactProvides{
-					ArtifactName:         "release-2",
-					ArtifactGroup:        "fix",
-					SupportedUpdateTypes: []string{"rootfs-image", "delta-update"},
+					ArtifactName:  "release-2",
+					ArtifactGroup: "fix",
 				},
 				ArtifactDepends: &ArtifactDepends{
 					ArtifactName:      []string{"release-1"},
@@ -228,9 +222,8 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 					UpdateType{"delta-image"},
 				},
 				ArtifactProvides: &ArtifactProvides{
-					ArtifactName:         "release-2",
-					ArtifactGroup:        "fix",
-					SupportedUpdateTypes: []string{"rootfs-image", "delta-update"},
+					ArtifactName:  "release-2",
+					ArtifactGroup: "fix",
 				},
 				ArtifactDepends: &ArtifactDepends{
 					ArtifactName:      []string{"release-1"},
@@ -272,9 +265,8 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 					UpdateType{"delta-image"},
 				},
 				ArtifactProvides: &ArtifactProvides{
-					ArtifactName:         "release-2",
-					ArtifactGroup:        "fix",
-					SupportedUpdateTypes: []string{"rootfs-image", "delta-update"},
+					ArtifactName:  "release-2",
+					ArtifactGroup: "fix",
 				},
 			},
 			expected: `{

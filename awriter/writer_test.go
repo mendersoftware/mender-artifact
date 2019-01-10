@@ -223,9 +223,8 @@ func TestWriteArtifactV3(t *testing.T) {
 		Name:    "name",
 		Updates: updates,
 		Provides: &artifact.ArtifactProvides{
-			ArtifactName:         "name",
-			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
+			ArtifactName:  "name",
+			ArtifactGroup: "group-1",
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -252,9 +251,8 @@ func TestWriteArtifactV3(t *testing.T) {
 		Name:    "name",
 		Updates: updates,
 		Provides: &artifact.ArtifactProvides{
-			ArtifactName:         "name",
-			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
+			ArtifactName:  "name",
+			ArtifactGroup: "group-1",
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -281,9 +279,8 @@ func TestWriteArtifactV3(t *testing.T) {
 		Name:    "name",
 		Updates: updates,
 		Provides: &artifact.ArtifactProvides{
-			ArtifactName:         "name",
-			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
+			ArtifactName:  "name",
+			ArtifactGroup: "group-1",
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -317,9 +314,8 @@ func TestWriteArtifactV3(t *testing.T) {
 		Name:    "name",
 		Updates: updates,
 		Provides: &artifact.ArtifactProvides{
-			ArtifactName:         "name",
-			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
+			ArtifactName:  "name",
+			ArtifactGroup: "group-1",
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -346,9 +342,8 @@ func TestWriteArtifactV3(t *testing.T) {
 		Name:    "name",
 		Updates: updates,
 		Provides: &artifact.ArtifactProvides{
-			ArtifactName:         "name",
-			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
+			ArtifactName:  "name",
+			ArtifactGroup: "group-1",
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -376,9 +371,8 @@ func TestWriteArtifactV3(t *testing.T) {
 		Name:    "name",
 		Updates: updates,
 		Provides: &artifact.ArtifactProvides{
-			ArtifactName:         "name",
-			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
+			ArtifactName:  "name",
+			ArtifactGroup: "group-1",
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -397,9 +391,8 @@ func TestWriteArtifactV3(t *testing.T) {
 		Name:    "name",
 		Updates: updates, // Update existing.
 		Provides: &artifact.ArtifactProvides{
-			ArtifactName:         "name",
-			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
+			ArtifactName:  "name",
+			ArtifactGroup: "group-1",
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -418,9 +411,8 @@ func TestWriteArtifactV3(t *testing.T) {
 		Name:    "name",
 		Updates: updates, // Update existing.
 		Provides: &artifact.ArtifactProvides{
-			ArtifactName:         "name",
-			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
+			ArtifactName:  "name",
+			ArtifactGroup: "group-1",
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -443,9 +435,8 @@ func TestWriteArtifactV3(t *testing.T) {
 		Name:    "name",
 		Updates: updates, // Update existing.
 		Provides: &artifact.ArtifactProvides{
-			ArtifactName:         "name",
-			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
+			ArtifactName:  "name",
+			ArtifactGroup: "group-1",
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -472,9 +463,8 @@ func TestWriteArtifactV3(t *testing.T) {
 		Name:    "name",
 		Updates: updates,
 		Provides: &artifact.ArtifactProvides{
-			ArtifactName:         "name",
-			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
+			ArtifactName:  "name",
+			ArtifactGroup: "group-1",
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -511,9 +501,8 @@ func TestWriteArtifactV3(t *testing.T) {
 		Name:    "name",
 		Updates: updates,
 		Provides: &artifact.ArtifactProvides{
-			ArtifactName:         "name",
-			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
+			ArtifactName:  "name",
+			ArtifactGroup: "group-1",
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
