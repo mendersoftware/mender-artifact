@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -56,21 +56,21 @@ func TestArtifactsWrite(t *testing.T) {
 
 	// no whitespace allowed in artifact-name
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1. 1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "mender-1. 1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "art.mender"), "-v", "2"}
 	err = run()
 	assert.Equal(t, "whitespace is not allowed in the artifact-name", err.Error())
 
 	// store named file V1.
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "art.mender"), "-v", "1"}
 	err = run()
 	assert.NoError(t, err)
 
 	// store named file V2.
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "art.mender"), "-v", "2"}
 	err = run()
 	assert.NoError(t, err)
@@ -81,14 +81,14 @@ func TestArtifactsWrite(t *testing.T) {
 
 	// store named file V3.
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "art.mender"), "-v", "3"}
 	err = run()
 	assert.NoError(t, err)
 
 	// Write invalid artifact-version.
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "art.mender"), "-v", "300"}
 	err = run()
 	assert.Error(t, err)
@@ -140,7 +140,7 @@ func TestWithScripts(t *testing.T) {
 
 	// write artifact
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Enter_99"),
 		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Leave_01"),
@@ -156,7 +156,7 @@ func TestWithScripts(t *testing.T) {
 
 	// write artifact vith invalid version
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Enter_99"),
 		"-v", "1"}
@@ -168,7 +168,7 @@ func TestWithScripts(t *testing.T) {
 
 	// write artifact vith invalid script name
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-s", filepath.Join(updateTestDir, "InvalidScript")}
 	fakeErrWriter.Reset()

@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -156,7 +156,7 @@ func TestSignExistingWithScripts(t *testing.T) {
 
 	// write artifact
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Enter_99"),
 		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Leave_01")}
