@@ -64,8 +64,8 @@ func run() error {
 
 	writeRootfsCommand.Flags = []cli.Flag{
 		cli.StringFlag{
-			Name:  "update, u",
-			Usage: "Update `FILE`.",
+			Name:  "file, f",
+			Usage: "Payload `FILE`.",
 		},
 		cli.StringSliceFlag{
 			Name: "device-type, t",
@@ -177,7 +177,7 @@ func run() error {
 		},
 		cli.StringFlag{
 			Name:  "type, T",
-			Usage: "Type of update. This is the same as the name of the update module",
+			Usage: "Type of payload. This is the same as the name of the update module",
 		},
 		cli.StringSliceFlag{
 			Name:  "provides, p",
@@ -189,15 +189,15 @@ func run() error {
 		},
 		cli.StringFlag{
 			Name:  "meta-data, m",
-			Usage: "The meta-data JSON `FILE` for this update module",
+			Usage: "The meta-data JSON `FILE` for this payload",
 		},
 		cli.StringSliceFlag{
 			Name:  "file, f",
-			Usage: "Include `FILE` in update. Can be given more than once.",
+			Usage: "Include `FILE` in payload. Can be given more than once.",
 		},
 		cli.StringFlag{
 			Name:  "augment-type",
-			Usage: "Type of augmented update. This is the same as the name of the update module",
+			Usage: "Type of augmented payload. This is the same as the name of the update module",
 		},
 		cli.StringSliceFlag{
 			Name:  "augment-provides",
@@ -209,11 +209,11 @@ func run() error {
 		},
 		cli.StringFlag{
 			Name:  "augment-meta-data",
-			Usage: "The meta-data JSON `FILE` for this update module, for the augmented section",
+			Usage: "The meta-data JSON `FILE` for this payload, for the augmented section",
 		},
 		cli.StringSliceFlag{
 			Name:  "augment-file",
-			Usage: "Include `FILE` in updatein the augment section. Can be given more than once.",
+			Usage: "Include `FILE` in payload in the augment section. Can be given more than once.",
 		},
 	}
 

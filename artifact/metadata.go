@@ -161,7 +161,11 @@ func (hi *HeaderInfo) GetArtifactProvides() *ArtifactProvides {
 }
 
 type HeaderInfoV3 struct {
-	Updates          []UpdateType      `json:"updates"`
+	// For historical reasons, "payloads" are often referred to as "updates"
+	// in the code, since this was the old name (and still is, in V2 and
+	// V1). This is the reason why the struct field is still called
+	// "Updates".
+	Updates          []UpdateType      `json:"payloads"`
 	ArtifactProvides *ArtifactProvides `json:"artifact_provides"` // Has its own json marshaller tags.
 	ArtifactDepends  *ArtifactDepends  `json:"artifact_depends"`  // Has its own json marshaller tags.
 }
