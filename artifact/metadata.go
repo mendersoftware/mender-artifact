@@ -225,10 +225,6 @@ func (hi *HeaderInfoV3) Validate() error {
 		//
 		/* Artifact need not have a group */
 		//
-		/* Artifact must have at least one supported update type. */
-		if len(hi.ArtifactProvides.SupportedUpdateTypes) == 0 {
-			missingArgs = append(missingArgs, "Supported update type")
-		}
 	}
 	///////////////////////////////////////
 	// Artifact-depends can be empty, thus:
@@ -264,7 +260,6 @@ type ArtifactDepends struct {
 type ArtifactProvides struct {
 	ArtifactName         string   `json:"artifact_name"`
 	ArtifactGroup        string   `json:"artifact_group,omitempty"`
-	SupportedUpdateTypes []string `json:"update_types_supported"` // e.g. rootfs, delta.
 }
 
 // TypeInfo provides information of type of individual updates

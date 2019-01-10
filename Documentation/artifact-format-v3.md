@@ -182,11 +182,7 @@ Format: JSON
     ],
     "artifact_provides": {
         "artifact_name": "release-2",
-        "artifact_group": "fix",
-        "update_types_supported": [
-            "rootfs-image",
-            "delta-update"
-        ]
+        "artifact_group": "fix"
     },
     "artifact_depends": {
         "artifact_name": [
@@ -238,8 +234,6 @@ For the detailed information see the description of the given parameter below.
 * `artifact_name` is the name of the artifact
 * `artifact_group` is the name of the group of artifacts given artifact
 belongs to
-* `update_types_supported` is the list of all the update types given Mender
-client can install
 
 #### device_provides
 

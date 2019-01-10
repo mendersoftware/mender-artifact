@@ -175,7 +175,6 @@ func MakeAnyImageArtifact(version int, signed bool,
 		Provides: &artifact.ArtifactProvides{
 			ArtifactName:         "mender-1.1",
 			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs-image", "delta"},
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"mender-1.0"},
@@ -640,7 +639,7 @@ func TestReadArtifactDependsAndProvides(t *testing.T) {
 
 	assert.Equal(t, ar.GetInfo(), artifact.Info{Format: "mender", Version: 3})
 	assert.Equal(t, *ar.GetArtifactProvides(), artifact.ArtifactProvides{ArtifactName: "mender-1.1",
-		ArtifactGroup: "group-1", SupportedUpdateTypes: []string{"rootfs-image", "delta"}})
+		ArtifactGroup: "group-1"})
 	assert.Equal(t, *ar.GetArtifactDepends(), artifact.ArtifactDepends{
 		ArtifactName:      []string{"mender-1.0"},
 		CompatibleDevices: []string{"vexpress"}})
