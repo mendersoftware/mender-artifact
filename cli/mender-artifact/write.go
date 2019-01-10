@@ -31,7 +31,7 @@ func validateInput(c *cli.Context) error {
 	// Version 1,2 and 3 validation.
 	if len(c.StringSlice("device-type")) == 0 ||
 		len(c.String("artifact-name")) == 0 ||
-		len(c.String("update")) == 0 {
+		len(c.String("file")) == 0 {
 		return cli.NewExitError(
 			"must provide `device-type`, `artifact-name` and `update`",
 			errArtifactInvalidParameters,
@@ -65,11 +65,11 @@ func writeRootfs(c *cli.Context) error {
 	var h handlers.Composer
 	switch version {
 	case 1:
-		h = handlers.NewRootfsV1(c.String("update"))
+		h = handlers.NewRootfsV1(c.String("file"))
 	case 2:
-		h = handlers.NewRootfsV2(c.String("update"))
+		h = handlers.NewRootfsV2(c.String("file"))
 	case 3:
-		h = handlers.NewRootfsV3(c.String("update"))
+		h = handlers.NewRootfsV3(c.String("file"))
 	default:
 		return cli.NewExitError(
 			fmt.Sprintf("unsupported artifact version: %v", version),
