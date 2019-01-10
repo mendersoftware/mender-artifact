@@ -18,8 +18,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -36,6 +34,8 @@ type ModuleImage struct {
 	// If this is an augmented ModuleImage instance, pointer to the
 	// original. This is nil, if this instance is the original.
 	original ArtifactUpdate
+
+	installerBase
 }
 
 func NewModuleImage(updateType string) *ModuleImage {
@@ -53,13 +53,16 @@ func NewAugmentedModuleImage(orig ArtifactUpdate, updateType string) *ModuleImag
 }
 
 func (img *ModuleImage) NewAugmentedInstance(orig ArtifactUpdate) (Installer, error) {
-	return NewAugmentedModuleImage(orig, img.updateType), nil
+	newImg := img.NewInstance().(*ModuleImage)
+	newImg.original = orig
+	return newImg, nil
 }
 
 func (img *ModuleImage) NewInstance() Installer {
 	newImg := ModuleImage{
-		version:    img.version,
-		updateType: img.updateType,
+		version:       img.version,
+		installerBase: img.installerBase,
+		updateType:    img.updateType,
 	}
 
 	return &newImg
@@ -447,10 +450,5 @@ func (img *ModuleImage) ReadHeader(r io.Reader, path string, version int, augmen
 	default:
 		return errors.Errorf("update: unsupported file: %v", path)
 	}
-	return nil
-}
-
-func (img *ModuleImage) Install(r io.Reader, info *os.FileInfo) error {
-	io.Copy(ioutil.Discard, r)
 	return nil
 }

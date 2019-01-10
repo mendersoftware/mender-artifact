@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -158,10 +158,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 				      ],
 				      "artifact_provides": {
 					      "artifact_name": "release-2",
-					      "artifact_group": "fix",
-					      "update_types_supported": [
-						      "rootfs-image"
-					      ]
+					      "artifact_group": "fix"
 				      },
 				      "artifact_depends": {
 					      "artifact_name": [
@@ -199,11 +196,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 				      ],
 				      "artifact_provides": {
 					      "artifact_name": "release-2",
-					      "artifact_group": "fix",
-					      "update_types_supported": [
-						      "rootfs-image",
-						      "delta-update"
-					      ]
+					      "artifact_group": "fix"
 				      },
 				      "artifact_depends": {
 					      "artifact_name": [
@@ -241,11 +234,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 				      ],
 				      "artifact_provides": {
 					      "artifact_name": "release-2",
-					      "artifact_group": "fix",
-					      "update_types_supported": [
-						      "rootfs-image",
-						      "delta-update"
-					      ]
+					      "artifact_group": "fix"
 				      },
 				      "artifact_depends": {
 					      "artifact_name": [
@@ -280,11 +269,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 				      ],
 				      "artifact_provides": {
 					      "artifact_name": "release-2",
-					      "artifact_group": "fix",
-					      "update_types_supported": [
-						      "rootfs-image",
-						      "delta-update"
-					      ]
+					      "artifact_group": "fix"
 				      },
 		                      "artifact_depends": null
 			      }`,
