@@ -173,7 +173,6 @@ func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
 			errArtifactInvalidParameters)
 	case 3:
 		handler = handlers.NewModuleImage(ctx.String("type"))
-		augmentHandler = handlers.NewAugmentedModuleImage(handler, ctx.String("augment-type"))
 	default:
 		return nil, cli.NewExitError(
 			fmt.Sprintf("unsupported artifact version: %v", version),
@@ -187,15 +186,18 @@ func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
 	}
 	handler.SetUpdateFiles(dataFiles)
 
-	dataFiles = make([](*handlers.DataFile), 0, len(ctx.StringSlice("augment-file")))
-	for _, file := range ctx.StringSlice("augment-file") {
-		dataFiles = append(dataFiles, &handlers.DataFile{Name: file})
-	}
-	augmentHandler.SetUpdateAugmentFiles(dataFiles)
-
 	upd := &awriter.Updates{
 		Updates:  []handlers.Composer{handler},
-		Augments: []handlers.Composer{augmentHandler},
+	}
+
+	if ctx.String("augment-type") != "" {
+		augmentHandler = handlers.NewAugmentedModuleImage(handler, ctx.String("augment-type"))
+		dataFiles = make([](*handlers.DataFile), 0, len(ctx.StringSlice("augment-file")))
+		for _, file := range ctx.StringSlice("augment-file") {
+			dataFiles = append(dataFiles, &handlers.DataFile{Name: file})
+		}
+		augmentHandler.SetUpdateAugmentFiles(dataFiles)
+		upd.Augments = []handlers.Composer{augmentHandler}
 	}
 
 	return upd, nil
@@ -247,6 +249,21 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 		ArtifactDepends:  typeInfoDepends,
 		ArtifactProvides: typeInfoProvides,
 	}
+
+	if ctx.String("augment-type") == "" {
+		// Non-augmented artifact
+		if len(ctx.StringSlice("augment-file")) != 0 ||
+			len(ctx.StringSlice("augment-depends")) != 0 ||
+			len(ctx.StringSlice("augment-provides")) != 0 ||
+			ctx.String("augment-meta-data") != "" {
+
+			err = errors.New("Must give --augment-type argument if making augmented artifact")
+			fmt.Println(err.Error())
+			return nil, nil, err
+		}
+		return typeInfoV3, nil, nil
+	}
+
 	augmentTypeInfoV3 := &artifact.TypeInfoV3{
 		Type:             ctx.String("augment-type"),
 		ArtifactDepends:  augmentTypeInfoDepends,

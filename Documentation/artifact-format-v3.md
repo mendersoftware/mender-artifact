@@ -374,8 +374,10 @@ These files and attributes are allowed:
     ]
   }
   ```
-  The `payloads` attribute is expected to be in the same order as the original in
-  `header.tar.gz`, and will override it.
+  The `payloads` attribute is expected to be in the same order as the original
+  in `header.tar.gz`, and will override it. An empty string can be used to
+  disable overriding for that entry, which may be necessary in order to get
+  indexing right if some entries are overriden, but not all.
 
 * `type-info` file with `artifact_depends` and `rootfs_image_checksum`:
   ```
