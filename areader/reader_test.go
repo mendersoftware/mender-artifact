@@ -680,6 +680,28 @@ func TestReadBrokenArtifact(t *testing.T) {
 		"augmented files, but header-augment.tar.gz missing": {
 			manipulateArtifact: func(tmpdir string) {
 				os.Remove(filepath.Join(tmpdir, "header-augment.tar.gz"))
+
+				file, err := os.OpenFile(filepath.Join(tmpdir, "manifest-augment"), os.O_RDWR, 0)
+				require.NoError(t, err)
+				defer file.Close()
+				stat, _ := file.Stat()
+				buf := make([]byte, stat.Size())
+				newbuf := make([]byte, 0, stat.Size())
+				file.Read(buf)
+				lines := bytes.Split(buf, []byte("\n"))
+				for _, line := range lines {
+					if len(line) != 0 && bytes.HasPrefix(bytes.Split(line, []byte("  "))[1], []byte("header-augment")) {
+						// Skip line.
+						continue
+					}
+					for _, char := range line {
+						newbuf = append(newbuf, char)
+					}
+					newbuf = append(newbuf, byte('\n'))
+				}
+				file.Seek(0, 0)
+				file.Write(newbuf)
+				file.Truncate(int64(len(newbuf)))
 			},
 			successful:      false,
 			numAugmentFiles: 1,

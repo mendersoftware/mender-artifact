@@ -614,7 +614,15 @@ func (ar *Reader) GetArtifactDepends() *artifact.ArtifactDepends {
 func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error {
 	for i, update := range upd {
 		// set installer for given update type
-		if w, ok := ar.handlers[update.Type]; ok {
+		if update.Type == "" {
+			if augmented {
+				// Just skip empty augmented entries, which
+				// means there is no augment override.
+				continue
+			} else {
+				return errors.New("Unexpected empty update type")
+			}
+		} else if w, ok := ar.handlers[update.Type]; ok {
 			if augmented {
 				var err error
 				ar.installers[i], err = w.NewAugmentedInstance(ar.installers[i])
