@@ -477,7 +477,7 @@ func (i *installer) ReadHeader(r io.Reader, path string, version int, augmented 
 	return nil
 }
 
-func (i *installer) NewUpdateStorer(payloadNum int) (handlers.UpdateStorer, error) {
+func (i *installer) NewUpdateStorer(updateType string, payloadNum int) (handlers.UpdateStorer, error) {
 	return &testUpdateStorer{}, nil
 }
 
@@ -500,7 +500,7 @@ func (s *testUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
 	return err
 }
 
-func (s *testUpdateStorer) NewUpdateStorer(payloadNum int) (handlers.UpdateStorer, error) {
+func (s *testUpdateStorer) NewUpdateStorer(updateType string, payloadNum int) (handlers.UpdateStorer, error) {
 	return s, nil
 }
 

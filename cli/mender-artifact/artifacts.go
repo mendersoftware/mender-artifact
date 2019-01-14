@@ -43,12 +43,15 @@ func (w *writeUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
 	return err
 }
 
-func (w *writeUpdateStorer) NewUpdateStorer(payloadNum int) (handlers.UpdateStorer, error) {
+func (w *writeUpdateStorer) NewUpdateStorer(updateType string, payloadNum int) (handlers.UpdateStorer, error) {
 	// For rootfs, which is the only type we support for artifact
 	// modifications, there should only ever be one payload, with one file,
 	// so our producer just returns itself.
 	if payloadNum != 0 {
 		return nil, errors.New("More than one payload or update file is not supported")
+	}
+	if updateType != "rootfs-image" {
+		return nil, errors.New("Only rootfs update types supported")
 	}
 	return w, nil
 }

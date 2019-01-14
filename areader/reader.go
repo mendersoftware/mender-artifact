@@ -840,7 +840,7 @@ func (ar *Reader) readAndInstall(r io.Reader, i handlers.Installer,
 	}
 	defer gz.Close()
 
-	updateStorer, err := i.NewUpdateStorer(no)
+	updateStorer, err := i.NewUpdateStorer(i.GetUpdateType(), no)
 	if err != nil {
 		return err
 	}
