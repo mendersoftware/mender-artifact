@@ -97,7 +97,7 @@ type UpdateStorer interface {
 }
 
 type UpdateStorerProducer interface {
-	NewUpdateStorer(payloadNum int) (UpdateStorer, error)
+	NewUpdateStorer(updateType string, payloadNum int) (UpdateStorer, error)
 }
 
 type Installer interface {
@@ -120,9 +120,9 @@ func (i *installerBase) SetUpdateStorerProducer(producer UpdateStorerProducer) {
 	i.updateStorerProducer = producer
 }
 
-func (i *installerBase) NewUpdateStorer(payloadNum int) (UpdateStorer, error) {
+func (i *installerBase) NewUpdateStorer(updateType string, payloadNum int) (UpdateStorer, error) {
 	if i.updateStorerProducer != nil {
-		return i.updateStorerProducer.NewUpdateStorer(payloadNum)
+		return i.updateStorerProducer.NewUpdateStorer(updateType, payloadNum)
 	} else {
 		return &devNullUpdateStorer{}, nil
 	}
