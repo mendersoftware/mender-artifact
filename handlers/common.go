@@ -97,7 +97,7 @@ type UpdateStorer interface {
 }
 
 type UpdateStorerProducer interface {
-	NewUpdateStorer(payloadNum int) (UpdateStorer, error)
+	NewUpdateStorer(updateType string, payloadNum int) (UpdateStorer, error)
 }
 
 type Installer interface {
@@ -120,9 +120,9 @@ func (i *installerBase) SetUpdateStorerProducer(producer UpdateStorerProducer) {
 	i.updateStorerProducer = producer
 }
 
-func (i *installerBase) NewUpdateStorer(payloadNum int) (UpdateStorer, error) {
+func (i *installerBase) NewUpdateStorer(updateType string, payloadNum int) (UpdateStorer, error) {
 	if i.updateStorerProducer != nil {
-		return i.updateStorerProducer.NewUpdateStorer(payloadNum)
+		return i.updateStorerProducer.NewUpdateStorer(updateType, payloadNum)
 	} else {
 		return &devNullUpdateStorer{}, nil
 	}
@@ -136,7 +136,7 @@ func (s *devNullUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
 func parseFiles(r io.Reader) (*artifact.Files, error) {
 	files := new(artifact.Files)
 	if _, err := io.Copy(files, r); err != nil {
-		return nil, errors.Wrap(err, "update: error reading files")
+		return nil, errors.Wrap(err, "Payload: error reading files")
 	}
 	if err := files.Validate(); err != nil {
 		return nil, err
@@ -174,12 +174,12 @@ func writeTypeInfo(tw *tar.Writer, updateType string, dir string) error {
 	tInfo := artifact.TypeInfo{Type: updateType}
 	info, err := json.Marshal(&tInfo)
 	if err != nil {
-		return errors.Wrapf(err, "update: can not create type-info")
+		return errors.Wrapf(err, "Payload: can not create type-info")
 	}
 
 	w := artifact.NewTarWriterStream(tw)
 	if err := w.Write(info, filepath.Join(dir, "type-info")); err != nil {
-		return errors.Wrapf(err, "update: can not tar type-info")
+		return errors.Wrapf(err, "Payload: can not tar type-info")
 	}
 	return nil
 }
@@ -193,12 +193,12 @@ type WriteInfoArgs struct {
 func writeTypeInfoV3(args *WriteInfoArgs) error {
 	info, err := json.Marshal(args.typeinfov3)
 	if err != nil {
-		return errors.Wrapf(err, "update: can not create type-info")
+		return errors.Wrapf(err, "Payload: can not create type-info")
 	}
 
 	w := artifact.NewTarWriterStream(args.tarWriter)
 	if err := w.Write(info, filepath.Join(args.dir, "type-info")); err != nil {
-		return errors.Wrapf(err, "update: can not tar type-info")
+		return errors.Wrapf(err, "Payload: can not tar type-info")
 	}
 	return nil
 }
@@ -208,7 +208,7 @@ func writeChecksums(tw *tar.Writer, files [](*DataFile), dir string) error {
 		w := artifact.NewTarWriterStream(tw)
 		if err := w.Write(f.Checksum,
 			filepath.Join(dir, filepath.Base(f.Name)+".sha256sum")); err != nil {
-			return errors.Wrapf(err, "update: can not tar checksum for %v", f)
+			return errors.Wrapf(err, "Payload: can not tar checksum for %v", f)
 		}
 	}
 	return nil

@@ -121,7 +121,7 @@ func (hi *HeaderInfo) GetUpdates() []UpdateType {
 func (hi HeaderInfo) Validate() error {
 	missingArgs := []string{"Artifact validation failed with missing argument"}
 	if len(hi.Updates) == 0 {
-		missingArgs = append(missingArgs, "No updates added")
+		missingArgs = append(missingArgs, "No Payloads added")
 	}
 	if len(hi.CompatibleDevices) == 0 {
 		missingArgs = append(missingArgs, "No compatible devices listed")
@@ -131,7 +131,7 @@ func (hi HeaderInfo) Validate() error {
 	}
 	for _, update := range hi.Updates {
 		if update == (UpdateType{}) {
-			missingArgs = append(missingArgs, "Empty update")
+			missingArgs = append(missingArgs, "Empty Payload")
 			break
 		}
 	}
@@ -206,12 +206,12 @@ func (hi *HeaderInfoV3) Validate() error {
 	// Artifact must have an update with them,
 	// because the signature of the update is stored in the metadata field.
 	if len(hi.Updates) == 0 {
-		missingArgs = append(missingArgs, "No updates added")
+		missingArgs = append(missingArgs, "No Payloads added")
 	}
 	// Updates cannot be empty.
 	for _, update := range hi.Updates {
 		if update == (UpdateType{}) {
-			missingArgs = append(missingArgs, "Empty update")
+			missingArgs = append(missingArgs, "Empty Payload")
 			break
 		}
 	}
@@ -220,7 +220,7 @@ func (hi *HeaderInfoV3) Validate() error {
 	//////////////////////////////////
 	/* Artifact-provides cannot be empty. */
 	if hi.ArtifactProvides == nil {
-		missingArgs = append(missingArgs, "Empty artifact provides")
+		missingArgs = append(missingArgs, "Empty Artifact provides")
 	} else {
 		/* Artifact must have a name. */
 		if len(hi.ArtifactProvides.ArtifactName) == 0 {
