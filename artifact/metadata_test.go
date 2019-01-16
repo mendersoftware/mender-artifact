@@ -52,17 +52,17 @@ func TestValidateHeaderInfo(t *testing.T) {
 		err string
 	}{
 		{HeaderInfo{},
-			"Artifact validation failed with missing arguments: No updates added, No compatible devices listed, No artifact name"},
+			"Artifact validation failed with missing arguments: No Payloads added, No compatible devices listed, No artifact name"},
 		{HeaderInfo{Updates: []UpdateType{}},
-			"Artifact validation failed with missing arguments: No updates added, No compatible devices listed, No artifact name"},
+			"Artifact validation failed with missing arguments: No Payloads added, No compatible devices listed, No artifact name"},
 		{HeaderInfo{Updates: []UpdateType{{Type: ""}}},
-			"Artifact validation failed with missing arguments: No compatible devices listed, No artifact name, Empty update"},
+			"Artifact validation failed with missing arguments: No compatible devices listed, No artifact name, Empty Payload"},
 		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {}}},
-			"Artifact validation failed with missing arguments: No compatible devices listed, No artifact name, Empty update"},
+			"Artifact validation failed with missing arguments: No compatible devices listed, No artifact name, Empty Payload"},
 		{HeaderInfo{Updates: []UpdateType{{}, {Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
-			"Artifact validation failed with missing argument: Empty update"},
+			"Artifact validation failed with missing argument: Empty Payload"},
 		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: ""}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
-			"Artifact validation failed with missing argument: Empty update"},
+			"Artifact validation failed with missing argument: Empty Payload"},
 		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
 			""},
 		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, ArtifactName: "id"},
@@ -102,11 +102,11 @@ func TestValidateHeaderInfoV3(t *testing.T) {
 			},
 			err: ""},
 		"wrong headerinfo": {
-			err: "Artifact validation failed with missing arguments: No updates added, Empty artifact provides"},
+			err: "Artifact validation failed with missing arguments: No Payloads added, Empty Artifact provides"},
 
-		"Empty updates": {
+		"Empty Payloads": {
 			in:  HeaderInfoV3{Updates: []UpdateType{UpdateType{}}},
-			err: "Empty update"},
+			err: "Empty Payload"},
 		"Empty Artifact name": {
 			in:  HeaderInfoV3{Updates: []UpdateType{UpdateType{}}, ArtifactProvides: &ArtifactProvides{}},
 			err: "Artifact name"},

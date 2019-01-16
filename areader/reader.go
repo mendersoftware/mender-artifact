@@ -620,7 +620,7 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error
 				// means there is no augment override.
 				continue
 			} else {
-				return errors.New("Unexpected empty update type")
+				return errors.New("Unexpected empty Payload type")
 			}
 		} else if w, ok := ar.handlers[update.Type]; ok {
 			if augmented {
@@ -633,7 +633,7 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error
 				ar.installers[i] = w.NewInstance()
 			}
 		} else if ar.ForbidUnknownHandlers {
-			return fmt.Errorf("Cannot load handler for unknown update type '%s'",
+			return fmt.Errorf("Cannot load handler for unknown Payload type '%s'",
 				update.Type)
 		} else if ar.info.Version >= 3 {
 			// For version 3 onwards, use modules for unknown update
@@ -665,7 +665,7 @@ func (ar *Reader) buildInstallerIndexedFileLists(files []handlers.DataFile) ([][
 			return nil, err
 		}
 		if index < 0 || index >= len(ar.installers) {
-			return nil, fmt.Errorf("File in manifest does not belong to any update: %s", file.Name)
+			return nil, fmt.Errorf("File in manifest does not belong to any Payload: %s", file.Name)
 		}
 
 		fileLists[index] = append(fileLists[index], &handlers.DataFile{Name: baseName})
@@ -699,7 +699,7 @@ func (ar *Reader) assignUpdateFiles() error {
 func getUpdateNoFromHeaderPath(path string) (int, error) {
 	split := strings.Split(path, string(os.PathSeparator))
 	if len(split) < 3 {
-		return 0, errors.New("can not get update order from tar path")
+		return 0, errors.New("can not get Payload order from tar path")
 	}
 	return strconv.Atoi(split[1])
 }
@@ -736,12 +736,12 @@ func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header, augmented bo
 		if hdr.Typeflag != tar.TypeDir {
 			updNo, err := getUpdateNoFromHeaderPath(hdr.Name)
 			if err != nil {
-				return errors.Wrapf(err, "reader: error getting header update number")
+				return errors.Wrapf(err, "reader: error getting header Payload number")
 			}
 
 			inst, ok := ar.installers[updNo]
 			if !ok {
-				return errors.Errorf("reader: can not find parser for update: %v", hdr.Name)
+				return errors.Errorf("reader: can not find parser for Payload: %v", hdr.Name)
 			}
 			if hErr := inst.ReadHeader(tr, hdr.Name, ar.info.Version, augmented); hErr != nil {
 				return errors.Wrap(hErr, "reader: can not read header")
@@ -765,14 +765,14 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader,
 	if err == io.EOF {
 		return io.EOF
 	} else if err != nil {
-		return errors.Wrapf(err, "reader: error reading update file: [%v]", hdr)
+		return errors.Wrapf(err, "reader: error reading Payload file: [%v]", hdr)
 	}
 	if filepath.Dir(hdr.Name) != "data" {
 		return errors.New("reader: invalid data file name: " + hdr.Name)
 	}
 	updNo, err := getUpdateNoFromDataPath(hdr.Name)
 	if err != nil {
-		return errors.Wrapf(err, "reader: error getting data update number")
+		return errors.Wrapf(err, "reader: error getting data Payload number")
 	}
 	inst, ok := ar.installers[updNo]
 	if !ok {
@@ -836,7 +836,7 @@ func (ar *Reader) readAndInstall(r io.Reader, i handlers.Installer,
 	// each data file is stored in tar.gz format
 	gz, err := gzip.NewReader(r)
 	if err != nil {
-		return errors.Wrapf(err, "update: can not open gz for reading data")
+		return errors.Wrapf(err, "Payload: can not open gz for reading data")
 	}
 	defer gz.Close()
 
@@ -853,12 +853,12 @@ func (ar *Reader) readAndInstall(r io.Reader, i handlers.Installer,
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return errors.Wrap(err, "update: error reading update file header")
+			return errors.Wrap(err, "Payload: error reading Artifact file header")
 		}
 
 		df := getDataFile(i, hdr.Name)
 		if df == nil {
-			return errors.Errorf("update: can not find data file: %s", hdr.Name)
+			return errors.Errorf("Payload: can not find data file: %s", hdr.Name)
 		}
 
 		// fill in needed data
@@ -874,18 +874,18 @@ func (ar *Reader) readAndInstall(r io.Reader, i handlers.Installer,
 			df.Checksum, err = manifest.GetAndMark(filepath.Join(artifact.UpdatePath(no),
 				hdr.FileInfo().Name()))
 			if err != nil {
-				return errors.Wrapf(err, "update: checksum missing")
+				return errors.Wrapf(err, "Payload: checksum missing")
 			}
 		}
 		if df.Checksum == nil {
-			return errors.Errorf("update: checksum missing for file: %s", hdr.Name)
+			return errors.Errorf("Payload: checksum missing for file: %s", hdr.Name)
 		}
 
 		// check checksum
 		ch := artifact.NewReaderChecksum(tar, df.Checksum)
 
 		if err = updateStorer.StoreUpdate(ch, info); err != nil {
-			return errors.Wrapf(err, "update: can not install update: %v", hdr)
+			return errors.Wrapf(err, "Payload: can not install Payload: %v", hdr)
 		}
 
 		if err = ch.Verify(); err != nil {

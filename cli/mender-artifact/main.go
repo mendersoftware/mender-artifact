@@ -69,7 +69,7 @@ func run() error {
 		},
 		cli.StringSliceFlag{
 			Name: "device-type, t",
-			Usage: "Type of device(s) supported by the update. You can specify multiple " +
+			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
 				"compatible devices providing this parameter multiple times.",
 		},
 		cli.StringFlag{
@@ -138,7 +138,7 @@ func run() error {
 	writeModuleCommand.Flags = []cli.Flag{
 		cli.StringSliceFlag{
 			Name: "device-type, t",
-			Usage: "Type of device(s) supported by the update. You can specify multiple " +
+			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
 				"compatible devices providing this parameter multiple times.",
 		},
 		cli.StringFlag{
