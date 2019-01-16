@@ -78,11 +78,11 @@ func calcDataHash(manifestChecksumStore *artifact.ChecksumStore, upd *Updates, a
 			ch := artifact.NewWriterChecksum(ioutil.Discard)
 			df, err := os.Open(f.Name)
 			if err != nil {
-				return errors.Wrapf(err, "writer: can not open data file: %v", f)
+				return errors.Wrapf(err, "writer: can not open data file: %s", f.Name)
 			}
 			defer df.Close()
 			if _, err := io.Copy(ch, df); err != nil {
-				return errors.Wrapf(err, "writer: can not calculate checksum: %v", f)
+				return errors.Wrapf(err, "writer: can not calculate checksum: %s", f.Name)
 			}
 			sum := ch.Checksum()
 			f.Checksum = sum
@@ -384,7 +384,7 @@ func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs, augmented bool)
 		composers = args.Updates.Updates
 	}
 	if len(composers) == 0 {
-		return errors.New("writeHeader: No updates added")
+		return errors.New("writeHeader: No Payloads added")
 	}
 
 	// store header info
@@ -453,7 +453,7 @@ func writeData(tw *tar.Writer, updates *Updates) error {
 func writeOneDataTar(tw *tar.Writer, no int, baseUpdate, augmentUpdate handlers.Composer) error {
 	f, ferr := ioutil.TempFile("", "data")
 	if ferr != nil {
-		return errors.New("update: can not create temporary data file")
+		return errors.New("Payload: can not create temporary data file")
 	}
 	defer os.Remove(f.Name())
 
@@ -488,12 +488,12 @@ func writeOneDataTar(tw *tar.Writer, no int, baseUpdate, augmentUpdate handlers.
 	}
 
 	if _, err = f.Seek(0, 0); err != nil {
-		return errors.Wrap(err, "update: can not reset file position")
+		return errors.Wrap(err, "Payload: can not reset file position")
 	}
 
 	dfw := artifact.NewTarWriterFile(tw)
 	if err = dfw.Write(f, artifact.UpdateDataPath(no)); err != nil {
-		return errors.Wrap(err, "update: can not write tar data header")
+		return errors.Wrap(err, "Payload: can not write tar data header")
 	}
 	return nil
 }
@@ -501,13 +501,13 @@ func writeOneDataTar(tw *tar.Writer, no int, baseUpdate, augmentUpdate handlers.
 func writeOneDataFile(tarw *tar.Writer, file *handlers.DataFile) error {
 	df, err := os.Open(file.Name)
 	if err != nil {
-		return errors.Wrapf(err, "update: can not open data file: %s", file.Name)
+		return errors.Wrapf(err, "Payload: can not open data file: %s", file.Name)
 	}
 	fw := artifact.NewTarWriterFile(tarw)
 	if err := fw.Write(df, filepath.Base(file.Name)); err != nil {
 		df.Close()
 		return errors.Wrapf(err,
-			"update: can not write tar temp data header: %v", file)
+			"Payload: can not write tar temp data header: %v", file)
 	}
 	df.Close()
 	return nil

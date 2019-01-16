@@ -94,7 +94,7 @@ func (rp *Rootfs) NewInstance() Installer {
 
 func (rp *Rootfs) NewAugmentedInstance(orig ArtifactUpdate) (Installer, error) {
 	if orig.GetVersion() < 3 {
-		return nil, errors.New("Rootfs update type version < 3 does not support augmented sections.")
+		return nil, errors.New("Rootfs Payload type version < 3 does not support augmented sections.")
 	}
 	if orig.GetUpdateType() != "rootfs-image" {
 		return nil, fmt.Errorf("rootfs-image type cannot be an augmented instance of %s type.",
@@ -299,7 +299,7 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 	}
 	sw := artifact.NewTarWriterStream(args.TarWriter)
 	if err := sw.Write(nil, filepath.Join(path, "meta-data")); err != nil {
-		return errors.Wrap(err, "update: can not store meta-data")
+		return errors.Wrap(err, "Payload: can not store meta-data")
 	}
 
 	if rfs.version == 1 {
