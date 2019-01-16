@@ -141,7 +141,7 @@ func (g *GenericV1V2) NewInstance() Installer {
 }
 
 func (g *GenericV1V2) NewAugmentedInstance(orig ArtifactUpdate) (Installer, error) {
-	return nil, errors.New("Generic update type does not support augment sections")
+	return nil, errors.New("Generic Payload type does not support augment sections")
 }
 
 func stripSum(path string) string {

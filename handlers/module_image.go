@@ -113,7 +113,7 @@ func (img *ModuleImage) SetUpdateFiles(files [](*DataFile)) error {
 func (img *ModuleImage) SetUpdateAugmentFiles(files [](*DataFile)) error {
 	if img.original == nil {
 		if len(files) > 0 {
-			return errors.New("Cannot add augmented files to non-augmented update")
+			return errors.New("Cannot add augmented files to non-augmented Payload")
 		}
 	} else {
 		img.files = files
@@ -196,7 +196,7 @@ func (img *ModuleImage) GetUpdateAugmentMetaData() map[string]interface{} {
 func (img *ModuleImage) setUpdateAugmentMetaData(metaData map[string]interface{}) error {
 	if img.original == nil {
 		if len(metaData) > 0 {
-			return errors.New("Tried to set augmented meta-data on a non-augmented update")
+			return errors.New("Tried to set augmented meta-data on a non-augmented Payload")
 		}
 	} else {
 		img.metaData = metaData
@@ -406,7 +406,7 @@ func (img *ModuleImage) ComposeHeader(args *ComposeHeaderArgs) error {
 			return errors.Wrap(err, "MetaData field unmarshalable. This is a bug in the application")
 		}
 		if err = sw.Write(data, filepath.Join(path, "meta-data")); err != nil {
-			return errors.Wrap(err, "update: can not store meta-data")
+			return errors.Wrap(err, "Payload: can not store meta-data")
 		}
 	}
 	return nil
@@ -448,7 +448,7 @@ func (img *ModuleImage) ReadHeader(r io.Reader, path string, version int, augmen
 			return err
 		}
 	default:
-		return errors.Errorf("update: unsupported file: %v", path)
+		return errors.Errorf("Payload: unsupported file: %v", path)
 	}
 	return nil
 }
