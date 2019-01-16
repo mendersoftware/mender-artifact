@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -31,6 +31,27 @@ import (
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )
+
+type writeUpdateStorer struct {
+	name   string
+	writer io.Writer
+}
+
+func (w *writeUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
+	w.name = info.Name()
+	_, err := io.Copy(w.writer, r)
+	return err
+}
+
+func (w *writeUpdateStorer) NewUpdateStorer(payloadNum int) (handlers.UpdateStorer, error) {
+	// For rootfs, which is the only type we support for artifact
+	// modifications, there should only ever be one payload, with one file,
+	// so our producer just returns itself.
+	if payloadNum != 0 {
+		return nil, errors.New("More than one payload or update file is not supported")
+	}
+	return w, nil
+}
 
 func scripts(scripts []string) (*artifact.Scripts, error) {
 	scr := artifact.Scripts{}
@@ -110,12 +131,10 @@ func unpackArtifact(name string) (string, error) {
 	}
 	defer tmp.Close()
 
-	rootfsName := ""
-	rootfs.InstallHandler = func(r io.Reader, df *handlers.DataFile) error {
-		rootfsName = df.Name
-		_, err = io.Copy(tmp, r)
-		return err
+	updateStore := &writeUpdateStorer{
+		writer: tmp,
 	}
+	rootfs.SetUpdateStorerProducer(updateStore)
 
 	if err = aReader.RegisterHandler(rootfs); err != nil {
 		return "", errors.Wrap(err, "failed to register install handler")
@@ -127,7 +146,7 @@ func unpackArtifact(name string) (string, error) {
 	}
 	// Give the tempfile it's original name, so that the update does not change name upon a write.
 	tmpfilePath := tmp.Name()
-	newNamePath := filepath.Join(filepath.Dir(tmpfilePath), rootfsName)
+	newNamePath := filepath.Join(filepath.Dir(tmpfilePath), updateStore.name)
 	if err = os.Rename(tmpfilePath, newNamePath); err != nil {
 		return "", err
 	}
@@ -176,10 +195,10 @@ func repack(artifactName string, from io.Reader, to io.Writer, key []byte,
 		defer tmpData.Close()
 
 		rootfs := handlers.NewRootfsInstaller()
-		rootfs.InstallHandler = func(r io.Reader, df *handlers.DataFile) error {
-			_, err = io.Copy(tmpData, r)
-			return err
+		updateStore := &writeUpdateStorer{
+			writer: tmpData,
 		}
+		rootfs.SetUpdateStorerProducer(updateStore)
 
 		data = tmpData.Name()
 		ar.RegisterHandler(rootfs)

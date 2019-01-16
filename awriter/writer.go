@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -66,6 +66,10 @@ func calcDataHash(manifestChecksumStore *artifact.ChecksumStore, upd *Updates, a
 	for i, u := range updates {
 		var files [](*handlers.DataFile)
 		if augmented {
+			if u == nil {
+				// Can happen if there is no augmented part.
+				continue
+			}
 			files = u.GetUpdateAugmentFiles()
 		} else {
 			files = u.GetUpdateFiles()
@@ -226,8 +230,10 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 	if err := calcDataHash(manifestChecksumStore, args.Updates, false); err != nil {
 		return err
 	}
-	if err := calcDataHash(augManifestChecksumStore, args.Updates, true); err != nil {
-		return err
+	if augmentedDataPresent {
+		if err := calcDataHash(augManifestChecksumStore, args.Updates, true); err != nil {
+			return err
+		}
 	}
 	tw := tar.NewWriter(aw.w)
 	defer tw.Close()

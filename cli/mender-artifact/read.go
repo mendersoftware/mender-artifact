@@ -16,9 +16,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
-	"encoding/json"
 	"os"
 	"strings"
 

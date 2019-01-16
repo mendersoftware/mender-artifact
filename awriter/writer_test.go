@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -225,7 +225,6 @@ func TestWriteArtifactV3(t *testing.T) {
 		Provides: &artifact.ArtifactProvides{
 			ArtifactName:         "name",
 			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -254,7 +253,6 @@ func TestWriteArtifactV3(t *testing.T) {
 		Provides: &artifact.ArtifactProvides{
 			ArtifactName:         "name",
 			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -283,7 +281,6 @@ func TestWriteArtifactV3(t *testing.T) {
 		Provides: &artifact.ArtifactProvides{
 			ArtifactName:         "name",
 			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -319,7 +316,6 @@ func TestWriteArtifactV3(t *testing.T) {
 		Provides: &artifact.ArtifactProvides{
 			ArtifactName:         "name",
 			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -348,7 +344,6 @@ func TestWriteArtifactV3(t *testing.T) {
 		Provides: &artifact.ArtifactProvides{
 			ArtifactName:         "name",
 			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -378,7 +373,6 @@ func TestWriteArtifactV3(t *testing.T) {
 		Provides: &artifact.ArtifactProvides{
 			ArtifactName:         "name",
 			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -399,7 +393,6 @@ func TestWriteArtifactV3(t *testing.T) {
 		Provides: &artifact.ArtifactProvides{
 			ArtifactName:         "name",
 			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -420,7 +413,6 @@ func TestWriteArtifactV3(t *testing.T) {
 		Provides: &artifact.ArtifactProvides{
 			ArtifactName:         "name",
 			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -445,7 +437,6 @@ func TestWriteArtifactV3(t *testing.T) {
 		Provides: &artifact.ArtifactProvides{
 			ArtifactName:         "name",
 			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -474,7 +465,6 @@ func TestWriteArtifactV3(t *testing.T) {
 		Provides: &artifact.ArtifactProvides{
 			ArtifactName:         "name",
 			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},
@@ -513,7 +503,6 @@ func TestWriteArtifactV3(t *testing.T) {
 		Provides: &artifact.ArtifactProvides{
 			ArtifactName:         "name",
 			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs"},
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"depends-name"},

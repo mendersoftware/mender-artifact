@@ -31,7 +31,7 @@ func validateInput(c *cli.Context) error {
 	// Version 1,2 and 3 validation.
 	if len(c.StringSlice("device-type")) == 0 ||
 		len(c.String("artifact-name")) == 0 ||
-		len(c.String("update")) == 0 {
+		len(c.String("file")) == 0 {
 		return cli.NewExitError(
 			"must provide `device-type`, `artifact-name` and `update`",
 			errArtifactInvalidParameters,
@@ -65,11 +65,11 @@ func writeRootfs(c *cli.Context) error {
 	var h handlers.Composer
 	switch version {
 	case 1:
-		h = handlers.NewRootfsV1(c.String("update"))
+		h = handlers.NewRootfsV1(c.String("file"))
 	case 2:
-		h = handlers.NewRootfsV2(c.String("update"))
+		h = handlers.NewRootfsV2(c.String("file"))
 	case 3:
-		h = handlers.NewRootfsV3(c.String("update"))
+		h = handlers.NewRootfsV3(c.String("file"))
 	default:
 		return cli.NewExitError(
 			fmt.Sprintf("unsupported artifact version: %v", version),
@@ -105,9 +105,6 @@ func writeRootfs(c *cli.Context) error {
 		return cli.NewExitError("can not use scripts artifact with version 1", 1)
 	}
 
-	// NOTE: Update-types supported is currently hardcoded into the artifact!
-	updateTypesSupported := []string{"rootfs-image"}
-
 	depends := artifact.ArtifactDepends{
 		ArtifactName:      c.StringSlice("artifact-name-depends"),
 		CompatibleDevices: c.StringSlice("device-type"),
@@ -117,11 +114,10 @@ func writeRootfs(c *cli.Context) error {
 	provides := artifact.ArtifactProvides{
 		ArtifactName:         c.String("artifact-name"),
 		ArtifactGroup:        c.String("provides-group"),
-		SupportedUpdateTypes: updateTypesSupported,
 	}
 
 	typeInfoV3 := artifact.TypeInfoV3{
-		Type:             updateTypesSupported[0],
+		Type:             "rootfs-image",
 		ArtifactDepends:  &artifact.TypeInfoDepends{"rootfs_image_checksum": c.String("depends-rootfs-image-checksum")},
 		ArtifactProvides: &artifact.TypeInfoProvides{"rootfs_image_checksum": c.String("provides-rootfs-image-checksum")},
 	}
@@ -177,7 +173,6 @@ func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
 			errArtifactInvalidParameters)
 	case 3:
 		handler = handlers.NewModuleImage(ctx.String("type"))
-		augmentHandler = handlers.NewAugmentedModuleImage(handler, ctx.String("augment-type"))
 	default:
 		return nil, cli.NewExitError(
 			fmt.Sprintf("unsupported artifact version: %v", version),
@@ -191,15 +186,18 @@ func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
 	}
 	handler.SetUpdateFiles(dataFiles)
 
-	dataFiles = make([](*handlers.DataFile), 0, len(ctx.StringSlice("augment-file")))
-	for _, file := range ctx.StringSlice("augment-file") {
-		dataFiles = append(dataFiles, &handlers.DataFile{Name: file})
-	}
-	augmentHandler.SetUpdateAugmentFiles(dataFiles)
-
 	upd := &awriter.Updates{
 		Updates:  []handlers.Composer{handler},
-		Augments: []handlers.Composer{augmentHandler},
+	}
+
+	if ctx.String("augment-type") != "" {
+		augmentHandler = handlers.NewAugmentedModuleImage(handler, ctx.String("augment-type"))
+		dataFiles = make([](*handlers.DataFile), 0, len(ctx.StringSlice("augment-file")))
+		for _, file := range ctx.StringSlice("augment-file") {
+			dataFiles = append(dataFiles, &handlers.DataFile{Name: file})
+		}
+		augmentHandler.SetUpdateAugmentFiles(dataFiles)
+		upd.Augments = []handlers.Composer{augmentHandler}
 	}
 
 	return upd, nil
@@ -251,6 +249,21 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 		ArtifactDepends:  typeInfoDepends,
 		ArtifactProvides: typeInfoProvides,
 	}
+
+	if ctx.String("augment-type") == "" {
+		// Non-augmented artifact
+		if len(ctx.StringSlice("augment-file")) != 0 ||
+			len(ctx.StringSlice("augment-depends")) != 0 ||
+			len(ctx.StringSlice("augment-provides")) != 0 ||
+			ctx.String("augment-meta-data") != "" {
+
+			err = errors.New("Must give --augment-type argument if making augmented artifact")
+			fmt.Println(err.Error())
+			return nil, nil, err
+		}
+		return typeInfoV3, nil, nil
+	}
+
 	augmentTypeInfoV3 := &artifact.TypeInfoV3{
 		Type:             ctx.String("augment-type"),
 		ArtifactDepends:  augmentTypeInfoDepends,
@@ -330,9 +343,6 @@ func writeModuleImage(ctx *cli.Context) error {
 		return cli.NewExitError("can not use scripts artifact with version 1", 1)
 	}
 
-	// NOTE: Update-types supported is currently hardcoded into the artifact!
-	updateTypesSupported := []string{"TODO"}
-
 	depends := artifact.ArtifactDepends{
 		ArtifactName:      ctx.StringSlice("artifact-name-depends"),
 		CompatibleDevices: ctx.StringSlice("device-type"),
@@ -342,7 +352,6 @@ func writeModuleImage(ctx *cli.Context) error {
 	provides := artifact.ArtifactProvides{
 		ArtifactName:         ctx.String("artifact-name"),
 		ArtifactGroup:        ctx.String("provides-group"),
-		SupportedUpdateTypes: updateTypesSupported,
 	}
 
 	typeInfoV3, augmentTypeInfoV3, err := makeTypeInfo(ctx)

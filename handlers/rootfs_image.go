@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -34,7 +33,7 @@ type Rootfs struct {
 	// If this is augmented instance: The original instance.
 	original ArtifactUpdate
 
-	InstallHandler func(io.Reader, *DataFile) error
+	installerBase
 }
 
 func NewRootfsV1(updFile string) *Rootfs {
@@ -88,7 +87,7 @@ func NewRootfsInstaller() *Rootfs {
 func (rp *Rootfs) NewInstance() Installer {
 	return &Rootfs{
 		version:           rp.version,
-		InstallHandler:    rp.InstallHandler,
+		installerBase:     rp.installerBase,
 		regularHeaderRead: rp.regularHeaderRead,
 	}
 }
@@ -142,15 +141,6 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bo
 		rp.update.Checksum = buf.Bytes()
 	default:
 		return errors.Errorf("update: unsupported file: %v", path)
-	}
-	return nil
-}
-
-func (rfs *Rootfs) Install(r io.Reader, info *os.FileInfo) error {
-	if rfs.InstallHandler != nil {
-		if err := rfs.InstallHandler(r, rfs.update); err != nil {
-			return errors.Wrap(err, "update: can not install")
-		}
 	}
 	return nil
 }

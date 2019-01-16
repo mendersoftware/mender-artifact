@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -175,7 +175,6 @@ func MakeAnyImageArtifact(version int, signed bool,
 		Provides: &artifact.ArtifactProvides{
 			ArtifactName:         "mender-1.1",
 			ArtifactGroup:        "group-1",
-			SupportedUpdateTypes: []string{"rootfs-image", "delta"},
 		},
 		Depends: &artifact.ArtifactDepends{
 			ArtifactName:      []string{"mender-1.0"},
@@ -191,14 +190,10 @@ func MakeAnyImageArtifact(version int, signed bool,
 func TestReadArtifact(t *testing.T) {
 
 	updFileContent := bytes.NewBuffer(nil)
-	copy := func(r io.Reader, f *handlers.DataFile) error {
-		_, err := io.Copy(updFileContent, r)
-		return err
-	}
 
 	rfh := func() handlers.Installer {
 		rfh := handlers.NewRootfsInstaller()
-		rfh.InstallHandler = copy
+		rfh.SetUpdateStorerProducer(&testUpdateStorer{updFileContent})
 		return rfh
 	}
 
@@ -482,9 +477,31 @@ func (i *installer) ReadHeader(r io.Reader, path string, version int, augmented 
 	return nil
 }
 
-func (i *installer) Install(r io.Reader, info *os.FileInfo) error {
-	_, err := io.Copy(ioutil.Discard, r)
+func (i *installer) NewUpdateStorer(payloadNum int) (handlers.UpdateStorer, error) {
+	return &testUpdateStorer{}, nil
+}
+
+func (i *installer) SetUpdateStorerProducer(producer handlers.UpdateStorerProducer) {
+	// Not used currently.
+}
+
+type testUpdateStorer struct {
+	w io.Writer
+}
+
+func (s *testUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
+	var w io.Writer
+	if s.w != nil {
+		w = s.w
+	} else {
+		w = ioutil.Discard
+	}
+	_, err := io.Copy(w, r)
 	return err
+}
+
+func (s *testUpdateStorer) NewUpdateStorer(payloadNum int) (handlers.UpdateStorer, error) {
+	return s, nil
 }
 
 func writeDataFile(t *testing.T, name, data string) io.Reader {
@@ -500,86 +517,6 @@ func writeDataFile(t *testing.T, name, data string) io.Reader {
 	assert.NoError(t, err)
 
 	return buf
-}
-
-func TestReadAndInstall(t *testing.T) {
-	err := readAndInstall(bytes.NewBuffer(nil), nil, nil, 1)
-	assert.Error(t, err)
-	assert.Equal(t, "EOF", errors.Cause(err).Error())
-
-	i := &installer{
-		t: t,
-		Data: &handlers.DataFile{
-			Name: "update.ext4",
-			// this is a calculated checksum of `data` string
-			Checksum: []byte("3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7"),
-		},
-	}
-	r := writeDataFile(t, "update.ext4", "data")
-	err = readAndInstall(r, i, nil, 1)
-	assert.NoError(t, err)
-	assert.Equal(t, int64(len("data")), i.GetUpdateFiles()[0].Size)
-
-	// test missing data file
-	i = &installer{
-		t: t,
-		Data: &handlers.DataFile{
-			Name: "non-existing",
-		},
-	}
-	r = writeDataFile(t, "update.ext4", "data")
-	err = readAndInstall(r, i, nil, 1)
-	assert.Error(t, err)
-	assert.Equal(t, "update: can not find data file: update.ext4",
-		errors.Cause(err).Error())
-
-	// test missing checksum
-	i = &installer{
-		t: t,
-		Data: &handlers.DataFile{
-			Name: "update.ext4",
-		},
-	}
-	r = writeDataFile(t, "update.ext4", "data")
-	err = readAndInstall(r, i, nil, 1)
-	assert.Error(t, err)
-	assert.Equal(t, "update: checksum missing for file: update.ext4",
-		errors.Cause(err).Error())
-
-	// test with manifest
-	m := artifact.NewChecksumStore()
-	i = &installer{
-		t: t,
-		Data: &handlers.DataFile{
-			Name:     "update.ext4",
-			Checksum: []byte("3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7"),
-		},
-	}
-	r = writeDataFile(t, "update.ext4", "data")
-	err = readAndInstall(r, i, m, 1)
-	assert.Error(t, err)
-	assert.Contains(t, errors.Cause(err).Error(), "checksum missing")
-
-	// test invalid checksum
-	i = &installer{
-		t: t,
-		Data: &handlers.DataFile{
-			Name:     "update.ext4",
-			Checksum: []byte("12121212121212"),
-		},
-	}
-	r = writeDataFile(t, "update.ext4", "data")
-	err = readAndInstall(r, i, nil, 1)
-	assert.Error(t, err)
-	assert.Contains(t, errors.Cause(err).Error(), "invalid checksum")
-
-	// test with manifest
-	err = m.Add("update.ext4", []byte("3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7"))
-	assert.NoError(t, err)
-	r = writeDataFile(t, "update.ext4", "data")
-	err = readAndInstall(r, i, m, 1)
-	assert.Error(t, err)
-	assert.Contains(t, errors.Cause(err).Error(), "checksum missing")
 }
 
 func TestValidParsePathV3(t *testing.T) {
@@ -640,7 +577,7 @@ func TestReadArtifactDependsAndProvides(t *testing.T) {
 
 	assert.Equal(t, ar.GetInfo(), artifact.Info{Format: "mender", Version: 3})
 	assert.Equal(t, *ar.GetArtifactProvides(), artifact.ArtifactProvides{ArtifactName: "mender-1.1",
-		ArtifactGroup: "group-1", SupportedUpdateTypes: []string{"rootfs-image", "delta"}})
+		ArtifactGroup: "group-1"})
 	assert.Equal(t, *ar.GetArtifactDepends(), artifact.ArtifactDepends{
 		ArtifactName:      []string{"mender-1.0"},
 		CompatibleDevices: []string{"vexpress"}})
@@ -743,6 +680,28 @@ func TestReadBrokenArtifact(t *testing.T) {
 		"augmented files, but header-augment.tar.gz missing": {
 			manipulateArtifact: func(tmpdir string) {
 				os.Remove(filepath.Join(tmpdir, "header-augment.tar.gz"))
+
+				file, err := os.OpenFile(filepath.Join(tmpdir, "manifest-augment"), os.O_RDWR, 0)
+				require.NoError(t, err)
+				defer file.Close()
+				stat, _ := file.Stat()
+				buf := make([]byte, stat.Size())
+				newbuf := make([]byte, 0, stat.Size())
+				file.Read(buf)
+				lines := bytes.Split(buf, []byte("\n"))
+				for _, line := range lines {
+					if len(line) != 0 && bytes.HasPrefix(bytes.Split(line, []byte("  "))[1], []byte("header-augment")) {
+						// Skip line.
+						continue
+					}
+					for _, char := range line {
+						newbuf = append(newbuf, char)
+					}
+					newbuf = append(newbuf, byte('\n'))
+				}
+				file.Seek(0, 0)
+				file.Write(newbuf)
+				file.Truncate(int64(len(newbuf)))
 			},
 			successful:      false,
 			numAugmentFiles: 1,

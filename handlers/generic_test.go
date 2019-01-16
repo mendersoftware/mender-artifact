@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -37,14 +37,6 @@ func TestHandlerGenericV1V2(t *testing.T) {
 	g.files["custom"] = &DataFile{Name: "update.ext4"}
 	assert.Len(t, g.GetUpdateFiles(), 1)
 	assert.Equal(t, "update.ext4", g.GetUpdateFiles()[0].Name)
-}
-
-func TestReadData(t *testing.T) {
-	buf := bytes.NewBuffer([]byte("data"))
-	g := NewGenericV1V2("custom")
-
-	err := g.Install(buf, nil)
-	assert.NoError(t, err)
 }
 
 func TestReadHeader(t *testing.T) {
