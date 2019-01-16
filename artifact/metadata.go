@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -161,7 +161,11 @@ func (hi *HeaderInfo) GetArtifactProvides() *ArtifactProvides {
 }
 
 type HeaderInfoV3 struct {
-	Updates          []UpdateType      `json:"updates"`
+	// For historical reasons, "payloads" are often referred to as "updates"
+	// in the code, since this was the old name (and still is, in V2 and
+	// V1). This is the reason why the struct field is still called
+	// "Updates".
+	Updates          []UpdateType      `json:"payloads"`
 	ArtifactProvides *ArtifactProvides `json:"artifact_provides"` // Has its own json marshaller tags.
 	ArtifactDepends  *ArtifactDepends  `json:"artifact_depends"`  // Has its own json marshaller tags.
 }
@@ -225,10 +229,6 @@ func (hi *HeaderInfoV3) Validate() error {
 		//
 		/* Artifact need not have a group */
 		//
-		/* Artifact must have at least one supported update type. */
-		if len(hi.ArtifactProvides.SupportedUpdateTypes) == 0 {
-			missingArgs = append(missingArgs, "Supported update type")
-		}
 	}
 	///////////////////////////////////////
 	// Artifact-depends can be empty, thus:
@@ -262,9 +262,8 @@ type ArtifactDepends struct {
 }
 
 type ArtifactProvides struct {
-	ArtifactName         string   `json:"artifact_name"`
-	ArtifactGroup        string   `json:"artifact_group,omitempty"`
-	SupportedUpdateTypes []string `json:"update_types_supported"` // e.g. rootfs, delta.
+	ArtifactName  string `json:"artifact_name"`
+	ArtifactGroup string `json:"artifact_group,omitempty"`
 }
 
 // TypeInfo provides information of type of individual updates

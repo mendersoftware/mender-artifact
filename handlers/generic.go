@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -17,8 +17,6 @@ package handlers
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -31,6 +29,8 @@ type GenericV1V2 struct {
 	version           int
 	regularHeaderRead bool
 	files             map[string](*DataFile)
+
+	installerBase
 }
 
 func NewGenericV1V2(t string) *GenericV1V2 {
@@ -135,7 +135,9 @@ func (g *GenericV1V2) GetUpdateAugmentMetaData() map[string]interface{} {
 }
 
 func (g *GenericV1V2) NewInstance() Installer {
-	return NewGenericV1V2(g.updateType)
+	newGeneric := NewGenericV1V2(g.updateType)
+	newGeneric.installerBase = g.installerBase
+	return newGeneric
 }
 
 func (g *GenericV1V2) NewAugmentedInstance(orig ArtifactUpdate) (Installer, error) {
@@ -183,9 +185,4 @@ func (g *GenericV1V2) ReadHeader(r io.Reader, path string, version int, augmente
 		return errors.Errorf("update: unsupported file: %v", path)
 	}
 	return nil
-}
-
-func (g *GenericV1V2) Install(r io.Reader, info *os.FileInfo) error {
-	_, err := io.Copy(ioutil.Discard, r)
-	return err
 }

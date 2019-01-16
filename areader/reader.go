@@ -40,6 +40,7 @@ type Reader struct {
 	ScriptsReadCallback       ScriptsReadFn
 	VerifySignatureCallback   SignatureVerifyFn
 	IsSigned                  bool
+	ForbidUnknownHandlers     bool
 
 	shouldBeSigned bool
 	hInfo          artifact.HeaderInfoer
@@ -50,13 +51,15 @@ type Reader struct {
 	augmentFiles   []handlers.DataFile
 	handlers       map[string]handlers.Installer
 	installers     map[int]handlers.Installer
+	updateStorers  map[int]handlers.UpdateStorer
 }
 
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
-		r:          r,
-		handlers:   make(map[string]handlers.Installer, 1),
-		installers: make(map[int]handlers.Installer, 1),
+		r:             r,
+		handlers:      make(map[string]handlers.Installer, 1),
+		installers:    make(map[int]handlers.Installer, 1),
+		updateStorers: make(map[int]handlers.UpdateStorer),
 	}
 }
 
@@ -66,6 +69,7 @@ func NewReaderSigned(r io.Reader) *Reader {
 		shouldBeSigned: true,
 		handlers:       make(map[string]handlers.Installer, 1),
 		installers:     make(map[int]handlers.Installer, 1),
+		updateStorers:  make(map[int]handlers.UpdateStorer),
 	}
 }
 
@@ -610,7 +614,15 @@ func (ar *Reader) GetArtifactDepends() *artifact.ArtifactDepends {
 func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error {
 	for i, update := range upd {
 		// set installer for given update type
-		if w, ok := ar.handlers[update.Type]; ok {
+		if update.Type == "" {
+			if augmented {
+				// Just skip empty augmented entries, which
+				// means there is no augment override.
+				continue
+			} else {
+				return errors.New("Unexpected empty update type")
+			}
+		} else if w, ok := ar.handlers[update.Type]; ok {
 			if augmented {
 				var err error
 				ar.installers[i], err = w.NewAugmentedInstance(ar.installers[i])
@@ -620,6 +632,9 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error
 			} else {
 				ar.installers[i] = w.NewInstance()
 			}
+		} else if ar.ForbidUnknownHandlers {
+			return fmt.Errorf("Cannot load handler for unknown update type '%s'",
+				update.Type)
 		} else if ar.info.Version >= 3 {
 			// For version 3 onwards, use modules for unknown update
 			// types.
@@ -764,7 +779,7 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader,
 		return errors.Wrapf(err,
 			"reader: can not find parser for parsing data file [%v]", hdr.Name)
 	}
-	return readAndInstall(tr, inst, manifest, updNo)
+	return ar.readAndInstall(tr, inst, manifest, updNo)
 }
 
 func (ar *Reader) readData(tr *tar.Reader, manifest *artifact.ChecksumStore) error {
@@ -816,7 +831,7 @@ func getDataFile(i handlers.Installer, name string) *handlers.DataFile {
 	return nil
 }
 
-func readAndInstall(r io.Reader, i handlers.Installer,
+func (ar *Reader) readAndInstall(r io.Reader, i handlers.Installer,
 	manifest *artifact.ChecksumStore, no int) error {
 	// each data file is stored in tar.gz format
 	gz, err := gzip.NewReader(r)
@@ -824,6 +839,12 @@ func readAndInstall(r io.Reader, i handlers.Installer,
 		return errors.Wrapf(err, "update: can not open gz for reading data")
 	}
 	defer gz.Close()
+
+	updateStorer, err := i.NewUpdateStorer(no)
+	if err != nil {
+		return err
+	}
+	ar.updateStorers[no] = updateStorer
 
 	tar := tar.NewReader(gz)
 
@@ -863,7 +884,7 @@ func readAndInstall(r io.Reader, i handlers.Installer,
 		// check checksum
 		ch := artifact.NewReaderChecksum(tar, df.Checksum)
 
-		if err = i.Install(ch, &info); err != nil {
+		if err = updateStorer.StoreUpdate(ch, info); err != nil {
 			return errors.Wrapf(err, "update: can not install update: %v", hdr)
 		}
 
@@ -873,4 +894,18 @@ func readAndInstall(r io.Reader, i handlers.Installer,
 	}
 
 	return nil
+}
+
+func (ar *Reader) GetUpdateStorers() ([]handlers.UpdateStorer, error) {
+	length := len(ar.updateStorers)
+	list := make([]handlers.UpdateStorer, length)
+
+	for i := range ar.updateStorers {
+		if i >= length {
+			return []handlers.UpdateStorer{}, errors.New("Update payload numbers are not in strictly increasing numbers from zero")
+		}
+		list[i] = ar.updateStorers[i]
+	}
+
+	return list, nil
 }

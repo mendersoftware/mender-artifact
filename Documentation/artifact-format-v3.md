@@ -1,4 +1,4 @@
-Mender artifact file format
+Mender Artifact file format
 ===========================
 
 File extension: `.mender`
@@ -101,7 +101,7 @@ Contains the below content exactly:
 }
 ```
 
-The `format` value is to confirm that this is indeed a Mender update file, and
+The `format` value is to confirm that this is indeed a Mender Artifact file, and
 the `version` value is a way to extend/change the format later if needed.
 
 
@@ -119,7 +119,7 @@ Contains file checksums, formatted exactly like below:
 ```
 
 The manifest file contains checksums of compressed header, version and the
-data files being a part of the artifact. The format matches the output of
+data files being a part of the Artifact. The format matches the output of
 `sha256sum` tool which is the sum and the name of the file separated by
 the two spaces.
 
@@ -131,7 +131,7 @@ Format: base64 encoded ecdsa or rsa signature
 
 File containing the signature of `manifest`.
 
-It is legal for an artifact not to have signature file.
+An Artifact is not required to contain a signature file.
 
 
 manifest-augment
@@ -147,11 +147,11 @@ Contains file checksums, formatted exactly like below:
 ```
 
 The manifest-augment file is the extension of manifest file and is needed only
-for certain types of the updates.
+for certain types of Artifacts.
 It contains the checksums of the files which could change during the creation of the
-artifact and therefore which can not be signed explicitly. In case of the
-delta update this file will contain the checksum of the delta file (the actual
-payload of the file being a part of the artifact) and the header-augment.tar.gz
+Artifact and therefore which can not be signed explicitly. In case of
+delta updates this file will contain the checksum of the delta file (the actual
+payload of the file being a part of the Artifact) and the header-augment.tar.gz
 file checksum.
 
 
@@ -172,7 +172,7 @@ Format: JSON
 
 ```
 {
-    "updates": [
+    "payloads": [
         {
             "type": "rootfs-image"
         },
@@ -182,11 +182,7 @@ Format: JSON
     ],
     "artifact_provides": {
         "artifact_name": "release-2",
-        "artifact_group": "fix",
-        "update_types_supported": [
-            "rootfs-image",
-            "delta-update"
-        ]
+        "artifact_group": "fix"
     },
     "artifact_depends": {
         "artifact_name": [
@@ -200,51 +196,50 @@ Format: JSON
 }
 ```
 
-The `updates` list is a list of all the updates contained within the
-artifact. The intention of having multiple updates is to allow proxy based
-updates to deploy to several different hosts at the same time. However, for
-updates downloaded to single devices, there will usually be only one.
+The `payloads` list is a list of all the Artifact payloads contained within the
+Artifact. The intention of having multiple payloads is to allow multiple updates
+to several distinct components to be contained in one Artifact. For example,
+there may be an update to a file, and a package install contained in the same
+Artifact. For full rootfs updates, there will usually be only one payload.
 
-`type` is the type of update contained within the image. At the moment there is
-only `rootfs-image`, but there may be others in the future, like `docker-image`
-or something package based.
+`type` is the type of payload contained within the image. At the moment there is
+one built-in type, `rootfs-image`, and all other strings will trigger use of
+external update modules.
 
 The remaining entries in `header.tar.gz` are then organized in buckets under
 `headers/xxxx` folders, where `xxxx` are four digits, starting from zero, and
-corresponding to each element `updates` inside `header-info`, in order. The
+corresponding to each element `payloads` inside `header-info`, in order. The
 following sub sections define each field under each such bucket.
 
 
 #### artifact_depends
 
-The `artifact_depends` contains a set of parameters that the current artifact
+The `artifact_depends` contains a set of parameters that the current Artifact
 depends on. It can contain zero or more key/value pairs (in most cases at least
 `device_type` should be present though).
 
-The given artifact will be installed, only if the device itself
-and the artifact currently installed on the device are providing a full set
+The given Artifact will be installed, only if the device itself
+and the Artifact currently installed on the device are providing a full set
 of matching parameters. The complete list contains following parameters:
 
-* `artifact_name` is the name of the artifact currently installed on the device
+* `artifact_name` is the name of the Artifact currently installed on the device
 * `device_type` is the type of the device (see `device_provides` below)
-* `artifact_group` is the group of the artifacts current artifact belongs to
+* `artifact_group` is the group the current Artifact belongs to
 
 
 #### artifact_provides
 
-The `artifact_provides` is a set of global parameters given artifact provides.
+The `artifact_provides` is a set of global parameters given Artifact provides.
 For the detailed information see the description of the given parameter below.
 
-* `artifact_name` is the name of the artifact
-* `artifact_group` is the name of the group of artifacts given artifact
+* `artifact_name` is the name of the Artifact
+* `artifact_group` is the name of the group of Artifacts given Artifact
 belongs to
-* `update_types_supported` is the list of all the update types given Mender
-client can install
 
 #### device_provides
 
 There is also a set of parameters that are provided by the device itself,
-which are not a part of the artifact. Those are the values, that the device
+which are not a part of the Artifact. Those are the values, that the device
 itself can read and send to the Mender server when needed. The full list of
 `device_provides` is as follows:
 
@@ -256,10 +251,10 @@ itself can read and send to the Mender server when needed. The full list of
 Format: JSON
 
 A file that provides information about the type of package contained within the
-tar file. The first and the only required entry is the type of the update
+tar file. The first and the only required entry is the type of the payload
 corresponding to the type in `header-info` file.
 It can also contain some additional parameters extending or modifying the global
-`artifact_provides` set of parameters specific for a given update type.
+`artifact_provides` set of parameters specific for a given payload type.
 
 ```
 {
@@ -277,20 +272,21 @@ It can also contain some additional parameters extending or modifying the global
 
 As an opposite to the list of global `artifact_provides` being a part of
 `header-info` file, the `artifact_provides` section in the `type-info` file
-is a set of parameters specific for a given update type.
+is a set of parameters specific for a given payload type.
 
 The list of currently supported parameters is as follows:
 
-* `rootfs_image_checksum` is the checksum of the image contained in the artifact
+* `rootfs_image_checksum` is the checksum of the image contained within the
+  Artifact
 
 #### artifact_depends
 
 The `artifact_depends` section in the `type-info` file is a set of parameters
-specific for a given update type. The list of currently supported
+specific for a given payload type. The list of currently supported
 parameters is as follows:
 
 * `rootfs_image_checksum` is the checksum of the image that needs to be installed
-on the device before current artifact can be installed
+on the device before current Artifact can be installed
 
 
 ### meta-data
@@ -302,7 +298,7 @@ Meta data about the image. This depends on the `type` in `header-info`. For
 be empty.
 
 For other package types this file can contain for example number of files in the
-`data` directory, if the update contains more than one. Or it can contain
+`data` directory, if the payload contains more than one. Or it can contain
 network address(es) and credentials if Mender is to do a proxy update.
 
 
@@ -349,7 +345,7 @@ The complete script API consists of the following scripts:
 *  **IMPORTANT** there is no `ArtifactFailure.Error` state script support
 
 States in parentheses are states that are supported as scripts on stored on the
-filesystem, but are not included in the artifact itself.
+filesystem, but are not included in the Artifact itself.
 
 For more information about the script and state API, see the official Mender
 documentation.
@@ -369,7 +365,7 @@ These files and attributes are allowed:
 * `header-info` file with one list attribute:
   ```
   {
-    "updates": [
+    "payloads": [
         {
             "type": "rootfs-image"
         },
@@ -379,8 +375,10 @@ These files and attributes are allowed:
     ]
   }
   ```
-  The `updates` attribute is expected to be in the same order as the original in
-  `header.tar.gz`, and will override it.
+  The `payloads` attribute is expected to be in the same order as the original
+  in `header.tar.gz`, and will override it. An empty string can be used to
+  disable overriding for that entry, which may be necessary in order to get
+  indexing right if some entries are overriden, but not all.
 
 * `type-info` file with `artifact_depends` and `rootfs_image_checksum`:
   ```
@@ -393,7 +391,8 @@ These files and attributes are allowed:
   ```
 
 At the moment ONLY a `type-info` file is allowed which can contain only
-`artifact_depends` with one field: `rootfs_image_checksum` parameters and type of the update.
+`artifact_depends` with one field: `rootfs_image_checksum` parameters and type
+of the payload.
 
 
 data
@@ -406,17 +405,17 @@ other files. If any non-`data` file is found after a `data` file, this will
 cause the update to immediately fail.
 
 The rationale behind failing if `data` files are not last is that the client
-should know everything that is possible about the update *before* the payload
+should know everything that is possible about the payload *before* the data
 arrives. Receiving this knowledge later might be at a point where it's too late
 to apply it, hence this precaution.
 
-It is legal for an update file to not contain any `data` files at all. In such
-cases it is expected that the update type in question will receive the update
-payload by using alternative means, such as providing a download link in
+It is legal for a payload file to not contain any `data` files at all. In such
+cases it is expected that the payload type in question will receive the update
+data by using alternative means, such as providing a download link in
 `type-info` or `meta-data`.
 
 Each file in the `data` folder should be a file of the format `xxxx.tar.gz`,
-where `xxxx` are four digits corresponding to each entry in the `updates` list
+where `xxxx` are four digits corresponding to each entry in the `payloads` list
 in `header-info`, in order. If any file appears in the data directory that
 doesn't have a corresponding header number (e.g. "0000"), or if any file inside
 the archive appears that isn't listed in any of the manifest files, an error
@@ -426,7 +425,7 @@ should be produced and the update should fail.
 Ordering
 ========
 
-Some ordering rules are enforced on the artifact tar file. For the outer tar
+Some ordering rules are enforced on the Artifact tar file. For the outer tar
 file:
 
 | File/Directory            | Ordering rule                  |
