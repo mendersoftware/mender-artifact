@@ -131,7 +131,7 @@ Format: base64 encoded ecdsa or rsa signature
 
 File containing the signature of `manifest`.
 
-It is legal for an Artifact not to have signature file.
+An Artifact is not required to contain a signature file.
 
 
 manifest-augment
@@ -224,7 +224,7 @@ of matching parameters. The complete list contains following parameters:
 
 * `artifact_name` is the name of the Artifact currently installed on the device
 * `device_type` is the type of the device (see `device_provides` below)
-* `artifact_group` is the group of the Artifacts current Artifact belongs to
+* `artifact_group` is the group the current Artifact belongs to
 
 
 #### artifact_provides
@@ -276,7 +276,8 @@ is a set of parameters specific for a given payload type.
 
 The list of currently supported parameters is as follows:
 
-* `rootfs_image_checksum` is the checksum of the image contained in the Artifact
+* `rootfs_image_checksum` is the checksum of the image contained within the
+  Artifact
 
 #### artifact_depends
 

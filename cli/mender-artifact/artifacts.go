@@ -32,18 +32,18 @@ import (
 	"github.com/urfave/cli"
 )
 
-type writerUpdateStorer struct {
+type writeUpdateStorer struct {
 	name   string
 	writer io.Writer
 }
 
-func (w *writerUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
+func (w *writeUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
 	w.name = info.Name()
 	_, err := io.Copy(w.writer, r)
 	return err
 }
 
-func (w *writerUpdateStorer) NewUpdateStorer(payloadNum int) (handlers.UpdateStorer, error) {
+func (w *writeUpdateStorer) NewUpdateStorer(payloadNum int) (handlers.UpdateStorer, error) {
 	// For rootfs, which is the only type we support for artifact
 	// modifications, there should only ever be one payload, with one file,
 	// so our producer just returns itself.
@@ -131,7 +131,7 @@ func unpackArtifact(name string) (string, error) {
 	}
 	defer tmp.Close()
 
-	updateStore := &writerUpdateStorer{
+	updateStore := &writeUpdateStorer{
 		writer: tmp,
 	}
 	rootfs.SetUpdateStorerProducer(updateStore)
@@ -195,7 +195,7 @@ func repack(artifactName string, from io.Reader, to io.Writer, key []byte,
 		defer tmpData.Close()
 
 		rootfs := handlers.NewRootfsInstaller()
-		updateStore := &writerUpdateStorer{
+		updateStore := &writeUpdateStorer{
 			writer: tmpData,
 		}
 		rootfs.SetUpdateStorerProducer(updateStore)
