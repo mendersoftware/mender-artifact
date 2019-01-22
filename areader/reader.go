@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -859,6 +860,18 @@ func (ar *Reader) readAndInstall(r io.Reader, i handlers.Installer,
 		df := getDataFile(i, hdr.Name)
 		if df == nil {
 			return errors.Errorf("Payload: can not find data file: %s", hdr.Name)
+		}
+
+		matched, err := regexp.MatchString(`^[\w\-.,]+$`, filepath.Base(hdr.Name))
+
+		if err != nil {
+			return errors.Wrapf(err, "Payload: invalid regular expression pattern")
+		}
+
+		if !matched {
+			message := "Payload: data file " + hdr.Name + " contains forbidden characters"
+			info := "Only letters, digits and characters in the set \".,_-\" are allowed"
+			return fmt.Errorf("%s %s", message, info)
 		}
 
 		// fill in needed data
