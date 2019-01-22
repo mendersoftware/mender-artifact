@@ -111,6 +111,23 @@ func TestWriteArtifactWithUpdates(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.NoError(t, checkTarElements(buf, 3))
+
+	// Update with invalid data file name.
+	upd, err = MakeFakeInvalidUpdate("my test update")
+	assert.NoError(t, err)
+
+	u = handlers.NewRootfsV1(upd)
+	updates = &Updates{Updates: []handlers.Composer{u}}
+
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 1,
+		Devices: []string{"asd"},
+		Name:    "name",
+		Updates: updates,
+	})
+
+	assert.Error(t, err)
 }
 
 func TestWriteMultipleUpdates(t *testing.T) {
@@ -135,6 +152,24 @@ func TestWriteMultipleUpdates(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.NoError(t, checkTarElements(buf, 4))
+
+	// Update with invalid data file name.
+	upd, err = MakeFakeInvalidUpdate("my test update")
+	assert.NoError(t, err)
+
+	u1 = handlers.NewRootfsV1(upd)
+	u2 = handlers.NewRootfsV1(upd)
+	updates = &Updates{Updates: []handlers.Composer{u1, u2}}
+
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 1,
+		Devices: []string{"asd"},
+		Name:    "name",
+		Updates: updates,
+	})
+
+	assert.Error(t, err)
 }
 
 const PrivateKey = `-----BEGIN RSA PRIVATE KEY-----
@@ -201,6 +236,23 @@ func TestWriteArtifactV2(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, checkTarElements(buf, 4))
 	buf.Reset()
+
+	// Update with invalid data file name.
+	upd, err = MakeFakeInvalidUpdate("my test update")
+	assert.NoError(t, err)
+
+	u = handlers.NewRootfsV2(upd)
+	updates = &Updates{Updates: []handlers.Composer{u}}
+
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 2,
+		Devices: []string{"asd"},
+		Name:    "name",
+		Updates: updates,
+	})
+
+	assert.Error(t, err)
 }
 
 func TestWriteArtifactV3(t *testing.T) {
@@ -520,6 +572,23 @@ func TestWriteArtifactV3(t *testing.T) {
 		"0000.tar.gz",
 	}))
 	buf.Reset()
+
+	// Update with invalid data file name.
+	upd, err = MakeFakeInvalidUpdate("my test update")
+	assert.NoError(t, err)
+
+	u = handlers.NewRootfsV3(upd)
+	updates = &Updates{Updates: []handlers.Composer{u}}
+
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"asd"},
+		Name:    "name",
+		Updates: updates,
+	})
+
+	assert.Error(t, err)
 }
 
 func TestWithScripts(t *testing.T) {
@@ -636,6 +705,21 @@ type TestDirEntry struct {
 
 func MakeFakeUpdate(data string) (string, error) {
 	f, err := ioutil.TempFile("", "test_update")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	if len(data) > 0 {
+		if _, err := f.WriteString(data); err != nil {
+			return "", err
+		}
+	}
+	return f.Name(), nil
+}
+
+func MakeFakeInvalidUpdate(data string) (string, error) {
+	// random string replaces the last "*", hence double "*" are needed
+	f, err := ioutil.TempFile("", "test_update_**")
 	if err != nil {
 		return "", err
 	}
