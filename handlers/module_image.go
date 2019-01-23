@@ -452,3 +452,19 @@ func (img *ModuleImage) ReadHeader(r io.Reader, path string, version int, augmen
 	}
 	return nil
 }
+
+func (img *ModuleImage) GetUpdateOriginalTypeInfoWriter() io.Writer {
+	if img.original != nil {
+		return img.original.GetUpdateOriginalTypeInfoWriter()
+	} else {
+		return img.typeInfoV3
+	}
+}
+
+func (img *ModuleImage) GetUpdateAugmentTypeInfoWriter() io.Writer {
+	if img.original != nil {
+		return img.typeInfoV3
+	} else {
+		return nil
+	}
+}

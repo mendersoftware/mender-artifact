@@ -486,8 +486,23 @@ func (i *installer) SetUpdateStorerProducer(producer handlers.UpdateStorerProduc
 	// Not used currently.
 }
 
+func (i *installer) GetUpdateOriginalTypeInfoWriter() io.Writer {
+	return nil
+}
+
+func (i *installer) GetUpdateAugmentTypeInfoWriter() io.Writer {
+	return nil
+}
+
 type testUpdateStorer struct {
 	w io.Writer
+}
+
+func (s *testUpdateStorer) PrepareStoreUpdate(artifactHeaders,
+	artifactAugmentedHeaders artifact.HeaderInfoer,
+	payloadHeaders handlers.ArtifactUpdateHeaders) error {
+
+	return nil
 }
 
 func (s *testUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
@@ -499,6 +514,10 @@ func (s *testUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
 	}
 	_, err := io.Copy(w, r)
 	return err
+}
+
+func (s *testUpdateStorer) FinishStoreUpdate() error {
+	return nil
 }
 
 func (s *testUpdateStorer) NewUpdateStorer(updateType string, payloadNum int) (handlers.UpdateStorer, error) {

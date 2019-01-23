@@ -849,6 +849,27 @@ func (ar *Reader) readAndInstall(r io.Reader, i handlers.Installer,
 
 	tar := tar.NewReader(gz)
 
+	err = updateStorer.PrepareStoreUpdate(ar.hInfo,
+		ar.augmentedhInfo, ar.installers[no])
+	if err != nil {
+		return err
+	}
+
+	instErr := ar.readAndInstallDataFiles(tar, i, manifest, no, updateStorer)
+	err = updateStorer.FinishStoreUpdate()
+	if instErr != nil {
+		if err != nil {
+			return errors.Wrap(instErr, err.Error())
+		} else {
+			return instErr
+		}
+	}
+	return err
+}
+
+func (ar *Reader) readAndInstallDataFiles(tar *tar.Reader, i handlers.Installer,
+	manifest *artifact.ChecksumStore, no int, updateStorer handlers.UpdateStorer) error {
+
 	for {
 		hdr, err := tar.Next()
 		if err == io.EOF {

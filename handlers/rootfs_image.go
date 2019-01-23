@@ -311,3 +311,13 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 	}
 	return nil
 }
+
+func (rfs *Rootfs) GetUpdateOriginalTypeInfoWriter() io.Writer {
+	// We don't use the type-info information with rootfs payloads.
+	return nil
+}
+
+func (rfs *Rootfs) GetUpdateAugmentTypeInfoWriter() io.Writer {
+	// We don't use the type-info information with rootfs payloads.
+	return nil
+}

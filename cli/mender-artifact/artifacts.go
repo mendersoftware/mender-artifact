@@ -37,10 +37,21 @@ type writeUpdateStorer struct {
 	writer io.Writer
 }
 
+func (w *writeUpdateStorer) PrepareStoreUpdate(artifactHeaders,
+	artifactAugmentedHeaders artifact.HeaderInfoer,
+	payloadHeaders handlers.ArtifactUpdateHeaders) error {
+
+	return nil
+}
+
 func (w *writeUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
 	w.name = info.Name()
 	_, err := io.Copy(w.writer, r)
 	return err
+}
+
+func (w *writeUpdateStorer) FinishStoreUpdate() error {
+	return nil
 }
 
 func (w *writeUpdateStorer) NewUpdateStorer(updateType string, payloadNum int) (handlers.UpdateStorer, error) {

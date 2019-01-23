@@ -50,7 +50,7 @@ type ComposeHeaderArgs struct {
 	Files      []string
 }
 
-type ArtifactUpdate interface {
+type ArtifactUpdateHeaders interface {
 	GetVersion() int
 
 	// Return type of this update, which could be augmented.
@@ -58,17 +58,6 @@ type ArtifactUpdate interface {
 
 	// Return type of original (non-augmented) update, if any.
 	GetUpdateOriginalType() string
-
-	// Operates on non-augmented files.
-	GetUpdateFiles() [](*DataFile)
-	SetUpdateFiles(files [](*DataFile)) error
-
-	// Operates on augmented files.
-	GetUpdateAugmentFiles() [](*DataFile)
-	SetUpdateAugmentFiles(files [](*DataFile)) error
-
-	// Gets both augmented and non-augmented files.
-	GetUpdateAllFiles() [](*DataFile)
 
 	// Returns merged data of non-augmented and augmented data, where the
 	// latter overrides the former. Returns error if they cannot be merged.
@@ -85,6 +74,24 @@ type ArtifactUpdate interface {
 	GetUpdateAugmentDepends() *artifact.TypeInfoDepends
 	GetUpdateAugmentProvides() *artifact.TypeInfoProvides
 	GetUpdateAugmentMetaData() map[string]interface{} // Generic JSON
+
+	GetUpdateOriginalTypeInfoWriter() io.Writer
+	GetUpdateAugmentTypeInfoWriter() io.Writer
+}
+
+type ArtifactUpdate interface {
+	ArtifactUpdateHeaders
+
+	// Operates on non-augmented files.
+	GetUpdateFiles() [](*DataFile)
+	SetUpdateFiles(files [](*DataFile)) error
+
+	// Operates on augmented files.
+	GetUpdateAugmentFiles() [](*DataFile)
+	SetUpdateAugmentFiles(files [](*DataFile)) error
+
+	// Gets both augmented and non-augmented files.
+	GetUpdateAllFiles() [](*DataFile)
 }
 
 type Composer interface {
@@ -93,7 +100,14 @@ type Composer interface {
 }
 
 type UpdateStorer interface {
+	// Called before storing any file for this UpdateStorer
+	PrepareStoreUpdate(artifactHeaders,
+		artifactAugmentedHeaders artifact.HeaderInfoer,
+		payloadHeaders ArtifactUpdateHeaders) error
+	// Called once for each file to store
 	StoreUpdate(r io.Reader, info os.FileInfo) error
+	// Called after all files have been stored
+	FinishStoreUpdate() error
 }
 
 type UpdateStorerProducer interface {
@@ -128,9 +142,20 @@ func (i *installerBase) NewUpdateStorer(updateType string, payloadNum int) (Upda
 	}
 }
 
+func (s *devNullUpdateStorer) PrepareStoreUpdate(artifactHeaders,
+	artifactAugmentedHeaders artifact.HeaderInfoer,
+	payloadHeaders ArtifactUpdateHeaders) error {
+
+	return nil
+}
+
 func (s *devNullUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
 	_, err := io.Copy(ioutil.Discard, r)
 	return err
+}
+
+func (s *devNullUpdateStorer) FinishStoreUpdate() error {
+	return nil
 }
 
 func parseFiles(r io.Reader) (*artifact.Files, error) {

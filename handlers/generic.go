@@ -186,3 +186,11 @@ func (g *GenericV1V2) ReadHeader(r io.Reader, path string, version int, augmente
 	}
 	return nil
 }
+
+func (g *GenericV1V2) GetUpdateOriginalTypeInfoWriter() io.Writer {
+	return nil
+}
+
+func (g *GenericV1V2) GetUpdateAugmentTypeInfoWriter() io.Writer {
+	return nil
+}
