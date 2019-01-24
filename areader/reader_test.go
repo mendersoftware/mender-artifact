@@ -498,10 +498,14 @@ type testUpdateStorer struct {
 	w io.Writer
 }
 
-func (s *testUpdateStorer) PrepareStoreUpdate(artifactHeaders,
+func (s *testUpdateStorer) Initialize(artifactHeaders,
 	artifactAugmentedHeaders artifact.HeaderInfoer,
 	payloadHeaders handlers.ArtifactUpdateHeaders) error {
 
+	return nil
+}
+
+func (s *testUpdateStorer) PrepareStoreUpdate() error {
 	return nil
 }
 

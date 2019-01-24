@@ -37,10 +37,14 @@ type writeUpdateStorer struct {
 	writer io.Writer
 }
 
-func (w *writeUpdateStorer) PrepareStoreUpdate(artifactHeaders,
+func (w *writeUpdateStorer) Initialize(artifactHeaders,
 	artifactAugmentedHeaders artifact.HeaderInfoer,
 	payloadHeaders handlers.ArtifactUpdateHeaders) error {
 
+	return nil
+}
+
+func (w *writeUpdateStorer) PrepareStoreUpdate() error {
 	return nil
 }
 

@@ -555,14 +555,26 @@ func (ar *Reader) ReadArtifactHeaders() error {
 
 	switch ver.Version {
 	case 1:
-		return ar.readHeaderV1()
+		err = ar.readHeaderV1()
 	case 2:
-		return ar.readHeaderV2(vRaw)
+		err = ar.readHeaderV2(vRaw)
 	case 3:
-		return ar.readHeaderV3(vRaw)
+		err = ar.readHeaderV3(vRaw)
 	default:
 		return errors.Errorf("reader: unsupported version: %d", ver.Version)
 	}
+	if err != nil {
+		return err
+	}
+
+	for no, us := range ar.updateStorers {
+		err = us.Initialize(ar.hInfo, ar.augmentedhInfo, ar.installers[no])
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (ar *Reader) ReadArtifactData() error {
@@ -653,6 +665,12 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error
 			}
 			// For older versions, use GenericV1V2, which is a stub.
 			ar.installers[i] = handlers.NewGenericV1V2(update.Type)
+		}
+
+		var err error
+		ar.updateStorers[i], err = ar.installers[i].NewUpdateStorer(update.Type, i)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -842,16 +860,11 @@ func (ar *Reader) readAndInstall(r io.Reader, i handlers.Installer, no int) erro
 	}
 	defer gz.Close()
 
-	updateStorer, err := i.NewUpdateStorer(i.GetUpdateType(), no)
-	if err != nil {
-		return err
-	}
-	ar.updateStorers[no] = updateStorer
+	updateStorer := ar.updateStorers[no]
 
 	tar := tar.NewReader(gz)
 
-	err = updateStorer.PrepareStoreUpdate(ar.hInfo,
-		ar.augmentedhInfo, ar.installers[no])
+	err = updateStorer.PrepareStoreUpdate()
 	if err != nil {
 		return err
 	}

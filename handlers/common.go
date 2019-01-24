@@ -100,13 +100,15 @@ type Composer interface {
 }
 
 type UpdateStorer interface {
-	// Called before storing any file for this UpdateStorer
-	PrepareStoreUpdate(artifactHeaders,
+	// Called as soon as all headers all collected.
+	Initialize(artifactHeaders,
 		artifactAugmentedHeaders artifact.HeaderInfoer,
 		payloadHeaders ArtifactUpdateHeaders) error
+	// Called before storing any file for this UpdateStorer
+	PrepareStoreUpdate() error
 	// Called once for each file to store
 	StoreUpdate(r io.Reader, info os.FileInfo) error
-	// Called after all files have been stored
+	// Called after all files have been stored, even if there was an error
 	FinishStoreUpdate() error
 }
 
@@ -142,10 +144,14 @@ func (i *installerBase) NewUpdateStorer(updateType string, payloadNum int) (Upda
 	}
 }
 
-func (s *devNullUpdateStorer) PrepareStoreUpdate(artifactHeaders,
+func (s *devNullUpdateStorer) Initialize(artifactHeaders,
 	artifactAugmentedHeaders artifact.HeaderInfoer,
 	payloadHeaders ArtifactUpdateHeaders) error {
 
+	return nil
+}
+
+func (s *devNullUpdateStorer) PrepareStoreUpdate() error {
 	return nil
 }
 
