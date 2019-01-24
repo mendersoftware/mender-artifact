@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -969,6 +970,69 @@ func TestReadBrokenArtifact(t *testing.T) {
 			errorStr:        "checksum missing for file: 'version'",
 			numFiles:        1,
 			numAugmentFiles: 1,
+		},
+		"rootfs-image, invalid character in update data file": {
+			manipulateArtifact: func(tmpdir string) {
+				file, err := os.OpenFile(filepath.Join(tmpdir, "manifest"), os.O_RDWR, 0)
+				require.NoError(t, err)
+				defer file.Close()
+				stat, _ := file.Stat()
+				buf := make([]byte, stat.Size())
+				newbuf := make([]byte, 0, stat.Size())
+				file.Read(buf)
+				lines := bytes.Split(buf, []byte("\n"))
+				for _, line := range lines {
+					if len(line) == 0 {
+						continue
+					}
+
+					fileName := bytes.Split(line, []byte("  "))[1]
+
+					if bytes.HasPrefix(fileName, []byte("data")) {
+						fileNameStr := string(fileName[:])
+						updateDataDirPath := filepath.Dir(fileNameStr)
+						updateDataDirPathFull := filepath.Join(tmpdir, updateDataDirPath)
+						dataArchive := updateDataDirPathFull + ".tar.gz"
+						require.NoError(t, os.Mkdir(updateDataDirPathFull, 0755))
+
+						// uncompress update data file
+						cmdArgs := []string{"-C", updateDataDirPathFull}
+						cmdArgs = append(cmdArgs, []string{"-zxf", dataArchive}...)
+						cmd := exec.Command("tar", cmdArgs...)
+						require.NoError(t, cmd.Run())
+
+						updateDataFilePath := filepath.Join(tmpdir, fileNameStr)
+						if _, err := os.Stat(updateDataFilePath); !os.IsNotExist(err) {
+							// rename update data file by replacing last character with an asterisk
+							lastChar := updateDataFilePath[len(updateDataFilePath)-1:]
+							updateDataFilePathNew := strings.TrimRight(updateDataFilePath, lastChar) + "*"
+							os.Rename(updateDataFilePath, updateDataFilePathNew)
+
+							// compress back update data file
+							cmdArgs := []string{"-czf", dataArchive}
+							cmdArgs = append(cmdArgs,
+								[]string{"-C", updateDataDirPathFull, filepath.Base(updateDataFilePathNew)}...)
+							cmd := exec.Command("tar", cmdArgs...)
+							require.NoError(t, cmd.Run())
+
+							// remove path to uncompressed update data file
+							require.NoError(t, os.RemoveAll(updateDataDirPathFull))
+							// replace last character in line with an asterisk
+							line[len(line) - 1] = 0x2A
+						}
+					}
+					for _, char := range line {
+						newbuf = append(newbuf, char)
+					}
+					newbuf = append(newbuf, byte('\n'))
+				}
+				file.Seek(0, 0)
+				file.Write(newbuf)
+				file.Truncate(int64(len(newbuf)))
+			},
+			successful:      false,
+			errorStr:        "Only letters, digits and characters in the set \".,_-\" are allowed",
+			rootfsImage:     true,
 		},
 	}
 
