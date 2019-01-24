@@ -892,7 +892,7 @@ func (ar *Reader) readAndInstallDataFiles(tar *tar.Reader, i handlers.Installer,
 		if !matched {
 			message := "Payload: data file " + hdr.Name + " contains forbidden characters"
 			info := "Only letters, digits and characters in the set \".,_-\" are allowed"
-			return fmt.Errorf("%s %s", message, info)
+			return fmt.Errorf("%s. %s", message, info)
 		}
 
 		// fill in needed data

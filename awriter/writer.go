@@ -509,7 +509,7 @@ func writeOneDataFile(tarw *tar.Writer, file *handlers.DataFile) error {
 	if !matched {
 		message := "Payload: data file " + file.Name + " contains forbidden characters"
 		info := "Only letters, digits and characters in the set \".,_-\" are allowed"
-		return fmt.Errorf("%s %s", message, info)
+		return fmt.Errorf("%s. %s", message, info)
 	}
 
 	df, err := os.Open(file.Name)
