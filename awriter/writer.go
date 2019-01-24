@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/handlers"
@@ -499,6 +500,18 @@ func writeOneDataTar(tw *tar.Writer, no int, baseUpdate, augmentUpdate handlers.
 }
 
 func writeOneDataFile(tarw *tar.Writer, file *handlers.DataFile) error {
+	matched, err := regexp.MatchString(`^[\w\-.,]+$`, filepath.Base(file.Name))
+
+	if err != nil {
+		return errors.Wrapf(err, "Payload: invalid regular expression pattern")
+	}
+
+	if !matched {
+		message := "Payload: data file " + file.Name + " contains forbidden characters"
+		info := "Only letters, digits and characters in the set \".,_-\" are allowed"
+		return fmt.Errorf("%s %s", message, info)
+	}
+
 	df, err := os.Open(file.Name)
 	if err != nil {
 		return errors.Wrapf(err, "Payload: can not open data file: %s", file.Name)
