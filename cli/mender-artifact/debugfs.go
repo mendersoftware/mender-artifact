@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -46,6 +46,9 @@ func debugfsRunFsck(image string) error {
 			ws := exitError.Sys().(syscall.WaitStatus)
 			if ws.ExitStatus() == 0 || ws.ExitStatus() == 1 {
 				return nil
+			}
+			if ws.ExitStatus() == 8 {
+				return errors.New("mender-artifact can only modify ext4 payloads")
 			}
 			return errors.Wrap(err, "fsck error")
 		}
