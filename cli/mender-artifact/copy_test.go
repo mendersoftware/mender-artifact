@@ -488,8 +488,6 @@ rmdir: directory not empty
 				outC <- buf.String()
 			}()
 
-			os.Args = testargv
-
 			err = run()
 
 			// back to normal state

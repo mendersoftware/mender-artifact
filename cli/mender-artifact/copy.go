@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"regexp"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -40,6 +41,9 @@ func Cat(c *cli.Context) (err error) {
 	r, err := virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)
+	}
+	if err = checkExternalBinaryDependencies(r.BinaryDependencies()); err != nil {
+		return err
 	}
 	defer r.Close()
 	var w io.WriteCloser = os.Stdout
@@ -99,6 +103,10 @@ func Copy(c *cli.Context) (err error) {
 		return cli.NewExitError("critical error", 1)
 	}
 
+	if err = checkExternalBinaryDependencies(vfile.BinaryDependencies()); err != nil {
+		return err
+	}
+
 	_, err = io.Copy(w, r)
 
 	return err
@@ -132,6 +140,9 @@ func Install(c *cli.Context) (err error) {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 		w = f
+		if err = checkExternalBinaryDependencies(f.BinaryDependencies()); err != nil {
+			return err
+		}
 		if _, err = io.Copy(w, r); err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
@@ -161,7 +172,21 @@ func Remove(c *cli.Context) (err error) {
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)
 	}
+	if err = checkExternalBinaryDependencies(f.BinaryDependencies()); err != nil {
+		return err
+	}
 	return f.Delete(c.Bool("recursive"))
+}
+
+func checkExternalBinaryDependencies(deps []string) error {
+	for _, dep := range deps {
+		if _, err := exec.LookPath(dep); err != nil {
+			errstr := "mender-artifact has an external dependency upon %s, which was not found in PATH. " +
+				"Please make the tool available, and try again."
+			return fmt.Errorf(errstr, dep)
+		}
+	}
+	return nil
 }
 
 // enumerate cli-options
