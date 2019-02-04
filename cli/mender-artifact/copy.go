@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/urfave/cli"
 	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/urfave/cli"
 )
 
 var isimg = regexp.MustCompile(`\.(mender|sdimg|uefiimg)`)
@@ -141,6 +141,26 @@ func Install(c *cli.Context) (err error) {
 	default:
 		return cli.NewExitError("Unrecognized parse error", 1)
 	}
+}
+
+func Remove(c *cli.Context) (err error) {
+	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
+	if err != nil {
+		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
+	}
+	if c.NArg() != 1 {
+		return cli.NewExitError(fmt.Sprintf("Got %d arguments, wants one", c.NArg()), 1)
+	}
+	if !isimg.MatchString(c.Args().First()) {
+		fmt.Println(c.Args())
+		return cli.NewExitError("The input image does not have a valid extension", 1)
+	}
+	f, err := NewPartitionFile(comp, c.Args().First(), c.String("key"))
+	if err != nil {
+		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)
+	}
+	defer f.Close()
+	return f.Delete(c.Bool("recursive"))
 }
 
 // enumerate cli-options

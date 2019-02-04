@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -25,9 +25,15 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/pkg/errors"
 )
+
+// VirtualPartitionFile mimicks a file in an Artifact or on an sdimg.
+type VirtualPartitionFile interface {
+	io.ReadWriteCloser
+	Delete(recursive bool) error
+}
 
 type partition struct {
 	offset string
@@ -40,7 +46,7 @@ type partition struct {
 // It can write and read to and from all partitions (boot,rootfsa,roofsb,data),
 // where if a file is located on the rootfs, a write will be duplicated to both
 // partitions.
-type sdimgFile []io.ReadWriteCloser
+type sdimgFile []VirtualPartitionFile
 
 func newSDImgFile(fpath string, modcands []partition) (sdimgFile, error) {
 	var delPartition []partition
@@ -116,6 +122,17 @@ func (p sdimgFile) Read(b []byte) (int, error) {
 	return p[0].Read(b)
 }
 
+// Read reads a file from an sdimg.
+func (p sdimgFile) Delete(recursive bool) (err error) {
+	for _, part := range p {
+		err = part.Delete(recursive)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Close closes the underlying closers.
 func (p sdimgFile) Close() (err error) {
 	if p == nil {
@@ -146,7 +163,7 @@ func parseImgPath(imgpath string) (imgname, fpath string, err error) {
 
 // NewPartitionFile is a utility function that parses an input image and path
 // and returns one of the underlying file readWriteClosers.
-func NewPartitionFile(comp artifact.Compressor, imgpath, key string) (io.ReadWriteCloser, error) {
+func NewPartitionFile(comp artifact.Compressor, imgpath, key string) (VirtualPartitionFile, error) {
 	imgname, fpath, err := parseImgPath(imgpath)
 	if err != nil {
 		return &extFile{}, err
@@ -286,6 +303,15 @@ func (ef *extFile) Read(b []byte) (int, error) {
 	return copy(b, data), io.EOF
 }
 
+func (e *extFile) Delete(recursive bool) (err error) {
+	err = debugfsRemoveFileOrDir(e.imagefilepath, e.path, recursive)
+	if err != nil {
+		return err
+	}
+	e.repack = true
+	return nil
+}
+
 // Close closes the temporary file held by partitionFile path, and repacks the partition if needed.
 func (ef *extFile) Close() (err error) {
 	if ef == nil {
@@ -350,6 +376,22 @@ func (f *fatFile) Write(b []byte) (n int, err error) {
 	}
 	f.repack = true
 	return len(b), nil
+}
+
+func (f *fatFile) Delete(recursive bool) (err error) {
+	isDir := filepath.Dir(f.imageFilePath) == f.imageFilePath
+	var deleteCmd string
+	if isDir {
+		deleteCmd = "mdeltree"
+	} else {
+		deleteCmd = "mdel"
+	}
+	cmd := exec.Command(deleteCmd, f.path, f.tmpf.Name(), "::/"+f.imageFilePath)
+	if err = cmd.Run(); err != nil {
+		return errors.Wrap(err, "fatFile: Delete: MDel execution failed")
+	}
+	f.repack = true
+	return nil
 }
 
 func (f *fatFile) Close() (err error) {

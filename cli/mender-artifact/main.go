@@ -212,6 +212,20 @@ func run() error {
 		Action:      Copy,
 	}
 
+	remove := cli.Command{
+		Name:        "rm",
+		Usage:       "rm [artifact|sdimg|uefiimg]:<filepath>",
+		Description: "Removes the given file or directory from an Artifact or sdimg.",
+		Action:      Remove,
+	}
+
+	remove.Flags = []cli.Flag{
+		cli.BoolFlag{
+			Name:  "recursive, r",
+			Usage: "remove directories and their contents recursively",
+		},
+	}
+
 	cat := cli.Command{
 		Name:        "cat",
 		Usage:       "cat [artifact|sdimg|uefiimg]:<filepath>",
@@ -252,6 +266,7 @@ func run() error {
 		copy,
 		cat,
 		install,
+		remove,
 	}
 	app.Flags = append([]cli.Flag{}, globalFlags...)
 	return app.Run(os.Args)

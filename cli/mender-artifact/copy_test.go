@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -387,6 +387,33 @@ func TestCopy(t *testing.T) {
 				assert.Equal(t, "mender_test.img", inst[0].GetUpdateFiles()[0].Name)
 			},
 		},
+		{
+			name: "Delete a file from an image or Artifact",
+			argv: []string{"mender-artifact", "rm", ":/etc/mender/artifact_info"},
+			verifyTestFunc: func(imgpath string) {
+				os.Args = []string{"mender-artifact", "cat",
+					imgpath + ":/etc/mender/artifact_info"}
+				err := run()
+				assert.Error(t, err)
+			},
+		},
+		{
+			name: "Error when deleting a non-empty directory from an image or Artifact",
+			argv: []string{"mender-artifact", "rm", ":/etc/mender/"},
+			err: `debugfsRemoveDir: debugfs: error running command: "rmdir /etc/mender", err: 
+rmdir: directory not empty
+`,
+		},
+		{
+			name: "Delete a directory from an image or Artifact recursively",
+			argv: []string{"mender-artifact", "rm", "-r", ":/etc/mender/"},
+			verifyTestFunc: func(imgpath string) {
+				os.Args = []string{"mender-artifact", "cat",
+					imgpath + ":/etc/mender/artifact_info"}
+				err := run()
+				assert.Error(t, err)
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -469,7 +496,7 @@ func TestCopy(t *testing.T) {
 // and thus argument files, and files in the path cannot match.
 func argvAddImgPath(imgpath string, sarr []string) []string {
 	for i, str := range sarr {
-		if strings.Contains(str, "artifact_info") || strings.Contains(str, "testkey.key") || strings.Contains(str, "test.txt") {
+		if strings.Contains(str, "artifact_info") || strings.Contains(str, "testkey.key") || strings.Contains(str, "test.txt") || str == ":/etc/mender/" {
 			sarr[i] = imgpath + str
 		}
 	}
