@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -95,7 +96,7 @@ func debugfsCopyFile(file, image string) (string, error) {
 func debugfsReplaceFile(imageFile, newFile, image string) (err error) {
 	// First check that the path exists. (cd path)
 	cmd := fmt.Sprintf("cd %s\nclose", filepath.Dir(imageFile))
-	if err = executeCommand(cmd, image); err != nil {
+	if _, err = executeCommand(cmd, image); err != nil {
 		return err
 	}
 	// remove command can fail, if the file does not already exist, but this is not critical
@@ -104,53 +105,100 @@ func debugfsReplaceFile(imageFile, newFile, image string) (err error) {
 	executeCommand(cmd, image)
 	// Write to the partition
 	cmd = fmt.Sprintf("cd %s\nwrite %s %s\nclose", filepath.Dir(imageFile), newFile, filepath.Base(imageFile))
-	return executeCommand(cmd, image)
+	_, err = executeCommand(cmd, image)
+	return err
+}
+
+func debugfsRemoveFileOrDir(imageFile, image string, recursive bool) (err error) {
+	// Check that the file or directory exists.
+	cmd := fmt.Sprintf("cd %s", filepath.Dir(imageFile))
+	if _, err = executeCommand(cmd, image); err != nil {
+		return err
+	}
+	isDir := filepath.Dir(imageFile) == filepath.Clean(imageFile)
+	var deleteCmd string
+	if isDir {
+		return debugfsRemoveDir(imageFile, image, recursive)
+	} else {
+		deleteCmd = "rm"
+	}
+	cmd = fmt.Sprintf("%s %s\nclose", deleteCmd, imageFile)
+	_, err = executeCommand(cmd, image)
+	return err
+}
+
+func debugfsRemoveDir(imageFile, image string, recursive bool) (err error) {
+	// Remove the `/` suffix if present, as debugfs does not play nice with it.
+	imageFile = strings.TrimRight(imageFile, "/")
+	cmd := fmt.Sprintf("rmdir %s", imageFile)
+	if _, err = executeCommand(cmd, image); err != nil {
+		if recursive && strings.Contains(err.Error(), "directory not empty") {
+			// Recurse and remove all files in the directory.
+			cmd = fmt.Sprintf("ls %s", imageFile)
+			buf, err := executeCommand(cmd, image)
+			if err != nil {
+				return errors.Wrap(err, "debugfsRemoveDir")
+			}
+			regexp := regexp.MustCompile(`[0-9]+ +\([0-9]+\) +((.\w+.)+)`)
+			for _, filename := range regexp.FindAllStringSubmatch(buf.String(), -1) {
+				err = debugfsRemoveFileOrDir(filepath.Join(imageFile, string(filename[1])), image, recursive)
+				if err != nil {
+					return errors.Wrap(err, "debugfsRemoveDir")
+				}
+			}
+			// Now that all the subdirs and files should be removed, try and remove the directory
+			// once more.
+			return debugfsRemoveDir(imageFile, image, recursive)
+		}
+		return errors.Wrap(err, "debugfsRemoveDir")
+	}
+	return nil
 }
 
 // executeCommand takes a command string and passes it on to debugfs on the image given.
-func executeCommand(cmdstr, image string) error {
+func executeCommand(cmdstr, image string) (stdout *bytes.Buffer, err error) {
 	scr, err := ioutil.TempFile("", "mender-debugfs")
 	if err != nil {
-		return errors.Wrap(err, "debugfs: create sync script file")
+		return nil, errors.Wrap(err, "debugfs: create sync script file")
 	}
 	defer os.Remove(scr.Name())
 	defer scr.Close()
 
 	err = scr.Chmod(0755)
 	if err != nil {
-		return errors.Wrap(err, "debugfs: set script file exec flag")
+		return nil, errors.Wrap(err, "debugfs: set script file exec flag")
 	}
 
 	if _, err = scr.WriteString(cmdstr); err != nil {
-		return errors.Wrap(err, "debugfs: store sync script file")
+		return nil, errors.Wrap(err, "debugfs: store sync script file")
 	}
 
 	if err = scr.Close(); err != nil {
-		return errors.Wrap(err, "debugfs: close sync script")
+		return nil, errors.Wrap(err, "debugfs: close sync script")
 	}
 	cmd := exec.Command("debugfs", "-w", "-f", scr.Name(), image)
-	ep, _ := cmd.StderrPipe()
+	cmd.Env = []string{"DEBUGFS_PAGER='cat'"}
+	errbuf := bytes.NewBuffer(nil)
+	stdout = bytes.NewBuffer(nil)
+	cmd.Stderr = errbuf
+	cmd.Stdout = stdout
 	if err = cmd.Start(); err != nil {
-		return errors.Wrap(err, "debugfs: run debugfs script")
+		return nil, errors.Wrap(err, "debugfs: run debugfs script")
 	}
-	data, err := ioutil.ReadAll(ep)
-	if err != nil {
-		return err
+	if err := cmd.Wait(); err != nil {
+		return nil, err
 	}
+
 	// Remove the debugfs standard message
 	reg := regexp.MustCompile("^debugfs.*\\n")
-	loc := reg.FindIndex(data)
+	loc := reg.FindIndex(errbuf.Bytes())
 	if len(loc) == 0 {
-		return fmt.Errorf("debugfs: prompt not found in: %s", string(data))
+		return nil, fmt.Errorf("debugfs: prompt not found in: %s", errbuf.String())
 	}
-	datastr := string(data[loc[1]-1:]) // Strip debugfs: (version) ...
-	if len(datastr) > 1 {
-		return fmt.Errorf("debugfs: error running command: %q, err: %s", cmdstr, datastr)
-	}
-
-	if err := cmd.Wait(); err != nil {
-		return err
+	errbufstr := string(errbuf.Bytes()[loc[1]-1:]) // Strip debugfs: (version) ...
+	if len(errbufstr) > 1 {
+		return nil, fmt.Errorf("debugfs: error running command: %q, err: %s", cmdstr, errbufstr)
 	}
 
-	return nil
+	return stdout, nil
 }

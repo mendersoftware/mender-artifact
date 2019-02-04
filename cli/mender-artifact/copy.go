@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/urfave/cli"
 	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/urfave/cli"
 )
 
 var isimg = regexp.MustCompile(`\.(mender|sdimg|uefiimg)`)
@@ -37,7 +37,7 @@ func Cat(c *cli.Context) (err error) {
 	if !isimg.MatchString(c.Args().First()) {
 		return cli.NewExitError("The input image does not seem to be a valid image", 1)
 	}
-	r, err := NewPartitionFile(comp, c.Args().First(), c.String("key"))
+	r, err := virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)
 	}
@@ -57,6 +57,7 @@ func Copy(c *cli.Context) (err error) {
 
 	var r io.ReadCloser
 	var w io.WriteCloser
+	var vfile VPFile
 	switch parseCLIOptions(c) {
 	case copyin:
 		r, err = os.OpenFile(c.Args().First(), os.O_CREATE|os.O_RDONLY, 0655)
@@ -64,27 +65,30 @@ func Copy(c *cli.Context) (err error) {
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		w, err = NewPartitionFile(comp, c.Args().Get(1), c.String("key"))
+		vfile, err = virtualPartitionFile.Open(comp, c.Args().Get(1), c.String("key"))
+		defer vfile.Close()
 		if err != nil {
-			w.Close()
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
+		w = vfile
 	case copyinstdin:
 		r = os.Stdin
-		w, err = NewPartitionFile(comp, c.Args().First(), c.String("key"))
+		vfile, err = virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
+		defer vfile.Close()
 		if err != nil {
-			w.Close()
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
+		w = vfile
 	case copyout:
-		r, err = NewPartitionFile(comp, c.Args().First(), c.String("key"))
-		defer r.Close()
+		vfile, err = virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
+		defer vfile.Close()
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
+		r = vfile
 		w, err = os.OpenFile(c.Args().Get(1), os.O_CREATE|os.O_WRONLY, 0655)
+		defer w.Close()
 		if err != nil {
-			w.Close()
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 	case parseError:
@@ -96,10 +100,7 @@ func Copy(c *cli.Context) (err error) {
 	}
 
 	_, err = io.Copy(w, r)
-	// Ignore the close error in case of an io.Copy error.
-	if cerr := w.Close(); cerr != nil && err != nil {
-		err = cerr
-	}
+
 	return err
 }
 
@@ -125,11 +126,12 @@ func Install(c *cli.Context) (err error) {
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		w, err = NewPartitionFile(comp, c.Args().Get(1), c.String("key"))
-		defer w.Close()
+		f, err := virtualPartitionFile.Open(comp, c.Args().Get(1), c.String("key"))
+		defer f.Close()
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
+		w = f
 		if _, err = io.Copy(w, r); err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
@@ -141,6 +143,25 @@ func Install(c *cli.Context) (err error) {
 	default:
 		return cli.NewExitError("Unrecognized parse error", 1)
 	}
+}
+
+func Remove(c *cli.Context) (err error) {
+	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
+	if err != nil {
+		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
+	}
+	if c.NArg() != 1 {
+		return cli.NewExitError(fmt.Sprintf("Got %d arguments, wants one", c.NArg()), 1)
+	}
+	if !isimg.MatchString(c.Args().First()) {
+		return cli.NewExitError("The input image does not have a valid extension", 1)
+	}
+	f, err := virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
+	defer f.Close()
+	if err != nil {
+		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)
+	}
+	return f.Delete(c.Bool("recursive"))
 }
 
 // enumerate cli-options

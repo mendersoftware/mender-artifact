@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ func TestExecuteCommand(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		err := executeCommand(test.cmd, "mender_test.img")
+		_, err := executeCommand(test.cmd, "mender_test.img")
 		t.Log(name)
 		fmt.Fprintf(os.Stderr, "err: %s\n", err)
 		assert.Contains(t, err.Error(), test.expected, "Unexpected error")
