@@ -43,6 +43,7 @@ const (
 type VPFile interface {
 	io.ReadWriteCloser
 	Delete(recursive bool) error
+	BinaryDependencies() []string
 }
 
 type partition struct {
@@ -211,6 +212,21 @@ func (p sdimgFile) Close() (err error) {
 	return nil
 }
 
+func (p sdimgFile) BinaryDependencies() []string {
+	deps := []string{}
+	exists := make(map[string]bool)
+	for _, part := range p {
+		ds := part.BinaryDependencies()
+		for _, dep := range ds {
+			if !exists[dep] {
+				exists[dep] = true
+				deps = append(deps, dep)
+			}
+		}
+	}
+	return deps
+}
+
 // artifactExtFile is a wrapper for a reader and writer to the underlying
 // file in a mender artifact with an ext file system.
 type artifactExtFile struct {
@@ -337,6 +353,10 @@ func (ef *extFile) Close() (err error) {
 	return err
 }
 
+func (ef *extFile) BinaryDependencies() []string {
+	return []string{"debugfs"}
+}
+
 // fatFile wraps a partition struct with a reader/writer for fat filesystems
 type fatFile struct {
 	partition
@@ -415,4 +435,8 @@ func (f *fatFile) Close() (err error) {
 	}
 	os.Remove(f.path) // Ignore error for tmp-dir
 	return err
+}
+
+func (f *fatFile) BinaryDependencies() []string {
+	return []string{"mtools"}
 }
