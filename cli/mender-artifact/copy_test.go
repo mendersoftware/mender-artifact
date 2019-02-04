@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -239,7 +239,7 @@ func TestCopy(t *testing.T) {
 				// Cleanup the testkey
 				assert.Nil(t, os.Remove("testkey"))
 				// Check that the permission bits have been set correctly!
-				pf, err := NewPartitionFile(comp, imgpath+":/etc/mender/testkey.key", "")
+				pf, err := virtualPartitionFile.Open(comp, imgpath+":/etc/mender/testkey.key", "")
 				defer pf.Close()
 				require.Nil(t, err)
 				// Type switch on the artifact, or sdimg underlying
@@ -387,6 +387,54 @@ func TestCopy(t *testing.T) {
 				assert.Equal(t, "mender_test.img", inst[0].GetUpdateFiles()[0].Name)
 			},
 		},
+		{
+			name: "Delete a file from an image or Artifact",
+			argv: []string{"mender-artifact", "rm", ":/etc/mender/artifact_info"},
+			verifyTestFunc: func(imgpath string) {
+				os.Args = []string{"mender-artifact", "cat",
+					imgpath + ":/etc/mender/artifact_info"}
+				err := run()
+				assert.Error(t, err)
+			},
+		},
+		{
+			name: "Error when deleting a non-empty directory from an image or Artifact",
+			argv: []string{"mender-artifact", "rm", ":/etc/mender/"},
+			err: `debugfsRemoveDir: debugfs: error running command: "rmdir /etc/mender", err: 
+rmdir: directory not empty
+`,
+		},
+		{
+			name: "Delete a directory from an image or Artifact recursively",
+			argv: []string{"mender-artifact", "rm", "-r", ":/etc/mender/"},
+			verifyTestFunc: func(imgpath string) {
+				os.Args = []string{"mender-artifact", "cat",
+					imgpath + ":/etc/mender/artifact_info"}
+				err := run()
+				assert.Error(t, err)
+			},
+		},
+		{
+			name:        "Delete a file from a fat partition",
+			validimages: []int{2},
+			initfunc: func(imgpath string) {
+				require.Nil(t, ioutil.WriteFile("test.txt", []byte("foobar"), 0644))
+				os.Args = []string{"mender-artifact", "cp", "test.txt", imgpath + ":/boot/test.txt"}
+				require.NoError(t, run())
+			},
+			argv: []string{"mender-artifact", "rm", ":/boot/test.txt"},
+			verifyTestFunc: func(imgpath string) {
+				os.Args = []string{"mender-artifact", "cat",
+					imgpath + ":/boot/test.txt"}
+				err := run()
+				assert.Error(t, err)
+			},
+		},
+		{
+			name:        "Delete a directory from a fat partition",
+			validimages: []int{2}, // only valid for fat boot partition
+			argv:        []string{"mender-artifact", "rm", "-r", ":/uboot/testdir/"},
+		},
 	}
 
 	for _, test := range tests {
@@ -410,6 +458,7 @@ func TestCopy(t *testing.T) {
 				t.FailNow()
 			}
 		}
+
 		// Run once for the artifact, and once for the sdimg
 		for _, imgpath := range validimages {
 			// buffer the argv vector, since it is used twice
@@ -418,11 +467,11 @@ func TestCopy(t *testing.T) {
 
 			testargv = argvAddImgPath(imgpath, testargv)
 
-			os.Args = testargv
-
 			if test.initfunc != nil {
 				test.initfunc(imgpath)
 			}
+
+			os.Args = testargv
 
 			old := os.Stdout // keep backup of the real stdout
 			r, w, err := os.Pipe()
@@ -469,7 +518,7 @@ func TestCopy(t *testing.T) {
 // and thus argument files, and files in the path cannot match.
 func argvAddImgPath(imgpath string, sarr []string) []string {
 	for i, str := range sarr {
-		if strings.Contains(str, "artifact_info") || strings.Contains(str, "testkey.key") || strings.Contains(str, "test.txt") {
+		if strings.Contains(str, "artifact_info") || strings.Contains(str, "testkey.key") || strings.Contains(str, "test.txt") || str == ":/etc/mender/" || str == ":/boot/grub/" || str == ":/uboot/testdir/" {
 			sarr[i] = imgpath + str
 		}
 	}
