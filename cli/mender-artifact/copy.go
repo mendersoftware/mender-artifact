@@ -152,7 +152,6 @@ func Remove(c *cli.Context) (err error) {
 		return cli.NewExitError(fmt.Sprintf("Got %d arguments, wants one", c.NArg()), 1)
 	}
 	if !isimg.MatchString(c.Args().First()) {
-		fmt.Println(c.Args())
 		return cli.NewExitError("The input image does not have a valid extension", 1)
 	}
 	f, err := NewPartitionFile(comp, c.Args().First(), c.String("key"))
