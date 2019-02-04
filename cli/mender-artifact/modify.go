@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ func modifyArtifact(c *cli.Context) error {
 			defer os.Remove(mc.path)
 		}
 	} else if len(modifyCandidates) == 4 { // sdimg
-		modifyCandidates = modifyCandidates[1:2]
+		modifyCandidates = modifyCandidates[1:3]
 	}
 
 	for _, toModify := range modifyCandidates {
