@@ -239,7 +239,7 @@ func TestCopy(t *testing.T) {
 				// Cleanup the testkey
 				assert.Nil(t, os.Remove("testkey"))
 				// Check that the permission bits have been set correctly!
-				pf, err := NewPartitionFile(comp, imgpath+":/etc/mender/testkey.key", "")
+				pf, err := virtualPartitionFile.Open(comp, imgpath+":/etc/mender/testkey.key", "")
 				defer pf.Close()
 				require.Nil(t, err)
 				// Type switch on the artifact, or sdimg underlying
@@ -414,12 +414,34 @@ rmdir: directory not empty
 				assert.Error(t, err)
 			},
 		},
+		{
+			name:        "Delete a file from a fat partition",
+			validimages: []int{2},
+			initfunc: func(imgpath string) {
+				require.Nil(t, ioutil.WriteFile("test.txt", []byte("foobar"), 0644))
+				os.Args = []string{"mender-artifact", "cp", "test.txt", imgpath + ":/boot/test.txt"}
+				require.NoError(t, run())
+			},
+			argv: []string{"mender-artifact", "rm", ":/boot/test.txt"},
+			verifyTestFunc: func(imgpath string) {
+				os.Args = []string{"mender-artifact", "cat",
+					imgpath + ":/boot/test.txt"}
+				err := run()
+				assert.Error(t, err)
+			},
+		},
+		{
+			name:        "Delete a directory from a fat partition",
+			validimages: []int{2}, // only valid for fat boot partition
+			argv:        []string{"mender-artifact", "rm", "-r", ":/uboot/testdir/"},
+		},
 	}
 
 	for _, test := range tests {
+		fmt.Fprintln(os.Stderr, test.name)
 		// create a copy of the working images
-		artifact, sdimg, fatsdimg, closer := testSetupTeardown(t)
-		defer closer()
+		artifact, sdimg, fatsdimg, _ := testSetupTeardown(t)
+		// defer closer()
 		validimages := []string{}
 		// Add the images the test is valid for.
 		if len(test.validimages) == 0 {
@@ -437,6 +459,7 @@ rmdir: directory not empty
 				t.FailNow()
 			}
 		}
+
 		// Run once for the artifact, and once for the sdimg
 		for _, imgpath := range validimages {
 			// buffer the argv vector, since it is used twice
@@ -445,11 +468,11 @@ rmdir: directory not empty
 
 			testargv = argvAddImgPath(imgpath, testargv)
 
-			os.Args = testargv
-
 			if test.initfunc != nil {
 				test.initfunc(imgpath)
 			}
+
+			os.Args = testargv
 
 			old := os.Stdout // keep backup of the real stdout
 			r, w, err := os.Pipe()
@@ -465,6 +488,8 @@ rmdir: directory not empty
 				io.Copy(&buf, r)
 				outC <- buf.String()
 			}()
+
+			os.Args = testargv
 
 			err = run()
 
@@ -496,7 +521,7 @@ rmdir: directory not empty
 // and thus argument files, and files in the path cannot match.
 func argvAddImgPath(imgpath string, sarr []string) []string {
 	for i, str := range sarr {
-		if strings.Contains(str, "artifact_info") || strings.Contains(str, "testkey.key") || strings.Contains(str, "test.txt") || str == ":/etc/mender/" {
+		if strings.Contains(str, "artifact_info") || strings.Contains(str, "testkey.key") || strings.Contains(str, "test.txt") || str == ":/etc/mender/" || str == ":/boot/grub/" || str == ":/uboot/testdir/" {
 			sarr[i] = imgpath + str
 		}
 	}

@@ -29,10 +29,21 @@ import (
 	"github.com/pkg/errors"
 )
 
-// VirtualPartitionFile mimicks a file in an Artifact or on an sdimg.
-type VirtualPartitionFile interface {
+const (
+	fat = iota
+	ext
+	unsupported
+
+	// empty placeholder, so that we can write virtualPartitionFile.Open()
+	// as the API call (better semantics).
+	virtualPartitionFile vFile = 1
+)
+
+// V(irtual)P(artition)File mimicks a file in an Artifact or on an sdimg.
+type VPFile interface {
 	io.ReadWriteCloser
 	Delete(recursive bool) error
+	BinaryDependencies() []string
 }
 
 type partition struct {
@@ -42,11 +53,65 @@ type partition struct {
 	name   string
 }
 
+type vFile int
+
+// Open is a utility function that parses an input image and path
+// and returns a V(irtual)P(artition)File.
+func (v vFile) Open(comp artifact.Compressor, imgpath, key string) (VPFile, error) {
+	imgname, fpath, err := parseImgPath(imgpath)
+	if err != nil {
+		return &extFile{}, err
+	}
+	modcands, isArtifact, err := getCandidatesForModify(imgname, []byte(key))
+	if err != nil {
+		return &extFile{}, err
+	}
+	for i := 0; i < len(modcands); i++ {
+		modcands[i].name = imgname
+	}
+	if isArtifact {
+		return newArtifactExtFile(comp, key, fpath, modcands[0])
+	}
+	return newSDImgFile(fpath, modcands)
+
+}
+
+// parseImgPath parses cli input of the form
+// path/to/[sdimg,mender]:/path/inside/img/file
+// into path/to/[sdimg,mender] and path/inside/img/file
+func parseImgPath(imgpath string) (imgname, fpath string, err error) {
+	paths := strings.SplitN(imgpath, ":", 2)
+	if len(paths) != 2 {
+		return "", "", errors.New("failed to parse image path")
+	}
+	if len(paths[1]) == 0 {
+		return "", "", errors.New("please enter a path into the image")
+	}
+	return paths[0], paths[1], nil
+}
+
+// imgFilesystemtype returns the filesystem type of a partition.
+// Currently only distinguishes ext from fat.
+func imgFilesystemType(imgpath string) (int, error) {
+	cmd := exec.Command("blkid", "-s", "TYPE", imgpath)
+	buf := bytes.NewBuffer(nil)
+	cmd.Stdout = buf
+	if err := cmd.Run(); err != nil {
+		return unsupported, errors.Wrap(err, "imgFilesystemType: blkid command failed")
+	}
+	if strings.Contains(buf.String(), `TYPE="vfat"`) {
+		return fat, nil
+	} else if strings.Contains(buf.String(), `TYPE="ext`) {
+		return ext, nil
+	}
+	return unsupported, nil
+}
+
 // sdimgFile is a virtual file readWriteCloser for files on an sdimg.
 // It can write and read to and from all partitions (boot,rootfsa,roofsb,data),
 // where if a file is located on the rootfs, a write will be duplicated to both
 // partitions.
-type sdimgFile []VirtualPartitionFile
+type sdimgFile []VPFile
 
 func newSDImgFile(fpath string, modcands []partition) (sdimgFile, error) {
 	var delPartition []partition
@@ -72,7 +137,7 @@ func newSDImgFile(fpath string, modcands []partition) (sdimgFile, error) {
 		// /uboot, /boot/efi, /boot/grup are not directories on the boot partition.
 		fpath = reg.ReplaceAllString(fpath, "")
 		// Since boot partitions can be either fat or ext,
-		// return a readWriteCloser dependent upon the underlying filesystemtype.
+		// return a readWriteCloser dependent upon the underlying filesystem type.
 		fstype, err := imgFilesystemType(modcands[0].path)
 		if err != nil {
 			return nil, errors.Wrap(err, "partition: error reading file-system type on the boot partition")
@@ -147,61 +212,19 @@ func (p sdimgFile) Close() (err error) {
 	return nil
 }
 
-// parseImgPath parses cli input of the form
-// path/to/[sdimg,mender]:/path/inside/img/file
-// into path/to/[sdimg,mender] and path/inside/img/file
-func parseImgPath(imgpath string) (imgname, fpath string, err error) {
-	paths := strings.SplitN(imgpath, ":", 2)
-	if len(paths) != 2 {
-		return "", "", errors.New("failed to parse image path")
+func (p sdimgFile) BinaryDependencies() []string {
+	deps := []string{}
+	exists := make(map[string]bool)
+	for _, part := range p {
+		ds := part.BinaryDependencies()
+		for _, dep := range ds {
+			if !exists[dep] {
+				exists[dep] = true
+				deps = append(deps, dep)
+			}
+		}
 	}
-	if len(paths[1]) == 0 {
-		return "", "", errors.New("please enter a path into the image")
-	}
-	return paths[0], paths[1], nil
-}
-
-// NewPartitionFile is a utility function that parses an input image and path
-// and returns one of the underlying file readWriteClosers.
-func NewPartitionFile(comp artifact.Compressor, imgpath, key string) (VirtualPartitionFile, error) {
-	imgname, fpath, err := parseImgPath(imgpath)
-	if err != nil {
-		return &extFile{}, err
-	}
-	modcands, isArtifact, err := getCandidatesForModify(imgname, []byte(key))
-	if err != nil {
-		return &extFile{}, err
-	}
-	for i := 0; i < len(modcands); i++ {
-		modcands[i].name = imgname
-	}
-	if isArtifact {
-		return newArtifactExtFile(comp, key, fpath, modcands[0])
-	}
-	return newSDImgFile(fpath, modcands)
-}
-
-const (
-	fat = iota
-	ext
-	unsupported
-)
-
-// imgFilesystemtype returns the filesystem type of a partition.
-// Currently only distinguishes ext from fat.
-func imgFilesystemType(imgpath string) (int, error) {
-	cmd := exec.Command("blkid", "-s", "TYPE", imgpath)
-	buf := bytes.NewBuffer(nil)
-	cmd.Stdout = buf
-	if err := cmd.Run(); err != nil {
-		return unsupported, errors.Wrap(err, "imgFilesystemType: blkid command failed")
-	}
-	if strings.Contains(buf.String(), `TYPE="vfat"`) {
-		return fat, nil
-	} else if strings.Contains(buf.String(), `TYPE="ext`) {
-		return ext, nil
-	}
-	return unsupported, nil
+	return deps
 }
 
 // artifactExtFile is a wrapper for a reader and writer to the underlying
@@ -330,6 +353,10 @@ func (ef *extFile) Close() (err error) {
 	return err
 }
 
+func (ef *extFile) BinaryDependencies() []string {
+	return []string{"debugfs"}
+}
+
 // fatFile wraps a partition struct with a reader/writer for fat filesystems
 type fatFile struct {
 	partition
@@ -350,7 +377,7 @@ func newFatFile(imageFilePath string, partition partition) (*fatFile, error) {
 
 // Read Dump the file contents to stdout, and capture, using MTools' mtype
 func (f *fatFile) Read(b []byte) (n int, err error) {
-	cmd := exec.Command("mtype", "-i", f.path, "::/"+f.imageFilePath)
+	cmd := exec.Command("mtype", "-i", f.path, "::"+f.imageFilePath)
 	dbuf := bytes.NewBuffer(nil)
 	cmd.Stdout = dbuf // capture Stdout
 	if err = cmd.Run(); err != nil {
@@ -367,8 +394,8 @@ func (f *fatFile) Write(b []byte) (n int, err error) {
 	if err = f.tmpf.Sync(); err != nil {
 		return 0, errors.Wrap(err, "fatFile: Write: Failed to sync tmpfile")
 	}
-	// Use MTools to write to the fat-partition
-	cmd := exec.Command("mcopy", "-i", f.path, f.tmpf.Name(), "::/"+f.imageFilePath)
+	f.tmpf.Close()
+	cmd := exec.Command("mcopy", "-n", "-i", f.path, f.tmpf.Name(), "::"+f.imageFilePath)
 	data := bytes.NewBuffer(nil)
 	cmd.Stdout = data
 	if err = cmd.Run(); err != nil {
@@ -379,16 +406,16 @@ func (f *fatFile) Write(b []byte) (n int, err error) {
 }
 
 func (f *fatFile) Delete(recursive bool) (err error) {
-	isDir := filepath.Dir(f.imageFilePath) == f.imageFilePath
+	isDir := filepath.Dir(f.imageFilePath) == strings.TrimRight(f.imageFilePath, "/")
 	var deleteCmd string
 	if isDir {
 		deleteCmd = "mdeltree"
 	} else {
 		deleteCmd = "mdel"
 	}
-	cmd := exec.Command(deleteCmd, f.path, f.tmpf.Name(), "::/"+f.imageFilePath)
+	cmd := exec.Command(deleteCmd, "-i", f.path, "::"+f.imageFilePath)
 	if err = cmd.Run(); err != nil {
-		return errors.Wrap(err, "fatFile: Delete: MDel execution failed")
+		return errors.Wrap(err, "fatFile: Delete: execution failed: "+deleteCmd)
 	}
 	f.repack = true
 	return nil
@@ -408,4 +435,8 @@ func (f *fatFile) Close() (err error) {
 	}
 	os.Remove(f.path) // Ignore error for tmp-dir
 	return err
+}
+
+func (f *fatFile) BinaryDependencies() []string {
+	return []string{"mtools"}
 }

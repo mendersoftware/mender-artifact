@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"regexp"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -37,9 +38,12 @@ func Cat(c *cli.Context) (err error) {
 	if !isimg.MatchString(c.Args().First()) {
 		return cli.NewExitError("The input image does not seem to be a valid image", 1)
 	}
-	r, err := NewPartitionFile(comp, c.Args().First(), c.String("key"))
+	r, err := virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)
+	}
+	if err = checkExternalBinaryDependencies(r.BinaryDependencies()); err != nil {
+		return err
 	}
 	defer r.Close()
 	var w io.WriteCloser = os.Stdout
@@ -57,6 +61,7 @@ func Copy(c *cli.Context) (err error) {
 
 	var r io.ReadCloser
 	var w io.WriteCloser
+	var vfile VPFile
 	switch parseCLIOptions(c) {
 	case copyin:
 		r, err = os.OpenFile(c.Args().First(), os.O_CREATE|os.O_RDONLY, 0655)
@@ -64,27 +69,30 @@ func Copy(c *cli.Context) (err error) {
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		w, err = NewPartitionFile(comp, c.Args().Get(1), c.String("key"))
+		vfile, err = virtualPartitionFile.Open(comp, c.Args().Get(1), c.String("key"))
+		defer vfile.Close()
 		if err != nil {
-			w.Close()
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
+		w = vfile
 	case copyinstdin:
 		r = os.Stdin
-		w, err = NewPartitionFile(comp, c.Args().First(), c.String("key"))
+		vfile, err = virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
+		defer vfile.Close()
 		if err != nil {
-			w.Close()
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
+		w = vfile
 	case copyout:
-		r, err = NewPartitionFile(comp, c.Args().First(), c.String("key"))
-		defer r.Close()
+		vfile, err = virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
+		defer vfile.Close()
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
+		r = vfile
 		w, err = os.OpenFile(c.Args().Get(1), os.O_CREATE|os.O_WRONLY, 0655)
+		defer w.Close()
 		if err != nil {
-			w.Close()
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 	case parseError:
@@ -95,11 +103,12 @@ func Copy(c *cli.Context) (err error) {
 		return cli.NewExitError("critical error", 1)
 	}
 
-	_, err = io.Copy(w, r)
-	// Ignore the close error in case of an io.Copy error.
-	if cerr := w.Close(); cerr != nil && err != nil {
-		err = cerr
+	if err = checkExternalBinaryDependencies(vfile.BinaryDependencies()); err != nil {
+		return err
 	}
+
+	_, err = io.Copy(w, r)
+
 	return err
 }
 
@@ -125,10 +134,14 @@ func Install(c *cli.Context) (err error) {
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		w, err = NewPartitionFile(comp, c.Args().Get(1), c.String("key"))
-		defer w.Close()
+		f, err := virtualPartitionFile.Open(comp, c.Args().Get(1), c.String("key"))
+		defer f.Close()
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+		}
+		w = f
+		if err = checkExternalBinaryDependencies(f.BinaryDependencies()); err != nil {
+			return err
 		}
 		if _, err = io.Copy(w, r); err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
@@ -154,12 +167,26 @@ func Remove(c *cli.Context) (err error) {
 	if !isimg.MatchString(c.Args().First()) {
 		return cli.NewExitError("The input image does not have a valid extension", 1)
 	}
-	f, err := NewPartitionFile(comp, c.Args().First(), c.String("key"))
+	f, err := virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
+	defer f.Close()
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)
 	}
-	defer f.Close()
+	if err = checkExternalBinaryDependencies(f.BinaryDependencies()); err != nil {
+		return err
+	}
 	return f.Delete(c.Bool("recursive"))
+}
+
+func checkExternalBinaryDependencies(deps []string) error {
+	for _, dep := range deps {
+		if _, err := exec.LookPath(dep); err != nil {
+			errstr := "mender-artifact has an external dependency upon %s, which was not found in PATH. " +
+				"Please make the tool available, and try again."
+			return fmt.Errorf(errstr, dep)
+		}
+	}
+	return nil
 }
 
 // enumerate cli-options
