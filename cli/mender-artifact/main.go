@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -168,7 +168,7 @@ func run() error {
 		Usage:       "Modifies image or artifact file.",
 		Action:      modifyArtifact,
 		UsageText:   "mender-artifact modify [options] <pathspec>",
-		Description: "This command modifies existing image or artifact file provided by pathspec.",
+		Description: "This command modifies existing image or artifact file provided by pathspec. NOTE: Currently only ext4 payloads can be modified",
 	}
 
 	modify.Flags = []cli.Flag{
