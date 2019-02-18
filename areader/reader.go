@@ -933,7 +933,7 @@ func (ar *Reader) readAndInstallDataFiles(tar *tar.Reader, i handlers.Installer,
 		ch := artifact.NewReaderChecksum(tar, df.Checksum)
 
 		if err = updateStorer.StoreUpdate(ch, info); err != nil {
-			return errors.Wrapf(err, "Payload: can not install Payload: %v", hdr)
+			return errors.Wrapf(err, "Payload: can not install Payload: %s", hdr.Name)
 		}
 
 		if err = ch.Verify(); err != nil {
