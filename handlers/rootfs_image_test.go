@@ -97,52 +97,54 @@ func TestRootfsReadHeader(t *testing.T) {
 			errMsg:             "unsupported file",
 			shouldErrAugmented: true,
 			errMsgAugmented:    "unsupported file"},
-		{rootfs: NewRootfsV3("custom"), data: "",
+		{rootfs: NewRootfsV3("custom"), data: "{}",
 			name: "headers/0000/type-info", shouldErr: false, version: 3},
 	}
 
 	for _, test := range tc {
+		t.Run("", func(t *testing.T) {
 
-		buf := bytes.NewBuffer(nil)
+			buf := bytes.NewBuffer(nil)
 
-		tw := tar.NewWriter(buf)
-		err := tw.WriteHeader(&tar.Header{
-			Name: "not-needed",
-			Size: int64(len(test.data)),
+			tw := tar.NewWriter(buf)
+			err := tw.WriteHeader(&tar.Header{
+				Name: "not-needed",
+				Size: int64(len(test.data)),
+			})
+			require.NoError(t, err)
+			_, err = tw.Write([]byte(test.data))
+			require.NoError(t, err)
+			err = tw.Close()
+			require.NoError(t, err)
+
+			tr := tar.NewReader(buf)
+			_, err = tr.Next()
+			require.NoError(t, err)
+
+			err = r.ReadHeader(tr, test.name, test.version, false)
+			if test.shouldErr {
+				require.Error(t, err)
+				if test.errMsg != "" {
+					require.Contains(t, errors.Cause(err).Error(), test.errMsg)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+
+			if test.version < 3 {
+				// Done for version 1 and 2
+				return
+			}
+
+			err = r.ReadHeader(bytes.NewReader([]byte(test.data)), test.name, test.version, true)
+			if test.shouldErrAugmented {
+				require.Error(t, err)
+				if test.errMsgAugmented != "" {
+					require.Contains(t, errors.Cause(err).Error(), test.errMsgAugmented)
+				}
+			} else {
+				require.NoError(t, err)
+			}
 		})
-		require.NoError(t, err)
-		_, err = tw.Write([]byte(test.data))
-		require.NoError(t, err)
-		err = tw.Close()
-		require.NoError(t, err)
-
-		tr := tar.NewReader(buf)
-		_, err = tr.Next()
-		require.NoError(t, err)
-
-		err = r.ReadHeader(buf, test.name, test.version, false)
-		if test.shouldErr {
-			require.Error(t, err)
-			if test.errMsg != "" {
-				require.Contains(t, errors.Cause(err).Error(), test.errMsg)
-			}
-		} else {
-			require.NoError(t, err)
-		}
-
-		if test.version < 3 {
-			// Done for version 1 and 2
-			continue
-		}
-
-		err = r.ReadHeader(bytes.NewReader([]byte(test.data)), test.name, test.version, true)
-		if test.shouldErrAugmented {
-			require.Error(t, err)
-			if test.errMsgAugmented != "" {
-				require.Contains(t, errors.Cause(err).Error(), test.errMsgAugmented)
-			}
-		} else {
-			require.NoError(t, err)
-		}
 	}
 }

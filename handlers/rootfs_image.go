@@ -16,6 +16,7 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -29,6 +30,8 @@ type Rootfs struct {
 	version           int
 	update            *DataFile
 	regularHeaderRead bool
+
+	typeInfoV3 *artifact.TypeInfoV3
 
 	// If this is augmented instance: The original instance.
 	original ArtifactUpdate
@@ -124,8 +127,18 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bo
 			return errors.New("Rootfs image does not contain exactly one file")
 		}
 		rp.SetUpdateFiles([]*DataFile{&DataFile{Name: files.FileList[0]}})
-	case filepath.Base(path) == "type-info",
-		filepath.Base(path) == "meta-data":
+	case filepath.Base(path) == "type-info":
+		if rp.version < 3 {
+			// This was ignored in pre-v3 versions, so keep ignoring it.
+			break
+		}
+		dec := json.NewDecoder(r)
+		err := dec.Decode(&rp.typeInfoV3)
+		if err != nil {
+			return errors.Wrap(err, "error reading type-info")
+		}
+
+	case filepath.Base(path) == "meta-data":
 		// TODO: implement when needed
 	case match(artifact.HeaderDirectory+"/*/signatures/*", path),
 		match(artifact.HeaderDirectory+"/*/scripts/*/*", path):
@@ -235,11 +248,11 @@ func (rfs *Rootfs) GetUpdateMetaData() (map[string]interface{}, error) {
 }
 
 func (rfs *Rootfs) GetUpdateOriginalDepends() *artifact.TypeInfoDepends {
-	return &artifact.TypeInfoDepends{}
+	return rfs.typeInfoV3.ArtifactDepends
 }
 
 func (rfs *Rootfs) GetUpdateOriginalProvides() *artifact.TypeInfoProvides {
-	return &artifact.TypeInfoProvides{}
+	return rfs.typeInfoV3.ArtifactProvides
 }
 
 func (rfs *Rootfs) GetUpdateOriginalMetaData() map[string]interface{} {
