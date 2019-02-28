@@ -248,10 +248,16 @@ func (rfs *Rootfs) GetUpdateMetaData() (map[string]interface{}, error) {
 }
 
 func (rfs *Rootfs) GetUpdateOriginalDepends() *artifact.TypeInfoDepends {
+	if rfs.typeInfoV3 == nil {
+		return nil
+	}
 	return rfs.typeInfoV3.ArtifactDepends
 }
 
 func (rfs *Rootfs) GetUpdateOriginalProvides() *artifact.TypeInfoProvides {
+	if rfs.typeInfoV3 == nil {
+		return nil
+	}
 	return rfs.typeInfoV3.ArtifactProvides
 }
 
