@@ -15,7 +15,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"strings"
+
+	"github.com/mendersoftware/mender-artifact/artifact"
 
 	"github.com/urfave/cli"
 )
@@ -290,7 +294,7 @@ func run() error {
 		Usage:       "Modifies image or artifact file.",
 		Action:      modifyArtifact,
 		UsageText:   "mender-artifact modify [options] <pathspec>",
-		Description: "This command modifies existing image or artifact file provided by pathspec.",
+		Description: "This command modifies existing image or artifact file provided by pathspec. NOTE: Currently only ext4 payloads can be modified",
 	}
 
 	modify.Flags = []cli.Flag{
@@ -351,6 +355,16 @@ func run() error {
 		},
 	}
 
+	compressors := artifact.GetRegisteredCompressorIds()
+	globalFlags := []cli.Flag{
+		cli.StringFlag{
+			Name:  "compression",
+			Value: "gzip",
+			Usage: fmt.Sprintf("Compression to use for data and header inside the artifact, "+
+				"currently supports: %v.", strings.Join(compressors, ", ")),
+		},
+	}
+
 	app.Commands = []cli.Command{
 		writeCommand,
 		readCommand,
@@ -361,5 +375,6 @@ func run() error {
 		cat,
 		install,
 	}
+	app.Flags = append([]cli.Flag{}, globalFlags...)
 	return app.Run(os.Args)
 }

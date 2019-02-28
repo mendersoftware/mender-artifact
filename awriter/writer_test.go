@@ -70,7 +70,7 @@ func checkTarElementsByName(r io.Reader, expected []string) error {
 
 func TestWriteArtifact(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
-	w := NewWriter(buf)
+	w := NewWriter(buf, artifact.NewCompressorGzip())
 	tFile, err := ioutil.TempFile("", "artifacttmp")
 	require.Nil(t, err)
 	u := handlers.NewRootfsV1(tFile.Name())
@@ -91,8 +91,10 @@ func TestWriteArtifact(t *testing.T) {
 }
 
 func TestWriteArtifactWithUpdates(t *testing.T) {
+	comp := artifact.NewCompressorGzip()
+
 	buf := bytes.NewBuffer(nil)
-	w := NewWriter(buf)
+	w := NewWriter(buf, comp)
 
 	upd, err := MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
@@ -131,8 +133,10 @@ func TestWriteArtifactWithUpdates(t *testing.T) {
 }
 
 func TestWriteMultipleUpdates(t *testing.T) {
+	comp := artifact.NewCompressorGzip()
+
 	buf := bytes.NewBuffer(nil)
-	w := NewWriter(buf)
+	w := NewWriter(buf, comp)
 
 	upd, err := MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
@@ -190,10 +194,12 @@ r3rtT0ysHWd7l+Kx/SUCQGlitd5RDfdHl+gKrCwhNnRG7FzRLv5YOQV81+kh7SkU
 `
 
 func TestWriteArtifactV2(t *testing.T) {
+	comp := artifact.NewCompressorGzip()
+
 	buf := bytes.NewBuffer(nil)
 
 	s := artifact.NewSigner([]byte(PrivateKey))
-	w := NewWriterSigned(buf, s)
+	w := NewWriterSigned(buf, comp, s)
 
 	upd, err := MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
@@ -225,7 +231,7 @@ func TestWriteArtifactV2(t *testing.T) {
 		err.Error())
 	buf.Reset()
 
-	w = NewWriterSigned(buf, nil)
+	w = NewWriterSigned(buf, comp, nil)
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
 		Version: 2,
@@ -256,10 +262,12 @@ func TestWriteArtifactV2(t *testing.T) {
 }
 
 func TestWriteArtifactV3(t *testing.T) {
+	comp := artifact.NewCompressorGzip()
+
 	buf := bytes.NewBuffer(nil)
 
 	s := artifact.NewSigner([]byte(PrivateKey))
-	w := NewWriterSigned(buf, s)
+	w := NewWriterSigned(buf, comp, s)
 
 	upd, err := MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
@@ -316,7 +324,7 @@ func TestWriteArtifactV3(t *testing.T) {
 
 	// Unsigned artifact V3
 	buf.Reset()
-	w = NewWriter(buf)
+	w = NewWriter(buf, comp)
 	upd, err = MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
 	defer os.Remove(upd)
@@ -351,7 +359,7 @@ func TestWriteArtifactV3(t *testing.T) {
 	// Signed artifact V3
 	buf.Reset()
 	s = artifact.NewSigner([]byte(PrivateKey))
-	w = NewWriterSigned(buf, s)
+	w = NewWriterSigned(buf, comp, s)
 	upd, err = MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
 	defer os.Remove(upd)
@@ -413,7 +421,7 @@ func TestWriteArtifactV3(t *testing.T) {
 
 	// Fail writing artifact version
 	failBuf := &TestErrWriter{FailOnWriteData: []byte("version")}
-	w = NewWriterSigned(failBuf, s)
+	w = NewWriterSigned(failBuf, comp, s)
 	u = handlers.NewRootfsV3(upd)
 	updates = &Updates{Updates: []handlers.Composer{u}} // Update existing.
 	err = w.WriteArtifact(&WriteArtifactArgs{
@@ -435,7 +443,7 @@ func TestWriteArtifactV3(t *testing.T) {
 
 	// Fail writing artifact manifest.
 	failBuf = &TestErrWriter{FailOnWriteData: []byte("manifest")}
-	w = NewWriterSigned(failBuf, s)
+	w = NewWriterSigned(failBuf, comp, s)
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
 		Version: 3,
@@ -455,7 +463,7 @@ func TestWriteArtifactV3(t *testing.T) {
 
 	// Fail writing artifact header.
 	failBuf = &TestErrWriter{FailOnWriteData: []byte("header.tar.gz")}
-	w = NewWriterSigned(failBuf, s)
+	w = NewWriterSigned(failBuf, comp, s)
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
 		Version: 3,
@@ -479,7 +487,7 @@ func TestWriteArtifactV3(t *testing.T) {
 
 	// Fail writing artifact header-augment.
 	failBuf = &TestErrWriter{FailOnWriteData: []byte("header-augment.tar.gz")}
-	w = NewWriterSigned(failBuf, s)
+	w = NewWriterSigned(failBuf, comp, s)
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
 		Version: 3,
@@ -499,7 +507,7 @@ func TestWriteArtifactV3(t *testing.T) {
 
 	// Unsigned artifact V3 with augments section.
 	buf.Reset()
-	w = NewWriter(buf)
+	w = NewWriter(buf, comp)
 	upd, err = MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
 	defer os.Remove(upd)
@@ -537,7 +545,7 @@ func TestWriteArtifactV3(t *testing.T) {
 	// Signed artifact V3 with augments section.
 	buf.Reset()
 	s = artifact.NewSigner([]byte(PrivateKey))
-	w = NewWriterSigned(buf, s)
+	w = NewWriterSigned(buf, comp, s)
 	upd, err = MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
 	defer os.Remove(upd)
@@ -592,8 +600,10 @@ func TestWriteArtifactV3(t *testing.T) {
 }
 
 func TestWithScripts(t *testing.T) {
+	comp := artifact.NewCompressorGzip()
+
 	buf := bytes.NewBuffer(nil)
-	w := NewWriter(buf)
+	w := NewWriter(buf, comp)
 
 	upd, err := MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
@@ -755,6 +765,8 @@ func MakeFakeUpdateDir(updateDir string, elements []TestDirEntry) error {
 }
 
 func TestRootfsCompose(t *testing.T) {
+	comp := artifact.NewCompressorGzip()
+
 	buf := bytes.NewBuffer(nil)
 	tw := tar.NewWriter(buf)
 	defer tw.Close()
@@ -771,12 +783,12 @@ func TestRootfsCompose(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = writeData(tw, &Updates{[]handlers.Composer{r}, nil})
+	err = writeData(tw, comp, &Updates{[]handlers.Composer{r}, nil})
 	require.NoError(t, err)
 
 	// error compose data with missing data file
 	r = handlers.NewRootfsV1("non-existing")
-	err = writeData(tw, &Updates{[]handlers.Composer{r}, nil})
+	err = writeData(tw, comp, &Updates{[]handlers.Composer{r}, nil})
 	require.Error(t, err)
 	require.Contains(t, errors.Cause(err).Error(),
 		"no such file or directory")

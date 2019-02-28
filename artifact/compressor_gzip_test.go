@@ -15,13 +15,32 @@
 package artifact
 
 import (
+	"bytes"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestUpdateUtils(t *testing.T) {
-	assert.Equal(t, "data/0001", UpdatePath(1))
-	assert.Equal(t, "headers/0002", UpdateHeaderPath(2))
-	assert.Equal(t, "data/0003.tar", UpdateDataPath(3))
+func TestCompressorGzip(t *testing.T) {
+	c := NewCompressorGzip()
+	assert.Equal(t, c.GetFileExtension(), ".gz")
+
+	buf := bytes.NewBuffer(nil)
+	w, err := c.NewWriter(buf)
+	assert.NoError(t, err)
+
+	i, err := w.Write([]byte(testData))
+	assert.NoError(t, err)
+	assert.Equal(t, i, len(testData))
+	w.Close()
+
+	r, err := c.NewReader(buf)
+	assert.NoError(t, err)
+
+	rbuf := make([]byte, len(testData))
+	i, err = r.Read(rbuf)
+	assert.Equal(t, err, io.EOF)
+	assert.Equal(t, i, len(testData))
+	assert.Equal(t, []byte(testData), rbuf)
 }

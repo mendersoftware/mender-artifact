@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -46,6 +46,9 @@ func debugfsRunFsck(image string) error {
 			ws := exitError.Sys().(syscall.WaitStatus)
 			if ws.ExitStatus() == 0 || ws.ExitStatus() == 1 {
 				return nil
+			}
+			if ws.ExitStatus() == 8 {
+				return errors.New("mender-artifact can only modify ext4 payloads")
 			}
 			return errors.Wrap(err, "fsck error")
 		}
@@ -140,7 +143,7 @@ func executeCommand(cmdstr, image string) error {
 	if len(loc) == 0 {
 		return fmt.Errorf("debugfs: prompt not found in: %s", string(data))
 	}
-	datastr := string(data[loc[1]-1]) // Strip debugfs: (version) ...
+	datastr := string(data[loc[1]-1:]) // Strip debugfs: (version) ...
 	if len(datastr) > 1 {
 		return fmt.Errorf("debugfs: error running command: %q, err: %s", cmdstr, datastr)
 	}

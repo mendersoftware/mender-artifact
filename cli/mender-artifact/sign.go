@@ -19,11 +19,17 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )
 
 func signExisting(c *cli.Context) error {
+	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
+	if err != nil {
+		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
+	}
+
 	if c.NArg() == 0 {
 		return cli.NewExitError("Nothing specified, nothing signed. \nMaybe you wanted"+
 			" to say 'artifacts sign <pathspec>'?", 1)
@@ -53,7 +59,7 @@ func signExisting(c *cli.Context) error {
 	}
 	defer f.Close()
 
-	reader, err := repack(c.Args().First(), f, tFile, privateKey, "", "")
+	reader, err := repack(comp, c.Args().First(), f, tFile, privateKey, "", "")
 	if err != nil {
 		return err
 	}

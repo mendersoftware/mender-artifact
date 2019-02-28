@@ -95,6 +95,22 @@ func verify(image, file, expected string) bool {
 	return strings.Contains(string(data), expected)
 }
 
+func verifySDImg(image, file, expected string) bool {
+
+	modifyCandidates, isArtifact, err :=
+		getCandidatesForModify(image, nil)
+
+	if err != nil {
+		return false
+	}
+
+	if isArtifact {
+		return false
+	}
+
+	return verify(modifyCandidates[1].path, file, expected)
+}
+
 func TestModifyImage(t *testing.T) {
 	tmp, err := ioutil.TempDir("", "mender-modify")
 	assert.NoError(t, err)
@@ -102,6 +118,9 @@ func TestModifyImage(t *testing.T) {
 	defer os.RemoveAll(tmp)
 
 	err = copyFile("mender_test.img", filepath.Join(tmp, "mender_test.img"))
+	assert.NoError(t, err)
+
+	err = copyFile("mender_test.sdimg", filepath.Join(tmp, "mender_test.sdimg"))
 	assert.NoError(t, err)
 
 	os.Args = []string{"mender-artifact", "modify",
@@ -121,6 +140,20 @@ func TestModifyImage(t *testing.T) {
 
 	assert.True(t, verify(filepath.Join(tmp, "mender_test.img"),
 		"/etc/mender/mender.conf", "https://docker.mender.io"))
+
+	os.Args = []string{"mender-artifact", "modify",
+		filepath.Join(tmp, "mender_test.sdimg"),
+		"--server-uri", "foo",
+		"--tenant-token", "bar"}
+
+	err = run()
+	assert.NoError(t, err)
+
+	assert.True(t, verifySDImg(filepath.Join(tmp, "mender_test.sdimg"),
+		"/etc/mender/mender.conf", "foo"))
+
+	assert.True(t, verifySDImg(filepath.Join(tmp, "mender_test.sdimg"),
+		"/etc/mender/mender.conf", "bar"))
 }
 
 func TestModifySdimage(t *testing.T) {

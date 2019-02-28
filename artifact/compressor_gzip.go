@@ -15,13 +15,30 @@
 package artifact
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
+	"compress/gzip"
+	"io"
 )
 
-func TestUpdateUtils(t *testing.T) {
-	assert.Equal(t, "data/0001", UpdatePath(1))
-	assert.Equal(t, "headers/0002", UpdateHeaderPath(2))
-	assert.Equal(t, "data/0003.tar", UpdateDataPath(3))
+type CompressorGzip struct {
+	c Compressor
+}
+
+func NewCompressorGzip() Compressor {
+	return &CompressorGzip{}
+}
+
+func (c *CompressorGzip) GetFileExtension() string {
+	return ".gz"
+}
+
+func (c *CompressorGzip) NewReader(r io.Reader) (io.ReadCloser, error) {
+	return gzip.NewReader(r)
+}
+
+func (c *CompressorGzip) NewWriter(w io.Writer) (io.WriteCloser, error) {
+	return gzip.NewWriter(w), nil
+}
+
+func init() {
+	RegisterCompressor("gzip", &CompressorGzip{})
 }

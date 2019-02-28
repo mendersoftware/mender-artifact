@@ -48,6 +48,11 @@ func validateInput(c *cli.Context) error {
 }
 
 func writeRootfs(c *cli.Context) error {
+	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
+	if err != nil {
+		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
+	}
+
 	if err := validateInput(c); err != nil {
 		Log.Error(err.Error())
 		return err
@@ -92,7 +97,7 @@ func writeRootfs(c *cli.Context) error {
 		os.Remove(name + ".tmp")
 	}()
 
-	aw, err := artifactWriter(f, c.String("key"), version)
+	aw, err := artifactWriter(comp, f, c.String("key"), version)
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
@@ -150,7 +155,7 @@ func writeRootfs(c *cli.Context) error {
 	return nil
 }
 
-func artifactWriter(f *os.File, key string,
+func artifactWriter(comp artifact.Compressor, f *os.File, key string,
 	ver int) (*awriter.Writer, error) {
 	if key != "" {
 		if ver == 0 {
@@ -161,9 +166,9 @@ func artifactWriter(f *os.File, key string,
 		if err != nil {
 			return nil, err
 		}
-		return awriter.NewWriterSigned(f, artifact.NewSigner(privateKey)), nil
+		return awriter.NewWriterSigned(f, comp, artifact.NewSigner(privateKey)), nil
 	}
-	return awriter.NewWriter(f), nil
+	return awriter.NewWriter(f, comp), nil
 }
 
 func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
@@ -311,6 +316,11 @@ func makeMetaData(ctx *cli.Context) (map[string]interface{}, map[string]interfac
 }
 
 func writeModuleImage(ctx *cli.Context) error {
+	comp, err := artifact.NewCompressorFromId(ctx.GlobalString("compression"))
+	if err != nil {
+		return cli.NewExitError("compressor '"+ctx.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
+	}
+
 	// set the default name
 	name := "artifact.mender"
 	if len(ctx.String("output-path")) > 0 {
@@ -334,7 +344,7 @@ func writeModuleImage(ctx *cli.Context) error {
 		os.Remove(name + ".tmp")
 	}()
 
-	aw, err := artifactWriter(f, ctx.String("key"), version)
+	aw, err := artifactWriter(comp, f, ctx.String("key"), version)
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}

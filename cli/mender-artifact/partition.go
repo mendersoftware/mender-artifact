@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
 )
 
@@ -145,7 +146,7 @@ func parseImgPath(imgpath string) (imgname, fpath string, err error) {
 
 // NewPartitionFile is a utility function that parses an input image and path
 // and returns one of the underlying file readWriteClosers.
-func NewPartitionFile(imgpath, key string) (io.ReadWriteCloser, error) {
+func NewPartitionFile(comp artifact.Compressor, imgpath, key string) (io.ReadWriteCloser, error) {
 	imgname, fpath, err := parseImgPath(imgpath)
 	if err != nil {
 		return &extFile{}, err
@@ -158,7 +159,7 @@ func NewPartitionFile(imgpath, key string) (io.ReadWriteCloser, error) {
 		modcands[i].name = imgname
 	}
 	if isArtifact {
-		return newArtifactExtFile(key, fpath, modcands[0])
+		return newArtifactExtFile(comp, key, fpath, modcands[0])
 	}
 	return newSDImgFile(fpath, modcands)
 }
@@ -190,9 +191,10 @@ func imgFilesystemType(imgpath string) (int, error) {
 // file in a mender artifact with an ext file system.
 type artifactExtFile struct {
 	extFile
+	comp artifact.Compressor
 }
 
-func newArtifactExtFile(key, fpath string, p partition) (af *artifactExtFile, err error) {
+func newArtifactExtFile(comp artifact.Compressor, key, fpath string, p partition) (af *artifactExtFile, err error) {
 	tmpf, err := ioutil.TempFile("", "mendertmp-artifactextfile")
 	// Cleanup resources in case of error.
 	af = &artifactExtFile{
@@ -202,6 +204,7 @@ func newArtifactExtFile(key, fpath string, p partition) (af *artifactExtFile, er
 			imagefilepath: fpath,
 			tmpf:          tmpf,
 		},
+		comp,
 	}
 	if err != nil {
 		return af, err
@@ -221,7 +224,7 @@ func (a *artifactExtFile) Close() (err error) {
 		return nil
 	}
 	if a.repack {
-		err = repackArtifact(a.name, a.path,
+		err = repackArtifact(a.comp, a.name, a.path,
 			a.key, "")
 	}
 	if a.tmpf != nil {

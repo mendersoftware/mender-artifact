@@ -17,7 +17,6 @@ package areader
 import (
 	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -141,13 +140,15 @@ func MakeModuleImageArtifact(signed, hasScripts bool, updateType string,
 func MakeAnyImageArtifact(version int, signed bool,
 	hasScripts bool, updates *awriter.Updates) (io.Reader, error) {
 
+	comp := artifact.NewCompressorGzip()
+
 	art := bytes.NewBuffer(nil)
 	var aw *awriter.Writer
 	if !signed {
-		aw = awriter.NewWriter(art)
+		aw = awriter.NewWriter(art, comp)
 	} else {
 		s := artifact.NewSigner([]byte(PrivateKey))
-		aw = awriter.NewWriterSigned(art, s)
+		aw = awriter.NewWriterSigned(art, comp, s)
 	}
 
 	scr := artifact.Scripts{}
@@ -529,11 +530,14 @@ func (s *testUpdateStorer) NewUpdateStorer(updateType string, payloadNum int) (h
 }
 
 func writeDataFile(t *testing.T, name, data string) io.Reader {
+	comp := artifact.NewCompressorGzip()
+
 	buf := bytes.NewBuffer(nil)
-	gz := gzip.NewWriter(buf)
+	gz, err := comp.NewWriter(buf)
+	assert.NoError(t, err)
 	tw := tar.NewWriter(gz)
 	sw := artifact.NewTarWriterStream(tw)
-	err := sw.Write([]byte(data), name)
+	err = sw.Write([]byte(data), name)
 	assert.NoError(t, err)
 	err = tw.Close()
 	assert.NoError(t, err)

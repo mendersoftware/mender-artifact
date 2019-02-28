@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/mendersoftware/mender-artifact/areader"
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -228,6 +229,7 @@ func TestCopy(t *testing.T) {
 			},
 			argv: []string{"mender-artifact", "install", "-m", "0600", "testkey", ":/etc/mender/testkey.key"},
 			verifyTestFunc: func(imgpath string) {
+				comp := artifact.NewCompressorGzip()
 				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/etc/mender/testkey.key")
 				var out bytes.Buffer
 				cmd.Stdout = &out
@@ -237,7 +239,7 @@ func TestCopy(t *testing.T) {
 				// Cleanup the testkey
 				assert.Nil(t, os.Remove("testkey"))
 				// Check that the permission bits have been set correctly!
-				pf, err := NewPartitionFile(imgpath+":/etc/mender/testkey.key", "")
+				pf, err := NewPartitionFile(comp, imgpath+":/etc/mender/testkey.key", "")
 				defer pf.Close()
 				require.Nil(t, err)
 				// Type switch on the artifact, or sdimg underlying

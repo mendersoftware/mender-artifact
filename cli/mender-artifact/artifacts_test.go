@@ -60,14 +60,15 @@ func CreateFakeUpdate() (string, error) {
 }
 
 func WriteTestArtifact(version int, update string, key []byte) (io.Reader, error) {
+	comp := artifact.NewCompressorGzip()
 	buff := bytes.NewBuffer(nil)
 
 	aw := new(awriter.Writer)
 	if key != nil {
-		aw = awriter.NewWriterSigned(buff, artifact.NewSigner(key))
+		aw = awriter.NewWriterSigned(buff, comp, artifact.NewSigner(key))
 		fmt.Println("write signed artifact")
 	} else {
-		aw = awriter.NewWriter(buff)
+		aw = awriter.NewWriter(buff, comp)
 	}
 
 	var err error
@@ -105,6 +106,8 @@ func WriteTestArtifact(version int, update string, key []byte) (io.Reader, error
 }
 
 func WriteArtifact(dir string, ver int, update string) error {
+	comp := artifact.NewCompressorGzip()
+
 	if err := func() error {
 		if update != "" {
 			return nil
@@ -133,7 +136,7 @@ func WriteArtifact(dir string, ver int, update string) error {
 
 	u := handlers.NewRootfsV1(update)
 
-	aw := awriter.NewWriter(f)
+	aw := awriter.NewWriter(f, comp)
 	switch ver {
 	case 1:
 		// we are alrady having v1 handlers; do nothing

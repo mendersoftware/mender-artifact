@@ -8,7 +8,7 @@ PKGNAME = mender-artifact
 PKGFILES = $(shell find . \( -path ./vendor -o -path ./Godeps \) -prune \
 		-o -type f -name '*.go' -print)
 PKGFILES_notest = $(shell echo $(PKGFILES) | tr ' ' '\n' | grep -v _test.go)
-GOCYCLO ?= 15
+GOCYCLO ?= 20
 
 CGO_ENABLED=1
 export CGO_ENABLED

@@ -11,17 +11,36 @@
 //    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
+// +build !nolzma,cgo
 
 package artifact
 
 import (
-	"testing"
+	"io"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/mendersoftware/go-liblzma"
 )
 
-func TestUpdateUtils(t *testing.T) {
-	assert.Equal(t, "data/0001", UpdatePath(1))
-	assert.Equal(t, "headers/0002", UpdateHeaderPath(2))
-	assert.Equal(t, "data/0003.tar", UpdateDataPath(3))
+type CompressorLzma struct {
+	c Compressor
+}
+
+func NewCompressorLzma() Compressor {
+	return &CompressorLzma{}
+}
+
+func (c *CompressorLzma) GetFileExtension() string {
+	return ".xz"
+}
+
+func (c *CompressorLzma) NewReader(r io.Reader) (io.ReadCloser, error) {
+	return xz.NewReader(r)
+}
+
+func (c *CompressorLzma) NewWriter(w io.Writer) (io.WriteCloser, error) {
+	return xz.NewWriter(w, xz.Level9)
+}
+
+func init() {
+	RegisterCompressor("lzma", &CompressorLzma{})
 }
