@@ -306,8 +306,10 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 			dir:        path,
 			typeinfov3: args.TypeInfoV3,
 		}); err != nil {
-			return errors.Wrap(err, "ComposeHeader: ")
+			return errors.Wrap(err, "ComposeHeader")
 		}
+	default:
+		return fmt.Errorf("ComposeHeader: rootfs-version %d not supported", rfs.version)
 
 	}
 
