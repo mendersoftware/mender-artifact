@@ -20,7 +20,9 @@ import (
 	"io"
 	"testing"
 
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -147,4 +149,184 @@ func TestRootfsReadHeader(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestComposeHeader(t *testing.T) {
+
+	tests := map[string]struct {
+		rfs        *Rootfs
+		args       ComposeHeaderArgs
+		err        error
+		verifyFunc func(args ComposeHeaderArgs)
+	}{
+		"wrong version": {
+			rfs:  NewRootfsInstaller(),
+			args: ComposeHeaderArgs{Version: -1},
+			err:  errors.New("ComposeHeader: rootfs-version 0 not supported"),
+		},
+		"version 1 - no tar writer": {
+			rfs:  NewRootfsV1(""),
+			args: ComposeHeaderArgs{},
+			err:  errors.New("writer: tar-writer is nil"),
+		},
+		"version 2 - no tar writer": {
+			rfs:  NewRootfsV2(""),
+			args: ComposeHeaderArgs{},
+			err:  errors.New("writer: tar-writer is nil"),
+		},
+		"version 3 - no tar writer": {
+			rfs:  NewRootfsV3(""),
+			args: ComposeHeaderArgs{},
+			err:  errors.New("ComposeHeader: Payload: can not tar type-info: arch: Can not write to empty tar-writer"),
+		},
+		"version 1 - success": { // TODO - should this succeed with no update files?
+			rfs: NewRootfsV1(""),
+			args: ComposeHeaderArgs{
+				TarWriter: tar.NewWriter(bytes.NewBuffer(nil)),
+			},
+			err: nil,
+		},
+		"version 3 - success": {
+			rfs: NewRootfsV3(""),
+			args: ComposeHeaderArgs{
+				TarWriter: tar.NewWriter(bytes.NewBuffer(nil)),
+			},
+			err: errors.New("ComposeHeader: Payload: can not tar type-info: arch: Can not write to empty tar-writer"),
+		},
+		"version 3 - Test remove augmented provides": {
+			rfs: NewAugmentedRootfs(NewRootfsV3(""), ""),
+			args: ComposeHeaderArgs{
+				TarWriter:  tar.NewWriter(bytes.NewBuffer(nil)),
+				TypeInfoV3: &artifact.TypeInfoV3{ArtifactProvides: &artifact.TypeInfoProvides{}},
+				Augmented:  true,
+			},
+			verifyFunc: func(args ComposeHeaderArgs) { assert.Nil(t, args.TypeInfoV3) },
+		},
+		"error: metadata not empty": {
+			rfs: NewRootfsV1(""),
+			args: ComposeHeaderArgs{
+				TarWriter: tar.NewWriter(bytes.NewBuffer(nil)),
+				MetaData:  map[string]interface{}{"foo": "bar"},
+			},
+			err: errors.New("MetaData not empty in Rootfs.ComposeHeader. This is a bug in the application."),
+		},
+	}
+
+	for name, test := range tests {
+
+		err := test.rfs.ComposeHeader(&test.args)
+		if err != nil {
+			if test.err == nil {
+				t.Errorf("Test %s failed with an unexpected error: %v", name, err)
+				continue
+			}
+			assert.EqualError(t, err, test.err.Error())
+			if test.verifyFunc != nil {
+				test.verifyFunc(test.args)
+			}
+		}
+	}
+}
+
+func TestNewAugmentedInstance(t *testing.T) {
+	rfs := NewRootfsInstaller()
+	inst, err := rfs.NewAugmentedInstance(NewRootfsV2(""))
+
+	assert.NotNil(t, err)
+	assert.Nil(t, inst)
+
+	modimg := NewModuleImage("foo-module")
+	inst, err = rfs.NewAugmentedInstance(modimg)
+
+	assert.NotNil(t, err)
+	assert.Nil(t, inst)
+
+	inst, err = rfs.NewAugmentedInstance(NewRootfsV3(""))
+
+	assert.Nil(t, err)
+	assert.NotNil(t, inst)
+
+}
+
+func TestSetAndGetUpdateAugmentFiles(t *testing.T) {
+
+	rfs := NewRootfsV3("")
+	files := [](*DataFile){
+		&DataFile{
+			Name: "baz",
+		},
+	}
+	err := rfs.SetUpdateAugmentFiles(files)
+	assert.EqualError(t, err, "Rootfs: Cannot set augmented data file on non-augmented instance.")
+	assert.Equal(t, 0, len(rfs.GetUpdateAugmentFiles()))
+	assert.Equal(t, 0, len(rfs.GetUpdateAllFiles()))
+
+	// No update files - no augmentation done - no error
+	files = nil
+	err = rfs.SetUpdateAugmentFiles(files)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(rfs.GetUpdateAugmentFiles()))
+	assert.Equal(t, 0, len(rfs.GetUpdateAllFiles()))
+
+	// Can only set one datafile for a rootfs update
+	files = [](*DataFile){
+		&DataFile{
+			Name: "baz",
+		},
+		&DataFile{
+			Name: "foo",
+		},
+	}
+	augrfs := NewAugmentedRootfs(rfs, "")
+	err = augrfs.SetUpdateAugmentFiles(files)
+	assert.EqualError(t, err, "Rootfs: Must provide exactly one update file")
+	assert.Equal(t, 0, len(rfs.GetUpdateAugmentFiles()))
+	assert.Equal(t, 0, len(augrfs.GetUpdateAllFiles()))
+
+	// No update files - no augmentation - no error (augmented rootfs)
+	files = nil
+	err = augrfs.SetUpdateAugmentFiles(files)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(augrfs.GetUpdateAugmentFiles()))
+	assert.Equal(t, 0, len(augrfs.GetUpdateAllFiles()))
+
+	// Cannot handle both augmented and non-augmented update-file
+	files = [](*DataFile){
+		&DataFile{
+			Name: "baz",
+		},
+	}
+	rfs = NewRootfsV3("")
+	rfs.SetUpdateFiles(files)
+	augrfs = NewAugmentedRootfs(rfs, "")
+	err = augrfs.SetUpdateAugmentFiles(files)
+	assert.NotNil(t, err)
+	assert.EqualError(t, err, "Rootfs: Cannot handle both augmented and non-augmented update file")
+	assert.Equal(t, 0, len(augrfs.GetUpdateAugmentFiles()))
+	assert.Equal(t, 1, len(augrfs.GetUpdateAllFiles()))
+
+	// no error
+	rfs = NewRootfsV3("")
+	rfs.SetUpdateFiles(nil)
+	augrfs = NewAugmentedRootfs(rfs, "")
+	err = augrfs.SetUpdateAugmentFiles(files)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(augrfs.GetUpdateAugmentFiles()))
+}
+
+func TestSetAndGetUpdateFiles(t *testing.T) {
+
+	// Cannot handle augmented and non-augmented update file
+	files := [](*DataFile){
+		&DataFile{
+			Name: "baz",
+		},
+	}
+	rfs := NewRootfsV3("")
+	augrfs := NewAugmentedRootfs(rfs, "")
+	err := augrfs.SetUpdateAugmentFiles(files)
+	assert.Nil(t, err)
+	err = augrfs.SetUpdateFiles(files)
+	assert.EqualError(t, err, "Rootfs: Cannot handle both augmented and non-augmented update file")
+	assert.Equal(t, 0, len(augrfs.GetUpdateFiles()))
 }
