@@ -38,14 +38,3 @@ script:
 after_success:
     # Integrate with https://codecov.io
     - bash <(curl -s https://codecov.io/bash)
-
-deploy:
-    provider: s3
-    access_key_id: $AWS_ACCESS_KEY_ID
-    secret_access_key: $AWS_SECRET_ACCESS_KEY
-    bucket: $AWS_BUCKET
-    region: $AWS_REGION
-    upload-dir: $TRAVIS_BRANCH/$TRAVIS_GO_VERSION
-    file: mender-artifact
-    skip_cleanup: true
-    acl: $AWS_S3_ACL
