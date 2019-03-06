@@ -343,7 +343,7 @@ func run() error {
 
 	install := cli.Command{
 		Name:        "install",
-		Usage:       "install -m<permissions> <src> <dst>",
+		Usage:       "install -m<permissions> <hostfile> [artifact|sdimg|uefiimg]:<filepath>",
 		Description: "Installs a file from the host filesystem to the artifact or sdimg.",
 		Action:      Install,
 	}
@@ -352,6 +352,20 @@ func run() error {
 		cli.IntFlag{
 			Name:  "mode, m",
 			Usage: "Set the permission bits in the file",
+		},
+	}
+
+	remove := cli.Command{
+		Name:        "rm",
+		Usage:       "rm [artifact|sdimg|uefiimg]:<filepath>",
+		Description: "Removes the given file or directory from an Artifact or sdimg.",
+		Action:      Remove,
+	}
+
+	remove.Flags = []cli.Flag{
+		cli.BoolFlag{
+			Name:  "recursive, r",
+			Usage: "remove directories and their contents recursively",
 		},
 	}
 
@@ -374,6 +388,7 @@ func run() error {
 		copy,
 		cat,
 		install,
+		remove,
 	}
 	app.Flags = append([]cli.Flag{}, globalFlags...)
 	return app.Run(os.Args)
