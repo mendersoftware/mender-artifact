@@ -25,6 +25,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/mendersoftware/mender-artifact/utils"
 	"github.com/pkg/errors"
 )
 
@@ -66,7 +67,7 @@ func debugfsCopyFile(file, image string) (string, error) {
 
 	dumpCmd := fmt.Sprintf("dump %s %s", file,
 		filepath.Join(tmpDir, filepath.Base(file)))
-	cmd := exec.Command("debugfs", "-R", dumpCmd, image)
+	cmd := exec.Command(utils.GetBinaryPath("debugfs"), "-R", dumpCmd, image)
 	ep, err := cmd.StderrPipe()
 	if err != nil {
 		return "", errors.Wrap(err, "failed to open stderr pipe of command")
@@ -173,7 +174,7 @@ func executeCommand(cmdstr, image string) (stdout *bytes.Buffer, err error) {
 	if err = scr.Close(); err != nil {
 		return nil, errors.Wrap(err, "debugfs: close sync script")
 	}
-	cmd := exec.Command("debugfs", "-w", "-f", scr.Name(), image)
+	cmd := exec.Command(utils.GetBinaryPath("debugfs"), "-w", "-f", scr.Name(), image)
 	cmd.Env = []string{"DEBUGFS_PAGER='cat'"}
 	errbuf := bytes.NewBuffer(nil)
 	stdout = bytes.NewBuffer(nil)
