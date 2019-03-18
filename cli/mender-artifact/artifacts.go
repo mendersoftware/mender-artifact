@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import (
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
+	"github.com/mendersoftware/mender-artifact/utils"
 
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
@@ -257,7 +258,7 @@ func repackArtifact(comp artifact.Compressor, artifact, rootfs, key, newName str
 }
 
 func processSdimg(image string) ([]partition, error) {
-	out, err := exec.Command("parted", image, "unit s", "print").Output()
+	out, err := exec.Command(utils.GetBinaryPath("parted"), image, "unit s", "print").Output()
 	if err != nil {
 		return nil, errors.Wrap(err, "can not execute `parted` command or image is broken; "+
 			"make sure parted is available in your system and is in the $PATH")
