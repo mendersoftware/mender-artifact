@@ -28,6 +28,7 @@ import (
 
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/mendersoftware/mender-artifact/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -246,13 +247,13 @@ func TestCopy(t *testing.T) {
 				switch pf.(type) {
 				case *artifactExtFile:
 					imgpath := pf.(*artifactExtFile).path
-					cmd := exec.Command("debugfs", "-R", "stat /etc/mender/testkey.key", imgpath)
+					cmd := exec.Command(utils.GetBinaryPath("debugfs"), "-R", "stat /etc/mender/testkey.key", imgpath)
 					out, err := cmd.CombinedOutput()
 					require.Nil(t, err)
 					require.True(t, strings.Contains(string(out), "Mode:  0600"))
 				case sdimgFile:
 					imgpath := pf.(sdimgFile)[0].(*extFile).path
-					cmd := exec.Command("debugfs", "-R", "stat /etc/mender/testkey.key", imgpath)
+					cmd := exec.Command(utils.GetBinaryPath("debugfs"), "-R", "stat /etc/mender/testkey.key", imgpath)
 					out, err := cmd.CombinedOutput()
 					require.Nil(t, err)
 					require.True(t, strings.Contains(string(out), "Mode:  0600"))

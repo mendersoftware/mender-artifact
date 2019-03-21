@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/mendersoftware/mender-artifact/utils"
 	"github.com/pkg/errors"
 )
 
@@ -92,7 +93,7 @@ func parseImgPath(imgpath string) (imgname, fpath string, err error) {
 // imgFilesystemtype returns the filesystem type of a partition.
 // Currently only distinguishes ext from fat.
 func imgFilesystemType(imgpath string) (int, error) {
-	cmd := exec.Command("blkid", "-s", "TYPE", imgpath)
+	cmd := exec.Command(utils.GetBinaryPath("blkid"), "-s", "TYPE", imgpath)
 	buf := bytes.NewBuffer(nil)
 	cmd.Stdout = buf
 	if err := cmd.Run(); err != nil {

@@ -2,6 +2,7 @@ GO ?= go
 GOFMT ?= gofmt
 V ?=
 PKGS = $(shell go list ./... | grep -v vendor)
+SUBPKGS = $(shell go list ./... | sed '1d' | tr '\n' ',' | sed 's/,$$//1')
 BUILDFILES = $(shell find cli/mender-artifact \( -path ./vendor -o -path ./Godeps \) -prune \
 	                     -o -type f -name '*.go' -print |  tr ' ' '\n' | grep -v _test.go)
 PKGNAME = mender-artifact
@@ -90,7 +91,7 @@ coverage:
 	echo 'mode: set' > coverage.txt
 	set -e ; for p in $(PKGS); do \
 		rm -f coverage-tmp.txt;  \
-		$(GO) test -coverprofile=coverage-tmp.txt $$p ; \
+		$(GO) test -coverprofile=coverage-tmp.txt -coverpkg=$(SUBPKGS) $$p ; \
 		if [ -f coverage-tmp.txt ]; then \
 			cat coverage-tmp.txt |grep -v 'mode:' | cat >> coverage.txt; \
 		fi; \
