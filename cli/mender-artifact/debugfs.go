@@ -29,6 +29,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	debugfsMissingErr = "The `debugfs` binary is not found on the system. The binary can typically be installed through"+
+		" the `e2fsprogs` package."
+)
+
 // From the fsck man page:
 // The exit code returned by fsck is the sum of the following conditions:
 //
@@ -71,7 +76,11 @@ func debugfsCopyFile(file, image string) (string, error) {
 
 	dumpCmd := fmt.Sprintf("dump %s %s", file,
 		filepath.Join(tmpDir, filepath.Base(file)))
-	cmd := exec.Command(utils.GetBinaryPath("debugfs"), "-R", dumpCmd, image)
+	bin, err := utils.GetBinaryPath("debugfs")
+	if err != nil {
+		return "", fmt.Errorf(debugfsMissingErr)
+	}
+	cmd := exec.Command(bin, "-R", dumpCmd, image)
 	ep, err := cmd.StderrPipe()
 	if err != nil {
 		return "", errors.Wrap(err, "failed to open stderr pipe of command")
@@ -178,7 +187,12 @@ func executeCommand(cmdstr, image string) (stdout *bytes.Buffer, err error) {
 	if err = scr.Close(); err != nil {
 		return nil, errors.Wrap(err, "debugfs: close sync script")
 	}
-	cmd := exec.Command(utils.GetBinaryPath("debugfs"), "-w", "-f", scr.Name(), image)
+	bin, err := utils.GetBinaryPath("debugfs")
+	if err != nil {
+		return nil, fmt.Errorf(debugfsMissingErr)
+	}
+
+	cmd := exec.Command(bin, "-w", "-f", scr.Name(), image)
 	cmd.Env = []string{"DEBUGFS_PAGER='cat'"}
 	errbuf := bytes.NewBuffer(nil)
 	stdout = bytes.NewBuffer(nil)

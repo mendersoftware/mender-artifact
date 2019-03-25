@@ -258,7 +258,11 @@ func repackArtifact(comp artifact.Compressor, artifact, rootfs, key, newName str
 }
 
 func processSdimg(image string) ([]partition, error) {
-	out, err := exec.Command(utils.GetBinaryPath("parted"), image, "unit s", "print").Output()
+	bin, err := utils.GetBinaryPath("parted")
+	if err != nil {
+		return nil, fmt.Errorf("`parted` binary not found on the system")
+	}
+	out, err := exec.Command(bin, image, "unit s", "print").Output()
 	if err != nil {
 		return nil, errors.Wrap(err, "can not execute `parted` command or image is broken; "+
 			"make sure parted is available in your system and is in the $PATH")

@@ -20,21 +20,25 @@ import (
 	"path"
 )
 
-func GetBinaryPath(command string) string {
+var (
+	ExternalBinaryPaths = []string{"/usr/sbin", "/sbin", "/usr/local/sbin"}
+)
+
+func GetBinaryPath(command string) (string, error) {
 	// first check if command exists in PATH
 	p, err := exec.LookPath(command)
 	if err == nil {
-		return p
+		return p, nil
 	}
 
 	// maybe sbin isn't included in PATH, check there explicitly.
-	for _, p := range []string{"/usr/sbin", "/sbin", "/usr/local/sbin"} {
+	for _, p = range ExternalBinaryPaths {
 		p, err = exec.LookPath(path.Join(p, command))
 		if err == nil {
-			return p
+			return p, nil
 		}
 	}
 
 	// not found, but oh well...
-	return command
+	return command, err
 }
