@@ -49,6 +49,14 @@ import (
 
 For sample usage, please see the [Mender client source code](https://github.com/mendersoftware/mender).
 
+## Using the docker image
+
+You can run `mender-artifact` with bind mounting using the following command:
+
+```sh
+docker run -it --rm -v $(pwd):$(pwd) -w $(pwd) mender-artifact <args>
+```
+
 ## Contributing
 
 We welcome and ask for your contribution. If you would like to contribute to Mender, please read our guide on how to best get started [contributing code or
