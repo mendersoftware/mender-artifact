@@ -24,7 +24,7 @@ TOOLS = \
 VERSION = $(shell git describe --tags --dirty --exact-match 2>/dev/null || git rev-parse --short HEAD)
 
 GO_LDFLAGS = \
-	-ldflags "-X main.Version=$(VERSION)"
+	-ldflags "-extldflags '-static' -X main.Version=$(VERSION)"
 
 ifeq ($(V),1)
 BUILDV = -v
