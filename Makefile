@@ -42,6 +42,22 @@ endif
 build:
 	$(GO) build $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME) $(BUILDFILES)
 
+PLATFORMS := darwin linux windows
+
+GO_LDFLAGS_WIN = -ldflags "-X main.Version=$(VERSION) -linkmode=internal -s -w -extldflags '-static' -extld=x86_64-w64-mingw32-gcc"
+
+buildNatives:
+	@arch="amd64";
+	@echo "building mac";
+	@env GOOS=darwin GOARCH=$$arch CGO_ENABLED=0 \
+		$(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-darwin $(BUILDFILES) ;
+	@echo "building linux";
+	@env GOOS=linux GOARCH=$$arch \
+		$(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-linux $(BUILDFILES) ;
+	@echo "building windows";
+	@env GOOS=windows GOARCH=$$arch CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ \
+		$(GO) build $(GO_LDFLAGS_WIN) $(BUILDV) -tags $(TAGS) nolzma -o $(PKGNAME)-windows.exe $(BUILDFILES) ;
+
 build-contained:
 	rm -f mender-artifact; \
 	image_id=$$(docker build -f Dockerfile . | awk '/Successfully built/{print $$NF;}'); \

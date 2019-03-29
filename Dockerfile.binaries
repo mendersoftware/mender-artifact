@@ -1,0 +1,16 @@
+FROM golang:1.11 as builder
+RUN apt-get update && \
+    apt-get install -y \
+        gcc gcc-mingw-w64 gcc-multilib \
+        git make \
+        musl-dev liblzma-dev
+RUN mkdir -p /go/src/github.com/mendersoftware/mender-artifact
+WORKDIR /go/src/github.com/mendersoftware/mender-artifact
+RUN go get 'golang.org/x/sys/windows'
+ADD ./ .
+RUN make buildNatives
+
+FROM alpine:3.9
+RUN apk add xz-dev
+COPY --from=builder /go/src/github.com/mendersoftware/mender-artifact/ /go/bin/
+ENTRYPOINT [ "/go/bin/mender-artifact-linux" ]
