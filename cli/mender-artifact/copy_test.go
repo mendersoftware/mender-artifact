@@ -247,13 +247,17 @@ func TestCopy(t *testing.T) {
 				switch pf.(type) {
 				case *artifactExtFile:
 					imgpath := pf.(*artifactExtFile).path
-					cmd := exec.Command(utils.GetBinaryPath("debugfs"), "-R", "stat /etc/mender/testkey.key", imgpath)
+					bin, err := utils.GetBinaryPath("debugfs")
+					require.Nil(t, err)
+					cmd := exec.Command(bin, "-R", "stat /etc/mender/testkey.key", imgpath)
 					out, err := cmd.CombinedOutput()
 					require.Nil(t, err)
 					require.True(t, strings.Contains(string(out), "Mode:  0600"))
 				case sdimgFile:
 					imgpath := pf.(sdimgFile)[0].(*extFile).path
-					cmd := exec.Command(utils.GetBinaryPath("debugfs"), "-R", "stat /etc/mender/testkey.key", imgpath)
+					bin, err := utils.GetBinaryPath("debugfs")
+					require.Nil(t, err)
+					cmd := exec.Command(bin, "-R", "stat /etc/mender/testkey.key", imgpath)
 					out, err := cmd.CombinedOutput()
 					require.Nil(t, err)
 					require.True(t, strings.Contains(string(out), "Mode:  0600"))

@@ -19,6 +19,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/mendersoftware/mender-artifact/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -47,4 +48,26 @@ func TestExecuteCommand(t *testing.T) {
 		fmt.Fprintf(os.Stderr, "err: %s\n", err)
 		assert.Contains(t, err.Error(), test.expected, "Unexpected error")
 	}
+}
+
+func TestExternalBinaryDependency(t *testing.T) {
+	// Set the PATH variable to be empty for the test.
+	origPATH := os.Getenv("PATH")
+	// "/usr/sbin", "/sbin", "/usr/local/sbin" also needs to be unset
+	utils.ExternalBinaryPaths = []string{}
+	defer func() {
+		os.Setenv("PATH", origPATH)
+	}()
+	os.Setenv("PATH", "")
+	_, err := debugfsCopyFile("foo", "bar")
+	assert.EqualError(t, err, debugfsMissingErr)
+
+	_, err = executeCommand("foobar", "bash")
+	assert.EqualError(t, err, debugfsMissingErr)
+
+	_, err = processSdimg("foobar")
+	assert.EqualError(t, err, "`parted` binary not found on the system")
+
+	_, err = imgFilesystemType("foobar")
+	assert.EqualError(t, err, "`blkid` binary not found on the system")
 }

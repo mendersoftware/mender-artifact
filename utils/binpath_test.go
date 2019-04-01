@@ -17,6 +17,8 @@ package utils
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func verifyContains(t *testing.T, a string, b string) {
@@ -29,16 +31,19 @@ func verifyContains(t *testing.T, a string, b string) {
 
 func TestGetBinaryPath(t *testing.T) {
 	nonexist := "non-existant-command-should-still-be-returned"
-	p := GetBinaryPath(nonexist)
+	p, err := GetBinaryPath(nonexist)
+	assert.NotNil(t, err)
 	verifyContains(t, p, nonexist)
 
 	// Note: assume /bin/true is available on every build-system always.
 
 	alwaysFoundCommand := "true"
-	p = GetBinaryPath(alwaysFoundCommand)
+	p, err = GetBinaryPath(alwaysFoundCommand)
+	assert.Nil(t, err)
 	verifyContains(t, p, alwaysFoundCommand)
 
 	alwaysFoundCommandFullPath := "/bin/true"
-	p = GetBinaryPath(alwaysFoundCommandFullPath)
+	p, err = GetBinaryPath(alwaysFoundCommandFullPath)
+	assert.Nil(t, err)
 	verifyContains(t, p, alwaysFoundCommandFullPath)
 }

@@ -93,7 +93,11 @@ func parseImgPath(imgpath string) (imgname, fpath string, err error) {
 // imgFilesystemtype returns the filesystem type of a partition.
 // Currently only distinguishes ext from fat.
 func imgFilesystemType(imgpath string) (int, error) {
-	cmd := exec.Command(utils.GetBinaryPath("blkid"), "-s", "TYPE", imgpath)
+	bin, err := utils.GetBinaryPath("blkid")
+	if err != nil {
+		return unsupported, fmt.Errorf("`blkid` binary not found on the system")
+	}
+	cmd := exec.Command(bin, "-s", "TYPE", imgpath)
 	buf := bytes.NewBuffer(nil)
 	cmd.Stdout = buf
 	if err := cmd.Run(); err != nil {
