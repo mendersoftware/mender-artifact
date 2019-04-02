@@ -42,6 +42,12 @@ endif
 build:
 	$(GO) build $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME) $(BUILDFILES)
 
+build-contained:
+	rm -f mender-artifact; \
+	image_id=$$(docker build -f Dockerfile . | awk '/Successfully built/{print $$NF;}'); \
+	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact /binary"; \
+	docker image rm $$image_id;
+
 install:
 	cd $(INSTALL_DIR) && $(GO) install $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
 
