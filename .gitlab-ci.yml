@@ -1,0 +1,123 @@
+image: golang:1.11-alpine3.9
+
+cache:
+  paths:
+    - /go/src/github.com
+    - /go/src/golang.org
+    - /go/src/google.golang.org
+    - /go/src/gopkg.in
+
+variables:
+   DOCKER_HOST: tcp://docker:2375/
+   DOCKER_DRIVER: overlay2
+   DOCKER_REPOSITORY: mendersoftware/mender-artifact
+
+services:
+  - docker:dind
+
+stages:
+  - test
+  - build
+  - publish
+  - integration
+
+before_script:
+  - mkdir -p /go/src/github.com/mendersoftware /go/src/_/builds
+  - cp -r $CI_PROJECT_DIR /go/src/github.com/mendersoftware/mender-artifact
+  - ln -s /go/src/github.com/mendersoftware /go/src/_/builds/mendersoftware
+  - cd /go/src/github.com/mendersoftware/mender-artifact
+  - apk update && apk add git make
+  # Install code coverage tooling
+  - make get-tools
+
+test:static:
+  stage: test
+  script:
+    - apk add bash e2fsprogs e2fsprogs-extra gcc libc6-compat mtools musl-dev parted perl-utils xz-dev
+    - make extracheck
+    - make coverage
+    - mv /go/src/github.com/mendersoftware/mender-artifact/coverage.txt $CI_PROJECT_DIR/coverage.txt
+  artifacts:
+    untracked: true
+    paths:
+      - coverage.txt
+
+build:
+  image: docker
+  before_script: []
+  stage: build
+  script:
+    - docker build -t $DOCKER_REPOSITORY:pr .
+    - docker save $DOCKER_REPOSITORY:pr > image.tar
+  artifacts:
+    expire_in: 1h
+    paths:
+      - image.tar
+  tags:
+    - docker
+
+build:make:
+  image: golang:1.11
+  before_script: []
+  stage: build
+  script:
+    - mkdir -p /go/src/github.com/mendersoftware /go/src/_/builds
+    - cp -r $CI_PROJECT_DIR /go/src/github.com/mendersoftware/mender-artifact
+    - ln -s /go/src/github.com/mendersoftware /go/src/_/builds/mendersoftware
+    - cd /go/src/github.com/mendersoftware/mender-artifact
+    - make get-tools
+    - make build
+    - make extracheck
+    - cp /go/src/github.com/mendersoftware/mender-artifact/mender-artifact $CI_PROJECT_DIR
+    - chmod +x $CI_PROJECT_DIR/mender-artifact
+  artifacts:
+    expire_in: 1h
+    paths:
+      - mender-artifact
+  tags:
+    - docker
+
+publish:tests:
+  stage: publish
+  before_script: []  
+  dependencies:
+    - test:static
+  script:
+    - ls
+    - echo "coverage-acceptance"
+    # Integrate with https://codecov.io
+    - bash <(curl -s https://codecov.io/bash) -F acceptance -f coverage.txt;
+
+publish:build:
+  image: docker
+  before_script: []
+  stage: publish
+  dependencies:
+    - build
+  script:
+    - docker load -i image.tar
+    - if [ ! -z "$CI_COMMIT_TAG" ]; then export IMAGE_TAG=$CI_COMMIT_TAG; else export IMAGE_TAG=$CI_COMMIT_REF_NAME; fi ;
+    - docker tag $DOCKER_REPOSITORY:pr $DOCKER_REPOSITORY:$IMAGE_TAG ;
+    - docker login --username=$DOCKER_HUB_USERNAME --password=$DOCKER_HUB_PASSWORD ;
+    - docker push $DOCKER_REPOSITORY:$IMAGE_TAG ;
+    - echo "publishing image to docker hub"
+  except:
+    - master
+  tags:
+    - docker
+
+publish:build:master:
+  image: docker
+  before_script: []
+  stage: publish
+  dependencies:
+    - build
+  script:
+    - docker load -i image.tar
+    - export COMMIT_TAG="$CI_COMMIT_REF_NAME"_"$CI_COMMIT_SHA";
+    - docker tag $DOCKER_REPOSITORY:pr $DOCKER_REPOSITORY:$COMMIT_TAG;
+    - docker push $DOCKER_REPOSITORY:$COMMIT_TAG;
+  only:
+    - master
+  tags:
+    - docker
