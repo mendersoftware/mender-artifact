@@ -709,16 +709,16 @@ func (ar *Reader) makeInstallersForUnknownTypes(updateType string, i int, augmen
 		} else {
 			ar.installers[i] = handlers.NewRootfsInstaller()
 		}
-	} else if ar.info.Version >= 3 {
-		// For version 3 onwards, use modules for unknown update types.
+	} else {
+		// Use modules for unknown update types. We do this even for
+		// artifacts whose version < 3, since this is only used to
+		// display information. The Mender client will use
+		// ForbidUnknownHandlers, and hence will never get here.
 		if augmented {
 			ar.installers[i] = handlers.NewAugmentedModuleImage(ar.installers[i], updateType)
 		} else {
 			ar.installers[i] = handlers.NewModuleImage(updateType)
 		}
-	} else {
-		// For older versions, use GenericV1V2, which is a stub.
-		ar.installers[i] = handlers.NewGenericV1V2(updateType)
 	}
 
 	return nil
