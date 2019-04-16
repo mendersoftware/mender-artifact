@@ -46,7 +46,7 @@ func main() {
 	}
 }
 
-func run() error {
+func getCliContext() *cli.App {
 	app := cli.NewApp()
 	app.Name = "mender-artifact"
 	app.Usage = "interface for manipulating Mender artifacts"
@@ -391,5 +391,10 @@ func run() error {
 		remove,
 	}
 	app.Flags = append([]cli.Flag{}, globalFlags...)
-	return app.Run(os.Args)
+
+	return app
+}
+
+func run() error {
+	return getCliContext().Run(os.Args)
 }
