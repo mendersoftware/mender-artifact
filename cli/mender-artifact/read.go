@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/mendersoftware/mender-artifact/areader"
@@ -113,6 +114,15 @@ func readArtifact(c *cli.Context) error {
 	return nil
 }
 
+func sortedKeys(mapWithKeys map[string]string) sort.StringSlice {
+	var keys sort.StringSlice = make([]string, 0, len(mapWithKeys))
+	for key := range mapWithKeys {
+		keys = append(keys, key)
+	}
+	keys.Sort()
+	return keys
+}
+
 func printPayload(index int, p handlers.Installer) {
 	fmt.Printf("  %3d:\n", index)
 	fmt.Printf("    Type:   %s\n", p.GetUpdateType())
@@ -124,9 +134,11 @@ func printPayload(index int, p handlers.Installer) {
 	} else if provides == nil || len(*provides) == 0 {
 		fmt.Printf(" Nothing\n")
 	} else {
+		providesKeys := sortedKeys(*provides)
+
 		fmt.Printf("\n")
-		for provideKey, provideValue := range *provides {
-			fmt.Printf("\t%s: %s\n", provideKey, provideValue)
+		for _, provideKey := range providesKeys {
+			fmt.Printf("\t%s: %s\n", provideKey, (*provides)[provideKey])
 		}
 	}
 
@@ -137,9 +149,11 @@ func printPayload(index int, p handlers.Installer) {
 	} else if depends == nil || len(*depends) == 0 {
 		fmt.Printf(" Nothing\n")
 	} else {
+		dependsKeys := sortedKeys(*depends)
+
 		fmt.Printf("\n")
-		for dependKey, dependValue := range *depends {
-			fmt.Printf("\t%s: %s\n", dependKey, dependValue)
+		for _, dependKey := range dependsKeys {
+			fmt.Printf("\t%s: %s\n", dependKey, (*depends)[dependKey])
 		}
 	}
 

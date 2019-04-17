@@ -17,6 +17,8 @@ package areader
 import (
 	"archive/tar"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -1060,6 +1062,197 @@ func TestReadBrokenArtifact(t *testing.T) {
 			successful:  false,
 			errorStr:    "Only letters, digits and characters in the set \".,_-\" are allowed",
 			rootfsImage: true,
+		},
+		"Scripts in augmented header": {
+			manipulateArtifact: func(tmpdir string) {
+				headertmp := filepath.Join(tmpdir, "headertmp")
+				require.NoError(t, os.Mkdir(headertmp, 0755))
+				cmd := exec.Command("tar", "xzf", "../header-augment.tar.gz")
+				cmd.Dir = headertmp
+				require.NoError(t, cmd.Run())
+
+				require.NoError(t, os.Mkdir(filepath.Join(headertmp, "scripts"), 0755))
+				fd, err := os.OpenFile(filepath.Join(headertmp, "scripts", "ArtifactInstall_Enter_00"),
+					os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+				require.NoError(t, err)
+				_, err = fd.Write([]byte("#!/bin/sh\n"))
+				require.NoError(t, err)
+				fd.Close()
+
+				cmd = exec.Command("tar", "czf", "../header-augment.tar.gz", "header-info",
+					"scripts", "headers")
+				cmd.Dir = headertmp
+				require.NoError(t, cmd.Run())
+
+				fd, err = os.Open(filepath.Join(tmpdir, "header-augment.tar.gz"))
+				require.NoError(t, err)
+				buf, err := ioutil.ReadAll(fd)
+				require.NoError(t, err)
+				checksumBytes := sha256.Sum256(buf)
+				checksum := hex.EncodeToString(checksumBytes[:])
+
+				augmFd, err := os.OpenFile(filepath.Join(tmpdir, "manifest-augment"), os.O_RDWR, 0)
+				require.NoError(t, err)
+				defer augmFd.Close()
+
+				buf, err = ioutil.ReadAll(augmFd)
+				require.NoError(t, err)
+
+				manifestLines := bytes.Split(bytes.TrimSpace(buf), []byte("\n"))
+				for n, line := range manifestLines {
+					if string(bytes.SplitN(line, []byte("  "), 2)[1]) == "header-augment.tar.gz" {
+						manifestLines[n] = []byte(fmt.Sprintf("%s  header-augment.tar.gz", checksum))
+					}
+				}
+
+				augmFd.Seek(0, 0)
+				buf = bytes.Join(manifestLines, []byte("\n"))
+				_, err = augmFd.Write(buf)
+				require.NoError(t, err)
+				_, err = augmFd.Write([]byte("\n"))
+				require.NoError(t, err)
+
+				require.NoError(t, os.RemoveAll(headertmp))
+			},
+			successful: false,
+			// A somewhat strange error message to look for, but
+			// it's because the script directory is not expected at
+			// all, so the code goes straight to trying to figure
+			// out the payload index number.
+			errorStr:        "can not get Payload order from tar path",
+			numFiles:        1,
+			numAugmentFiles: 1,
+		},
+		"Two rootfs images": {
+			manipulateArtifact: func(tmpdir string) {
+				datatmp := filepath.Join(tmpdir, "data", "datatmp")
+				require.NoError(t, os.Mkdir(datatmp, 0755))
+				cmd := exec.Command("tar", "xzf", "../0000.tar.gz")
+				cmd.Dir = datatmp
+				require.NoError(t, cmd.Run())
+
+				fd, err := os.OpenFile(filepath.Join(datatmp, "test-datafile"),
+					os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+				require.NoError(t, err)
+				content := []byte("dummy")
+				fd.Write(content)
+				fd.Close()
+
+				statlist, err := ioutil.ReadDir(datatmp)
+				require.NoError(t, err)
+				arglist := make([]string, 0, len(statlist)+2)
+				arglist = append(arglist, "czf")
+				arglist = append(arglist, "../0000.tar.gz")
+				for _, s := range statlist {
+					arglist = append(arglist, s.Name())
+				}
+
+				cmd = exec.Command("tar", arglist...)
+				cmd.Dir = datatmp
+				require.NoError(t, cmd.Run())
+
+				fd, err = os.OpenFile(filepath.Join(tmpdir, "manifest"),
+					os.O_WRONLY|os.O_APPEND, 0)
+				require.NoError(t, err)
+				checksumBytes := sha256.Sum256(content)
+				checksum := hex.EncodeToString(checksumBytes[:])
+				fd.Write([]byte(fmt.Sprintf("%s  data/0000/test-datafile\n", checksum)))
+				fd.Close()
+			},
+			successful:  false,
+			errorStr:    "Must provide exactly one update file",
+			rootfsImage: true,
+			numFiles:    1,
+		},
+		"Non-JSON meta-data": {
+			manipulateArtifact: func(tmpdir string) {
+				headertmp := filepath.Join(tmpdir, "headertmp")
+				require.NoError(t, os.Mkdir(headertmp, 0755))
+				cmd := exec.Command("tar", "xzf", "../header.tar.gz")
+				cmd.Dir = headertmp
+				require.NoError(t, cmd.Run())
+
+				fd, err := os.OpenFile(filepath.Join(headertmp, "headers/0000/meta-data"),
+					os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+				require.NoError(t, err)
+				fd.Write([]byte("Not JSON"))
+				fd.Close()
+
+				cmd = exec.Command("tar", "czf", "../header.tar.gz", "header-info", "headers")
+				cmd.Dir = headertmp
+				require.NoError(t, cmd.Run())
+
+				fd, err = os.Open(filepath.Join(tmpdir, "header.tar.gz"))
+				require.NoError(t, err)
+				content, err := ioutil.ReadAll(fd)
+				require.NoError(t, err)
+				fd.Close()
+				checksumBytes := sha256.Sum256(content)
+				checksum := hex.EncodeToString(checksumBytes[:])
+
+				fd, err = os.OpenFile(filepath.Join(tmpdir, "manifest"),
+					os.O_RDWR, 0)
+				require.NoError(t, err)
+				manifestLines, err := ioutil.ReadAll(fd)
+				require.NoError(t, err)
+				fd.Seek(0, 0)
+				fd.Truncate(0)
+				for _, line := range bytes.Split(manifestLines, []byte("\n")) {
+					if strings.Contains(string(line), "header.tar.gz") {
+						copy(line[0:len(checksum)], checksum)
+					}
+					fd.Write(line)
+					fd.Write([]byte("\n"))
+				}
+				fd.Close()
+			},
+			successful: false,
+			errorStr:   "error reading meta-data: invalid character",
+		},
+		"Non-object meta-data": {
+			manipulateArtifact: func(tmpdir string) {
+				headertmp := filepath.Join(tmpdir, "headertmp")
+				require.NoError(t, os.Mkdir(headertmp, 0755))
+				cmd := exec.Command("tar", "xzf", "../header.tar.gz")
+				cmd.Dir = headertmp
+				require.NoError(t, cmd.Run())
+
+				fd, err := os.OpenFile(filepath.Join(headertmp, "headers/0000/meta-data"),
+					os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+				require.NoError(t, err)
+				fd.Write([]byte("[\"Json\",\"list\"]"))
+				fd.Close()
+
+				cmd = exec.Command("tar", "czf", "../header.tar.gz", "header-info", "headers")
+				cmd.Dir = headertmp
+				require.NoError(t, cmd.Run())
+
+				fd, err = os.Open(filepath.Join(tmpdir, "header.tar.gz"))
+				require.NoError(t, err)
+				content, err := ioutil.ReadAll(fd)
+				require.NoError(t, err)
+				fd.Close()
+				checksumBytes := sha256.Sum256(content)
+				checksum := hex.EncodeToString(checksumBytes[:])
+
+				fd, err = os.OpenFile(filepath.Join(tmpdir, "manifest"),
+					os.O_RDWR, 0)
+				require.NoError(t, err)
+				manifestLines, err := ioutil.ReadAll(fd)
+				require.NoError(t, err)
+				fd.Seek(0, 0)
+				fd.Truncate(0)
+				for _, line := range bytes.Split(manifestLines, []byte("\n")) {
+					if strings.Contains(string(line), "header.tar.gz") {
+						copy(line[0:len(checksum)], checksum)
+					}
+					fd.Write(line)
+					fd.Write([]byte("\n"))
+				}
+				fd.Close()
+			},
+			successful: false,
+			errorStr:   "Top level object in meta-data must be a JSON object",
 		},
 	}
 
