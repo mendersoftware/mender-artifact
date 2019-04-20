@@ -45,7 +45,8 @@ func NewReader(r io.Reader) (*Decompressor, error) {
 	dec.offset = DefaultBufsize
 	dec.handle = allocLzmaStream(dec.handle)
 	// Initialize decoder
-	ret := C.lzma_auto_decoder(dec.handle, math.MaxUint64, concatenated)
+	ret := C.lzma_auto_decoder(dec.handle, C.uint64_t(math.MaxUint64),
+		C.uint32_t(concatenated))
 	if Errno(ret) != Ok {
 		return nil, Errno(ret)
 	}

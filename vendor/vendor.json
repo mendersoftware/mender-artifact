@@ -13,13 +13,7 @@
 			"revision": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d"
 		},
 		{
-			"checksumSHA1": "Uh9wFcTmKv1Y91zro3XPdKr0z1M=",
-			"path": "github.com/mendersoftware/go-liblzma",
-			"revision": "7c43a54b162c2031114bdeb3be8d64e3f507e73b",
-			"revisionTime": "2018-12-18T07:42:49Z"
-		},
-		{
-			"checksumSHA1": "YGYg7j9+kmKncdC5UsI5FV237ts=",
+			"checksumSHA1": "8VREmaKpYjppYOd/OEl0RN5VEdU=",
 			"path": "github.com/mendersoftware/mendertesting",
 			"revision": "dedd2c0a90a4896a2ea4beba0c39cf26ddab38a4",
 			"revisionTime": "2019-03-01T08:02:31Z"
@@ -35,6 +29,12 @@
 			"comment": "v1.0.0",
 			"path": "github.com/pmezard/go-difflib/difflib",
 			"revision": "792786c7400a136282c1664665ae0a8db921c6c2"
+		},
+		{
+			"checksumSHA1": "G15nW/vBr3uzhWrhyezcl02QEic=",
+			"path": "github.com/remyoudompheng/go-liblzma",
+			"revision": "da7c45f32144a2beefd7a2aacfc4ed148aa27ac4",
+			"revisionTime": "2019-03-01T14:14:25Z"
 		},
 		{
 			"checksumSHA1": "qvfo/f/lmDMb0Y87ez2TuvKTfoM=",
