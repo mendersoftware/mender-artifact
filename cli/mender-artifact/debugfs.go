@@ -46,11 +46,11 @@ const (
 //              32     Checking canceled by user request
 //              128    Shared-library error
 func debugfsRunFsck(image string) error {
-	path, err := exec.LookPath("fsck.ext4")
+	bin, err := utils.GetBinaryPath("fsck.ext4")
 	if err != nil {
 		return errors.Wrap(err, "fsck.ext4 command not found")
 	}
-	cmd := exec.Command(path, "-a", image)
+	cmd := exec.Command(bin, "-a", image)
 	if err := cmd.Run(); err != nil {
 		// try to get the exit code
 		if exitError, ok := err.(*exec.ExitError); ok {
