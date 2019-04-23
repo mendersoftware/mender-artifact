@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	testData    = "this is test data"
+	testData = "this is test data"
 )
 
 func TestCompressorFromId(t *testing.T) {

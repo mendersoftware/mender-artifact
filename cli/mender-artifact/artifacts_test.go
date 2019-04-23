@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -80,19 +80,24 @@ func WriteTestArtifact(version int, update string, key []byte) (io.Reader, error
 		defer os.Remove(update)
 	}
 
-	rfs := handlers.NewRootfsV1(update, comp)
+	rfs := handlers.NewRootfsV1(update)
 
 	switch version {
 	case 1:
 		// we are alrady having v1 handlers; do nothing
 	case 2:
-		rfs = handlers.NewRootfsV2(update, comp)
+		rfs = handlers.NewRootfsV2(update)
 	}
 
-	updates := &awriter.Updates{U: []handlers.Composer{rfs}}
+	updates := &awriter.Updates{Updates: []handlers.Composer{rfs}}
 
-	err = aw.WriteArtifact("mender", version, []string{"vexpress"},
-		"mender-test", updates, nil)
+	err = aw.WriteArtifact(&awriter.WriteArtifactArgs{
+		Format:  "mender",
+		Name:    "test-artifact",
+		Version: version,
+		Devices: []string{"vexpress"},
+		Updates: updates,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -129,19 +134,24 @@ func WriteArtifact(dir string, ver int, update string) error {
 	}
 	defer f.Close()
 
-	u := handlers.NewRootfsV1(update, comp)
+	u := handlers.NewRootfsV1(update)
 
 	aw := awriter.NewWriter(f, comp)
 	switch ver {
 	case 1:
 		// we are alrady having v1 handlers; do nothing
 	case 2:
-		u = handlers.NewRootfsV2(update, comp)
+		u = handlers.NewRootfsV2(update)
 	}
 
-	updates := &awriter.Updates{U: []handlers.Composer{u}}
-	return aw.WriteArtifact("mender", ver, []string{"vexpress"},
-		"mender-1.1", updates, nil)
+	updates := &awriter.Updates{Updates: []handlers.Composer{u}}
+	return aw.WriteArtifact(&awriter.WriteArtifactArgs{
+		Format:  "mender",
+		Name:    "test-artifact",
+		Version: ver,
+		Devices: []string{"vexpress"},
+		Updates: updates,
+	})
 }
 
 func generateKeys() ([]byte, []byte, error) {
@@ -205,7 +215,7 @@ func TestArtifactsSigned(t *testing.T) {
 
 	// invalid private key
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-k", "non-existing-private.key"}
 	err = run()
@@ -214,7 +224,7 @@ func TestArtifactsSigned(t *testing.T) {
 
 	// store named file
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-k", filepath.Join(updateTestDir, "private.key")}
 	err = run()
@@ -262,7 +272,7 @@ func TestArtifactsSigned(t *testing.T) {
 
 	// invalid version
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1.1", "-u", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-k", filepath.Join(updateTestDir, "private.key"),
 		"-v", "1"}

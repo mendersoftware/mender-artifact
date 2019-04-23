@@ -287,7 +287,7 @@ func TestModifySigned(t *testing.T) {
 
 	// Create and sign artifact using RSA private key.
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "release-1", "-u", filepath.Join(tmp, "mender_test.img"),
+		"-n", "release-1", "-f", filepath.Join(tmp, "mender_test.img"),
 		"-o", filepath.Join(tmp, "artifact.mender"),
 		"-k", filepath.Join(tmp, "rsa.key")}
 	err = run()
@@ -312,7 +312,7 @@ func TestModifySigned(t *testing.T) {
 
 	// Create artifact again, this time with EC private key.
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "release-1", "-u", filepath.Join(tmp, "mender_test.img"),
+		"-n", "release-1", "-f", filepath.Join(tmp, "mender_test.img"),
 		"-o", filepath.Join(tmp, "artifact_ecdsa.mender"),
 		"-k", filepath.Join(tmp, "ecdsa.key")}
 	err = run()

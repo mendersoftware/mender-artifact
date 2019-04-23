@@ -19,9 +19,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
-	"github.com/mendersoftware/mender-artifact/artifact"
 )
 
 func signExisting(c *cli.Context) error {
@@ -67,7 +67,7 @@ func signExisting(c *cli.Context) error {
 	switch ver := reader.GetInfo().Version; ver {
 	case 1:
 		return cli.NewExitError("Can not sign v1 artifact", 1)
-	case 2:
+	case 2, 3:
 		if reader.IsSigned && !c.Bool("force") {
 			return cli.NewExitError("Trying to sign already signed artifact; "+
 				"please use force option", 1)

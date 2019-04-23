@@ -33,6 +33,45 @@ import (
 	"github.com/urfave/cli"
 )
 
+type writeUpdateStorer struct {
+	name   string
+	writer io.Writer
+}
+
+func (w *writeUpdateStorer) Initialize(artifactHeaders,
+	artifactAugmentedHeaders artifact.HeaderInfoer,
+	payloadHeaders handlers.ArtifactUpdateHeaders) error {
+
+	return nil
+}
+
+func (w *writeUpdateStorer) PrepareStoreUpdate() error {
+	return nil
+}
+
+func (w *writeUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
+	w.name = info.Name()
+	_, err := io.Copy(w.writer, r)
+	return err
+}
+
+func (w *writeUpdateStorer) FinishStoreUpdate() error {
+	return nil
+}
+
+func (w *writeUpdateStorer) NewUpdateStorer(updateType string, payloadNum int) (handlers.UpdateStorer, error) {
+	// For rootfs, which is the only type we support for artifact
+	// modifications, there should only ever be one payload, with one file,
+	// so our producer just returns itself.
+	if payloadNum != 0 {
+		return nil, errors.New("More than one payload or update file is not supported")
+	}
+	if updateType != "rootfs-image" {
+		return nil, errors.New("Only rootfs update types supported")
+	}
+	return w, nil
+}
+
 func scripts(scripts []string) (*artifact.Scripts, error) {
 	scr := artifact.Scripts{}
 	for _, scriptArg := range scripts {
@@ -111,12 +150,10 @@ func unpackArtifact(name string) (string, error) {
 	}
 	defer tmp.Close()
 
-	rootfsName := ""
-	rootfs.InstallHandler = func(r io.Reader, df *handlers.DataFile) error {
-		rootfsName = df.Name
-		_, err = io.Copy(tmp, r)
-		return err
+	updateStore := &writeUpdateStorer{
+		writer: tmp,
 	}
+	rootfs.SetUpdateStorerProducer(updateStore)
 
 	if err = aReader.RegisterHandler(rootfs); err != nil {
 		return "", errors.Wrap(err, "failed to register install handler")
@@ -128,7 +165,7 @@ func unpackArtifact(name string) (string, error) {
 	}
 	// Give the tempfile it's original name, so that the update does not change name upon a write.
 	tmpfilePath := tmp.Name()
-	newNamePath := filepath.Join(filepath.Dir(tmpfilePath), rootfsName)
+	newNamePath := filepath.Join(filepath.Dir(tmpfilePath), updateStore.name)
 	if err = os.Rename(tmpfilePath, newNamePath); err != nil {
 		return "", err
 	}
@@ -177,10 +214,10 @@ func repack(comp artifact.Compressor, artifactName string, from io.Reader, to io
 		defer tmpData.Close()
 
 		rootfs := handlers.NewRootfsInstaller()
-		rootfs.InstallHandler = func(r io.Reader, df *handlers.DataFile) error {
-			_, err = io.Copy(tmpData, r)
-			return err
+		updateStore := &writeUpdateStorer{
+			writer: tmpData,
 		}
+		rootfs.SetUpdateStorerProducer(updateStore)
 
 		data = tmpData.Name()
 		ar.RegisterHandler(rootfs)
@@ -197,15 +234,17 @@ func repack(comp artifact.Compressor, artifactName string, from io.Reader, to io
 	var h *handlers.Rootfs
 	switch info.Version {
 	case 1:
-		h = handlers.NewRootfsV1(data, comp)
+		h = handlers.NewRootfsV1(data)
 	case 2:
-		h = handlers.NewRootfsV2(data, comp)
+		h = handlers.NewRootfsV2(data)
+	case 3:
+		h = handlers.NewRootfsV3(data)
 	default:
 		return nil, errors.Errorf("unsupported artifact version: %d", info.Version)
 	}
 
 	upd := &awriter.Updates{
-		U: []handlers.Composer{h},
+		Updates: []handlers.Composer{h},
 	}
 	scr, err := scripts([]string{sDir})
 	if err != nil {
@@ -221,9 +260,17 @@ func repack(comp artifact.Compressor, artifactName string, from io.Reader, to io
 	if newName != "" {
 		name = newName
 	}
-	err = aWriter.WriteArtifact(info.Format, info.Version,
-		ar.GetCompatibleDevices(), name, upd, scr)
-
+	err = aWriter.WriteArtifact(
+		&awriter.WriteArtifactArgs{
+			Format:   info.Format,
+			Version:  info.Version,
+			Devices:  ar.GetCompatibleDevices(),
+			Name:     name,
+			Updates:  upd,
+			Scripts:  scr,
+			Provides: ar.GetArtifactProvides(),
+			Depends:  ar.GetArtifactDepends(),
+		})
 	return ar, err
 }
 
