@@ -257,9 +257,24 @@ func repack(comp artifact.Compressor, artifactName string, from io.Reader, to io
 	}
 
 	name := ar.GetArtifactName()
+	provides := ar.GetArtifactProvides()
 	if newName != "" {
 		name = newName
+		if provides != nil {
+			provides.ArtifactName = newName
+		}
 	}
+
+	typeInfoV3 := artifact.TypeInfoV3{
+		Type: "rootfs-image",
+		// Keeping these empty for now. We will likely introduce these
+		// later, when we add support for augmented artifacts.
+		// ArtifactDepends:  &artifact.TypeInfoDepends{"rootfs_image_checksum": c.String("depends-rootfs-image-checksum")},
+		// ArtifactProvides: &artifact.TypeInfoProvides{"rootfs_image_checksum": c.String("provides-rootfs-image-checksum")},
+		ArtifactDepends:  &artifact.TypeInfoDepends{},
+		ArtifactProvides: &artifact.TypeInfoProvides{},
+	}
+
 	err = aWriter.WriteArtifact(
 		&awriter.WriteArtifactArgs{
 			Format:   info.Format,
@@ -268,8 +283,9 @@ func repack(comp artifact.Compressor, artifactName string, from io.Reader, to io
 			Name:     name,
 			Updates:  upd,
 			Scripts:  scr,
-			Provides: ar.GetArtifactProvides(),
+			Provides: provides,
 			Depends:  ar.GetArtifactDepends(),
+			TypeInfoV3: &typeInfoV3,
 		})
 	return ar, err
 }
