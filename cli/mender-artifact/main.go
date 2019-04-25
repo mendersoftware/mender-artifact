@@ -299,10 +299,6 @@ func getCliContext() *cli.App {
 
 	modify.Flags = []cli.Flag{
 		cli.StringFlag{
-			Name:  "key, k",
-			Usage: "Full path to the private key that will be used to sign the artifact after modifying.",
-		},
-		cli.StringFlag{
 			Name:  "server-uri, u",
 			Usage: "Mender server URI; the default URI will be replaced with given one.",
 		},
