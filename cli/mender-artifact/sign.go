@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -47,21 +47,22 @@ func signExisting(c *cli.Context) error {
 
 	tFile, err := ioutil.TempFile(filepath.Dir(c.Args().First()), "mender-artifact")
 	if err != nil {
-		return errors.Wrap(err,
-			"Can not create temporary file for storing artifact")
+		err = errors.Wrap(err, "Can not create temporary file for storing artifact")
+		cli.NewExitError(err, 1)
 	}
 	defer os.Remove(tFile.Name())
 	defer tFile.Close()
 
 	f, err := os.Open(c.Args().First())
 	if err != nil {
-		return errors.Wrapf(err, "Can not open: %s", c.Args().First())
+		err = errors.Wrapf(err, "Can not open: %s", c.Args().First())
+		return cli.NewExitError(err, 1)
 	}
 	defer f.Close()
 
 	reader, err := repack(comp, c.Args().First(), f, tFile, privateKey, "", "")
 	if err != nil {
-		return err
+		return cli.NewExitError(err, 1)
 	}
 
 	switch ver := reader.GetInfo().Version; ver {
