@@ -57,12 +57,12 @@ type vFile int
 
 // Open is a utility function that parses an input image and path
 // and returns a V(irtual)P(artition)File.
-func (v vFile) Open(comp artifact.Compressor, imgpath, key string) (VPFile, error) {
+func (v vFile) Open(comp artifact.Compressor, imgpath string) (VPFile, error) {
 	imgname, fpath, err := parseImgPath(imgpath)
 	if err != nil {
 		return nil, err
 	}
-	modcands, isArtifact, err := getCandidatesForModify(imgname, []byte(key))
+	modcands, isArtifact, err := getCandidatesForModify(imgname)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func (v vFile) Open(comp artifact.Compressor, imgpath, key string) (VPFile, erro
 		modcands[i].name = imgname
 	}
 	if isArtifact {
-		return newArtifactExtFile(comp, key, fpath, modcands[0])
+		return newArtifactExtFile(comp, fpath, modcands[0])
 	}
 	return newSDImgFile(fpath, modcands)
 
@@ -132,7 +132,7 @@ func newSDImgFile(fpath string, modcands []partition) (sdimgFile, error) {
 		// The data dir is not a directory in the data partition
 		fpath = strings.TrimPrefix(fpath, "/data")
 		delPartition = append(delPartition, modcands[0:3]...)
-		ext, err := newExtFile("", fpath, modcands[3]) // Data partition
+		ext, err := newExtFile(fpath, modcands[3]) // Data partition
 		return sdimgFile{ext}, err
 	}
 	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))")
@@ -153,7 +153,7 @@ func newSDImgFile(fpath string, modcands []partition) (sdimgFile, error) {
 			return sdimgFile{ff}, err
 		case ext:
 			delPartition = append(delPartition, modcands[1:]...)
-			extf, err := newExtFile("", fpath, modcands[0])
+			extf, err := newExtFile(fpath, modcands[0])
 			return sdimgFile{extf}, err
 		case unsupported:
 			return nil, errors.New("partition: error reading file-system type on the boot partition")
@@ -162,12 +162,12 @@ func newSDImgFile(fpath string, modcands []partition) (sdimgFile, error) {
 	}
 	delPartition = append(delPartition, modcands[0])
 	delPartition = append(delPartition, modcands[2:]...)
-	rootfsa, err := newExtFile("", fpath, modcands[1]) // rootfsa
+	rootfsa, err := newExtFile(fpath, modcands[1]) // rootfsa
 	if err != nil {
 		return sdimgFile{rootfsa}, err
 	}
 	delPartition = []partition{modcands[0], modcands[3]}
-	rootfsb, err := newExtFile("", fpath, modcands[2]) // rootfsb
+	rootfsb, err := newExtFile(fpath, modcands[2]) // rootfsb
 	return sdimgFile{rootfsa, rootfsb}, err
 }
 
@@ -223,13 +223,12 @@ type artifactExtFile struct {
 	comp artifact.Compressor
 }
 
-func newArtifactExtFile(comp artifact.Compressor, key, fpath string, p partition) (af *artifactExtFile, err error) {
+func newArtifactExtFile(comp artifact.Compressor, fpath string, p partition) (af *artifactExtFile, err error) {
 	tmpf, err := ioutil.TempFile("", "mendertmp-artifactextfile")
 	// Cleanup resources in case of error.
 	af = &artifactExtFile{
 		extFile{
 			partition:     p,
-			key:           key,
 			imagefilepath: fpath,
 			tmpf:          tmpf,
 		},
@@ -253,8 +252,7 @@ func (a *artifactExtFile) Close() (err error) {
 		return nil
 	}
 	if a.repack {
-		err = repackArtifact(a.comp, a.name, a.path,
-			a.key, "")
+		err = repackArtifact(a.comp, a.name, a.path, "")
 	}
 	if a.tmpf != nil {
 		a.tmpf.Close()
@@ -267,18 +265,16 @@ func (a *artifactExtFile) Close() (err error) {
 // extFile wraps partition and implements ReadWriteCloser
 type extFile struct {
 	partition
-	key           string
 	imagefilepath string
 	repack        bool     // True if a write has been done
 	tmpf          *os.File // Used as a buffer for multiple write operations
 }
 
-func newExtFile(key, imagefilepath string, p partition) (e *extFile, err error) {
+func newExtFile(imagefilepath string, p partition) (e *extFile, err error) {
 	tmpf, err := ioutil.TempFile("", "mendertmp-extfile")
 	// Cleanup resources in case of error.
 	e = &extFile{
 		partition:     p,
-		key:           key,
 		imagefilepath: imagefilepath,
 		tmpf:          tmpf,
 	}
@@ -315,12 +311,12 @@ func (ef *extFile) Read(b []byte) (int, error) {
 	return copy(b, data), io.EOF
 }
 
-func (e *extFile) Delete(recursive bool) (err error) {
-	err = debugfsRemoveFileOrDir(e.imagefilepath, e.path, recursive)
+func (ef *extFile) Delete(recursive bool) (err error) {
+	err = debugfsRemoveFileOrDir(ef.imagefilepath, ef.path, recursive)
 	if err != nil {
 		return err
 	}
-	e.repack = true
+	ef.repack = true
 	return nil
 }
 
