@@ -39,8 +39,12 @@ func Cat(c *cli.Context) (err error) {
 	}
 	r, err := virtualPartitionFile.Open(comp, c.Args().First())
 	defer func() {
-		if r != nil {
-			r.Close()
+		if r == nil {
+			return
+		}
+		cerr := r.Close()
+		if err == nil {
+			err = cerr
 		}
 	}()
 	if err != nil {
@@ -169,6 +173,9 @@ func Install(c *cli.Context) (err error) {
 
 func Remove(c *cli.Context) (err error) {
 	wclose := func(w io.Closer) {
+		if w == nil {
+			return
+		}
 		cerr := w.Close()
 		if err == nil {
 			err = cerr
