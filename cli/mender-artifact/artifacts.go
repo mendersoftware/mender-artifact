@@ -30,7 +30,6 @@ import (
 	"github.com/mendersoftware/mender-artifact/utils"
 
 	"github.com/pkg/errors"
-	"github.com/urfave/cli"
 )
 
 type writeUpdateStorer struct {
@@ -290,7 +289,7 @@ func repack(comp artifact.Compressor, artifactName string, from io.Reader, to io
 	return ar, err
 }
 
-func repackArtifact(comp artifact.Compressor, artifact, rootfs, key, newName string) error {
+func repackArtifact(comp artifact.Compressor, artifact, rootfs, newName string) error {
 	art, err := os.Open(artifact)
 	if err != nil {
 		return err
@@ -304,16 +303,7 @@ func repackArtifact(comp artifact.Compressor, artifact, rootfs, key, newName str
 	defer os.Remove(tmp.Name())
 	defer tmp.Close()
 
-	var privateKey []byte
-	if key != "" {
-		privateKey, err = getKey(key)
-		if err != nil {
-
-			return cli.NewExitError(fmt.Sprintf("Can not use signing key provided: %s", err.Error()), 1)
-		}
-	}
-
-	if _, err = repack(comp, artifact, art, tmp, privateKey, newName, rootfs); err != nil {
+	if _, err = repack(comp, artifact, art, tmp, nil, newName, rootfs); err != nil {
 		return err
 	}
 
@@ -379,7 +369,7 @@ func repackSdimg(partitions []partition, image string) error {
 	return nil
 }
 
-func getCandidatesForModify(path string, key []byte) ([]partition, bool, error) {
+func getCandidatesForModify(path string) ([]partition, bool, error) {
 	isArtifact := false
 	modifyCandidates := make([]partition, 0)
 
@@ -390,7 +380,7 @@ func getCandidatesForModify(path string, key []byte) ([]partition, bool, error) 
 	}
 	defer art.Close()
 
-	if err = validate(art, key); err == nil {
+	if err = validate(art, nil); err == nil {
 		// we have VALID artifact, so we need to unpack it and store header
 		isArtifact = true
 		rawImage, err := unpackArtifact(path)
@@ -398,8 +388,6 @@ func getCandidatesForModify(path string, key []byte) ([]partition, bool, error) 
 			return nil, isArtifact, errors.Wrap(err, "can not process artifact")
 		}
 		modifyCandidates = append(modifyCandidates, partition{path: rawImage})
-	} else if err == ErrInvalidSignature {
-		return nil, isArtifact, err
 	} else {
 		parts, err := processSdimg(path)
 		if err != nil {
