@@ -71,7 +71,7 @@ HbyD2TE2hLKGj9xnFkzOHnEj7KybiE2PAx6skWvCPqBP5+H0d68jN9mOAw==
 -----END PUBLIC KEY-----
 `
 
-func TestCopy(t *testing.T) {
+func TestCopyRootfsImage(t *testing.T) {
 	// build the mender-artifact binary
 	assert.Nil(t, exec.Command("go", "build").Run())
 	defer os.Remove("mender-artifact")
@@ -524,4 +524,58 @@ func argvAddImgPath(imgpath string, sarr []string) []string {
 		}
 	}
 	return sarr
+}
+
+func TestCopyModuleImage(t *testing.T) {
+
+	tmpdir, err := ioutil.TempDir("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+	artfile := filepath.Join(tmpdir, "artifact.mender")
+
+	fd, err := os.OpenFile(filepath.Join(tmpdir, "updateFile"), os.O_WRONLY|os.O_CREATE, 0644)
+	require.NoError(t, err)
+	fd.Write([]byte("updateContent"))
+	fd.Close()
+
+	os.Args = []string{
+		"mender-artifact", "write", "module-image",
+		"-o", artfile,
+		"-n", "testName",
+		"-t", "testDevice",
+		"-T", "testType",
+		"-f", filepath.Join(tmpdir, "updateFile"),
+	}
+
+	err = run()
+	assert.NoError(t, err)
+
+	os.Args = []string{
+		"mender-artifact", "cp", "dummy-file", artfile + ":/dummy/path",
+	}
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(),	"Only rootfs update types supported")
+
+	os.Args = []string{
+		"mender-artifact", "cat", artfile + ":/dummy/path",
+	}
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(),	"Only rootfs update types supported")
+
+	os.Args = []string{
+		"mender-artifact", "install", "-m", "777", "dummy-file", artfile + ":/dummy/path",
+	}
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(),	"Only rootfs update types supported")
+
+	os.Args = []string{
+		"mender-artifact", "rm", artfile + ":/dummy/path",
+	}
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(),	"Only rootfs update types supported")
+
 }

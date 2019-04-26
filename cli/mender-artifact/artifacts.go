@@ -158,10 +158,16 @@ func unpackArtifact(name string) (string, error) {
 		return "", errors.Wrap(err, "failed to register install handler")
 	}
 
-	err = aReader.ReadArtifact()
+	r, err := read(aReader, nil, nil)
 	if err != nil {
 		return "", err
 	}
+
+	inst := r.GetHandlers()
+	if ! (len(inst) == 1 && inst[0].GetUpdateType() == "rootfs-image" ) {
+		return "", errors.New("Only rootfs update types supported")
+	}
+
 	// Give the tempfile it's original name, so that the update does not change name upon a write.
 	tmpfilePath := tmp.Name()
 	newNamePath := filepath.Join(filepath.Dir(tmpfilePath), updateStore.name)
