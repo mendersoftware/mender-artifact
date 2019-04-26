@@ -53,8 +53,8 @@ func getCliContext() *cli.App {
 	app.UsageText = "mender-artifact [--version][--help] <command> [<args>]"
 	app.Version = Version
 
-	app.Author = "mender.io"
-	app.Email = "contact@mender.io"
+	app.Author = "Northern.tech AS"
+	app.Email = "contact@northern.tech"
 
 	//
 	// write
