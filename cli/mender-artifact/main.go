@@ -310,7 +310,7 @@ func getCliContext() *cli.App {
 		},
 		cli.StringFlag{
 			Name: "verification-key, v",
-			Usage: "Full path to the public verification key that is used by the client  " +
+			Usage: "Full path to the public verification key that is used by the client " +
 				"to verify the artifact.",
 		},
 		cli.StringFlag{
@@ -340,7 +340,7 @@ func getCliContext() *cli.App {
 
 	install := cli.Command{
 		Name:        "install",
-		Usage:       "install -m<permissions> <hostfile> [artifact|sdimg|uefiimg]:<filepath>",
+		Usage:       "install -m <permissions> <hostfile> [artifact|sdimg|uefiimg]:<filepath>",
 		Description: "Installs a file from the host filesystem to the artifact or sdimg.",
 		Action:      Install,
 	}
