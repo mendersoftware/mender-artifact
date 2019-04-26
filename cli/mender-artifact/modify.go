@@ -42,7 +42,7 @@ func modifyArtifact(c *cli.Context) error {
 	}
 
 	modifyCandidates, isArtifact, err :=
-		getCandidatesForModify(c.Args().First(), nil)
+		getCandidatesForModify(c.Args().First())
 
 	if err != nil {
 		return cli.NewExitError("Error selecting images for modification: "+err.Error(), 1)
@@ -75,7 +75,7 @@ func modifyArtifact(c *cli.Context) error {
 	if isArtifact {
 		// re-create the artifact
 		err := repackArtifact(comp, c.Args().First(), modifyCandidates[0].path,
-			"", c.String("name"))
+			c.String("name"))
 		if err != nil {
 			return cli.NewExitError("Can not recreate artifact: "+err.Error(), 1)
 		}

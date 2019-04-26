@@ -99,7 +99,7 @@ func verify(image, file, expected string) bool {
 func verifySDImg(image, file, expected string) bool {
 
 	modifyCandidates, isArtifact, err :=
-		getCandidatesForModify(image, nil)
+		getCandidatesForModify(image)
 
 	if err != nil {
 		return false
