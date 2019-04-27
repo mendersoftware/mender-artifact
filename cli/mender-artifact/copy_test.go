@@ -555,27 +555,27 @@ func TestCopyModuleImage(t *testing.T) {
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(),	"Only rootfs update types supported")
+	assert.Contains(t, err.Error(),	"only rootfs Artifact or image are supported")
 
 	os.Args = []string{
 		"mender-artifact", "cat", artfile + ":/dummy/path",
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(),	"Only rootfs update types supported")
+	assert.Contains(t, err.Error(),	"only rootfs Artifact or image are supported")
 
 	os.Args = []string{
 		"mender-artifact", "install", "-m", "777", "dummy-file", artfile + ":/dummy/path",
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(),	"Only rootfs update types supported")
+	assert.Contains(t, err.Error(),	"only rootfs Artifact or image are supported")
 
 	os.Args = []string{
 		"mender-artifact", "rm", artfile + ":/dummy/path",
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(),	"Only rootfs update types supported")
+	assert.Contains(t, err.Error(),	"only rootfs Artifact or image are supported")
 
 }
