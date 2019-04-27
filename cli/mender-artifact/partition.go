@@ -62,18 +62,25 @@ func (v vFile) Open(comp artifact.Compressor, imgpath string) (VPFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	modcands, isArtifact, err := getCandidatesForModify(imgname)
+	candidateType, modcands, err := getCandidatesForModify(imgname)
 	if err != nil {
 		return nil, err
 	}
-	for i := 0; i < len(modcands); i++ {
-		modcands[i].name = imgname
+	if modcands == nil {
+		return nil, fmt.Errorf("No partitions found in file %s, only " +
+			"rootfs Artifact or image are supported", imgname)
+	} else {
+		for i := 0; i < len(modcands); i++ {
+			modcands[i].name = imgname
+		}
 	}
-	if isArtifact {
+	if candidateType == RootfsImageArtifact {
 		return newArtifactExtFile(comp, fpath, modcands[0])
+	} else if candidateType == RawSDImage {
+		return newSDImgFile(fpath, modcands)
 	}
-	return newSDImgFile(fpath, modcands)
 
+	return nil, fmt.Errorf("Unknown image type for file %s", imgname)
 }
 
 // parseImgPath parses cli input of the form
