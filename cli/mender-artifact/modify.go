@@ -15,9 +15,7 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -43,13 +41,8 @@ func modifyArtifact(c *cli.Context) error {
 		return cli.NewExitError("File ["+c.Args().First()+"] does not exist.", 1)
 	}
 
-	pubKey, err := processModifyKey(c.String("key"))
-	if err != nil {
-		return cli.NewExitError("Error processing private key: "+err.Error(), 1)
-	}
-
 	modifyCandidates, isArtifact, err :=
-		getCandidatesForModify(c.Args().First(), pubKey)
+		getCandidatesForModify(c.Args().First())
 
 	if err != nil {
 		return cli.NewExitError("Error selecting images for modification: "+err.Error(), 1)
@@ -82,7 +75,7 @@ func modifyArtifact(c *cli.Context) error {
 	if isArtifact {
 		// re-create the artifact
 		err := repackArtifact(comp, c.Args().First(), modifyCandidates[0].path,
-			c.String("key"), c.String("name"))
+			c.String("name"))
 		if err != nil {
 			return cli.NewExitError("Can not recreate artifact: "+err.Error(), 1)
 		}
@@ -197,29 +190,4 @@ func modifyExisting(c *cli.Context, image string) error {
 	}
 
 	return nil
-}
-
-func processModifyKey(keyPath string) ([]byte, error) {
-	// extract public key from it private counterpart
-	if keyPath != "" {
-		priv, err := getKey(keyPath)
-		if err != nil {
-			return nil, errors.Wrap(err, "can not get private key")
-		}
-		pubKeyRaw, err := artifact.GetPublic(priv)
-		if err != nil {
-			return nil, errors.Wrap(err, "can not get private key public counterpart")
-		}
-
-		buf := &bytes.Buffer{}
-		err = pem.Encode(buf, &pem.Block{
-			Type:  "PUBLIC KEY",
-			Bytes: pubKeyRaw,
-		})
-		if err != nil {
-			return nil, errors.Wrap(err, "can not encode public key")
-		}
-		return buf.Bytes(), nil
-	}
-	return nil, nil
 }

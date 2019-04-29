@@ -56,6 +56,18 @@ func getCliContext() *cli.App {
 	app.Author = "Northern.tech AS"
 	app.Email = "contact@northern.tech"
 
+	privateKeyFlag := cli.StringFlag{
+		Name: "key, k",
+		Usage: "Full path to the private key that will be used to verify " +
+			"the artifact signature.",
+	}
+
+	publicKeyFlag := cli.StringFlag{
+		Name: "key, k",
+		Usage: "Full path to the public key that will be used to verify " +
+			"the artifact signature.",
+	}
+
 	//
 	// write
 	//
@@ -89,10 +101,7 @@ func getCliContext() *cli.App {
 			Usage: "Version of the artifact.",
 			Value: LatestFormatVersion,
 		},
-		cli.StringFlag{
-			Name:  "key, k",
-			Usage: "Full path to the private key that will be used to sign the artifact.",
-		},
+		privateKeyFlag,
 		cli.StringSliceFlag{
 			Name: "script, s",
 			Usage: "Full path to the state script(s). You can specify multiple " +
@@ -230,12 +239,6 @@ func getCliContext() *cli.App {
 		},
 	}
 
-	key := cli.StringFlag{
-		Name: "key, k",
-		Usage: "Full path to the public key that will be used to verify " +
-			"the artifact signature.",
-	}
-
 	//
 	// validate
 	//
@@ -245,9 +248,7 @@ func getCliContext() *cli.App {
 		Action:      validateArtifact,
 		UsageText:   "mender-artifact validate [options] <pathspec>",
 		Description: "This command validates artifact file provided by pathspec.",
-	}
-	validate.Flags = []cli.Flag{
-		key,
+		Flags:       []cli.Flag{publicKeyFlag},
 	}
 
 	//
@@ -259,7 +260,7 @@ func getCliContext() *cli.App {
 		ArgsUsage:   "<artifact path>",
 		Action:      readArtifact,
 		Description: "This command validates artifact file provided by pathspec.",
-		Flags:       []cli.Flag{key},
+		Flags:       []cli.Flag{publicKeyFlag},
 	}
 
 	//
@@ -274,7 +275,7 @@ func getCliContext() *cli.App {
 		Description: "This command signs artifact file provided by pathspec.",
 	}
 	sign.Flags = []cli.Flag{
-		key,
+		privateKeyFlag,
 		cli.StringFlag{
 			Name: "output-path, o",
 			Usage: "Full path to output signed artifact file; " +
@@ -298,10 +299,6 @@ func getCliContext() *cli.App {
 	}
 
 	modify.Flags = []cli.Flag{
-		cli.StringFlag{
-			Name:  "key, k",
-			Usage: "Full path to the private key that will be used to sign the artifact after modifying.",
-		},
 		cli.StringFlag{
 			Name:  "server-uri, u",
 			Usage: "Mender server URI; the default URI will be replaced with given one.",
