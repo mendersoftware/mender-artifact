@@ -1031,24 +1031,26 @@ func TestReadBrokenArtifact(t *testing.T) {
 						require.NoError(t, cmd.Run())
 
 						updateDataFilePath := filepath.Join(tmpdir, fileNameStr)
-						if _, err := os.Stat(updateDataFilePath); !os.IsNotExist(err) {
-							// rename update data file by replacing last character with an asterisk
-							lastChar := updateDataFilePath[len(updateDataFilePath)-1:]
-							updateDataFilePathNew := strings.TrimRight(updateDataFilePath, lastChar) + "*"
-							os.Rename(updateDataFilePath, updateDataFilePathNew)
+						_, err := os.Stat(updateDataFilePath)
+						require.False(t, os.IsNotExist(err))
 
-							// compress back update data file
-							cmdArgs := []string{"-czf", dataArchive}
-							cmdArgs = append(cmdArgs,
-								[]string{"-C", updateDataDirPathFull, filepath.Base(updateDataFilePathNew)}...)
-							cmd := exec.Command("tar", cmdArgs...)
-							require.NoError(t, cmd.Run())
+						// rename update data file by replacing last character with an asterisk
+						lastChar := updateDataFilePath[len(updateDataFilePath)-1:]
+						updateDataFilePathNew := strings.TrimSuffix(updateDataFilePath, lastChar) + "*"
+						err = os.Rename(updateDataFilePath, updateDataFilePathNew)
+						assert.NoError(t, err)
 
-							// remove path to uncompressed update data file
-							require.NoError(t, os.RemoveAll(updateDataDirPathFull))
-							// replace last character in line with an asterisk
-							line[len(line)-1] = 0x2A
-						}
+						// compress back update data file
+						cmdArgs = []string{"-czf", dataArchive}
+						cmdArgs = append(cmdArgs,
+							[]string{"-C", updateDataDirPathFull, filepath.Base(updateDataFilePathNew)}...)
+						cmd = exec.Command("tar", cmdArgs...)
+						require.NoError(t, cmd.Run())
+
+						// remove path to uncompressed update data file
+						require.NoError(t, os.RemoveAll(updateDataDirPathFull))
+						// replace last character in line with an asterisk
+						line[len(line)-1] = 0x2A
 					}
 					for _, char := range line {
 						newbuf = append(newbuf, char)
