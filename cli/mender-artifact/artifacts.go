@@ -158,10 +158,16 @@ func unpackArtifact(name string) (string, error) {
 		return "", errors.Wrap(err, "failed to register install handler")
 	}
 
-	err = aReader.ReadArtifact()
+	r, err := read(aReader, nil, nil)
 	if err != nil {
 		return "", err
 	}
+
+	inst := r.GetHandlers()
+	if ! (len(inst) == 1 && inst[0].GetUpdateType() == "rootfs-image" ) {
+		return "", errors.New("Only rootfs update types supported")
+	}
+
 	// Give the tempfile it's original name, so that the update does not change name upon a write.
 	tmpfilePath := tmp.Name()
 	newNamePath := filepath.Join(filepath.Dir(tmpfilePath), updateStore.name)
@@ -373,31 +379,51 @@ func repackSdimg(partitions []partition, image string) error {
 	return nil
 }
 
-func getCandidatesForModify(path string) ([]partition, bool, error) {
-	isArtifact := false
+type CandidateType int
+
+const (
+	Unknown CandidateType = iota
+	ModuleImageArtifact
+	RootfsImageArtifact
+	RawSDImage
+)
+
+func getCandidatesForModify(path string) (CandidateType, []partition, error) {
 	modifyCandidates := make([]partition, 0)
 
 	// first we need to check  if we are having artifact or image file
 	art, err := os.Open(path)
 	if err != nil {
-		return nil, isArtifact, errors.Wrap(err, "can not open artifact")
+		return Unknown, nil, errors.Wrap(err, "can not open artifact")
 	}
 	defer art.Close()
 
-	if err = validate(art, nil); err == nil {
-		// we have VALID artifact, so we need to unpack it and store header
-		isArtifact = true
+	var foundType = Unknown
+	aReader := areader.NewReader(art)
+	r, err := read(aReader, nil, nil)
+	if err == nil {
+		// we have VALID artifact,
+
+		// First check if it is a module-image type
+		inst := r.GetHandlers()
+		if len(inst) > 0 && inst[0].GetUpdateType() != "rootfs-image" {
+			return ModuleImageArtifact, nil, nil
+		}
+
+		// Else, it must be a rootfs-image so extract the partitions
+		foundType = RootfsImageArtifact
 		rawImage, err := unpackArtifact(path)
 		if err != nil {
-			return nil, isArtifact, errors.Wrap(err, "can not process artifact")
+			return Unknown, nil, errors.Wrap(err, "can not process artifact")
 		}
 		modifyCandidates = append(modifyCandidates, partition{path: rawImage})
 	} else {
+		foundType = RawSDImage
 		parts, err := processSdimg(path)
 		if err != nil {
-			return nil, isArtifact, errors.Wrap(err, "can not process image file")
+			return Unknown, nil, errors.Wrap(err, "can not process image file")
 		}
 		modifyCandidates = append(modifyCandidates, parts...)
 	}
-	return modifyCandidates, isArtifact, nil
+	return foundType, modifyCandidates, nil
 }
