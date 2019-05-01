@@ -15,9 +15,7 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -43,25 +41,22 @@ func modifyArtifact(c *cli.Context) error {
 		return cli.NewExitError("File ["+c.Args().First()+"] does not exist.", 1)
 	}
 
-	pubKey, err := processModifyKey(c.String("key"))
-	if err != nil {
-		return cli.NewExitError("Error processing private key: "+err.Error(), 1)
-	}
-
-	modifyCandidates, isArtifact, err :=
-		getCandidatesForModify(c.Args().First(), pubKey)
+	candidateType, modifyCandidates, err :=
+		getCandidatesForModify(c.Args().First())
 
 	if err != nil {
 		return cli.NewExitError("Error selecting images for modification: "+err.Error(), 1)
 	}
 	// strip the data and boot partitions
-	if isArtifact {
+	if candidateType == RootfsImageArtifact {
 		modifyCandidates = modifyCandidates[0:1]
 		for _, mc := range modifyCandidates {
 			defer os.Remove(mc.path)
 		}
-	} else if len(modifyCandidates) == 4 { // sdimg
-		modifyCandidates = modifyCandidates[1:3]
+	} else if candidateType == RawSDImage {
+		if len(modifyCandidates) == 4 { // sdimg
+			modifyCandidates = modifyCandidates[1:3]
+		}
 	}
 
 	for _, toModify := range modifyCandidates {
@@ -71,7 +66,7 @@ func modifyArtifact(c *cli.Context) error {
 		}
 	}
 
-	if len(modifyCandidates) > 1 {
+	if len(modifyCandidates) == 2 {
 		// make modified images part of sdimg again
 		if err := repackSdimg(modifyCandidates, c.Args().First()); err != nil {
 			return cli.NewExitError("Can not recreate sdimg file: "+err.Error(), 1)
@@ -79,10 +74,14 @@ func modifyArtifact(c *cli.Context) error {
 		return nil
 	}
 
-	if isArtifact {
+	if candidateType == RootfsImageArtifact || candidateType == ModuleImageArtifact {
 		// re-create the artifact
-		err := repackArtifact(comp, c.Args().First(), modifyCandidates[0].path,
-			c.String("key"), c.String("name"))
+		rootfs := ""
+		if modifyCandidates != nil {
+			rootfs = modifyCandidates[0].path
+		}
+		err := repackArtifact(comp, c.Args().First(), rootfs,
+			c.String("name"))
 		if err != nil {
 			return cli.NewExitError("Can not recreate artifact: "+err.Error(), 1)
 		}
@@ -197,29 +196,4 @@ func modifyExisting(c *cli.Context, image string) error {
 	}
 
 	return nil
-}
-
-func processModifyKey(keyPath string) ([]byte, error) {
-	// extract public key from it private counterpart
-	if keyPath != "" {
-		priv, err := getKey(keyPath)
-		if err != nil {
-			return nil, errors.Wrap(err, "can not get private key")
-		}
-		pubKeyRaw, err := artifact.GetPublic(priv)
-		if err != nil {
-			return nil, errors.Wrap(err, "can not get private key public counterpart")
-		}
-
-		buf := &bytes.Buffer{}
-		err = pem.Encode(buf, &pem.Block{
-			Type:  "PUBLIC KEY",
-			Bytes: pubKeyRaw,
-		})
-		if err != nil {
-			return nil, errors.Wrap(err, "can not encode public key")
-		}
-		return buf.Bytes(), nil
-	}
-	return nil, nil
 }

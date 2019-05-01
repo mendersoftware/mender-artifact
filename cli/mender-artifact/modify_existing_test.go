@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func copyFile(src, dst string) error {
@@ -97,14 +98,14 @@ func verify(image, file, expected string) bool {
 
 func verifySDImg(image, file, expected string) bool {
 
-	modifyCandidates, isArtifact, err :=
-		getCandidatesForModify(image, nil)
+	candidateType, modifyCandidates, err :=
+		getCandidatesForModify(image)
 
 	if err != nil {
 		return false
 	}
 
-	if isArtifact {
+	if candidateType != RawSDImage {
 		return false
 	}
 
@@ -179,46 +180,47 @@ func TestModifySdimage(t *testing.T) {
 
 }
 
-func TestModifyArtifact(t *testing.T) {
+func TestModifyRootfsArtifact(t *testing.T) {
 	tmp, err := ioutil.TempDir("", "mender-modify")
-	assert.NoError(t, err)
-
+	require.NoError(t, err)
 	defer os.RemoveAll(tmp)
 
 	err = copyFile("mender_test.img", filepath.Join(tmp, "mender_test.img"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	err = WriteArtifact(tmp, 2, filepath.Join(tmp, "mender_test.img"))
-	assert.NoError(t, err)
+	for _, ver := range []int{2, 3} {
+		err = WriteArtifact(tmp, ver, filepath.Join(tmp, "mender_test.img"))
+		assert.NoError(t, err)
 
-	os.Args = []string{"mender-artifact", "modify",
-		"-n", "release-1",
-		filepath.Join(tmp, "artifact.mender")}
+		os.Args = []string{"mender-artifact", "modify",
+			"-n", "release-1",
+			filepath.Join(tmp, "artifact.mender")}
 
-	err = run()
-	assert.NoError(t, err)
-
-	os.Args = []string{"mender-artifact", "read",
-		filepath.Join(tmp, "artifact.mender")}
-
-	r, w, err := os.Pipe()
-	out := os.Stdout
-	defer func() {
-		os.Stdout = out
-	}()
-	os.Stdout = w
-
-	go func() {
 		err = run()
 		assert.NoError(t, err)
-		w.Close()
-	}()
 
-	data, _ := ioutil.ReadAll(r)
-	assert.Contains(t, string(data), "Name: release-1")
+		os.Args = []string{"mender-artifact", "read",
+			filepath.Join(tmp, "artifact.mender")}
+
+		r, w, err := os.Pipe()
+		out := os.Stdout
+		defer func() {
+			os.Stdout = out
+		}()
+		os.Stdout = w
+
+		go func() {
+			err = run()
+			assert.NoError(t, err)
+			w.Close()
+		}()
+
+		data, _ := ioutil.ReadAll(r)
+		assert.Contains(t, string(data), "Name: release-1")
+	}
 }
 
-func TestModifyServerCert(t *testing.T) {
+func TestModifyRootfsServerCert(t *testing.T) {
 	tmp, err := ioutil.TempDir("", "mender-modify")
 	assert.NoError(t, err)
 	defer os.RemoveAll(tmp)
@@ -271,7 +273,7 @@ yOTl4wVLQKA6mFvMV9o8B9yTBNg3mQS0vA==
 -----END EC PRIVATE KEY-----`
 )
 
-func TestModifySigned(t *testing.T) {
+func TestModifyRootfsSigned(t *testing.T) {
 	tmp, err := ioutil.TempDir("", "mender-modify")
 	assert.NoError(t, err)
 	defer os.RemoveAll(tmp)
@@ -285,45 +287,123 @@ func TestModifySigned(t *testing.T) {
 	err = ioutil.WriteFile(filepath.Join(tmp, "ecdsa.key"), []byte(PrivateECDSAKey), 0711)
 	assert.NoError(t, err)
 
-	// Create and sign artifact using RSA private key.
-	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "release-1", "-f", filepath.Join(tmp, "mender_test.img"),
-		"-o", filepath.Join(tmp, "artifact.mender"),
-		"-k", filepath.Join(tmp, "rsa.key")}
-	err = run()
-	assert.NoError(t, err)
+	for _, key := range []string{"rsa.key", "ecdsa.key"} {
 
-	// Modify the artifact and re-sign it using the same RSA private key.
-	os.Args = []string{"mender-artifact", "modify",
-		"-n", "release-2",
-		"-k", filepath.Join(tmp, "rsa.key"),
+		// Create and sign artifact using RSA private key.
+		os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+			"-n", "release-1", "-f", filepath.Join(tmp, "mender_test.img"),
+			"-o", filepath.Join(tmp, "artifact.mender"),
+			"-k", filepath.Join(tmp, key)}
+		err = run()
+		assert.NoError(t, err)
+
+		// Modify the artifact, the result shall be unsigned
+		os.Args = []string{"mender-artifact", "modify",
+			"-n", "release-2",
+			filepath.Join(tmp, "artifact.mender")}
+
+		err = run()
+		assert.NoError(t, err)
+
+		// Check for field update and unsigned state
+		os.Args = []string{"mender-artifact", "read",
 		filepath.Join(tmp, "artifact.mender")}
 
+		r, w, err := os.Pipe()
+		out := os.Stdout
+		defer func() {
+			os.Stdout = out
+		}()
+		os.Stdout = w
+
+		go func() {
+			err = run()
+			assert.NoError(t, err)
+			w.Close()
+		}()
+
+		data, _ := ioutil.ReadAll(r)
+		assert.Contains(t, string(data), "Name: release-2")
+		assert.Contains(t, string(data), "Signature: no signature")
+
+	}
+}
+
+func TestModifyModuleArtifact(t *testing.T) {
+
+	tmpdir, err := ioutil.TempDir("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+	artfile := filepath.Join(tmpdir, "artifact.mender")
+
+	fd, err := os.OpenFile(filepath.Join(tmpdir, "updateFile"), os.O_WRONLY|os.O_CREATE, 0644)
+	require.NoError(t, err)
+	fd.Write([]byte("updateContent"))
+	fd.Close()
+
+	os.Args = []string{
+		"mender-artifact", "write", "module-image",
+		"-o", artfile,
+		"-n", "testName",
+		"-t", "testDevice",
+		"-T", "testType",
+		"-f", filepath.Join(tmpdir, "updateFile"),
+	}
+
 	err = run()
 	assert.NoError(t, err)
 
-	// Modify the artifact again, this time leaving it unsigned (no private key provided).
+	// Modify Artifact name shall work
 	os.Args = []string{"mender-artifact", "modify",
-		"-n", "release-3",
-		filepath.Join(tmp, "artifact.mender")}
+		"-n", "release-1", artfile}
 
 	err = run()
 	assert.NoError(t, err)
 
-	// Create artifact again, this time with EC private key.
-	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "release-1", "-f", filepath.Join(tmp, "mender_test.img"),
-		"-o", filepath.Join(tmp, "artifact_ecdsa.mender"),
-		"-k", filepath.Join(tmp, "ecdsa.key")}
-	err = run()
-	assert.NoError(t, err)
+	os.Args = []string{"mender-artifact", "read", artfile}
 
-	// Modify artifact, re-signing with same EC private key.
-	os.Args = []string{"mender-artifact", "modify",
-		"-n", "release-2",
-		"-k", filepath.Join(tmp, "ecdsa.key"),
-		filepath.Join(tmp, "artifact_ecdsa.mender")}
+	r, w, err := os.Pipe()
+	out := os.Stdout
+	defer func() {
+		os.Stdout = out
+	}()
+	os.Stdout = w
 
+	go func() {
+		err = run()
+		assert.NoError(t, err)
+		w.Close()
+	}()
+
+	data, _ := ioutil.ReadAll(r)
+	assert.Contains(t, string(data), "Name: release-1")
+
+	// The rest of modifications shall not work
+	os.Args = []string{
+		"mender-artifact", "modify", "-u", "dummy-uri", artfile,
+	}
 	err = run()
-	assert.NoError(t, err)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(),	"mender-artifact can only modify ext4 payloads")
+
+	os.Args = []string{
+		"mender-artifact", "modify", "-c", "dummy-cert", artfile,
+	}
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(),	"mender-artifact can only modify ext4 payloads")
+
+	os.Args = []string{
+		"mender-artifact", "modify", "-v", "dummy-key", artfile,
+	}
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(),	"mender-artifact can only modify ext4 payloads")
+
+	os.Args = []string{
+		"mender-artifact", "modify", "-t", "dummy-token", artfile,
+	}
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(),	"mender-artifact can only modify ext4 payloads")
 }

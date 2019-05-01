@@ -37,10 +37,14 @@ func Cat(c *cli.Context) (err error) {
 	if !isimg.MatchString(c.Args().First()) {
 		return cli.NewExitError("The input image does not seem to be a valid image", 1)
 	}
-	r, err := virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
+	r, err := virtualPartitionFile.Open(comp, c.Args().First())
 	defer func() {
-		if r != nil {
-			r.Close()
+		if r == nil {
+			return
+		}
+		cerr := r.Close()
+		if err == nil {
+			err = cerr
 		}
 	}()
 	if err != nil {
@@ -78,7 +82,7 @@ func Copy(c *cli.Context) (err error) {
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		vfile, err = virtualPartitionFile.Open(comp, c.Args().Get(1), c.String("key"))
+		vfile, err = virtualPartitionFile.Open(comp, c.Args().Get(1))
 		defer wclose(vfile)
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
@@ -86,14 +90,14 @@ func Copy(c *cli.Context) (err error) {
 		w = vfile
 	case copyinstdin:
 		r = os.Stdin
-		vfile, err = virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
+		vfile, err = virtualPartitionFile.Open(comp, c.Args().First())
 		defer wclose(vfile)
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 		w = vfile
 	case copyout:
-		vfile, err = virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
+		vfile, err = virtualPartitionFile.Open(comp, c.Args().First())
 		defer wclose(vfile)
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
@@ -148,7 +152,7 @@ func Install(c *cli.Context) (err error) {
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		f, err := virtualPartitionFile.Open(comp, c.Args().Get(1), c.String("key"))
+		f, err := virtualPartitionFile.Open(comp, c.Args().Get(1))
 		defer wclose(f)
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
@@ -169,6 +173,9 @@ func Install(c *cli.Context) (err error) {
 
 func Remove(c *cli.Context) (err error) {
 	wclose := func(w io.Closer) {
+		if w == nil {
+			return
+		}
 		cerr := w.Close()
 		if err == nil {
 			err = cerr
@@ -184,7 +191,7 @@ func Remove(c *cli.Context) (err error) {
 	if !isimg.MatchString(c.Args().First()) {
 		return cli.NewExitError("The input image does not have a valid extension", 1)
 	}
-	f, err := virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
+	f, err := virtualPartitionFile.Open(comp, c.Args().First())
 	defer wclose(f)
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)

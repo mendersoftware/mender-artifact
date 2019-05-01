@@ -139,18 +139,45 @@ func WriteArtifact(dir string, ver int, update string) error {
 	aw := awriter.NewWriter(f, comp)
 	switch ver {
 	case 1:
-		// we are alrady having v1 handlers; do nothing
+		// we are already having v1 handlers; do nothing
 	case 2:
 		u = handlers.NewRootfsV2(update)
+	case 3:
+		u = handlers.NewRootfsV3(update)
 	}
 
 	updates := &awriter.Updates{Updates: []handlers.Composer{u}}
+
+	depends := artifact.ArtifactDepends{
+		ArtifactName:      []string{""},
+		CompatibleDevices: []string{""},
+		ArtifactGroup:     []string{""},
+	}
+
+	provides := artifact.ArtifactProvides{
+		ArtifactName:  "test-artifact",
+		ArtifactGroup: "",
+	}
+
+	typeInfoV3 := artifact.TypeInfoV3{
+		Type: "rootfs-image",
+		// Keeping these empty for now. We will likely introduce these
+		// later, when we add support for augmented artifacts.
+		// ArtifactDepends:  &artifact.TypeInfoDepends{"rootfs_image_checksum": c.String("depends-rootfs-image-checksum")},
+		// ArtifactProvides: &artifact.TypeInfoProvides{"rootfs_image_checksum": c.String("provides-rootfs-image-checksum")},
+		ArtifactDepends:  &artifact.TypeInfoDepends{},
+		ArtifactProvides: &artifact.TypeInfoProvides{},
+	}
+
 	return aw.WriteArtifact(&awriter.WriteArtifactArgs{
 		Format:  "mender",
 		Name:    "test-artifact",
 		Version: ver,
 		Devices: []string{"vexpress"},
 		Updates: updates,
+		Provides: &provides,
+		Depends: &depends,
+		TypeInfoV3: &typeInfoV3,
 	})
 }
 
