@@ -180,6 +180,14 @@ func TestCopyRootfsImage(t *testing.T) {
 			},
 		},
 		{
+			initfunc: func(imgpath string) {
+				assert.Nil(t, ioutil.WriteFile("input.txt", []byte("dummy-text"), 0755))
+			},
+			name: "copy file into a non-existing directory",
+			argv: []string{"mender-artifact", "cp", "input.txt", ":/non/existing/path"},
+			err:  "debugfs: error running command: \"cd /non/existing\\nclose\", err: \n/non/existing: File not found by ext2_lookup \n",
+		},
+		{
 			name: "data on stdin",
 			argv: []string{"mender-artifact", "cp", ":/etc/mender/artifact_info", "-"},
 		},
@@ -500,6 +508,10 @@ rmdir: directory not empty
 			os.Stdout = old // restoring the real stdout
 			out := <-outC
 
+			if test.err != "" {
+				assert.Error(t, err, "Expected error: "+test.err)
+			}
+
 			if err != nil {
 				if test.err != "" {
 					assert.Equal(t, test.err, err.Error(), test.name)
@@ -523,7 +535,7 @@ rmdir: directory not empty
 // and thus argument files, and files in the path cannot match.
 func argvAddImgPath(imgpath string, sarr []string) []string {
 	for i, str := range sarr {
-		if strings.Contains(str, "artifact_info") || strings.Contains(str, "testkey.key") || strings.Contains(str, "test.txt") || str == ":/etc/mender/" || str == ":/boot/grub/" || str == ":/uboot/testdir/" {
+		if strings.Contains(str, "artifact_info") || strings.Contains(str, "testkey.key") || strings.Contains(str, "test.txt") || str == ":/etc/mender/" || str == ":/boot/grub/" || str == ":/uboot/testdir/" || str == ":/non/existing/path" {
 			sarr[i] = imgpath + str
 		}
 	}
@@ -559,27 +571,27 @@ func TestCopyModuleImage(t *testing.T) {
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(),	"only rootfs Artifact or image are supported")
+	assert.Contains(t, err.Error(), "only rootfs Artifact or image are supported")
 
 	os.Args = []string{
 		"mender-artifact", "cat", artfile + ":/dummy/path",
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(),	"only rootfs Artifact or image are supported")
+	assert.Contains(t, err.Error(), "only rootfs Artifact or image are supported")
 
 	os.Args = []string{
 		"mender-artifact", "install", "-m", "777", "dummy-file", artfile + ":/dummy/path",
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(),	"only rootfs Artifact or image are supported")
+	assert.Contains(t, err.Error(), "only rootfs Artifact or image are supported")
 
 	os.Args = []string{
 		"mender-artifact", "rm", artfile + ":/dummy/path",
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(),	"only rootfs Artifact or image are supported")
+	assert.Contains(t, err.Error(), "only rootfs Artifact or image are supported")
 
 }
