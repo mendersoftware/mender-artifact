@@ -116,9 +116,11 @@ func Copy(c *cli.Context) (err error) {
 		return cli.NewExitError("critical error", 1)
 	}
 
-	_, err = io.Copy(w, r)
+	if _, err = io.Copy(w, r); err != nil {
+		return cli.NewExitError(err, 1)
+	}
 
-	return err
+	return nil
 }
 
 // Install installs a file from the host filesystem onto either
