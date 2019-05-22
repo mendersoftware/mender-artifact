@@ -11,7 +11,10 @@ go:
 install:
     # Get tools used in Makefile
     - make get-tools
-    - sudo apt-get install mtools liblzma-dev
+
+addons:
+  apt:
+    packages: mtools liblzma-dev
 
 before_script:
     # Print build info.
@@ -31,12 +34,24 @@ before_script:
     # Get last remaining tags, if any.
     - git fetch --tags origin
 
-    - make extracheck
-
-script:
-    - make coverage
-
-    - make
+jobs:
+  include:
+    - stage: build
+      script:
+          - make build
+          - make extracheck
+      os: linux
+    - stage: build
+      script: make build
+      os: osx
+    - stage: test
+      script: true
+      os: osx
+    - stage: test
+      script:
+          - make coverage
+          - make test
+      os: linux
 
 after_success:
     # Integrate with https://codecov.io

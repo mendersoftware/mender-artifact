@@ -46,7 +46,7 @@ PLATFORMS := darwin linux windows
 
 GO_LDFLAGS_WIN = -ldflags "-X main.Version=$(VERSION) -linkmode=internal -s -w -extldflags '-static' -extld=x86_64-w64-mingw32-gcc"
 
-buildNatives:
+build-natives:
 	@arch="amd64";
 	@echo "building mac";
 	@env GOOS=darwin GOARCH=$$arch CGO_ENABLED=0 \
