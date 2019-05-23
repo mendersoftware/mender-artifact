@@ -8,7 +8,7 @@ RUN mkdir -p /go/src/github.com/mendersoftware/mender-artifact
 WORKDIR /go/src/github.com/mendersoftware/mender-artifact
 RUN go get 'golang.org/x/sys/windows'
 ADD ./ .
-RUN make buildNatives
+RUN make build-natives
 
 FROM alpine:3.9
 RUN apk add xz-dev
