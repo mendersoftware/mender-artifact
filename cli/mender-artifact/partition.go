@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -44,6 +45,8 @@ const (
 type VPFile interface {
 	io.ReadWriteCloser
 	Delete(recursive bool) error
+	CopyTo(hostFile string) error
+	CopyFrom(hostFile string) error
 }
 
 type partition struct {
@@ -67,7 +70,7 @@ func (v vFile) Open(comp artifact.Compressor, imgpath string) (VPFile, error) {
 		return nil, err
 	}
 	if modcands == nil {
-		return nil, fmt.Errorf("No partitions found in file %s, only " +
+		return nil, fmt.Errorf("No partitions found in file %s, only "+
 			"rootfs Artifact or image are supported", imgname)
 	} else {
 		for i := 0; i < len(modcands); i++ {
@@ -137,15 +140,15 @@ func newSDImgFile(fpath string, modcands []partition) (sdimgFile, error) {
 	// Only return the data partition.
 	if strings.HasPrefix(fpath, "/data") {
 		// The data dir is not a directory in the data partition
-		fpath = strings.TrimPrefix(fpath, "/data")
+		fpath = strings.TrimPrefix(fpath, "/data/")
 		delPartition = append(delPartition, modcands[0:3]...)
 		ext, err := newExtFile(fpath, modcands[3]) // Data partition
 		return sdimgFile{ext}, err
 	}
-	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))")
+	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))[/]")
 	// Only return the boot-partition.
 	if reg.MatchString(fpath) {
-		// /uboot, /boot/efi, /boot/grup are not directories on the boot partition.
+		// /uboot, /boot/efi, /boot/grub are not directories on the boot partition.
 		fpath = reg.ReplaceAllString(fpath, "")
 		// Since boot partitions can be either fat or ext,
 		// return a readWriteCloser dependent upon the underlying filesystem type.
@@ -195,7 +198,27 @@ func (p sdimgFile) Write(b []byte) (int, error) {
 // Read reads a file from an sdimg.
 func (p sdimgFile) Read(b []byte) (int, error) {
 	// A read from the first partition wrapped should suffice in all cases.
+	if len(p) == 0 {
+		return 0, errors.New("No partition set to read from")
+	}
 	return p[0].Read(b)
+}
+
+func (p sdimgFile) CopyTo(hostFile string) error {
+	for _, part := range p {
+		err := part.CopyTo(hostFile)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p sdimgFile) CopyFrom(hostFile string) error {
+	if len(p) == 0 {
+		return errors.New("No partition set to copy from")
+	}
+	return p[0].CopyFrom(hostFile)
 }
 
 // Read reads a file from an sdimg.
@@ -231,25 +254,21 @@ type artifactExtFile struct {
 }
 
 func newArtifactExtFile(comp artifact.Compressor, fpath string, p partition) (af *artifactExtFile, err error) {
-	tmpf, err := ioutil.TempFile("", "mendertmp-artifactextfile")
-	// Cleanup resources in case of error.
-	af = &artifactExtFile{
-		extFile{
-			partition:     p,
-			imagefilepath: fpath,
-			tmpf:          tmpf,
-		},
-		comp,
-	}
-	if err != nil {
-		return af, err
-	}
 	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))")
 	if reg.MatchString(fpath) {
 		return af, errors.New("newArtifactExtFile: A mender artifact does not contain a boot partition, only a rootfs")
 	}
 	if strings.HasPrefix(fpath, "/data") {
 		return af, errors.New("newArtifactExtFile: A mender artifact does not contain a data partition, only a rootfs")
+	}
+
+	extf, err := newExtFile(fpath, p)
+	if err != nil {
+		return nil, err
+	}
+	af = &artifactExtFile{*extf, comp}
+	if err != nil {
+		return af, err
 	}
 	return af, nil
 }
@@ -278,6 +297,11 @@ type extFile struct {
 }
 
 func newExtFile(imagefilepath string, p partition) (e *extFile, err error) {
+	// Check that the given directory exists.
+	_, err = executeCommand(fmt.Sprintf("cd %s", filepath.Dir(imagefilepath)), p.path)
+	if err != nil {
+		return nil, fmt.Errorf("The directory: %s does not exist in the image", filepath.Dir(imagefilepath))
+	}
 	tmpf, err := ioutil.TempFile("", "mendertmp-extfile")
 	// Cleanup resources in case of error.
 	e = &extFile{
@@ -316,6 +340,46 @@ func (ef *extFile) Read(b []byte) (int, error) {
 		return 0, errors.Wrapf(err, "extFile: ReadError: ioutil.Readfile failed to read file: %s", filepath.Join(str, filepath.Base(ef.imagefilepath)))
 	}
 	return copy(b, data), io.EOF
+}
+
+func (ef *extFile) CopyTo(hostFile string) error {
+	if err := debugfsReplaceFile(ef.imagefilepath, hostFile, ef.path); err != nil {
+		return err
+	}
+	ef.repack = true
+	return nil
+}
+
+func (ef *extFile) CopyFrom(hostFile string) error {
+	// Get the file permissions
+	d, err := executeCommand(fmt.Sprintf("stat %s", ef.imagefilepath), ef.partition.path)
+	if err != nil {
+		if strings.Contains(err.Error(), "File not found by ext2_lookup") {
+			return fmt.Errorf("The file: %s does not exist in the image", ef.imagefilepath)
+		}
+		return err
+	}
+	// Extract the Mode: oooo octal code
+	reg := regexp.MustCompile(`Mode: +(0[0-9]{3})`)
+	m := reg.FindStringSubmatch(d.String())
+	if m == nil || len(m) != 2 {
+		return fmt.Errorf("Could not extract the filemode information from the file: %s\n", ef.imagefilepath)
+	}
+	mode, err := strconv.ParseInt(m[1], 8, 32)
+	if err != nil {
+		return fmt.Errorf("Failed to extract the file permissions for the file: %s\nerr: %s", ef.imagefilepath, err)
+	}
+	_, err = executeCommand(fmt.Sprintf("dump %s %s\nclose", ef.imagefilepath, hostFile), ef.partition.path)
+	if err != nil {
+		if strings.Contains(err.Error(), "File not found by ext2_lookup") {
+			return fmt.Errorf("The file: %s does not exist in the image", ef.imagefilepath)
+		}
+		return err
+	}
+	if err = os.Chmod(hostFile, os.FileMode(mode)); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (ef *extFile) Delete(recursive bool) (err error) {
@@ -365,7 +429,7 @@ func newFatFile(imageFilePath string, partition partition) (*fatFile, error) {
 
 // Read Dump the file contents to stdout, and capture, using MTools' mtype
 func (f *fatFile) Read(b []byte) (n int, err error) {
-	cmd := exec.Command("mtype", "-i", f.path, "::"+f.imageFilePath)
+	cmd := exec.Command("mtype", "-n", "-i", f.path, "::"+f.imageFilePath)
 	dbuf := bytes.NewBuffer(nil)
 	cmd.Stdout = dbuf // capture Stdout
 	if err = cmd.Run(); err != nil {
@@ -390,6 +454,27 @@ func (f *fatFile) Write(b []byte) (n int, err error) {
 	}
 	f.repack = true
 	return len(b), nil
+}
+
+func (f *fatFile) CopyTo(hostFile string) error {
+	cmd := exec.Command("mcopy", "-oi", f.path, hostFile, "::"+f.imageFilePath)
+	data := bytes.NewBuffer(nil)
+	cmd.Stdout = data
+	if err := cmd.Run(); err != nil {
+		return errors.Wrap(err, "fatFile: Write: MTools execution failed")
+	}
+	f.repack = true
+	return nil
+}
+
+func (f *fatFile) CopyFrom(hostFile string) error {
+	cmd := exec.Command("mcopy", "-i", f.path, "::"+f.imageFilePath, hostFile)
+	dbuf := bytes.NewBuffer(nil)
+	cmd.Stdout = dbuf // capture Stdout
+	if err := cmd.Run(); err != nil {
+		return errors.Wrap(err, "fatPartitionFile: Read: MTools mcopy failed")
+	}
+	return nil
 }
 
 func (f *fatFile) Delete(recursive bool) (err error) {
