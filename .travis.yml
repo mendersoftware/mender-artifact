@@ -37,21 +37,22 @@ before_script:
 jobs:
   include:
     - stage: build
+      os: linux
       script:
           - make build
           - make extracheck
-      os: linux
     - stage: build
+      os: osx
       script: make build
-      os: osx
     - stage: test
-      script: true
       os: osx
+      install: make install
+      script: cd ./tests-acceptance-mac/ && ./test-mac.sh
     - stage: test
+      os: linux
       script:
           - make coverage
           - make test
-      os: linux
 
 after_success:
     # Integrate with https://codecov.io
