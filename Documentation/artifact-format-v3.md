@@ -38,8 +38,6 @@ in the "Ordering" section.
   |         |
   |         +---0000
   |         |    |
-  |         |    +---files
-  |         |    |
   |         |    +---type-info
   |         |    |
   |         |    +---meta-data
@@ -57,8 +55,6 @@ in the "Ordering" section.
   |    `---headers
   |         |
   |         +---0000
-  |         |    |
-  |         |    +---files
   |         |    |
   |         |    +---type-info
   |         |    |
