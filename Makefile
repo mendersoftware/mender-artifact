@@ -69,6 +69,7 @@ install:
 
 clean:
 	$(GO) clean
+	rm -f mender-artifact-darwin mender-artifact-linux mender-artifact-windows.exe
 	rm -f coverage.txt coverage-tmp.txt
 
 get-tools:
