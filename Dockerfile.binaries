@@ -12,5 +12,5 @@ RUN make build-natives
 
 FROM alpine:3.9
 RUN apk add xz-dev
-COPY --from=builder /go/src/github.com/mendersoftware/mender-artifact/ /go/bin/
+COPY --from=builder /go/src/github.com/mendersoftware/mender-artifact/mender-artifact* /go/bin/
 ENTRYPOINT [ "/go/bin/mender-artifact-linux" ]
