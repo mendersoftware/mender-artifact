@@ -59,16 +59,23 @@ build-natives:
 		$(GO) build $(GO_LDFLAGS_WIN) $(BUILDV) -tags $(TAGS) nolzma -o $(PKGNAME)-windows.exe $(BUILDFILES) ;
 
 build-contained:
-	rm -f mender-artifact; \
-	image_id=$$(docker build -f Dockerfile . | awk '/Successfully built/{print $$NF;}'); \
-	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact /binary"; \
-	docker image rm $$image_id;
+	rm -f mender-artifact && \
+	image_id=$$(docker build -f Dockerfile . | awk '/Successfully built/{print $$NF;}') && \
+	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact /binary" && \
+	docker image rm $$image_id
+
+build-natives-contained:
+	rm -f mender-artifact && \
+	image_id=$$(docker build -f Dockerfile.binaries . | awk '/Successfully built/{print $$NF;}') && \
+	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact* /binary" && \
+	docker image rm $$image_id
 
 install:
 	cd $(INSTALL_DIR) && $(GO) install $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
 
 clean:
 	$(GO) clean
+	rm -f mender-artifact-darwin mender-artifact-linux mender-artifact-windows.exe
 	rm -f coverage.txt coverage-tmp.txt
 
 get-tools:
