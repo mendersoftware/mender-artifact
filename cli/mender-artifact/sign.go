@@ -19,17 +19,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )
 
 func signExisting(c *cli.Context) error {
-	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
-	if err != nil {
-		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
-	}
-
 	if c.NArg() == 0 {
 		return cli.NewExitError("Nothing specified, nothing signed. \nMaybe you wanted"+
 			" to say 'artifacts sign <pathspec>'?", 1)
@@ -45,7 +40,13 @@ func signExisting(c *cli.Context) error {
 		return cli.NewExitError("Can not use signing key provided: "+err.Error(), 1)
 	}
 
-	tFile, err := ioutil.TempFile(filepath.Dir(c.Args().First()), "mender-artifact")
+	artFile := c.Args().First()
+	outputFile := artFile
+	if len(c.String("output-path")) > 0 {
+		outputFile = c.String("output-path")
+	}
+
+	tFile, err := ioutil.TempFile(filepath.Dir(outputFile), "mender-artifact")
 	if err != nil {
 		err = errors.Wrap(err, "Can not create temporary file for storing artifact")
 		cli.NewExitError(err, 1)
@@ -53,40 +54,25 @@ func signExisting(c *cli.Context) error {
 	defer os.Remove(tFile.Name())
 	defer tFile.Close()
 
-	f, err := os.Open(c.Args().First())
+	f, err := os.Open(artFile)
 	if err != nil {
-		err = errors.Wrapf(err, "Can not open: %s", c.Args().First())
+		err = errors.Wrapf(err, "Can not open: %s", artFile)
 		return cli.NewExitError(err, 1)
 	}
 	defer f.Close()
 
-	reader, err := repack(comp, c.Args().First(), f, tFile, privateKey, "", "")
-	if err != nil {
+	err = awriter.SignExisting(f, tFile, privateKey, c.Bool("force"))
+	if err == awriter.ErrAlreadyExistingSignature {
+		return cli.NewExitError("Artifact already signed, refusing to re-sign. Use force option to override", 1)
+	} else if err != nil {
 		return cli.NewExitError(err, 1)
-	}
-
-	switch ver := reader.GetInfo().Version; ver {
-	case 1:
-		return cli.NewExitError("Can not sign v1 artifact", 1)
-	case 2, 3:
-		if reader.IsSigned && !c.Bool("force") {
-			return cli.NewExitError("Trying to sign already signed artifact; "+
-				"please use force option", 1)
-		}
-	default:
-		return cli.NewExitError("Unsupported version of artifact file: "+string(ver), 1)
 	}
 
 	if err = tFile.Close(); err != nil {
 		return err
 	}
 
-	name := c.Args().First()
-	if len(c.String("output-path")) > 0 {
-		name = c.String("output-path")
-	}
-
-	err = os.Rename(tFile.Name(), name)
+	err = os.Rename(tFile.Name(), outputFile)
 	if err != nil {
 		return cli.NewExitError("Can not store signed artifact: "+err.Error(), 1)
 	}
