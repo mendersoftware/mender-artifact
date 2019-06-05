@@ -17,9 +17,12 @@ package main
 import (
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -55,7 +58,7 @@ func TestSignExistingV1(t *testing.T) {
 
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "can not create version 1 signed artifact")
+	assert.Contains(t, err.Error(), awriter.ErrManifestNotFound.Error())
 }
 
 func TestSignExistingV2(t *testing.T) {
@@ -106,7 +109,7 @@ func TestSignExistingV2(t *testing.T) {
 		filepath.Join(updateTestDir, "artifact.mender.sig")}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Trying to sign already signed artifact")
+	assert.Contains(t, err.Error(), "Artifact already signed")
 
 	// and the same as above with force option
 	os.Args = []string{"mender-artifact", "sign",
@@ -188,4 +191,123 @@ func TestSignExistingWithScripts(t *testing.T) {
 	err = run()
 	assert.NoError(t, err)
 
+}
+
+func TestSignExistingWithModules(t *testing.T) {
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	priv, pub, err := generateKeys()
+	assert.NoError(t, err)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "private.key",
+				Content: priv,
+				IsDir:   false,
+			},
+			{
+				Path:    "public.key",
+				Content: pub,
+				IsDir:   false,
+			},
+			{
+				Path:    "payload-file",
+				Content: []byte("PayloadContent"),
+				IsDir:   false,
+			},
+		})
+
+	os.Args = []string{"mender-artifact", "write", "module-image", "-t", "my-device",
+		"-n", "mender-1.1", "-T", "custom-update-type",
+		"-f", filepath.Join(updateTestDir, "payload-file"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender")}
+	err = run()
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "sign",
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender.sig"),
+		filepath.Join(updateTestDir, "artifact.mender")}
+
+	err = run()
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "validate",
+		"-k", filepath.Join(updateTestDir, "public.key"),
+		filepath.Join(updateTestDir, "artifact.mender.sig")}
+
+	err = run()
+	assert.NoError(t, err)
+
+	cmd := exec.Command("tar", "tvf", filepath.Join(updateTestDir, "artifact.mender"))
+	origTar, err := cmd.Output()
+	assert.NoError(t, err)
+	cmd = exec.Command("tar", "tvf", filepath.Join(updateTestDir, "artifact.mender.sig"))
+	newTar, err := cmd.Output()
+	assert.NoError(t, err)
+
+	// There should be no change in the tar output otherwise.
+	origTarLines := strings.Split(string(origTar), "\n")
+	newTarLines := strings.Split(string(newTar), "\n")
+	manifestSigRemoved := make([]string, 0, len(newTarLines))
+	sig := "manifest.sig"
+	for _, newTarLine := range newTarLines {
+		if len(newTarLine) >= len(sig) && newTarLine[len(newTarLine)-len(sig):] == sig {
+			continue
+		}
+		manifestSigRemoved = append(manifestSigRemoved, newTarLine)
+	}
+	assert.Equal(t, origTarLines, manifestSigRemoved)
+}
+
+func TestSignExistingBrokenFiles(t *testing.T) {
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	priv, pub, err := generateKeys()
+	assert.NoError(t, err)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "private.key",
+				Content: priv,
+				IsDir:   false,
+			},
+			{
+				Path:    "public.key",
+				Content: pub,
+				IsDir:   false,
+			},
+			{
+				Path:    "empty-file",
+				Content: []byte(""),
+				IsDir:   false,
+			},
+			{
+				Path:    "garbled-artifact",
+				Content: []byte("DefinitelyNotTar"),
+				IsDir:   false,
+			},
+		})
+
+	os.Args = []string{"mender-artifact", "sign",
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender.sig"),
+		filepath.Join(updateTestDir, "empty-file")}
+
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Corrupt Artifact")
+
+	os.Args = []string{"mender-artifact", "sign",
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender.sig"),
+		filepath.Join(updateTestDir, "garbled-artifact")}
+
+	err = run()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Could not read tar header")
 }
