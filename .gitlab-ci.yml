@@ -61,6 +61,7 @@ build:make:
   before_script: []
   stage: build
   script:
+    - apt-get update && apt-get install -yyq liblzma-dev
     - mkdir -p /go/src/github.com/mendersoftware /go/src/_/builds
     - cp -r $CI_PROJECT_DIR /go/src/github.com/mendersoftware/mender-artifact
     - ln -s /go/src/github.com/mendersoftware /go/src/_/builds/mendersoftware
