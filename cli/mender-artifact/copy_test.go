@@ -250,25 +250,25 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "error: artifact does not contain a data partition",
 			initfunc: func(string) {
-				assert.Nil(t, ioutil.WriteFile("output.txt", nil, 0755))
+				assert.Nil(t, ioutil.WriteFile("foo.txt", nil, 0755))
 
 			},
-			argv: []string{"mender-artifact", "cp", "output.txt", "<artifact>:/data/test.txt"},
+			argv: []string{"mender-artifact", "cp", "foo.txt", "<artifact>:/data/test.txt"},
 			err:  "newArtifactExtFile: A mender artifact does not contain a data partition, only a rootfs",
 			verifyTestFunc: func(string) {
-				os.Remove("output.txt")
+				os.Remove("foo.txt")
 			},
 		},
 		{
 			name: "error: artifact does not contain a boot partition",
 			initfunc: func(string) {
-				assert.Nil(t, ioutil.WriteFile("output.txt", nil, 0755))
+				assert.Nil(t, ioutil.WriteFile("foo.txt", nil, 0755))
 
 			},
-			argv: []string{"mender-artifact", "cp", "output.txt", "<artifact>:/uboot/test.txt"},
+			argv: []string{"mender-artifact", "cp", "foo.txt", "<artifact>:/uboot/test.txt"},
 			err:  "newArtifactExtFile: A mender artifact does not contain a boot partition, only a rootfs",
 			verifyTestFunc: func(string) {
-				os.Remove("output.txt")
+				os.Remove("foo.txt")
 			},
 		},
 		{
@@ -363,6 +363,9 @@ func TestCopyRootfsImage(t *testing.T) {
 			},
 			argv:     []string{"mender-artifact", "cat", "<sdimg|fat-sdimg>:/boot/efi/test.txt"},
 			expected: "foobar",
+			verifyTestFunc: func(string) {
+				os.Remove("foo.txt")
+			},
 		},
 		{
 			name: "write and read from the boot/grub partition",
@@ -405,6 +408,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			},
 			argv: []string{"mender-artifact", "cp", "foo.txt", "<artifact>:/test.txt"},
 			verifyTestFunc: func(imgpath string) {
+				defer os.Remove("foo.txt")
 				// Read the artifact after cp.
 				readScripts := func(r io.Reader, info os.FileInfo) error {
 					return nil
@@ -421,7 +425,6 @@ func TestCopyRootfsImage(t *testing.T) {
 				// Verify that the artifact-name has not changed.
 				assert.Equal(t, "test-artifact", ar.GetArtifactName())
 				// Cleanup
-				os.Remove("foo.txt")
 			},
 		},
 		{
@@ -431,6 +434,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			},
 			argv: []string{"mender-artifact", "cp", "foo.txt", "<artifact>:/etc/test.txt"},
 			verifyTestFunc: func(imgpath string) {
+				defer os.Remove("foo.txt")
 				// Read the artifact after cp.
 				readScripts := func(r io.Reader, info os.FileInfo) error {
 					return nil
@@ -447,7 +451,6 @@ func TestCopyRootfsImage(t *testing.T) {
 				inst := r.GetHandlers()
 				// Verify that the update name has not changed.
 				assert.Equal(t, "mender_test.img", inst[0].GetUpdateFiles()[0].Name)
-				os.Remove("foo.txt")
 			},
 		},
 		{
@@ -463,7 +466,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "Error when deleting a non-empty directory from an image or Artifact",
 			argv: []string{"mender-artifact", "rm", "<artifact|sdimg|fat-sdimg>:/etc/mender/"},
-			err:  `debugfsRemoveDir: debugfs: error running command:`,
+			err:  "debugfsRemoveDir: debugfs: error running command:",
 		},
 		{
 			name: "Delete a directory from an image or Artifact recursively",
@@ -484,6 +487,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			},
 			argv: []string{"mender-artifact", "rm", "<fat-sdimg>:/boot/grub/test.txt"},
 			verifyTestFunc: func(imgpath string) {
+				defer os.Remove("test.txt")
 				os.Args = []string{"mender-artifact", "cat",
 					imgpath + ":/boot/test.txt"}
 				err := run()
