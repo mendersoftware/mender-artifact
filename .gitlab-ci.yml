@@ -38,6 +38,7 @@ test:static:
     - make coverage
     - mv /go/src/github.com/mendersoftware/mender-artifact/coverage.txt $CI_PROJECT_DIR/coverage.txt
   artifacts:
+    expire_in: 2w
     untracked: true
     paths:
       - coverage.txt
@@ -50,7 +51,7 @@ build:
     - docker build -t $DOCKER_REPOSITORY:pr .
     - docker save $DOCKER_REPOSITORY:pr > image.tar
   artifacts:
-    expire_in: 1h
+    expire_in: 2w
     paths:
       - image.tar
   tags:
@@ -66,7 +67,7 @@ build:make:
     - cp /go/src/github.com/mendersoftware/mender-artifact/mender-artifact $CI_PROJECT_DIR
     - chmod +x $CI_PROJECT_DIR/mender-artifact
   artifacts:
-    expire_in: 1h
+    expire_in: 2w
     paths:
       - mender-artifact
   tags:
