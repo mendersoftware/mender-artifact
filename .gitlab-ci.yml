@@ -43,7 +43,7 @@ test:static:
     paths:
       - coverage.txt
 
-build:
+build:docker:
   image: docker
   before_script: []
   stage: build
@@ -88,7 +88,7 @@ publish:build:
   before_script: []
   stage: publish
   dependencies:
-    - build
+    - build:docker
   script:
     - echo "publishing image to docker hub"
     # - docker load -i image.tar
@@ -106,7 +106,7 @@ publish:build:master:
   before_script: []
   stage: publish
   dependencies:
-    - build
+    - build:docker
   script:
     - echo "publishing image to docker hub"
     # - docker load -i image.tar
