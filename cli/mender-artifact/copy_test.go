@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -538,10 +539,6 @@ func TestCopyRootfsImage(t *testing.T) {
 
 	for _, test := range tests {
 
-		// if test.name != "data on stdin" {
-		// 	continue
-		// }
-
 		// create a copy of the working images
 		artifact, sdimg, fatsdimg, closer := testSetupTeardown(t)
 		defer closer()
@@ -644,6 +641,37 @@ func TestCopyRootfsImage(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestCopyFromStdin(t *testing.T) {
+
+	// Copy in from stdin
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(t, err)
+	}
+	orgStdin := os.Stdin
+	os.Stdin = r
+	w.Write([]byte("foobar"))
+	artifact, _, _, closer := testSetupTeardown(t)
+	defer closer()
+	os.Args = []string{"mender-artifact", "cp", artifact + ":foo.txt"}
+	defer r.Close()
+	go func() {
+		time.Sleep(1 * time.Second)
+		w.Close() // EOF
+	}()
+	err = run()
+	assert.Nil(t, err)
+
+	// Copy back out and verify
+	os.Args = append(os.Args, "output.txt")
+	os.Stdin = orgStdin
+	err = run()
+	defer os.Remove("output.txt")
+	assert.Nil(t, err)
+	of, err := ioutil.ReadFile("output.txt")
+	assert.Equal(t, string(of), "foobar")
 }
 
 func TestCopyModuleImage(t *testing.T) {
