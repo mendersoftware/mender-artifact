@@ -468,7 +468,7 @@ func (f *fatFile) CopyTo(hostFile string) error {
 }
 
 func (f *fatFile) CopyFrom(hostFile string) error {
-	cmd := exec.Command("mcopy", "-i", f.path, "::"+f.imageFilePath, hostFile)
+	cmd := exec.Command("mcopy", "-n", "-i", f.path, "::"+f.imageFilePath, hostFile)
 	dbuf := bytes.NewBuffer(nil)
 	cmd.Stdout = dbuf // capture Stdout
 	if err := cmd.Run(); err != nil {
