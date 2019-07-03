@@ -645,37 +645,92 @@ func TestCopyRootfsImage(t *testing.T) {
 
 func TestCopyFromStdin(t *testing.T) {
 
-	_, sdimg, fatsdimg, closer := testSetupTeardown(t)
-	defer closer()
-	for _, testimg := range []string{sdimg, fatsdimg} {
-		// Copy in from stdin
-		r, w, err := os.Pipe()
-		if err != nil {
-			t.Fatal(t, err)
-		}
-		orgStdin := os.Stdin
-		os.Stdin = r
-		w.Write([]byte("foobar"))
-		os.Args = []string{"mender-artifact", "cp", testimg + ":/uboot/foo.txt"}
-		defer r.Close()
-		go func(w *os.File) {
-			time.Sleep(1 * time.Second)
-			err := w.Close() // EOF
-			if err != nil {
-				t.Fatalf("Failed to close the pipe")
-			}
-		}(w)
-		err = run()
-		assert.Nil(t, err)
+	type testArgs struct {
+		name      string
+		argv      []string
+		stdinPipe *os.File
+		testImg   string
+	}
 
-		// Copy back out and verify
-		os.Args = append(os.Args, "output.txt")
-		os.Stdin = orgStdin
-		err = run()
-		defer os.Remove("output.txt")
-		assert.Nil(t, err)
-		of, err := ioutil.ReadFile("output.txt")
-		assert.Equal(t, string(of), "foobar")
+	type testExpects struct {
+		name    string
+		testImg string
+		err     error
+	}
+
+	tests := []struct {
+		name           string
+		argv           []string
+		setupTestFunc  func(testArgs)
+		verifyTestFunc func(testExpects)
+	}{
+		{
+			name: "Test boot partition file copy from stdin (ext4, fat)",
+			setupTestFunc: func(ta testArgs) {
+				ta.stdinPipe.Write([]byte("foobar"))
+				os.Args = []string{"mender-artifact", "cp", ta.testImg + ":/uboot/foo.txt"}
+			},
+			verifyTestFunc: func(te testExpects) {
+				assert.Nil(t, te.err)
+
+				// Copy back out and verify
+				os.Args = []string{"mender-artifact", "cp", te.testImg + ":/uboot/foo.txt", "output.txt"}
+				err := run()
+				// defer os.Remove("output.txt")
+				assert.Nil(t, err)
+				of, err := ioutil.ReadFile("output.txt")
+				assert.Nil(t, err)
+				assert.Equal(t, "foobar", string(of), te.name, te.testImg)
+			},
+		},
+		{
+			name: "Test non existing dir from stdin (ext, fat)",
+			setupTestFunc: func(ta testArgs) {
+				ta.stdinPipe.Write([]byte("foobar"))
+				os.Args = []string{"mender-artifact", "cp", ta.testImg + ":/uboot/nonexisting/foo.txt"}
+			},
+			verifyTestFunc: func(te testExpects) {
+				assert.Error(t, te.err, te.name, te.testImg)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		_, sdimg, fatsdimg, closer := testSetupTeardown(t)
+		defer closer()
+		for _, testimg := range []string{sdimg, fatsdimg} {
+			// Copy in from stdin
+			r, w, err := os.Pipe()
+			defer r.Close()
+			defer w.Close()
+			if err != nil {
+				t.Fatal(t, err)
+			}
+			orgStdin := os.Stdin
+			os.Stdin = r
+			test.setupTestFunc(testArgs{
+				name:      test.name,
+				testImg:   testimg,
+				stdinPipe: w,
+			})
+			go func(w *os.File) {
+				time.Sleep(1 * time.Second)
+				err := w.Close() // EOF
+				if err != nil {
+					t.Fatalf("Failed to close the pipe")
+				}
+			}(w)
+			err = run()
+			// Reset the original stdin
+			os.Stdin = orgStdin
+			test.verifyTestFunc(testExpects{
+				name:    test.name,
+				testImg: testimg,
+				err:     err,
+			})
+
+		}
+
 	}
 }
 
