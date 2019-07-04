@@ -29,9 +29,9 @@ in the "Ordering" section.
   |    |
   |    +---scripts
   |    |    |
-  |    |    +---State.Enter
-  |    |    +---State.Leave
-  |    |    +---State.Error
+  |    |    +---State_Enter
+  |    |    +---State_Leave
+  |    |    +---State_Error
   |    |    `---<more scripts>
   |    |
   |    `---headers
@@ -312,33 +312,29 @@ another one, respectively.
 
 The complete script API consists of the following scripts:
 
-* `(Idle.Enter)`
-* `(Idle.Leave)`
-* `(Idle.Error)`
-* `(Sync.Enter)`
-* `(Sync.Leave)`
-* `(Sync.Error)`
-* `(Download.Enter)`
-* `(Download.Leave)`
-* `(Download.Error)`
-* `ArtifactInstall.Enter`
-* `ArtifactInstall.Leave`
-* `ArtifactInstall.Error`
-* `ArtifactReboot.Enter`
-* `ArtifactReboot.Leave`
-* `ArtifactReboot.Error`
-* `ArtifactCommit.Enter`
-* `ArtifactCommit.Leave`
-* `ArtifactCommit.Error`
-* `ArtifactRollback.Enter`
-* `ArtifactRollback.Leave`
-* `ArtifactRollback.Error`
-* `ArtifactRollbackReboot.Enter`
-* `ArtifactRollbackReboot.Leave`
-* `ArtifactRollbackReboot.Error`
-* `ArtifactFailure.Enter`
-* `ArtifactFailure.Leave`
-*  **IMPORTANT** there is no `ArtifactFailure.Error` state script support
+* `(Idle_Enter)`
+* `(Idle_Leave)`
+* `(Sync_Enter)`
+* `(Sync_Leave)`
+* `(Download_Enter)`
+* `(Download_Leave)`
+* `(Download_Error)`
+* `ArtifactInstall_Enter`
+* `ArtifactInstall_Leave`
+* `ArtifactInstall_Error`
+* `ArtifactReboot_Enter`
+* `ArtifactReboot_Leave`
+* `ArtifactReboot_Error`
+* `ArtifactCommit_Enter`
+* `ArtifactCommit_Leave`
+* `ArtifactCommit_Error`
+* `ArtifactRollback_Enter`
+* `ArtifactRollback_Leave`
+* `ArtifactRollbackReboot_Enter`
+* `ArtifactRollbackReboot_Leave`
+* `ArtifactFailure_Enter`
+* `ArtifactFailure_Leave`
+*  **IMPORTANT** not all the scripts have `Error` support
 
 States in parentheses are states that are supported as scripts on stored on the
 filesystem, but are not included in the Artifact itself.
