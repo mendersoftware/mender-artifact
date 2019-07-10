@@ -599,18 +599,16 @@ func (ar *Reader) ReadArtifactHeaders() error {
 		return err
 	}
 
-	for no, us := range ar.updateStorers {
-		err = us.Initialize(ar.hInfo, ar.augmentedhInfo, ar.installers[no])
-		if err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
 func (ar *Reader) ReadArtifactData() error {
-	err := ar.readData(ar.menderTarReader)
+	err := ar.initializeUpdateStorers()
+	if err != nil {
+		return err
+	}
+
+	err = ar.readData(ar.menderTarReader)
 	if err != nil {
 		return err
 	}
@@ -689,13 +687,35 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error
 				return err
 			}
 		}
+	}
+	return nil
+}
 
+func (ar *Reader) initializeUpdateStorers() error {
+	if len(ar.updateStorers) == len(ar.installers) {
+		// Already done.
+		return nil
+	}
+
+	for i, update := range ar.installers {
 		var err error
-		ar.updateStorers[i], err = ar.installers[i].NewUpdateStorer(update.Type, i)
+
+		ar.updateStorers[i], err = ar.installers[i].NewUpdateStorer(update.GetUpdateType(), i)
+		if err != nil {
+			return err
+		}
+
+		err = ar.updateStorers[i].Initialize(ar.hInfo, ar.augmentedhInfo, ar.installers[i])
 		if err != nil {
 			return err
 		}
 	}
+	if len(ar.updateStorers) != len(ar.installers) {
+		return errors.Errorf(
+			"Mismatch between installers/updateStorers lengths (%d != %d). Should not happen!",
+			len(ar.updateStorers), len(ar.installers))
+	}
+
 	return nil
 }
 
@@ -1000,12 +1020,17 @@ func (ar *Reader) readAndInstallDataFiles(tar *tar.Reader, i handlers.Installer,
 }
 
 func (ar *Reader) GetUpdateStorers() ([]handlers.UpdateStorer, error) {
+	err := ar.initializeUpdateStorers()
+	if err != nil {
+		return nil, err
+	}
+
 	length := len(ar.updateStorers)
 	list := make([]handlers.UpdateStorer, length)
 
 	for i := range ar.updateStorers {
 		if i >= length {
-			return []handlers.UpdateStorer{}, errors.New("Update payload numbers are not in strictly increasing numbers from zero")
+			return nil, errors.New("Update payload numbers are not in strictly increasing numbers from zero")
 		}
 		list[i] = ar.updateStorers[i]
 	}
