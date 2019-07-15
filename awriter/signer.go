@@ -31,7 +31,6 @@ func SignExisting(src io.Reader, dst io.Writer, key []byte, overwrite bool) erro
 	var foundManifest bool
 	rTar := tar.NewReader(src)
 	wTar := tar.NewWriter(dst)
-	buf := make([]byte, 1048576) // 1MiB
 	for {
 		header, err := rTar.Next()
 		if err == io.EOF {
@@ -61,18 +60,9 @@ func SignExisting(src io.Reader, dst io.Writer, key []byte, overwrite bool) erro
 			return errors.Wrap(err, "Could not write tar header")
 		}
 
-		read, err := rTar.Read(buf)
-		if err != nil && err != io.EOF {
-			return errors.Wrap(err, "Could not read tar file entry")
-		} else if read == 0 {
-			continue
-		}
-
-		written, err := wTar.Write(buf[:read])
+		_, err = io.Copy(wTar, rTar)
 		if err != nil {
-			return errors.Wrap(err, "Could not write tar file entry")
-		} else if written != read {
-			return errors.New("Not able to write entire tar file entry")
+			return errors.Wrap(err, "Failed to copy tar body")
 		}
 	}
 
