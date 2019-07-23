@@ -875,18 +875,33 @@ func readNext(tr *tar.Reader, w io.Writer, elem string) error {
 	if err != nil {
 		return errors.Wrap(err, "readNext: Failed to get next header")
 	}
-	if strings.HasPrefix(hdr.Name, elem) {
-		_, err := io.Copy(w, tr)
-		// io.Copy() is not supposed to return EOF, but it can if the
-		// EOF is a wrapped error, which can happen if the underlying
-		// Reader is a network stream.
-		if err == nil || errors.Cause(err) == io.EOF {
-			return nil
-		} else {
-			return errors.Wrap(err, "readNext: Failed to copy from tarReader to the writer")
-		}
+
+	if !strings.HasPrefix(hdr.Name, elem) {
+		return os.ErrInvalid
 	}
-	return os.ErrInvalid
+
+	buf := new(bytes.Buffer)
+	_, err = io.Copy(buf, tr)
+
+	// io.Copy() is not supposed to return EOF, but it can if the EOF is a
+	// wrapped error, which can happen if the underlying Reader is a network
+	// stream.
+	if err != nil && errors.Cause(err) != io.EOF {
+		return errors.Wrap(err, "readNext: Failed to copy from tarReader to the buffer")
+	}
+
+	// The reason we did not write directly into w above is that if the
+	// stream comes from a slow network socket, it may be sufficiently
+	// chopped up that the JSON cannot be parsed due to being partial, and
+	// the Write() call to the HeaderInfo struct does not like
+	// that. Therefore we collect everything in the buffer first, and then
+	// write it here in one go.
+	_, err = buf.WriteTo(w)
+	if err != nil {
+		return errors.Wrapf(err, "readNext: Could not parse header element %s", elem)
+	}
+
+	return nil
 }
 
 func getNext(tr *tar.Reader) (*tar.Header, error) {
