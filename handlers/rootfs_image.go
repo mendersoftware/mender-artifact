@@ -32,6 +32,7 @@ type Rootfs struct {
 	regularHeaderRead bool
 
 	typeInfoV3 *artifact.TypeInfoV3
+	metaData   map[string]interface{}
 
 	// If this is augmented instance: The original instance.
 	original ArtifactUpdate
@@ -139,7 +140,26 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bo
 		}
 
 	case filepath.Base(path) == "meta-data":
-		// TODO: implement when needed
+		dec := json.NewDecoder(r)
+		var data interface{}
+		err := dec.Decode(&data)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return errors.Wrap(err, "error reading meta-data")
+		}
+		jsonObj, ok := data.(map[string]interface{})
+		if !ok {
+			return errors.New("Top level object in meta-data must be a JSON object")
+		}
+		if augmented {
+			err = rp.setUpdateAugmentMetaData(jsonObj)
+		} else {
+			err = rp.setUpdateOriginalMetaData(jsonObj)
+		}
+		if err != nil {
+			return err
+		}
 	case match(artifact.HeaderDirectory+"/*/signatures/*", path),
 		match(artifact.HeaderDirectory+"/*/scripts/*/*", path):
 		if augmented {
@@ -247,6 +267,23 @@ func (rfs *Rootfs) GetUpdateMetaData() (map[string]interface{}, error) {
 	return rfs.GetUpdateOriginalMetaData(), nil
 }
 
+func (rfs *Rootfs) setUpdateOriginalMetaData(jsonObj map[string]interface{}) error {
+	if rfs.original != nil {
+		return errors.New("setUpdateOriginalMetaData() called on non-original instance.")
+	} else {
+		rfs.metaData = jsonObj
+	}
+	return nil
+}
+
+func (rfs *Rootfs) setUpdateAugmentMetaData(jsonObj map[string]interface{}) error {
+	if rfs.original == nil {
+		return errors.New("Called setUpdateAugmentMetaData() on non-augment instance")
+	}
+	rfs.metaData = jsonObj
+	return nil
+}
+
 func (rfs *Rootfs) GetUpdateOriginalDepends() *artifact.TypeInfoDepends {
 	if rfs.typeInfoV3 == nil {
 		return nil
@@ -262,7 +299,11 @@ func (rfs *Rootfs) GetUpdateOriginalProvides() *artifact.TypeInfoProvides {
 }
 
 func (rfs *Rootfs) GetUpdateOriginalMetaData() map[string]interface{} {
-	return nil
+	if rfs.original != nil {
+		return rfs.original.GetUpdateOriginalMetaData()
+	} else {
+		return rfs.metaData
+	}
 }
 
 func (rfs *Rootfs) GetUpdateAugmentDepends() *artifact.TypeInfoDepends {
@@ -274,7 +315,11 @@ func (rfs *Rootfs) GetUpdateAugmentProvides() *artifact.TypeInfoProvides {
 }
 
 func (rfs *Rootfs) GetUpdateAugmentMetaData() map[string]interface{} {
-	return nil
+	if rfs.original == nil {
+		return nil
+	} else {
+		return rfs.metaData
+	}
 }
 
 func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {

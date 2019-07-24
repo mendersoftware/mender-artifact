@@ -31,6 +31,8 @@ const (
 	errArtifactCreate
 	errArtifactOpen
 	errArtifactInvalid
+	errArtifactUnsupportedFeature
+	errSystemError
 )
 
 // Version of the mender-artifact CLI tool
@@ -366,6 +368,35 @@ func getCliContext() *cli.App {
 		},
 	}
 
+	//
+	// dump
+	//
+	dumpCommand := cli.Command{
+		Name:        "dump",
+		Usage:       "Dump contents from Artifacts",
+		ArgsUsage:   "<Artifact>",
+		Description: "Dump various raw files from the Artifact. These can be used to create a new Artifact with the same components.",
+		Action:      DumpCommand,
+	}
+	dumpCommand.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:  "files",
+			Usage: "Dump all included files in the first payload into given folder",
+		},
+		cli.StringFlag{
+			Name:  "meta-data",
+			Usage: "Dump the contents of the meta-data field in the first payload into given folder",
+		},
+		cli.StringFlag{
+			Name:  "scripts",
+			Usage: "Dump all included state scripts into given folder",
+		},
+		cli.BoolFlag{
+			Name:  "print-cmdline",
+			Usage: "Print the command line that can recreate the same Artifact with the components being dumped. If all the components are being dumped, a nearly identical Artifact can be created. Note that timestamps will cause the checksum of the Artifact to be different, and signatures can not be recreated this way. The command line will only use long option names.",
+		},
+	}
+
 	compressors := artifact.GetRegisteredCompressorIds()
 	globalFlags := []cli.Flag{
 		cli.StringFlag{
@@ -386,6 +417,7 @@ func getCliContext() *cli.App {
 		cat,
 		install,
 		remove,
+		dumpCommand,
 	}
 	app.Flags = append([]cli.Flag{}, globalFlags...)
 
