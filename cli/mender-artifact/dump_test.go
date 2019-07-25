@@ -127,6 +127,8 @@ func testDumpContent(t *testing.T, imageType string) {
 		" --device-type TestDevice"+
 		" --depends-groups dependsGroup"+
 		" --type %s"+
+		" --provides testProvides:someProv"+
+		" --depends testDepends:someDep"+
 		" --script %s/scripts/ArtifactInstall_Enter_45_test"+
 		" --meta-data %s/meta/0000.meta-data"+
 		" --file %s/files/file",
@@ -178,43 +180,32 @@ func testDumpContent(t *testing.T, imageType string) {
 
 	assert.NoError(t, err)
 	printedStr := string(printed)
-	// The scripts are stored in a map, where the order is unpredictable, so
-	// cover both cases.
-	if strings.Index(printedStr, "ArtifactInstall_Enter_45_test") < strings.Index(printedStr, "ArtifactCommit_Leave_55") {
-		assert.Equal(t, fmt.Sprintf("write module-image"+
-			" --artifact-name Name"+
-			" --provides-group providesGroup"+
-			" --artifact-name-depends dependsOnArtifact"+
-			" --artifact-name-depends dependsOnArtifact2"+
-			" --device-type TestDevice"+
-			" --device-type TestDevice2"+
-			" --depends-groups dependsGroup"+
-			" --depends-groups dependsGroup2"+
-			" --type %s"+
-			" --script %s/scripts/ArtifactInstall_Enter_45_test"+
-			" --script %s/scripts/ArtifactCommit_Leave_55"+
-			" --meta-data %s/meta/0000.meta-data"+
-			" --file %s/files/file"+
-			" --file %s/files/file2",
-			imageType, tmpdir, tmpdir, tmpdir, tmpdir, tmpdir),
-			printedStr)
-	} else {
-		assert.Equal(t, fmt.Sprintf("write module-image"+
-			" --artifact-name Name"+
-			" --provides-group providesGroup"+
-			" --artifact-name-depends dependsOnArtifact"+
-			" --artifact-name-depends dependsOnArtifact2"+
-			" --device-type TestDevice"+
-			" --device-type TestDevice2"+
-			" --depends-groups dependsGroup"+
-			" --depends-groups dependsGroup2"+
-			" --type %s"+
-			" --script %s/scripts/ArtifactCommit_Leave_55"+
-			" --script %s/scripts/ArtifactInstall_Enter_45_test"+
-			" --meta-data %s/meta/0000.meta-data"+
-			" --file %s/files/file"+
-			" --file %s/files/file2",
-			imageType, tmpdir, tmpdir, tmpdir, tmpdir, tmpdir),
-			printedStr)
-	}
+	// The provides, depends and scripts are stored in maps, where the order
+	// is unpredictable, so compare only the beginning and end directly, and
+	// use search to match those afterwards.
+	assert.Equal(t, fmt.Sprintf("write module-image"+
+		" --artifact-name Name"+
+		" --provides-group providesGroup"+
+		" --artifact-name-depends dependsOnArtifact"+
+		" --artifact-name-depends dependsOnArtifact2"+
+		" --device-type TestDevice"+
+		" --device-type TestDevice2"+
+		" --depends-groups dependsGroup"+
+		" --depends-groups dependsGroup2"+
+		" --type %s",
+		imageType),
+		printedStr[0:strings.Index(printedStr, " --provides ")])
+
+	assert.Equal(t, fmt.Sprintf(" --meta-data %s/meta/0000.meta-data"+
+		" --file %s/files/file"+
+		" --file %s/files/file2",
+		tmpdir, tmpdir, tmpdir),
+		printedStr[strings.Index(printedStr, " --meta-data "):])
+
+	assert.True(t, strings.Index(printedStr, " --provides testProvides:someProv") >= 0)
+	assert.True(t, strings.Index(printedStr, " --provides testProvides2:someProv2") >= 0)
+	assert.True(t, strings.Index(printedStr, " --depends testDepends:someDep") >= 0)
+	assert.True(t, strings.Index(printedStr, " --depends testDepends2:someDep2") >= 0)
+	assert.True(t, strings.Index(printedStr, fmt.Sprintf(" --script %s/scripts/ArtifactInstall_Enter_45_test", tmpdir)) >= 0)
+	assert.True(t, strings.Index(printedStr, fmt.Sprintf(" --script %s/scripts/ArtifactCommit_Leave_55", tmpdir)) >= 0)
 }
