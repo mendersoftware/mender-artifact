@@ -89,7 +89,7 @@ func readStateScripts(tr *tar.Reader, header *tar.Header, cb ScriptsReadFn) erro
 
 	for {
 		hdr, err := getNext(tr)
-		if err == io.EOF {
+		if errors.Cause(err) == io.EOF {
 			return nil
 		} else if err != nil {
 			return errors.Wrapf(err,
@@ -370,7 +370,7 @@ func (ar *Reader) readHeaderV3(version []byte) error {
 
 	for {
 		hdr, err := ar.menderTarReader.Next()
-		if err == io.EOF {
+		if errors.Cause(err) == io.EOF {
 			return errors.New("The artifact does not contain all required fields")
 		}
 		if err != nil {
@@ -820,7 +820,7 @@ func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header, augmented bo
 
 		var err error
 		hdr, err = getNext(tr)
-		if err == io.EOF {
+		if errors.Cause(err) == io.EOF {
 			return nil
 		} else if err != nil {
 			return errors.Wrapf(err,
@@ -831,7 +831,7 @@ func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header, augmented bo
 
 func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
 	hdr, err := getNext(tr)
-	if err == io.EOF {
+	if errors.Cause(err) == io.EOF {
 		return io.EOF
 	} else if err != nil {
 		return errors.Wrapf(err, "reader: error reading Payload file: [%v]", hdr)
@@ -858,7 +858,7 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
 func (ar *Reader) readData(tr *tar.Reader) error {
 	for {
 		err := ar.readNextDataFile(tr)
-		if err == io.EOF {
+		if errors.Cause(err) == io.EOF {
 			break
 		} else if err != nil {
 			return err
@@ -875,17 +875,39 @@ func readNext(tr *tar.Reader, w io.Writer, elem string) error {
 	if err != nil {
 		return errors.Wrap(err, "readNext: Failed to get next header")
 	}
-	if strings.HasPrefix(hdr.Name, elem) {
-		_, err := io.Copy(w, tr)
-		return errors.Wrap(err, "readNext: Failed to copy from tarReader to the writer")
+
+	if !strings.HasPrefix(hdr.Name, elem) {
+		return os.ErrInvalid
 	}
-	return os.ErrInvalid
+
+	buf := new(bytes.Buffer)
+	_, err = io.Copy(buf, tr)
+
+	// io.Copy() is not supposed to return EOF, but it can if the EOF is a
+	// wrapped error, which can happen if the underlying Reader is a network
+	// stream.
+	if err != nil && errors.Cause(err) != io.EOF {
+		return errors.Wrap(err, "readNext: Failed to copy from tarReader to the buffer")
+	}
+
+	// The reason we did not write directly into w above is that if the
+	// stream comes from a slow network socket, it may be sufficiently
+	// chopped up that the JSON cannot be parsed due to being partial, and
+	// the Write() call to the HeaderInfo struct does not like
+	// that. Therefore we collect everything in the buffer first, and then
+	// write it here in one go.
+	_, err = buf.WriteTo(w)
+	if err != nil {
+		return errors.Wrapf(err, "readNext: Could not parse header element %s", elem)
+	}
+
+	return nil
 }
 
 func getNext(tr *tar.Reader) (*tar.Header, error) {
 	for {
 		hdr, err := tr.Next()
-		if err == io.EOF {
+		if errors.Cause(err) == io.EOF {
 			// we've reached end of archive
 			return hdr, err
 		} else if err != nil {
@@ -941,7 +963,7 @@ func (ar *Reader) readAndInstallDataFiles(tar *tar.Reader, i handlers.Installer,
 
 	for {
 		hdr, err := tar.Next()
-		if err == io.EOF {
+		if errors.Cause(err) == io.EOF {
 			break
 		} else if err != nil {
 			return errors.Wrap(err, "Payload: error reading Artifact file header")
