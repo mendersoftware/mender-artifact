@@ -199,8 +199,22 @@ func printCmdline(ar *areader.Reader, args []string) {
 	}
 
 	handlers := ar.GetHandlers()
-	if len(handlers) > 0 {
-		fmt.Printf(" --type %s", ar.GetHandlers()[0].GetUpdateType())
+	handler := handlers[0]
+
+	fmt.Printf(" --type %s", handler.GetUpdateType())
+
+	provs := handler.GetUpdateOriginalProvides()
+	if provs != nil {
+		for key, value := range *provs {
+			fmt.Printf(" --provides %s:%s", key, value)
+		}
+	}
+
+	deps := handler.GetUpdateOriginalDepends()
+	if deps != nil {
+		for key, value := range *deps {
+			fmt.Printf(" --depends %s:%s", key, value)
+		}
 	}
 
 	if len(args) > 0 {
