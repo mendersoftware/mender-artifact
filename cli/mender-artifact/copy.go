@@ -77,37 +77,38 @@ func Copy(c *cli.Context) (err error) {
 	var vfile VPFile
 	switch parseCLIOptions(c) {
 	case copyin:
-		r, err = os.OpenFile(c.Args().First(), os.O_CREATE|os.O_RDONLY, 0655)
+		r, err = os.Open(c.Args().First())
 		defer r.Close()
 		if err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+			return cli.NewExitError(err, 1)
 		}
 		vfile, err = virtualPartitionFile.Open(comp, c.Args().Get(1))
 		defer wclose(vfile)
 		if err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+			return cli.NewExitError(err, 1)
 		}
-		w = vfile
+		if err = vfile.CopyTo(c.Args().First()); err != nil {
+			return cli.NewExitError(err, 1)
+		}
+		return nil
 	case copyinstdin:
 		r = os.Stdin
 		vfile, err = virtualPartitionFile.Open(comp, c.Args().First())
 		defer wclose(vfile)
 		if err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+			return cli.NewExitError(err, 1)
 		}
 		w = vfile
 	case copyout:
 		vfile, err = virtualPartitionFile.Open(comp, c.Args().First())
 		defer wclose(vfile)
 		if err != nil {
+			return cli.NewExitError(err, 1)
+		}
+		if err = vfile.CopyFrom(c.Args().Get(1)); err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		r = vfile
-		w, err = os.OpenFile(c.Args().Get(1), os.O_CREATE|os.O_WRONLY, 0655)
-		defer w.Close()
-		if err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
-		}
+		return nil
 	case parseError:
 		return cli.NewExitError(fmt.Sprintln("no artifact or sdimage provided"), 1)
 	case argerror:
@@ -116,10 +117,10 @@ func Copy(c *cli.Context) (err error) {
 		return cli.NewExitError("critical error", 1)
 	}
 
-	if _, err = io.Copy(w, r); err != nil {
+	_, err = io.Copy(w, r)
+	if err != nil {
 		return cli.NewExitError(err, 1)
 	}
-
 	return nil
 }
 

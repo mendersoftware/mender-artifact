@@ -79,6 +79,9 @@ func TestDebugfs(t *testing.T) {
 		filepath.Join(tmp, "mender_test.img"))
 	assert.NoError(t, err)
 
+	err = debugfsReplaceFile("/nonexisting/foo.txt", tFile.Name(), filepath.Join(tmp, "mender_test.img"))
+	assert.Error(t, err)
+
 	os.RemoveAll(tDir)
 }
 

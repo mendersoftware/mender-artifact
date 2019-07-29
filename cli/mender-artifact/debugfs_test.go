@@ -15,7 +15,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -45,7 +44,6 @@ func TestExecuteCommand(t *testing.T) {
 	for name, test := range tests {
 		_, err := executeCommand(test.cmd, "mender_test.img")
 		t.Log(name)
-		fmt.Fprintf(os.Stderr, "err: %s\n", err)
 		assert.Contains(t, err.Error(), test.expected, "Unexpected error")
 	}
 }

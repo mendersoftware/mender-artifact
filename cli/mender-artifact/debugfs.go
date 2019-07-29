@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	debugfsMissingErr = "The `debugfs` binary is not found on the system. The binary can typically be installed through"+
+	debugfsMissingErr = "The `debugfs` binary is not found on the system. The binary can typically be installed through" +
 		" the `e2fsprogs` package."
 )
 
@@ -107,7 +107,7 @@ func debugfsCopyFile(file, image string) (string, error) {
 	return tmpDir, nil
 }
 
-func debugfsReplaceFile(imageFile, newFile, image string) (err error) {
+func debugfsReplaceFile(imageFile, hostFile, image string) (err error) {
 	// First check that the path exists. (cd path)
 	cmd := fmt.Sprintf("cd %s\nclose", filepath.Dir(imageFile))
 	if _, err = executeCommand(cmd, image); err != nil {
@@ -118,7 +118,7 @@ func debugfsReplaceFile(imageFile, newFile, image string) (err error) {
 	cmd = fmt.Sprintf("rm %s\nclose", imageFile)
 	executeCommand(cmd, image)
 	// Write to the partition
-	cmd = fmt.Sprintf("cd %s\nwrite %s %s\nclose", filepath.Dir(imageFile), newFile, filepath.Base(imageFile))
+	cmd = fmt.Sprintf("cd %s\nwrite %s %s\nclose", filepath.Dir(imageFile), hostFile, filepath.Base(imageFile))
 	_, err = executeCommand(cmd, image)
 	return err
 }
