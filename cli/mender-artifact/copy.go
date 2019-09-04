@@ -93,7 +93,7 @@ func Copy(c *cli.Context) (err error) {
 		return nil
 	case copyinstdin:
 		r = os.Stdin
-		vfile, err = virtualPartitionFile.Open(comp, c.Args().First())
+		vfile, err = virtualPartitionFile.Open(comp, c.Args().Get(1))
 		defer wclose(vfile)
 		if err != nil {
 			return cli.NewExitError(err, 1)
@@ -214,33 +214,28 @@ const (
 
 func parseCLIOptions(c *cli.Context) int {
 
-	finfo, err := os.Stdin.Stat()
-	if err != nil {
-		return criterror
+	if c.NArg() != 2 {
+		return argerror
 	}
 
-	// no data on stdin
-	if finfo.Mode()&os.ModeNamedPipe == 0 {
-		if c.NArg() != 2 {
-			return argerror
-		}
-		switch {
-
-		case isimg.MatchString(c.Args().First()):
-			return copyout
-
-		case isimg.MatchString(c.Args().Get(1)):
-			return copyin
-
-		default:
+	// If the first argument is '-', read from stdin
+	if c.Args().First() == "-" {
+		// Read from stdin
+		if !isimg.MatchString(c.Args().Get(1)) {
 			return parseError
+		}
+		return copyinstdin
+	}
 
-		}
-	} else {
-		// data on stdin
-		if isimg.MatchString(c.Args().First()) {
-			return copyinstdin
-		}
+	switch {
+
+	case isimg.MatchString(c.Args().First()):
+		return copyout
+
+	case isimg.MatchString(c.Args().Get(1)):
+		return copyin
+
+	default:
 		return parseError
 	}
 }
