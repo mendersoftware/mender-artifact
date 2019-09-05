@@ -329,8 +329,10 @@ func getCliContext() *cli.App {
 		Name:        "cp",
 		Usage:       "cp <src> <dst>",
 		Description: "Copies a file into or out of a mender artifact, or sdimg",
-		UsageText:   "Copy from or into an artifact, or sdimg where either the <src> or <dst> has to be of the form [artifact|sdimg]:<filepath>",
-		Action:      Copy,
+		UsageText: "Copy from or into an artifact, or sdimg where either the <src>" +
+			" or <dst> has to be of the form [artifact|sdimg]:<filepath>, <src> can" +
+			"come from stdin in the case that <src> is '-'",
+		Action: Copy,
 	}
 
 	cat := cli.Command{

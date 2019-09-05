@@ -668,7 +668,7 @@ func TestCopyFromStdin(t *testing.T) {
 			name: "Test boot partition file copy from stdin (ext4, fat)",
 			setupTestFunc: func(ta testArgs) {
 				ta.stdinPipe.Write([]byte("foobar"))
-				os.Args = []string{"mender-artifact", "cp", ta.testImg + ":/uboot/foo.txt"}
+				os.Args = []string{"mender-artifact", "cp", "-", ta.testImg + ":/uboot/foo.txt"}
 			},
 			verifyTestFunc: func(te testExpects) {
 				assert.Nil(t, te.err)
@@ -676,7 +676,7 @@ func TestCopyFromStdin(t *testing.T) {
 				// Copy back out and verify
 				os.Args = []string{"mender-artifact", "cp", te.testImg + ":/uboot/foo.txt", "output.txt"}
 				err := run()
-				// defer os.Remove("output.txt")
+				defer os.Remove("output.txt")
 				assert.Nil(t, err)
 				of, err := ioutil.ReadFile("output.txt")
 				assert.Nil(t, err)
@@ -687,7 +687,7 @@ func TestCopyFromStdin(t *testing.T) {
 			name: "Test non existing dir from stdin (ext, fat)",
 			setupTestFunc: func(ta testArgs) {
 				ta.stdinPipe.Write([]byte("foobar"))
-				os.Args = []string{"mender-artifact", "cp", ta.testImg + ":/uboot/nonexisting/foo.txt"}
+				os.Args = []string{"mender-artifact", "cp", "-", ta.testImg + ":/uboot/nonexisting/foo.txt"}
 			},
 			verifyTestFunc: func(te testExpects) {
 				assert.Error(t, te.err, te.name, te.testImg)
