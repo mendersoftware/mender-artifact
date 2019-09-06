@@ -279,7 +279,6 @@ func (a *artifactExtFile) Close() (err error) {
 	}
 	if a.tmpf != nil {
 		if a.flush {
-			a.tmpf.Sync()
 			err = debugfsReplaceFile(a.imagefilepath, a.tmpf.Name(), a.path)
 			if err != nil {
 				return err
@@ -398,7 +397,6 @@ func (ef *extFile) Close() (err error) {
 	}
 	if ef.tmpf != nil {
 		if ef.flush {
-			ef.tmpf.Sync()
 			err = debugfsReplaceFile(ef.imagefilepath, ef.tmpf.Name(), ef.path)
 			if err != nil {
 				return err
@@ -421,6 +419,7 @@ type fatFile struct {
 	partition
 	imageFilePath string // The local filesystem path to the image
 	repack        bool
+	flush         bool
 	tmpf          *os.File
 }
 
@@ -447,19 +446,9 @@ func (f *fatFile) Read(b []byte) (n int, err error) {
 
 // Write Writes to the underlying fat image, using MTools' mcopy
 func (f *fatFile) Write(b []byte) (n int, err error) {
-	if _, err := f.tmpf.WriteAt(b, 0); err != nil {
-		return 0, errors.Wrap(err, "fatFile: Write: Failed to write to tmpfile")
-	}
-	if err = f.tmpf.Sync(); err != nil {
-		return 0, errors.Wrap(err, "fatFile: Write: Failed to sync tmpfile")
-	}
-	cmd := exec.Command("mcopy", "-n", "-i", f.path, f.tmpf.Name(), "::"+f.imageFilePath)
-	data := bytes.NewBuffer(nil)
-	cmd.Stdout = data
-	if err = cmd.Run(); err != nil {
-		return 0, errors.Wrap(err, "fatFile: Write: MTools execution failed")
-	}
+	n, err = f.tmpf.Write(b)
 	f.repack = true
+	f.flush = true
 	return len(b), nil
 }
 
@@ -504,13 +493,21 @@ func (f *fatFile) Close() (err error) {
 	if f == nil {
 		return nil
 	}
+	if f.tmpf != nil {
+		if f.flush {
+			cmd := exec.Command("mcopy", "-n", "-i", f.path, f.tmpf.Name(), "::"+f.imageFilePath)
+			data := bytes.NewBuffer(nil)
+			cmd.Stdout = data
+			if err = cmd.Run(); err != nil {
+				return errors.Wrap(err, "fatFile: Write: MTools execution failed")
+			}
+		}
+		f.tmpf.Close()
+		os.Remove(f.tmpf.Name())
+	}
 	if f.repack {
 		p := []partition{f.partition}
 		err = repackSdimg(p, f.name)
-	}
-	if f.tmpf != nil {
-		f.tmpf.Close()
-		os.Remove(f.tmpf.Name())
 	}
 	os.Remove(f.path) // Ignore error for tmp-dir
 	return err
