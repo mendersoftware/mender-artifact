@@ -55,6 +55,11 @@ func modifyArtifact(c *cli.Context) error {
 		}
 	} else if candidateType == RawSDImage {
 		if len(modifyCandidates) == 4 { // sdimg
+			defer func(partitions []partition) {
+				for _, part := range partitions {
+					os.Remove(part.path)
+				}
+			}(modifyCandidates)
 			modifyCandidates = modifyCandidates[1:3]
 		}
 	}
