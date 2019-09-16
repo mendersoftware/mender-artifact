@@ -277,12 +277,18 @@ func (a *artifactExtFile) Close() (err error) {
 	if a == nil {
 		return nil
 	}
-	if a.repack {
-		err = repackArtifact(a.comp, a.name, a.path, "")
-	}
 	if a.tmpf != nil {
+		if a.flush {
+			err = debugfsReplaceFile(a.imagefilepath, a.tmpf.Name(), a.path)
+			if err != nil {
+				return err
+			}
+		}
 		a.tmpf.Close()
 		os.Remove(a.tmpf.Name())
+	}
+	if a.repack {
+		err = repackArtifact(a.comp, a.name, a.path, "")
 	}
 	os.Remove(a.path)
 	return err
@@ -293,6 +299,7 @@ type extFile struct {
 	partition
 	imagefilepath string
 	repack        bool     // True if a write has been done
+	flush         bool     // True if Close() needs to copy the file to the image
 	tmpf          *os.File // Used as a buffer for multiple write operations
 }
 
@@ -314,18 +321,10 @@ func newExtFile(imagefilepath string, p partition) (e *extFile, err error) {
 
 // Write reads all bytes from b into the partitionFile using debugfs.
 func (ef *extFile) Write(b []byte) (int, error) {
-	var err error
-	if _, err = ef.tmpf.WriteAt(b, 0); err != nil {
-		return 0, err
-	}
-	ef.tmpf.Sync()
-
-	err = debugfsReplaceFile(ef.imagefilepath, ef.tmpf.Name(), ef.path)
-	if err != nil {
-		return 0, err
-	}
+	n, err := ef.tmpf.Write(b)
 	ef.repack = true
-	return len(b), nil
+	ef.flush = true
+	return n, err
 }
 
 // Read reads all bytes from the filepath on the partition image into b
@@ -396,14 +395,20 @@ func (ef *extFile) Close() (err error) {
 	if ef == nil {
 		return nil
 	}
-	if ef.repack {
-		part := []partition{ef.partition}
-		err = repackSdimg(part, ef.name)
-	}
 	if ef.tmpf != nil {
+		if ef.flush {
+			err = debugfsReplaceFile(ef.imagefilepath, ef.tmpf.Name(), ef.path)
+			if err != nil {
+				return err
+			}
+		}
 		// Ignore tmp-errors
 		ef.tmpf.Close()
 		os.Remove(ef.tmpf.Name())
+	}
+	if ef.repack {
+		part := []partition{ef.partition}
+		err = repackSdimg(part, ef.name)
 	}
 	os.Remove(ef.path) // ignore error for tmp-dir
 	return err
@@ -414,6 +419,7 @@ type fatFile struct {
 	partition
 	imageFilePath string // The local filesystem path to the image
 	repack        bool
+	flush         bool
 	tmpf          *os.File
 }
 
@@ -440,19 +446,9 @@ func (f *fatFile) Read(b []byte) (n int, err error) {
 
 // Write Writes to the underlying fat image, using MTools' mcopy
 func (f *fatFile) Write(b []byte) (n int, err error) {
-	if _, err := f.tmpf.WriteAt(b, 0); err != nil {
-		return 0, errors.Wrap(err, "fatFile: Write: Failed to write to tmpfile")
-	}
-	if err = f.tmpf.Sync(); err != nil {
-		return 0, errors.Wrap(err, "fatFile: Write: Failed to sync tmpfile")
-	}
-	cmd := exec.Command("mcopy", "-n", "-i", f.path, f.tmpf.Name(), "::"+f.imageFilePath)
-	data := bytes.NewBuffer(nil)
-	cmd.Stdout = data
-	if err = cmd.Run(); err != nil {
-		return 0, errors.Wrap(err, "fatFile: Write: MTools execution failed")
-	}
+	n, err = f.tmpf.Write(b)
 	f.repack = true
+	f.flush = true
 	return len(b), nil
 }
 
@@ -497,13 +493,21 @@ func (f *fatFile) Close() (err error) {
 	if f == nil {
 		return nil
 	}
+	if f.tmpf != nil {
+		if f.flush {
+			cmd := exec.Command("mcopy", "-n", "-i", f.path, f.tmpf.Name(), "::"+f.imageFilePath)
+			data := bytes.NewBuffer(nil)
+			cmd.Stdout = data
+			if err = cmd.Run(); err != nil {
+				return errors.Wrap(err, "fatFile: Write: MTools execution failed")
+			}
+		}
+		f.tmpf.Close()
+		os.Remove(f.tmpf.Name())
+	}
 	if f.repack {
 		p := []partition{f.partition}
 		err = repackSdimg(p, f.name)
-	}
-	if f.tmpf != nil {
-		f.tmpf.Close()
-		os.Remove(f.tmpf.Name())
 	}
 	os.Remove(f.path) // Ignore error for tmp-dir
 	return err
