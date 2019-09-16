@@ -170,13 +170,13 @@ func WriteArtifact(dir string, ver int, update string) error {
 	}
 
 	return aw.WriteArtifact(&awriter.WriteArtifactArgs{
-		Format:  "mender",
-		Name:    "test-artifact",
-		Version: ver,
-		Devices: []string{"vexpress"},
-		Updates: updates,
-		Provides: &provides,
-		Depends: &depends,
+		Format:     "mender",
+		Name:       "test-artifact",
+		Version:    ver,
+		Devices:    []string{"vexpress"},
+		Updates:    updates,
+		Provides:   &provides,
+		Depends:    &depends,
 		TypeInfoV3: &typeInfoV3,
 	})
 }

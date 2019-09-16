@@ -28,7 +28,6 @@ func verifyContains(t *testing.T, a string, b string) {
 	}
 }
 
-
 func TestGetBinaryPath(t *testing.T) {
 	nonexist := "non-existant-command-should-still-be-returned"
 	p, err := GetBinaryPath(nonexist)
