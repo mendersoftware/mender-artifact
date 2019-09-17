@@ -164,7 +164,7 @@ func unpackArtifact(name string) (string, error) {
 	}
 
 	inst := r.GetHandlers()
-	if ! (len(inst) == 1 && inst[0].GetUpdateType() == "rootfs-image" ) {
+	if !(len(inst) == 1 && inst[0].GetUpdateType() == "rootfs-image") {
 		return "", errors.New("Only rootfs update types supported")
 	}
 
@@ -282,14 +282,14 @@ func repack(comp artifact.Compressor, artifactName string, from io.Reader, to io
 
 	err = aWriter.WriteArtifact(
 		&awriter.WriteArtifactArgs{
-			Format:   info.Format,
-			Version:  info.Version,
-			Devices:  ar.GetCompatibleDevices(),
-			Name:     name,
-			Updates:  upd,
-			Scripts:  scr,
-			Provides: provides,
-			Depends:  ar.GetArtifactDepends(),
+			Format:     info.Format,
+			Version:    info.Version,
+			Devices:    ar.GetCompatibleDevices(),
+			Name:       name,
+			Updates:    upd,
+			Scripts:    scr,
+			Provides:   provides,
+			Depends:    ar.GetArtifactDepends(),
 			TypeInfoV3: &typeInfoV3,
 		})
 	return ar, err

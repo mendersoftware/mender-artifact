@@ -310,7 +310,7 @@ func TestModifyRootfsSigned(t *testing.T) {
 
 		// Check for field update and unsigned state
 		os.Args = []string{"mender-artifact", "read",
-		filepath.Join(tmp, "artifact.mender")}
+			filepath.Join(tmp, "artifact.mender")}
 
 		r, w, err := os.Pipe()
 		out := os.Stdout
@@ -387,26 +387,26 @@ func TestModifyModuleArtifact(t *testing.T) {
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(),	"mender-artifact can only modify ext4 payloads")
+	assert.Contains(t, err.Error(), "mender-artifact can only modify ext4 payloads")
 
 	os.Args = []string{
 		"mender-artifact", "modify", "-c", "dummy-cert", artfile,
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(),	"mender-artifact can only modify ext4 payloads")
+	assert.Contains(t, err.Error(), "mender-artifact can only modify ext4 payloads")
 
 	os.Args = []string{
 		"mender-artifact", "modify", "-v", "dummy-key", artfile,
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(),	"mender-artifact can only modify ext4 payloads")
+	assert.Contains(t, err.Error(), "mender-artifact can only modify ext4 payloads")
 
 	os.Args = []string{
 		"mender-artifact", "modify", "-t", "dummy-token", artfile,
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(),	"mender-artifact can only modify ext4 payloads")
+	assert.Contains(t, err.Error(), "mender-artifact can only modify ext4 payloads")
 }
