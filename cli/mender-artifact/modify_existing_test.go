@@ -104,6 +104,12 @@ func verifySDImg(image, file, expected string) bool {
 	candidateType, modifyCandidates, err :=
 		getCandidatesForModify(image)
 
+	defer func(partitions []partition) {
+		for _, part := range partitions {
+			os.Remove(part.path)
+		}
+	}(modifyCandidates)
+
 	if err != nil {
 		return false
 	}
