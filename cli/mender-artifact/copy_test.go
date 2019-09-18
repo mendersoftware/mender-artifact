@@ -702,7 +702,6 @@ func TestCopyFromStdin(t *testing.T) {
 			// Copy in from stdin
 			r, w, err := os.Pipe()
 			defer r.Close()
-			defer w.Close()
 			if err != nil {
 				t.Fatal(t, err)
 			}
