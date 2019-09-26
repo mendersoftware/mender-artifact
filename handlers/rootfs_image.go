@@ -40,16 +40,6 @@ type Rootfs struct {
 	installerBase
 }
 
-func NewRootfsV1(updFile string) *Rootfs {
-	uf := &DataFile{
-		Name: updFile,
-	}
-	return &Rootfs{
-		update:  uf,
-		version: 1,
-	}
-}
-
 func NewRootfsV2(updFile string) *Rootfs {
 	uf := &DataFile{
 		Name: updFile,
@@ -368,13 +358,6 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 		return errors.Wrap(err, "Payload: can not store meta-data")
 	}
 
-	if rfs.version == 1 {
-		// store checksums
-		if err := writeChecksums(args.TarWriter, [](*DataFile){rfs.update},
-			filepath.Join(path, "checksums")); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 

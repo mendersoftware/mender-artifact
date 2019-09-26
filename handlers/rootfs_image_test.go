@@ -28,15 +28,7 @@ import (
 
 func TestHandlerRootfs(t *testing.T) {
 	// test if update type is reported correctly
-	r := NewRootfsV1("")
-	require.Equal(t, "rootfs-image", r.GetUpdateType())
-
-	// test get update files
-	r.update = &DataFile{Name: "update.ext4"}
-	require.Equal(t, "update.ext4", r.GetUpdateFiles()[0].Name)
-	require.Equal(t, 1, r.version)
-
-	r = NewRootfsV2("")
+	r := NewRootfsV2("")
 	require.Equal(t, "rootfs-image", r.GetUpdateType())
 
 	// test get update files
@@ -57,7 +49,7 @@ func (t *TestErrWriter) Write(b []byte) (n int, err error) {
 
 func TestRootfsReadHeader(t *testing.T) {
 	var r Installer
-	r = NewRootfsV1("custom")
+	r = NewRootfsV2("custom")
 
 	tc := []struct {
 		version            int
@@ -134,7 +126,7 @@ func TestRootfsReadHeader(t *testing.T) {
 			}
 
 			if test.version < 3 {
-				// Done for version 1 and 2
+				// Done for 2
 				return
 			}
 
@@ -164,11 +156,6 @@ func TestComposeHeader(t *testing.T) {
 			args: ComposeHeaderArgs{Version: -1},
 			err:  errors.New("ComposeHeader: rootfs-version 0 not supported"),
 		},
-		"version 1 - no tar writer": {
-			rfs:  NewRootfsV1(""),
-			args: ComposeHeaderArgs{},
-			err:  errors.New("writer: tar-writer is nil"),
-		},
 		"version 2 - no tar writer": {
 			rfs:  NewRootfsV2(""),
 			args: ComposeHeaderArgs{},
@@ -178,13 +165,6 @@ func TestComposeHeader(t *testing.T) {
 			rfs:  NewRootfsV3(""),
 			args: ComposeHeaderArgs{},
 			err:  errors.New("ComposeHeader: Payload: can not tar type-info: arch: Can not write to empty tar-writer"),
-		},
-		"version 1 - success": { // TODO - should this succeed with no update files?
-			rfs: NewRootfsV1(""),
-			args: ComposeHeaderArgs{
-				TarWriter: tar.NewWriter(bytes.NewBuffer(nil)),
-			},
-			err: nil,
 		},
 		"version 3 - success": {
 			rfs: NewRootfsV3(""),
@@ -203,7 +183,7 @@ func TestComposeHeader(t *testing.T) {
 			verifyFunc: func(args ComposeHeaderArgs) { assert.Nil(t, args.TypeInfoV3) },
 		},
 		"error: metadata not empty": {
-			rfs: NewRootfsV1(""),
+			rfs: NewRootfsV2(""),
 			args: ComposeHeaderArgs{
 				TarWriter: tar.NewWriter(bytes.NewBuffer(nil)),
 				MetaData:  map[string]interface{}{"foo": "bar"},

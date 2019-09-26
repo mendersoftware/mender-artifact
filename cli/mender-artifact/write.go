@@ -28,7 +28,7 @@ import (
 )
 
 func validateInput(c *cli.Context) error {
-	// Version 1,2 and 3 validation.
+	// Version 2 and 3 validation.
 	if len(c.StringSlice("device-type")) == 0 ||
 		len(c.String("artifact-name")) == 0 ||
 		len(c.String("file")) == 0 {
@@ -70,7 +70,7 @@ func writeRootfs(c *cli.Context) error {
 	var h handlers.Composer
 	switch version {
 	case 1:
-		h = handlers.NewRootfsV1(c.String("file"))
+		return cli.NewExitError("Error: Mender-Artifact version 1 is not supported", errArtifactUnsupportedVersion)
 	case 2:
 		h = handlers.NewRootfsV2(c.String("file"))
 	case 3:
@@ -105,9 +105,6 @@ func writeRootfs(c *cli.Context) error {
 	scr, err := scripts(c.StringSlice("script"))
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
-	} else if len(scr.Get()) != 0 && version == 1 {
-		// check if we are having correct version
-		return cli.NewExitError("can not use scripts artifact with version 1", 1)
 	}
 
 	depends := artifact.ArtifactDepends{
@@ -176,7 +173,7 @@ func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
 
 	var handler, augmentHandler handlers.Composer
 	switch version {
-	case 1, 2:
+	case 2:
 		return nil, cli.NewExitError(
 			"Module images need at least artifact format version 3",
 			errArtifactInvalidParameters)
@@ -328,6 +325,10 @@ func writeModuleImage(ctx *cli.Context) error {
 	}
 	version := ctx.Int("version")
 
+	if version == 1 {
+		return cli.NewExitError("Mender-Artifact version 1 is not supported", 1)
+	}
+
 	upd, err := makeUpdates(ctx)
 	if err != nil {
 		return err
@@ -352,9 +353,6 @@ func writeModuleImage(ctx *cli.Context) error {
 	scr, err := scripts(ctx.StringSlice("script"))
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
-	} else if len(scr.Get()) != 0 && version == 1 {
-		// check if we are having correct version
-		return cli.NewExitError("can not use scripts artifact with version 1", 1)
 	}
 
 	depends := artifact.ArtifactDepends{

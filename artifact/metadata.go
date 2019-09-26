@@ -75,7 +75,7 @@ type UpdateType struct {
 	Type string `json:"type"`
 }
 
-// HeaderInfoer wraps headerInfo version 1,2 and 3,
+// HeaderInfoer wraps headerInfo version 2 and 3,
 // in order to supply the artifact reader with the information it needs.
 type HeaderInfoer interface {
 	Write(b []byte) (n int, err error)
@@ -162,8 +162,8 @@ func (hi *HeaderInfo) GetArtifactProvides() *ArtifactProvides {
 
 type HeaderInfoV3 struct {
 	// For historical reasons, "payloads" are often referred to as "updates"
-	// in the code, since this was the old name (and still is, in V2 and
-	// V1). This is the reason why the struct field is still called
+	// in the code, since this was the old name (and still is, in V2).
+	// This is the reason why the struct field is still called
 	// "Updates".
 	Updates          []UpdateType      `json:"payloads"`
 	ArtifactProvides *ArtifactProvides `json:"artifact_provides"` // Has its own json marshaller tags.

@@ -61,13 +61,6 @@ func TestArtifactsWrite(t *testing.T) {
 	err = run()
 	assert.Equal(t, "whitespace is not allowed in the artifact-name", err.Error())
 
-	// store named file V1.
-	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
-		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
-		"-o", filepath.Join(updateTestDir, "art.mender"), "-v", "1"}
-	err = run()
-	assert.NoError(t, err)
-
 	// store named file V2.
 	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
 		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
@@ -163,7 +156,7 @@ func TestWithScripts(t *testing.T) {
 	fakeErrWriter.Reset()
 	err = run()
 	assert.Error(t, err)
-	assert.Equal(t, "can not use scripts artifact with version 1\n",
+	assert.Equal(t, "Error: Mender-Artifact version 1 is not supported\n",
 		fakeErrWriter.String())
 
 	// write artifact vith invalid script name
@@ -307,4 +300,15 @@ func TestWriteModuleImage(t *testing.T) {
 	metaData, err := handler.GetUpdateMetaData()
 	require.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{"metadata": "augment"}, metaData)
+
+	os.Args = []string{
+		"mender-artifact",
+		"write",
+		"module-image",
+		"-v", "1",
+		"-f", "foobar",
+	}
+
+	err = reader.ReadArtifact()
+	assert.Error(t, err)
 }

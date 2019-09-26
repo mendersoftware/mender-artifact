@@ -68,26 +68,36 @@ func checkTarElementsByName(r io.Reader, expected []string) error {
 	return nil
 }
 
-func TestWriteArtifact(t *testing.T) {
+func TestWriteArtifactWrongVersion(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	w := NewWriter(buf, artifact.NewCompressorGzip())
-	tFile, err := ioutil.TempFile("", "artifacttmp")
-	require.Nil(t, err)
-	u := handlers.NewRootfsV1(tFile.Name())
-	err = w.WriteArtifact(&WriteArtifactArgs{
+
+	// Version 1 no longer allowed
+	err := w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
-		Name:    "name",
 		Version: 1,
 		Devices: []string{"asd"},
-		Updates: &Updates{Updates: []handlers.Composer{u}},
+		Name:    "name",
 	})
-	assert.NoError(t, err)
+	assert.EqualError(t, err, "writer: The Mender-Artifact version 1 is outdated. Refusing to create artifact.")
 
-	assert.NoError(t, checkTarElementsByName(buf, []string{
-		"version",
-		"header.tar.gz",
-		"0000.tar.gz",
-	}))
+	// Version 0 not allowed
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 0,
+		Devices: []string{"asd"},
+		Name:    "name",
+	})
+	assert.EqualError(t, err, "Unsupported artifact version")
+
+	// Version 4 not allowed
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 4,
+		Devices: []string{"asd"},
+		Name:    "name",
+	})
+	assert.EqualError(t, err, "Unsupported artifact version")
 }
 
 func TestWriteArtifactWithUpdates(t *testing.T) {
@@ -100,30 +110,30 @@ func TestWriteArtifactWithUpdates(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.Remove(upd)
 
-	u := handlers.NewRootfsV1(upd)
+	u := handlers.NewRootfsV2(upd)
 	updates := &Updates{Updates: []handlers.Composer{u}}
 
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
-		Version: 1,
+		Version: 2,
 		Devices: []string{"asd"},
 		Name:    "name",
 		Updates: updates,
 	})
 	assert.NoError(t, err)
 
-	assert.NoError(t, checkTarElements(buf, 3))
+	assert.NoError(t, checkTarElements(buf, 4))
 
 	// Update with invalid data file name.
 	upd, err = MakeFakeInvalidUpdate("my test update")
 	assert.NoError(t, err)
 
-	u = handlers.NewRootfsV1(upd)
+	u = handlers.NewRootfsV2(upd)
 	updates = &Updates{Updates: []handlers.Composer{u}}
 
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
-		Version: 1,
+		Version: 2,
 		Devices: []string{"asd"},
 		Name:    "name",
 		Updates: updates,
@@ -142,32 +152,32 @@ func TestWriteMultipleUpdates(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.Remove(upd)
 
-	u1 := handlers.NewRootfsV1(upd)
-	u2 := handlers.NewRootfsV1(upd)
+	u1 := handlers.NewRootfsV2(upd)
+	u2 := handlers.NewRootfsV2(upd)
 	updates := &Updates{Updates: []handlers.Composer{u1, u2}}
 
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
-		Version: 1,
+		Version: 2,
 		Devices: []string{"asd"},
 		Name:    "name",
 		Updates: updates,
 	})
 	assert.NoError(t, err)
 
-	assert.NoError(t, checkTarElements(buf, 4))
+	assert.NoError(t, checkTarElements(buf, 5))
 
 	// Update with invalid data file name.
 	upd, err = MakeFakeInvalidUpdate("my test update")
 	assert.NoError(t, err)
 
-	u1 = handlers.NewRootfsV1(upd)
-	u2 = handlers.NewRootfsV1(upd)
+	u1 = handlers.NewRootfsV2(upd)
+	u2 = handlers.NewRootfsV2(upd)
 	updates = &Updates{Updates: []handlers.Composer{u1, u2}}
 
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
-		Version: 1,
+		Version: 2,
 		Devices: []string{"asd"},
 		Name:    "name",
 		Updates: updates,
@@ -217,18 +227,6 @@ func TestWriteArtifactV2(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.NoError(t, checkTarElements(buf, 5))
-	buf.Reset()
-
-	// error creating v1 signed artifact
-	err = w.WriteArtifact(&WriteArtifactArgs{
-		Format:  "mender",
-		Version: 1,
-		Devices: []string{"asd"},
-		Name:    "name",
-	})
-	assert.Error(t, err)
-	assert.Equal(t, "writer: can not create version 1 signed artifact",
-		err.Error())
 	buf.Reset()
 
 	w = NewWriterSigned(buf, comp, nil)
@@ -609,7 +607,7 @@ func TestWithScripts(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.Remove(upd)
 
-	u := handlers.NewRootfsV1(upd)
+	u := handlers.NewRootfsV2(upd)
 	updates := &Updates{Updates: []handlers.Composer{u}}
 
 	scr, err := ioutil.TempFile("", "ArtifactInstall_Enter_10_")
@@ -622,7 +620,7 @@ func TestWithScripts(t *testing.T) {
 
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
-		Version: 1,
+		Version: 2,
 		Devices: []string{"asd"},
 		Name:    "name",
 		Updates: updates,
@@ -630,7 +628,7 @@ func TestWithScripts(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	assert.NoError(t, checkTarElements(buf, 3))
+	assert.NoError(t, checkTarElements(buf, 4))
 }
 
 // TestErrWriter is a utility for simulating failed writes during tests.
@@ -776,7 +774,7 @@ func TestRootfsCompose(t *testing.T) {
 	defer os.Remove(f.Name())
 
 	var r handlers.Composer
-	r = handlers.NewRootfsV1(f.Name())
+	r = handlers.NewRootfsV2(f.Name())
 	err = r.ComposeHeader(&handlers.ComposeHeaderArgs{
 		TarWriter: tw,
 		No:        1,
@@ -787,7 +785,7 @@ func TestRootfsCompose(t *testing.T) {
 	require.NoError(t, err)
 
 	// error compose data with missing data file
-	r = handlers.NewRootfsV1("non-existing")
+	r = handlers.NewRootfsV2("non-existing")
 	err = writeData(tw, comp, &Updates{[]handlers.Composer{r}, nil})
 	require.Error(t, err)
 	require.Contains(t, errors.Cause(err).Error(),

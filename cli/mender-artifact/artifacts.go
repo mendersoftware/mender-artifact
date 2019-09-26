@@ -239,7 +239,7 @@ func repack(comp artifact.Compressor, artifactName string, from io.Reader, to io
 	var h *handlers.Rootfs
 	switch info.Version {
 	case 1:
-		h = handlers.NewRootfsV1(data)
+		return nil, errors.New("Mender-Artifact version 1 no longer supported")
 	case 2:
 		h = handlers.NewRootfsV2(data)
 	case 3:

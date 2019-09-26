@@ -31,10 +31,10 @@ func TestValidateInfo(t *testing.T) {
 		err error
 	}{
 		{Info{Format: "", Version: 0}, ErrValidatingData},
-		{Info{Format: "", Version: 1}, ErrValidatingData},
+		{Info{Format: "", Version: 2}, ErrValidatingData},
 		{Info{Format: "format"}, ErrValidatingData},
 		{Info{}, ErrValidatingData},
-		{Info{Format: "format", Version: 1}, nil},
+		{Info{Format: "format", Version: 2}, nil},
 	}
 
 	for _, tt := range validateTests {
