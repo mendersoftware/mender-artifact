@@ -1059,3 +1059,60 @@ func (ar *Reader) GetUpdateStorers() ([]handlers.UpdateStorer, error) {
 
 	return list, nil
 }
+
+func (ar *Reader) MergeArtifactDepends() (map[string]interface{}, error) {
+
+	retMap := make(map[string]interface{})
+
+	depends := ar.GetArtifactDepends()
+
+	retMap["artifact_name"] = depends.ArtifactName
+	retMap["compatible_devices"] = depends.CompatibleDevices
+	retMap["artifact_group"] = depends.ArtifactGroup
+
+	// No depends in the augmented header info
+
+	for _, upd := range ar.installers {
+		deps, err := upd.GetUpdateDepends()
+		if err != nil {
+			return nil, err
+		}
+		for key, val := range deps.Map() {
+			// Ensure there are no matching keys
+			if _, ok := retMap[key]; ok {
+				return nil, fmt.Errorf("Conflicting keys not allowed in the provides parameters. key: %s", key)
+			}
+			retMap[key] = val
+		}
+	}
+
+	return retMap, nil
+}
+
+func (ar *Reader) MergeArtifactProvides() (map[string]interface{}, error) {
+
+	retMap := make(map[string]interface{})
+
+	provides := ar.GetArtifactProvides()
+
+	retMap["artifact_name"] = provides.ArtifactName
+	retMap["artifact_group"] = provides.ArtifactGroup
+
+	// No provides in the augmented header info
+
+	for _, upd := range ar.installers {
+		p, err := upd.GetUpdateProvides()
+		if err != nil {
+			return nil, err
+		}
+		for key, val := range p.Map() {
+			// Ensure there are no matching keys
+			if _, ok := retMap[key]; ok {
+				return nil, fmt.Errorf("Conflicting keys not allowed in the provides parameters. key: %s", key)
+			}
+			retMap[key] = val
+		}
+	}
+
+	return retMap, nil
+}

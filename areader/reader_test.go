@@ -395,6 +395,7 @@ type installer struct {
 	t          *testing.T
 	Data       *handlers.DataFile
 	updateType string
+	typeInfoV3 *artifact.TypeInfoV3
 }
 
 func (i *installer) GetUpdateFiles() [](*handlers.DataFile) {
@@ -422,11 +423,17 @@ func (i *installer) SetUpdateAugmentFiles(files [](*handlers.DataFile)) error {
 }
 
 func (i *installer) GetUpdateDepends() (*artifact.TypeInfoDepends, error) {
-	return &artifact.TypeInfoDepends{}, nil
+	// NOTE: For testing purposes, only typeInfoV3 is returned.
+	//Original functionality merges typeInfo, and the augmentedTypeInfo,
+	// So beware!
+	return i.typeInfoV3.ArtifactDepends, nil
 }
 
 func (i *installer) GetUpdateProvides() (*artifact.TypeInfoProvides, error) {
-	return &artifact.TypeInfoProvides{}, nil
+	// NOTE: For testing purposes, only typeInfoV3 is returned.
+	//Original functionality merges typeInfo, and the augmentedTypeInfo,
+	// So beware!
+	return i.typeInfoV3.ArtifactProvides, nil
 }
 
 func (i *installer) GetUpdateMetaData() (map[string]interface{}, error) {
@@ -1308,5 +1315,153 @@ func TestReadBrokenArtifact(t *testing.T) {
 			assert.Equal(t, c.numFiles, len(handler.GetUpdateFiles()))
 			assert.Equal(t, c.numAugmentFiles, len(handler.GetUpdateAugmentFiles()))
 		})
+	}
+}
+
+func TestMergeDependsSuccess(t *testing.T) {
+	tests := []struct {
+		r        Reader
+		expected map[string]interface{}
+	}{
+		{
+			// No matching keys
+			r: Reader{
+				hInfo: &artifact.HeaderInfoV3{
+					ArtifactDepends: &artifact.ArtifactDepends{
+						ArtifactName:      []string{"foo"},
+						CompatibleDevices: []string{"qemux86-64"},
+						ArtifactGroup:     []string{"ac-dc"},
+					},
+				},
+				installers: map[int]handlers.Installer{
+					1: &installer{
+						typeInfoV3: &artifact.TypeInfoV3{
+							ArtifactDepends: &artifact.TypeInfoDepends{
+								"foo": "boo",
+							},
+						},
+					},
+				},
+			},
+			expected: map[string]interface{}{
+				"artifact_name":      []string{"foo"},
+				"compatible_devices": []string{"qemux86-64"},
+				"artifact_group":     []string{"ac-dc"},
+				"foo":                "boo",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		d, err := test.r.MergeArtifactDepends()
+		assert.Nil(t, err)
+		assert.Equal(t, d, test.expected)
+	}
+}
+
+func TestMergeDependsError(t *testing.T) {
+	tests := []struct {
+		r Reader
+	}{
+		{
+			// Single update -- matching keys in header-info and type-info
+			// With different types
+			r: Reader{
+				hInfo: &artifact.HeaderInfoV3{
+					ArtifactDepends: &artifact.ArtifactDepends{
+						ArtifactName:      []string{"foo"},
+						CompatibleDevices: []string{"qemux86-64"},
+						ArtifactGroup:     []string{"ac-dc"},
+					},
+				},
+				installers: map[int]handlers.Installer{
+					1: &installer{
+						typeInfoV3: &artifact.TypeInfoV3{
+							ArtifactDepends: &artifact.TypeInfoDepends{
+								"artifact_name": "boo",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		_, err := test.r.MergeArtifactDepends()
+		assert.NotNil(t, err)
+	}
+}
+
+func TestMergeProvidesSuccess(t *testing.T) {
+	tests := []struct {
+		r        Reader
+		expected map[string]interface{}
+	}{
+		{
+			// Single update -- string type-info
+			r: Reader{
+				hInfo: &artifact.HeaderInfoV3{
+					ArtifactProvides: &artifact.ArtifactProvides{
+						ArtifactName:  "foo",
+						ArtifactGroup: "ac-dc",
+					},
+				},
+				installers: map[int]handlers.Installer{
+					1: &installer{
+						typeInfoV3: &artifact.TypeInfoV3{
+							ArtifactProvides: &artifact.TypeInfoProvides{
+								"bar": "baz",
+								"foo": "boo",
+							},
+						},
+					},
+				},
+			},
+			expected: map[string]interface{}{
+				"artifact_name":  "foo",
+				"artifact_group": "ac-dc",
+				"bar":            "baz",
+				"foo":            "boo",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		d, err := test.r.MergeArtifactProvides()
+		assert.Nil(t, err)
+		assert.Equal(t, d, test.expected)
+	}
+}
+
+func TestMergeProvidesError(t *testing.T) {
+	tests := []struct {
+		r Reader
+	}{
+		{
+			// Single update -- value is not string or []string
+			r: Reader{
+				hInfo: &artifact.HeaderInfoV3{
+					ArtifactProvides: &artifact.ArtifactProvides{
+						ArtifactName:  "foo",
+						ArtifactGroup: "ac-dc",
+					},
+				},
+				installers: map[int]handlers.Installer{
+					1: &installer{
+						typeInfoV3: &artifact.TypeInfoV3{
+							ArtifactProvides: &artifact.TypeInfoProvides{
+								"artifact_name": 1,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		_, err := test.r.MergeArtifactProvides()
+		assert.NotNil(t, err)
 	}
 }
