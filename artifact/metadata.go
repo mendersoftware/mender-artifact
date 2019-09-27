@@ -17,6 +17,7 @@ package artifact
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 
@@ -287,9 +288,105 @@ func (ti *TypeInfo) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-type TypeInfoDepends map[string]string
+type TypeInfoDepends map[string]interface{}
 
-type TypeInfoProvides map[string]string
+func (t TypeInfoDepends) Map() map[string]interface{} {
+	return map[string]interface{}(t)
+}
+
+func NewTypeInfoDepends(m interface{}) (ti TypeInfoDepends, err error) {
+	ti = make(map[string]interface{})
+	switch m.(type) {
+	case map[string]interface{}:
+		m := m.(map[string]interface{})
+		for k, v := range m {
+			switch v.(type) {
+			case string, []string:
+				ti[k] = v
+				continue
+			default:
+				return nil, fmt.Errorf("Invalid TypeInfo type: %T", m)
+			}
+		}
+		return ti, nil
+	case map[string]string:
+		m := m.(map[string]string)
+		for k, v := range m {
+			ti[k] = v
+		}
+		return ti, nil
+	case map[string][]string:
+		m := m.(map[string][]string)
+		for k, v := range m {
+			ti[k] = v
+		}
+		return ti, nil
+	default:
+		return nil, fmt.Errorf("Invalid TypeInfo type: %T", m)
+	}
+}
+
+// UnmarshalJSON attempts to deserialize the json stream into a 'map[string]interface{}',
+// where each interface value is required to be either a string, or an array of strings
+func (t *TypeInfoDepends) UnmarshalJSON(b []byte) error {
+	m := make(map[string]interface{})
+	err := json.Unmarshal(b, &m)
+	if err != nil {
+		return err
+	}
+	*t, err = NewTypeInfoDepends(m)
+	return err
+}
+
+type TypeInfoProvides map[string]interface{}
+
+func (t TypeInfoProvides) Map() map[string]interface{} {
+	return map[string]interface{}(t)
+}
+
+func NewTypeInfoProvides(m interface{}) (ti TypeInfoProvides, err error) {
+	ti = make(map[string]interface{})
+	switch m.(type) {
+	case map[string]interface{}:
+		m := m.(map[string]interface{})
+		for k, v := range m {
+			switch v.(type) {
+			case string, []string:
+				ti[k] = v
+				continue
+			default:
+				return nil, fmt.Errorf("Invalid TypeInfo type: %T", m)
+			}
+		}
+		return ti, nil
+	case map[string]string:
+		m := m.(map[string]string)
+		for k, v := range m {
+			ti[k] = v
+		}
+		return ti, nil
+	case map[string][]string:
+		m := m.(map[string][]string)
+		for k, v := range m {
+			ti[k] = v
+		}
+		return ti, nil
+	default:
+		return nil, fmt.Errorf("Invalid TypeInfo type: %T", m)
+	}
+}
+
+// UnmarshalJSON attempts to deserialize the json stream into a 'map[string]interface{}',
+// where each interface value is required to be either a string, or an array of strings
+func (t *TypeInfoProvides) UnmarshalJSON(b []byte) error {
+	m := make(map[string]interface{})
+	err := json.Unmarshal(b, &m)
+	if err != nil {
+		return err
+	}
+	*t, err = NewTypeInfoProvides(m)
+	return err
+}
 
 // TypeInfoV3 provides information about the type of update contained within the
 // headerstructure.

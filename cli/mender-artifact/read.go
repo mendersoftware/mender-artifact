@@ -114,7 +114,7 @@ func readArtifact(c *cli.Context) error {
 	return nil
 }
 
-func sortedKeys(mapWithKeys map[string]string) sort.StringSlice {
+func sortedKeys(mapWithKeys map[string]interface{}) sort.StringSlice {
 	var keys sort.StringSlice = make([]string, 0, len(mapWithKeys))
 	for key := range mapWithKeys {
 		keys = append(keys, key)

@@ -223,7 +223,9 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 		return nil, nil, err
 	} else if keyValues != nil {
 		typeInfoDepends = new(artifact.TypeInfoDepends)
-		*typeInfoDepends = *keyValues
+		if *typeInfoDepends, err = artifact.NewTypeInfoDepends(*keyValues); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	var typeInfoProvides *artifact.TypeInfoProvides
@@ -232,7 +234,9 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 		return nil, nil, err
 	} else if keyValues != nil {
 		typeInfoProvides = new(artifact.TypeInfoProvides)
-		*typeInfoProvides = *keyValues
+		if *typeInfoProvides, err = artifact.NewTypeInfoProvides(*keyValues); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	var augmentTypeInfoDepends *artifact.TypeInfoDepends
@@ -241,7 +245,9 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 		return nil, nil, err
 	} else if keyValues != nil {
 		augmentTypeInfoDepends = new(artifact.TypeInfoDepends)
-		*augmentTypeInfoDepends = *keyValues
+		if *augmentTypeInfoDepends, err = artifact.NewTypeInfoDepends(*keyValues); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	var augmentTypeInfoProvides *artifact.TypeInfoProvides
@@ -250,7 +256,9 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 		return nil, nil, err
 	} else if keyValues != nil {
 		augmentTypeInfoProvides = new(artifact.TypeInfoProvides)
-		*augmentTypeInfoProvides = *keyValues
+		if *augmentTypeInfoProvides, err = artifact.NewTypeInfoProvides(*keyValues); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	typeInfoV3 := &artifact.TypeInfoV3{
