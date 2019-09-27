@@ -418,3 +418,81 @@ func TestHeaderInfo(t *testing.T) {
 	assert.Equal(t, hi.Updates[0].Type, "rootfs-image")
 	assert.Equal(t, hi.GetCompatibleDevices()[0], "vexpress-qemu")
 }
+
+func TestNewTypeInfoSuccess(t *testing.T) {
+	tests := []struct {
+		name  string
+		input interface{}
+		err   error
+	}{
+		{
+			name: "Valid: map[string]string",
+			input: map[string]string{
+				"foo": "bar",
+			},
+			err: nil,
+		},
+		{
+			name: "Valid: map[string][]string",
+			input: map[string][]string{
+				"foo": []string{"bar", "baz"},
+			},
+			err: nil,
+		},
+		{
+			name: "Valid: map[string]interface{}",
+			input: map[string]interface{}{
+				"foo": "bar",
+				"bar": []string{
+					"boo", "baz",
+				},
+			},
+			err: nil,
+		},
+	}
+
+	for _, test := range tests {
+		ti, err := NewTypeInfoDepends(test.input)
+		assert.Equal(t, err, test.err)
+		assert.NotNil(t, ti)
+
+		tip, err := NewTypeInfoProvides(test.input)
+		assert.Equal(t, err, test.err)
+		assert.NotNil(t, tip)
+	}
+}
+
+func TestNewTypeInfoError(t *testing.T) {
+	tests := []struct {
+		name  string
+		input interface{}
+		err   error
+	}{
+		{
+			name: "Invalid: map[string]int",
+			input: map[string]int{
+				"foo": 1,
+			},
+		},
+		{
+			name: "Invalid: map[string]interface{} with invalid value",
+			input: map[string]interface{}{
+				"foo": "bar",
+				"bar": []string{
+					"boo", "baz",
+				},
+				"baz": 1,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		ti, err := NewTypeInfoDepends(test.input)
+		assert.NotNil(t, err)
+		assert.Nil(t, ti)
+
+		tip, err := NewTypeInfoProvides(test.input)
+		assert.NotNil(t, err)
+		assert.Nil(t, tip)
+	}
+}
