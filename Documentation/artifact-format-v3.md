@@ -270,19 +270,16 @@ As an opposite to the list of global `artifact_provides` being a part of
 `header-info` file, the `artifact_provides` section in the `type-info` file
 is a set of parameters specific for a given payload type.
 
-The list of currently supported parameters is as follows:
-
-* `rootfs_image_checksum` is the checksum of the image contained within the
-  Artifact
+The `artifact_provides` is a key-value store, where the value is either a string,
+or an array of strings.
 
 #### artifact_depends
 
 The `artifact_depends` section in the `type-info` file is a set of parameters
-specific for a given payload type. The list of currently supported
-parameters is as follows:
+specific for a given payload type.
 
-* `rootfs_image_checksum` is the checksum of the image that needs to be installed
-on the device before current Artifact can be installed
+The `artifact_depends` is a key-value store, where the value is either a string,
+or an array of strings.
 
 
 ### meta-data
@@ -381,11 +378,6 @@ These files and attributes are allowed:
     },
   }
   ```
-
-At the moment ONLY a `type-info` file is allowed which can contain only
-`artifact_depends` with one field: `rootfs_image_checksum` parameters and type
-of the payload.
-
 
 data
 ----
