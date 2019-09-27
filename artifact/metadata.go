@@ -287,9 +287,83 @@ func (ti *TypeInfo) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-type TypeInfoDepends map[string]string
+type TypeInfoDepends map[string]interface{}
 
-type TypeInfoProvides map[string]string
+func (t TypeInfoDepends) Map() map[string]interface{} {
+	return map[string]interface{}(t)
+}
+
+func NewTypeInfoDepends(m interface{}) TypeInfoDepends {
+	ti := TypeInfoDepends{}
+	switch m.(type) {
+	case map[string]interface{}:
+		m := m.(map[string]interface{})
+		for k, v := range m {
+			ti[k] = v
+		}
+		return ti
+	default:
+		panic("Failed to create TypeInfoDepends. Invalid type passed")
+	}
+}
+
+// UnmarshalJSON attempts to deserialize the json stream into a 'map[string]string',
+// or into a 'map[string][]string'
+func (t TypeInfoDepends) UnmarshalJSON(b []byte) error {
+	err := json.Unmarshal(b, t)
+	if err != nil {
+		return err
+	}
+	// Validate the unmarshaled types
+	for _, val := range t {
+		switch val.(type) {
+		case string, []string:
+			continue
+		default:
+			return errors.New("Invalid value type")
+		}
+	}
+	return nil
+}
+
+type TypeInfoProvides map[string]interface{}
+
+func (t TypeInfoProvides) Map() map[string]interface{} {
+	return map[string]interface{}(t)
+}
+
+func NewTypeInfoProvides(m interface{}) TypeInfoProvides {
+	ti := TypeInfoProvides{}
+	switch m.(type) {
+	case map[string]interface{}:
+		m := m.(map[string]interface{})
+		for k, v := range m {
+			ti[k] = v
+		}
+		return ti
+	default:
+		panic("Failed to create TypeInfoDepends. Invalid type passed")
+	}
+}
+
+// UnmarshalJSON attempts to deserialize the json stream into a 'map[string]string',
+// or into a 'map[string][]string'
+func (t TypeInfoProvides) UnmarshalJSON(b []byte) error {
+	err := json.Unmarshal(b, t)
+	if err != nil {
+		return err
+	}
+	// Validate the unmarshaled type
+	for _, val := range t {
+		switch val.(type) {
+		case string, []string:
+			continue
+		default:
+			return errors.New("Invalid value type")
+		}
+	}
+	return nil
+}
 
 // TypeInfoV3 provides information about the type of update contained within the
 // headerstructure.
