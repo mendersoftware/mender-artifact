@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -26,8 +26,6 @@ import (
 	"github.com/urfave/cli"
 )
 
-var ErrInvalidSignature = errors.New("error validating signature")
-
 func validate(art io.Reader, key []byte) error {
 	// do not return error immediately if we can not validate signature;
 	// just continue checking consistency and return info if
@@ -52,12 +50,13 @@ func validate(art io.Reader, key []byte) error {
 		return err
 	}
 	if validationError != nil {
-		Log.Debugf("error validating signature: %s", validationError.Error())
-		return ErrInvalidSignature
+		return validationError
 	}
 	if keyIsSpecified && !ar.IsSigned {
-		Log.Debug("key was specified but no digital signature was found")
-		return ErrInvalidSignature
+		return errors.New("missing signature")
+	}
+	if !keyIsSpecified && ar.IsSigned {
+		return errors.New("missing key")
 	}
 	return nil
 }
