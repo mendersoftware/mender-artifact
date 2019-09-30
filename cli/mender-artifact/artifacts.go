@@ -199,7 +199,6 @@ func repack(comp artifact.Compressor, artifactName string, from io.Reader, to io
 			return errors.Wrapf(err,
 				"can not write script file: %v", sLocation)
 		}
-		f.Sync()
 		return nil
 	}
 
