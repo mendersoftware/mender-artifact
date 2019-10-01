@@ -48,6 +48,24 @@ func main() {
 	}
 }
 
+func applyCompressionInCommand(c *cli.Context) error {
+	// Let --compression argument work after command as well. Latest one
+	// applies.
+	if c.String("compression") != "" {
+		parent := c
+		// Find top level context, where the original --compression
+		// argument lives.
+		for {
+			if parent.Parent() == nil {
+				break
+			}
+			parent = parent.Parent()
+		}
+		parent.Set("compression", c.String("compression"))
+	}
+	return nil
+}
+
 func getCliContext() *cli.App {
 	app := cli.NewApp()
 	app.Name = "mender-artifact"
@@ -57,6 +75,17 @@ func getCliContext() *cli.App {
 
 	app.Author = "Northern.tech AS"
 	app.Email = "contact@northern.tech"
+
+	compressors := artifact.GetRegisteredCompressorIds()
+
+	compressionFlag := cli.StringFlag{
+		Name:  "compression",
+		Usage: fmt.Sprintf("Compression to use for data and header inside the artifact, "+
+			"currently supports: %v.", strings.Join(compressors, ", ")),
+	}
+	globalCompressionFlag := compressionFlag
+	// The global flag is the last fallback, so here we provide a default.
+	globalCompressionFlag.Value = "gzip"
 
 	privateKeyFlag := cli.StringFlag{
 		Name: "key, k",
@@ -135,7 +164,10 @@ func getCliContext() *cli.App {
 		// 	Name:  "provides-rootfs-image-checksum",
 		// 	Usage: "The checksum of the rootfs image which this artifact provides",
 		// },
+
+		compressionFlag,
 	}
+	writeRootfsCommand.Before = applyCompressionInCommand
 
 	//
 	// Update modules: module-image
@@ -230,7 +262,9 @@ func getCliContext() *cli.App {
 			Name:  "augment-file",
 			Usage: "Include `FILE` in payload in the augment section. Can be given more than once.",
 		},
+		compressionFlag,
 	}
+	writeModuleCommand.Before = applyCompressionInCommand
 
 	writeCommand := cli.Command{
 		Name:  "write",
@@ -323,7 +357,9 @@ func getCliContext() *cli.App {
 			Name:  "tenant-token, t",
 			Usage: "Full path to the tenant token that will be injected into modified file.",
 		},
+		compressionFlag,
 	}
+	modify.Before = applyCompressionInCommand
 
 	copy := cli.Command{
 		Name:        "cp",
@@ -334,6 +370,11 @@ func getCliContext() *cli.App {
 			"come from stdin in the case that <src> is '-'",
 		Action: Copy,
 	}
+
+	copy.Flags = []cli.Flag{
+		compressionFlag,
+	}
+	copy.Before = applyCompressionInCommand
 
 	cat := cli.Command{
 		Name:        "cat",
@@ -399,14 +440,8 @@ func getCliContext() *cli.App {
 		},
 	}
 
-	compressors := artifact.GetRegisteredCompressorIds()
 	globalFlags := []cli.Flag{
-		cli.StringFlag{
-			Name:  "compression",
-			Value: "gzip",
-			Usage: fmt.Sprintf("Compression to use for data and header inside the artifact, "+
-				"currently supports: %v.", strings.Join(compressors, ", ")),
-		},
+		globalCompressionFlag,
 	}
 
 	app.Commands = []cli.Command{
