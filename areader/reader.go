@@ -165,7 +165,7 @@ func (ar *Reader) readHeader(headerSum []byte, comp artifact.Compressor) error {
 func (ar *Reader) populateArtifactInfo(version int, tr *tar.Reader) error {
 	var hInfo artifact.HeaderInfoer
 	switch version {
-	case 1, 2:
+	case 2:
 		hInfo = new(artifact.HeaderInfo)
 	case 3:
 		hInfo = new(artifact.HeaderInfoV3)
@@ -250,30 +250,6 @@ func (ar *Reader) RegisterHandler(handler handlers.Installer) error {
 
 func (ar *Reader) GetHandlers() map[int]handlers.Installer {
 	return ar.installers
-}
-
-func (ar *Reader) readHeaderV1() error {
-	if ar.shouldBeSigned {
-		return errors.New("reader: expecting signed artifact; " +
-			"v1 is not supporting signatures")
-	}
-	hdr, err := getNext(ar.menderTarReader)
-	if err != nil {
-		return errors.New("reader: error reading header")
-	}
-	if !strings.HasPrefix(hdr.Name, "header.tar") {
-		return errors.Errorf("reader: invalid header element: %v", hdr.Name)
-	}
-
-	comp, err := artifact.NewCompressorFromFileName(hdr.Name)
-	if err != nil {
-		return errors.New("reader: can't get compressor")
-	}
-
-	if err = ar.readHeader(nil, comp); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (ar *Reader) readManifest(name string) error {
@@ -587,7 +563,7 @@ func (ar *Reader) ReadArtifactHeaders() error {
 
 	switch ver.Version {
 	case 1:
-		err = ar.readHeaderV1()
+		err = errors.New("reader: Mender-Artifact version 1 is no longer supported")
 	case 2:
 		err = ar.readHeaderV2(vRaw)
 	case 3:

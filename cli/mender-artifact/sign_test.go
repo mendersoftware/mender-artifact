@@ -22,44 +22,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestSignExistingV1(t *testing.T) {
-	// first create archive, that we will be able to read
-	updateTestDir, _ := ioutil.TempDir("", "update")
-	defer os.RemoveAll(updateTestDir)
-
-	priv, pub, err := generateKeys()
-	assert.NoError(t, err)
-
-	err = WriteArtifact(updateTestDir, 1, "")
-	assert.NoError(t, err)
-
-	err = MakeFakeUpdateDir(updateTestDir,
-		[]TestDirEntry{
-			{
-				Path:    "private.key",
-				Content: priv,
-				IsDir:   false,
-			},
-			{
-				Path:    "public.key",
-				Content: pub,
-				IsDir:   false,
-			},
-		})
-	assert.NoError(t, err)
-
-	os.Args = []string{"mender-artifact", "sign",
-		"-k", filepath.Join(updateTestDir, "private.key"),
-		filepath.Join(updateTestDir, "artifact.mender")}
-
-	err = run()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), awriter.ErrManifestNotFound.Error())
-}
 
 func TestSignExistingV2(t *testing.T) {
 	// first create archive, that we will be able to read

@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ var validateTests = []struct {
 	validateKey   []byte
 	expectedError error
 }{
-	{1, nil, nil, nil},
+	{2, nil, nil, nil},
 	{2, []byte(PrivateValidateRSAKey), []byte(PublicValidateRSAKey), nil},
 	{2, []byte(PrivateValidateRSAKey), []byte(PublicValidateRSAKeyError),
 		ErrInvalidSignature},
@@ -97,7 +97,7 @@ func TestArtifactsValidate(t *testing.T) {
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
 
-	err := WriteArtifact(updateTestDir, 1, "")
+	err := WriteArtifact(updateTestDir, 2, "")
 	assert.NoError(t, err)
 
 	os.Args = []string{"mender-artifact", "validate",

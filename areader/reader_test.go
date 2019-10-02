@@ -79,8 +79,6 @@ func MakeRootfsImageArtifact(version int, signed, hasScripts, augmented bool) (i
 
 	var composer, augment handlers.Composer
 	switch version {
-	case 1:
-		composer = handlers.NewRootfsV1(upd)
 	case 2:
 		composer = handlers.NewRootfsV2(upd)
 	case 3:
@@ -208,7 +206,6 @@ func TestReadArtifact(t *testing.T) {
 		verifier  artifact.Verifier
 		readError error
 	}{
-		"version 1":        {1, false, rfh(), nil, nil},
 		"version 2 pass":   {2, false, rfh(), nil, nil},
 		"version 2 signed": {2, true, rfh(), artifact.NewVerifier([]byte(PublicKey)), nil},
 		"version 2 - public key error": {2, true, rfh(), artifact.NewVerifier([]byte(PublicKeyError)),
@@ -286,12 +283,9 @@ func TestReadSigned(t *testing.T) {
 	assert.NoError(t, err)
 
 	art, err = MakeRootfsImageArtifact(1, false, false, false)
-	assert.NoError(t, err)
-	aReader = NewReaderSigned(art)
-	err = aReader.ReadArtifact()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(),
-		"reader: expecting signed artifact")
+		"Unsupported artifact version: 1")
 
 	art, err = MakeRootfsImageArtifact(3, true, false, false)
 	assert.NoError(t, err)
@@ -329,7 +323,7 @@ func TestRegisterMultipleHandlers(t *testing.T) {
 }
 
 func TestReadNoHandler(t *testing.T) {
-	art, err := MakeRootfsImageArtifact(1, false, false, false)
+	art, err := MakeRootfsImageArtifact(2, false, false, false)
 	assert.NoError(t, err)
 
 	aReader := NewReader(art)

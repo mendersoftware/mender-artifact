@@ -80,7 +80,7 @@ func WriteTestArtifact(version int, update string, key []byte) (io.Reader, error
 		defer os.Remove(update)
 	}
 
-	rfs := handlers.NewRootfsV1(update)
+	rfs := handlers.NewRootfsV2(update)
 
 	switch version {
 	case 1:
@@ -134,7 +134,7 @@ func WriteArtifact(dir string, ver int, update string) error {
 	}
 	defer f.Close()
 
-	u := handlers.NewRootfsV1(update)
+	u := handlers.NewRootfsV2(update)
 
 	aw := awriter.NewWriter(f, comp)
 	switch ver {
@@ -306,7 +306,7 @@ func TestArtifactsSigned(t *testing.T) {
 	fakeErrWriter.Reset()
 	err = run()
 	assert.Error(t, err)
-	assert.Equal(t, "writer: can not create version 1 signed artifact\n",
+	assert.Equal(t, "Error: Mender-Artifact version 1 is not supported\n",
 		fakeErrWriter.String())
 }
 
