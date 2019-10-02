@@ -64,16 +64,16 @@ var validateTests = []struct {
 	version       int
 	writeKey      []byte
 	validateKey   []byte
-	expectedError error
+	expectedError string
 }{
-	{2, nil, nil, nil},
-	{2, []byte(PrivateValidateRSAKey), []byte(PublicValidateRSAKey), nil},
+	{2, nil, nil, ""},
+	{2, []byte(PrivateValidateRSAKey), []byte(PublicValidateRSAKey), ""},
 	{2, []byte(PrivateValidateRSAKey), []byte(PublicValidateRSAKeyError),
-		ErrInvalidSignature},
+		"verification error"},
 	{2, []byte(PrivateValidateRSAKey), []byte(PublicValidateRSAKeyInvalid),
-		ErrInvalidSignature},
-	{2, []byte(PrivateValidateRSAKey), nil, nil},
-	{2, nil, []byte(PublicValidateRSAKey), ErrInvalidSignature}, // MEN-2155
+		"failed to parse public key"},
+	{2, []byte(PrivateValidateRSAKey), nil, "missing key"}, // MEN-2802
+	{2, nil, []byte(PublicValidateRSAKey), "missing signature"}, // MEN-2155
 }
 
 func TestValidate(t *testing.T) {
@@ -82,11 +82,11 @@ func TestValidate(t *testing.T) {
 		art, err := WriteTestArtifact(test.version, "", test.writeKey)
 		assert.NoError(t, err)
 		err = validate(art, test.validateKey)
-		if test.expectedError == nil {
+		if test.expectedError == "" {
 			assert.NoError(t, err)
 		} else {
 			assert.Error(t, err)
-			assert.Contains(t, err.Error(), test.expectedError.Error())
+			assert.Contains(t, err.Error(), test.expectedError)
 		}
 		fmt.Println("---------------------------------")
 	}
