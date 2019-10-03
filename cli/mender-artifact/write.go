@@ -118,14 +118,9 @@ func writeRootfs(c *cli.Context) error {
 		ArtifactGroup: c.String("provides-group"),
 	}
 
-	typeInfoV3 := artifact.TypeInfoV3{
-		Type: "rootfs-image",
-		// Keeping these empty for now. We will likely introduce these
-		// later, when we add support for augmented artifacts.
-		// ArtifactDepends:  &artifact.TypeInfoDepends{"rootfs_image_checksum": c.String("depends-rootfs-image-checksum")},
-		// ArtifactProvides: &artifact.TypeInfoProvides{"rootfs_image_checksum": c.String("provides-rootfs-image-checksum")},
-		ArtifactDepends:  &artifact.TypeInfoDepends{},
-		ArtifactProvides: &artifact.TypeInfoProvides{},
+	typeInfoV3, _, err := makeTypeInfo(c)
+	if err != nil {
+		return err
 	}
 
 	err = aw.WriteArtifact(
@@ -138,7 +133,7 @@ func writeRootfs(c *cli.Context) error {
 			Scripts:    scr,
 			Depends:    &depends,
 			Provides:   &provides,
-			TypeInfoV3: &typeInfoV3,
+			TypeInfoV3: typeInfoV3,
 		})
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)

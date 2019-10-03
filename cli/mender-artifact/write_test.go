@@ -312,3 +312,90 @@ func TestWriteModuleImage(t *testing.T) {
 	err = reader.ReadArtifact()
 	assert.Error(t, err)
 }
+
+func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+	artfile := filepath.Join(tmpdir, "artifact.mender")
+
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "update.ext4",
+				Content: []byte("my update"),
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	os.Args = []string{
+		"mender-artifact", "write", "rootfs-image",
+		"-t", "mydevice",
+		"-o", artfile,
+		"-f", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "testName",
+		"-N", "testNameDepends1",
+		"-N", "testNameDepends2",
+		"-G", "testGroupDepends1",
+		"-G", "testGroupDepends2",
+		"-g", "testGroupProvide",
+		"-d", "testDependKey1:testDependValue1",
+		"-d", "testDependKey2:testDependValue2",
+		"-p", "testProvideKey1:testProvideValue1",
+		"-p", "testProvideKey2:testProvideValue2",
+	}
+	err = run()
+	assert.NoError(t, err)
+
+	artFd, err := os.Open(artfile)
+	assert.NoError(t, err)
+	reader := areader.NewReader(artFd)
+	err = reader.ReadArtifact()
+	assert.NoError(t, err)
+
+	// Verify name
+	assert.Equal(t, "testName", reader.GetArtifactName())
+	assert.Equal(t, []artifact.UpdateType{artifact.UpdateType{Type: "rootfs-image"}}, reader.GetUpdates())
+
+	// Verify Provides
+	provides := reader.GetArtifactProvides()
+	assert.NotNil(t, provides)
+	assert.Equal(t, "testName", provides.ArtifactName)
+	assert.Equal(t, "testGroupProvide", provides.ArtifactGroup)
+
+	// Verify Depends
+	depends := reader.GetArtifactDepends()
+	assert.NotNil(t, depends)
+	assert.Equal(t, []string{"testNameDepends1", "testNameDepends2"}, depends.ArtifactName)
+	assert.Equal(t, []string{"testGroupDepends1", "testGroupDepends2"}, depends.ArtifactGroup)
+
+	// Verify update
+	updates := reader.GetUpdates()
+	assert.Equal(t, 1, len(updates))
+	assert.Equal(t, "rootfs-image", updates[0].Type)
+	handlers := reader.GetHandlers()
+	assert.Equal(t, 1, len(handlers))
+	handler := handlers[0]
+	assert.Equal(t, "rootfs-image", handler.GetUpdateType())
+
+	// Type-Info Depends
+	updDepends, err := handler.GetUpdateDepends()
+	require.NoError(t, err)
+	assert.Equal(t, artifact.TypeInfoDepends{
+		"testDependKey1": "testDependValue1",
+		"testDependKey2": "testDependValue2",
+	}, *updDepends)
+
+	// Type-Info Provides
+	updProvides, err := handler.GetUpdateProvides()
+	require.NoError(t, err)
+	assert.Equal(t, artifact.TypeInfoProvides{
+		"testProvideKey1": "testProvideValue1",
+		"testProvideKey2": "testProvideValue2",
+	}, *updProvides)
+
+}
