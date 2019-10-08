@@ -79,7 +79,7 @@ func getCliContext() *cli.App {
 	compressors := artifact.GetRegisteredCompressorIds()
 
 	compressionFlag := cli.StringFlag{
-		Name:  "compression",
+		Name: "compression",
 		Usage: fmt.Sprintf("Compression to use for data and header inside the artifact, "+
 			"currently supports: %v.", strings.Join(compressors, ", ")),
 	}
@@ -97,6 +97,30 @@ func getCliContext() *cli.App {
 		Name: "key, k",
 		Usage: "Full path to the public key that will be used to verify " +
 			"the artifact signature.",
+	}
+
+	//
+	// Common Artifact Depends and Provides flags
+	//
+	artifactNameDepends := cli.StringSliceFlag{
+		Name:  "artifact-name-depends, N",
+		Usage: "Sets the name(s) of the artifact(s) which this update depends upon",
+	}
+	artifactProvides := cli.StringSliceFlag{
+		Name:  "provides, p",
+		Usage: "Generic `KEY:VALUE` which is added to the type-info -> artifact_provides section. Can be given multiple times",
+	}
+	artifactDepends := cli.StringSliceFlag{
+		Name:  "depends, d",
+		Usage: "Generic `KEY:VALUE` which is added to the type-info -> artifact_depends section. Can be given multiple times",
+	}
+	artifactProvidesGroup := cli.StringFlag{
+		Name:  "provides-group, g",
+		Usage: "The group the artifact provides",
+	}
+	artifactDependsGroups := cli.StringSliceFlag{
+		Name:  "depends-groups, G",
+		Usage: "The group(s) the artifact depends on",
 	}
 
 	//
@@ -141,30 +165,11 @@ func getCliContext() *cli.App {
 		/////////////////////////
 		// Version 3 specifics.//
 		/////////////////////////
-		// Hiding these for now. We are not enforcing them on the client
-		// so we should not set these yet.
-		//
-		// cli.StringSliceFlag{
-		// 	Name:  "artifact-name-depends, N",
-		// 	Usage: "Sets the name(s) of the artifact(s) which this update depends upon",
-		// },
-		// cli.StringFlag{
-		// 	Name:  "provides-group, g",
-		// 	Usage: "The group the artifact provides",
-		// },
-		// cli.StringSliceFlag{
-		// 	Name:  "depends-groups, G",
-		// 	Usage: "The group(s) the artifact depends on",
-		// },
-		// cli.StringFlag{
-		// 	Name:  "depends-rootfs-image-checksum",
-		// 	Usage: "The checksum of the rootfs image which this artifact depends upon",
-		// },
-		// cli.StringFlag{
-		// 	Name:  "provides-rootfs-image-checksum",
-		// 	Usage: "The checksum of the rootfs image which this artifact provides",
-		// },
-
+		artifactNameDepends,
+		artifactDepends,
+		artifactProvides,
+		artifactProvidesGroup,
+		artifactDependsGroups,
 		compressionFlag,
 	}
 	writeRootfsCommand.Before = applyCompressionInCommand
@@ -210,29 +215,14 @@ func getCliContext() *cli.App {
 			Usage: "Full path to the state script(s). You can specify multiple " +
 				"scripts providing this parameter multiple times.",
 		},
-		cli.StringSliceFlag{
-			Name:  "artifact-name-depends, N",
-			Usage: "Sets the name(s) of the artifact(s) which this update depends upon",
-		},
-		cli.StringFlag{
-			Name:  "provides-group, g",
-			Usage: "The group the artifact provides",
-		},
-		cli.StringSliceFlag{
-			Name:  "depends-groups, G",
-			Usage: "The group(s) the artifact depends on",
-		},
+		artifactNameDepends,
+		artifactDepends,
+		artifactProvides,
+		artifactProvidesGroup,
+		artifactDependsGroups,
 		cli.StringFlag{
 			Name:  "type, T",
 			Usage: "Type of payload. This is the same as the name of the update module",
-		},
-		cli.StringSliceFlag{
-			Name:  "provides, p",
-			Usage: "Generic `KEY:VALUE` which is added to the type-info -> artifact_provides section. Can be given multiple times",
-		},
-		cli.StringSliceFlag{
-			Name:  "depends, d",
-			Usage: "Generic `KEY:VALUE` which is added to the type-info -> artifact_depends section. Can be given multiple times",
 		},
 		cli.StringFlag{
 			Name:  "meta-data, m",
