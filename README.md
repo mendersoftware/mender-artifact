@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/mendersoftware/mender-artifact.svg?branch=master)](https://travis-ci.org/mendersoftware/mender-artifact)
+[![Build Status](https://gitlab.com/Northern.tech/Mender/mender-artifact/badges/master/pipeline.svg)](https://gitlab.com/Northern.tech/Mender/mender-artifact/pipelines)
 [![codecov](https://codecov.io/gh/mendersoftware/mender-artifact/branch/master/graph/badge.svg)](https://codecov.io/gh/mendersoftware/mender-artifact)
 [![Go Report Card](https://goreportcard.com/badge/github.com/mendersoftware/mender-artifact)](https://goreportcard.com/report/github.com/mendersoftware/mender-artifact)
 

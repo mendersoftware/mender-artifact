@@ -10,6 +10,8 @@ cache:
 variables:
    DOCKER_HOST: tcp://docker:2375/
    DOCKER_REPOSITORY: mendersoftware/mender-artifact
+   S3_BUCKET_NAME: "mender"
+   S3_BUCKET_PATH: "mender-artifact"
 
 services:
   - docker:dind
@@ -57,62 +59,43 @@ build:docker:
     - docker
 
 build:make:
-  image: golang:1.11
+  image: docker
+  before_script:
+    - apk add --no-cache make
   stage: build
   script:
-    - apt-get update && apt-get install -yyq liblzma-dev
-    - make build
-    - make extracheck
-    - cp /go/src/github.com/mendersoftware/mender-artifact/mender-artifact $CI_PROJECT_DIR
-    - chmod +x $CI_PROJECT_DIR/mender-artifact
+    - make build-natives-contained
   artifacts:
     expire_in: 2w
     paths:
-      - mender-artifact
+      - mender-artifact-*
   tags:
     - docker
 
 publish:tests:
+  image: alpine
   stage: publish
-  before_script: []  
+  before_script:
+    - apk add --no-cache bash curl findutils git
   dependencies:
     - test:static
   script:
-    - echo "coverage-acceptance"
-    # Integrate with https://codecov.io
-    # - bash <(curl -s https://codecov.io/bash) -F acceptance -f coverage.txt;
+    - bash -c "bash <(curl -s https://codecov.io/bash) -Z"
 
-publish:build:
-  image: docker
-  before_script: []
+publish:s3:
   stage: publish
+  image: debian:buster
   dependencies:
-    - build:docker
+    - build:make
+  before_script:
+    - apt update && apt install -yyq awscli
   script:
-    - echo "publishing image to docker hub"
-    # - docker load -i image.tar
-    # - if [ ! -z "$CI_COMMIT_TAG" ]; then export IMAGE_TAG=$CI_COMMIT_TAG; else export IMAGE_TAG=$CI_COMMIT_REF_NAME; fi ;
-    # - docker tag $DOCKER_REPOSITORY:pr $DOCKER_REPOSITORY:$IMAGE_TAG ;
-    # - docker login --username=$DOCKER_HUB_USERNAME --password=$DOCKER_HUB_PASSWORD ;
-    # - docker push $DOCKER_REPOSITORY:$IMAGE_TAG ;
-  except:
-    - master
-  tags:
-    - docker
-
-publish:build:master:
-  image: docker
-  before_script: []
-  stage: publish
-  dependencies:
-    - build:docker
-  script:
-    - echo "publishing image to docker hub"
-    # - docker load -i image.tar
-    # - export COMMIT_TAG="$CI_COMMIT_REF_NAME"_"$CI_COMMIT_SHA";
-    # - docker tag $DOCKER_REPOSITORY:pr $DOCKER_REPOSITORY:$COMMIT_TAG;
-    # - docker push $DOCKER_REPOSITORY:$COMMIT_TAG;
+    - for bin in mender-artifact-darwin mender-artifact-linux mender-artifact-windows.exe; do
+        platform=${bin#mender-artifact-};
+        platform=${platform%.*};
+        echo "Publishing ${CI_COMMIT_REF_NAME} version for ${platform} to S3";
+        aws s3 cp ${bin}
+          s3://$S3_BUCKET_NAME/$S3_BUCKET_PATH/${CI_COMMIT_REF_NAME}/${platform}/mender-artifact;
+      done
   only:
-    - master
-  tags:
-    - docker
+    - /^(master|[0-9]+\.[0-9]+\.x)$/
