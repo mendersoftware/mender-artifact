@@ -4,4 +4,5 @@ RUN mkdir -p /go/src/github.com/mendersoftware/mender-artifact
 WORKDIR /go/src/github.com/mendersoftware/mender-artifact
 ADD ./ .
 RUN make build
-ENTRYPOINT [ "/go/src/github.com/mendersoftware/mender-artifact/mender-artifact" ]
+RUN make install
+ENTRYPOINT [ "/go/bin/mender-artifact" ]
