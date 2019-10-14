@@ -96,6 +96,8 @@ publish:s3:
         echo "Publishing ${CI_COMMIT_REF_NAME} version for ${platform} to S3";
         aws s3 cp ${bin}
           s3://$S3_BUCKET_NAME/$S3_BUCKET_PATH/${CI_COMMIT_REF_NAME}/${platform}/mender-artifact;
+        aws s3api put-object-acl --acl public-read --bucket $S3_BUCKET_NAME
+          --key $S3_BUCKET_PATH/${CI_COMMIT_REF_NAME}/${platform}/mender-artifact;
       done
   only:
     - /^(master|[0-9]+\.[0-9]+\.x)$/
