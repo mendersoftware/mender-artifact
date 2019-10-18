@@ -49,8 +49,9 @@ func TestExternalBinaryDependency(t *testing.T) {
 		os.Setenv("PATH", origPATH)
 	}()
 	os.Setenv("PATH", "")
-	_, err := debugfsCopyFile("foo", "bar")
+	tmpdir, err := debugfsCopyFile("foo", "bar")
 	assert.EqualError(t, err, debugfsMissingErr)
+	defer os.RemoveAll(tmpdir)
 
 	_, err = debugfsExecuteCommand("foobar", "bash")
 	assert.EqualError(t, err, debugfsMissingErr)

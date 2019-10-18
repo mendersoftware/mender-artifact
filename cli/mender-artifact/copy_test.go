@@ -635,12 +635,11 @@ func TestCopyRootfsImage(t *testing.T) {
 							t.Log(out)
 							t.Fatal(fmt.Sprintf("cmd: %s failed with err: %v", test.name, err))
 						}
+					}
+					if test.verifyTestFunc != nil {
+						test.verifyTestFunc(targ.validImg)
 					} else {
-						if test.verifyTestFunc != nil {
-							test.verifyTestFunc(targ.validImg)
-						} else {
-							assert.Equal(t, test.expected, out, test.name)
-						}
+						assert.Equal(t, test.expected, out, test.name)
 					}
 				})
 			}

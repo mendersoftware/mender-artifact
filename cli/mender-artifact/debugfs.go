@@ -33,11 +33,16 @@ const (
 		" the `e2fsprogs` package."
 )
 
-func debugfsCopyFile(file, image string) (string, error) {
+func debugfsCopyFile(file, image string) (ret string, err error) {
 	tmpDir, err := ioutil.TempDir("", "mender")
 	if err != nil {
 		return "", errors.Wrap(err, "debugfs: create temp directory")
 	}
+	defer func() {
+		if err != nil {
+			os.RemoveAll(tmpDir)
+		}
+	}()
 
 	dumpCmd := fmt.Sprintf("dump %s %s", file,
 		filepath.Join(tmpDir, filepath.Base(file)))
@@ -51,21 +56,17 @@ func debugfsCopyFile(file, image string) (string, error) {
 		return "", errors.Wrap(err, "failed to open stderr pipe of command")
 	}
 	if err = cmd.Start(); err != nil {
-		os.RemoveAll(tmpDir)
 		return "", errors.Wrap(err, "debugfs: run debugfs dump")
 	}
 	data, err := ioutil.ReadAll(ep)
 	if err != nil {
-		os.RemoveAll(tmpDir)
 		return "", errors.Wrap(err, "Failed to read from stderr-pipe")
 	}
 
 	if len(data) > 0 && strings.Contains(string(data), "File not found") {
-		os.RemoveAll(tmpDir)
 		return "", fmt.Errorf("file %s not found in image", file)
 	}
 	if err = cmd.Wait(); err != nil {
-		os.RemoveAll(tmpDir)
 		return "", errors.Wrap(err, "debugfs copy-file command failed")
 	}
 

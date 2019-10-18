@@ -29,11 +29,11 @@ import (
 )
 
 type unpackedArtifact struct {
-	origPath string
-	dir      string
-	ar       *areader.Reader
-	scripts  []string
-	files    []string
+	origPath  string
+	unpackDir string
+	ar        *areader.Reader
+	scripts   []string
+	files     []string
 
 	// Args needed to reconstruct the artifact
 	writeArgs *awriter.WriteArtifactArgs
@@ -146,7 +146,7 @@ func unpackArtifact(name string) (ua *unpackedArtifact, err error) {
 	if err != nil {
 		return nil, err
 	}
-	ua.dir = tmpdir
+	ua.unpackDir = tmpdir
 	defer func() {
 		if err != nil {
 			os.RemoveAll(tmpdir)

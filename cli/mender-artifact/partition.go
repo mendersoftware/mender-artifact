@@ -228,17 +228,25 @@ func (i *ModImageSdimg) Open(fpath string) (VPFile, error) {
 	return newSDImgFile(i, fpath, i.candidates)
 }
 
+func (i *ModImageRaw) Open(fpath string) (VPFile, error) {
+	return newExtFile(i.path, fpath)
+}
+
 // Closes and repacks the artifact or sdimg.
 func (i *ModImageArtifact) Close() error {
+	if i.unpackDir != "" {
+		defer os.RemoveAll(i.unpackDir)
+	}
 	return repackArtifact(i.comp, i.key, i.unpackedArtifact)
 }
 
 func (i *ModImageSdimg) Close() error {
+	for _, cand := range i.candidates {
+		if cand.path != "" && cand.path != i.path {
+			defer os.RemoveAll(cand.path)
+		}
+	}
 	return repackSdimg(i.candidates, i.path)
-}
-
-func (i *ModImageRaw) Open(fpath string) (VPFile, error) {
-	return newExtFile(i.path, fpath)
 }
 
 func (i *ModImageRaw) Close() error {
@@ -355,10 +363,11 @@ func newSDImgFile(image *ModImageSdimg, fpath string, modcands []partition) (sdi
 		case ext:
 			f, err = newExtFile(fs.path, fpath)
 		case unsupported:
-			return nil, errors.New("partition: unsupported filesystem")
+			err = errors.New("partition: unsupported filesystem")
 
 		}
 		if err != nil {
+			sdimgFile.Close()
 			return nil, err
 		}
 		sdimgFile = append(sdimgFile, f)
@@ -545,15 +554,17 @@ func (ef *extFile) Close() (err error) {
 		return nil
 	}
 	if ef.tmpf != nil {
+		defer func() {
+			// Ignore tmp-errors
+			ef.tmpf.Close()
+			os.Remove(ef.tmpf.Name())
+		}()
 		if ef.flush {
 			err = debugfsReplaceFile(ef.imageFilePath, ef.tmpf.Name(), ef.imagePath)
 			if err != nil {
 				return err
 			}
 		}
-		// Ignore tmp-errors
-		ef.tmpf.Close()
-		os.Remove(ef.tmpf.Name())
 	}
 	return err
 }
@@ -638,6 +649,10 @@ func (f *fatFile) Close() (err error) {
 		return nil
 	}
 	if f.tmpf != nil {
+		defer func() {
+			f.tmpf.Close()
+			os.Remove(f.tmpf.Name())
+		}()
 		if f.flush {
 			cmd := exec.Command("mcopy", "-n", "-i", f.imagePath, f.tmpf.Name(), "::"+f.imageFilePath)
 			data := bytes.NewBuffer(nil)
@@ -646,8 +661,6 @@ func (f *fatFile) Close() (err error) {
 				return errors.Wrap(err, "fatFile: Write: MTools execution failed")
 			}
 		}
-		f.tmpf.Close()
-		os.Remove(f.tmpf.Name())
 	}
 	return err
 }
@@ -685,7 +698,9 @@ func processSdimg(image string) (VPImage, error) {
 		}, nil
 		// if we have single ext file there is no need to mount it
 
-	} else if len(partitionMatch) == 1 {
+	} else if len(partitionMatch) == 1 && partitionMatch[0][1] == "0" {
+		// For one partition match which has an offset of zero, we
+		// assume it is a raw filesystem image.
 		return &ModImageRaw{
 			ModImageBase: ModImageBase{
 				path: image,

@@ -59,6 +59,7 @@ func TestDebugfs(t *testing.T) {
 		filepath.Join(tmp, "mender_test.img"))
 
 	assert.NoError(t, err)
+	defer os.RemoveAll(tDir)
 	st, err := os.Stat(filepath.Join(tDir, "artifact_info"))
 
 	assert.NoError(t, err)
