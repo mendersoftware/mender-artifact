@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 
 	"github.com/mendersoftware/mender-artifact/utils"
 	"github.com/pkg/errors"
@@ -33,40 +32,6 @@ const (
 	debugfsMissingErr = "The `debugfs` binary is not found on the system. The binary can typically be installed through" +
 		" the `e2fsprogs` package."
 )
-
-// From the fsck man page:
-// The exit code returned by fsck is the sum of the following conditions:
-//
-//              0      No errors
-//              1      Filesystem errors corrected
-//              2      System should be rebooted
-//              4      Filesystem errors left uncorrected
-//              8      Operational error
-//              16     Usage or syntax error
-//              32     Checking canceled by user request
-//              128    Shared-library error
-func debugfsRunFsck(image string) error {
-	bin, err := utils.GetBinaryPath("fsck.ext4")
-	if err != nil {
-		return errors.Wrap(err, "fsck.ext4 command not found")
-	}
-	cmd := exec.Command(bin, "-a", image)
-	if err := cmd.Run(); err != nil {
-		// try to get the exit code
-		if exitError, ok := err.(*exec.ExitError); ok {
-			ws := exitError.Sys().(syscall.WaitStatus)
-			if ws.ExitStatus() == 0 || ws.ExitStatus() == 1 {
-				return nil
-			}
-			if ws.ExitStatus() == 8 {
-				return errors.New("mender-artifact can only modify ext4 payloads")
-			}
-			return errors.Wrap(err, "fsck error")
-		}
-		return errors.New("fsck returned unparsed error")
-	}
-	return nil
-}
 
 func debugfsCopyFile(file, image string) (string, error) {
 	tmpDir, err := ioutil.TempDir("", "mender")
@@ -110,23 +75,23 @@ func debugfsCopyFile(file, image string) (string, error) {
 func debugfsReplaceFile(imageFile, hostFile, image string) (err error) {
 	// First check that the path exists. (cd path)
 	cmd := fmt.Sprintf("cd %s\nclose", filepath.Dir(imageFile))
-	if _, err = executeCommand(cmd, image); err != nil {
+	if _, err = debugfsExecuteCommand(cmd, image); err != nil {
 		return err
 	}
 	// remove command can fail, if the file does not already exist, but this is not critical
 	// so simply ignore the error.
 	cmd = fmt.Sprintf("rm %s\nclose", imageFile)
-	executeCommand(cmd, image)
+	debugfsExecuteCommand(cmd, image)
 	// Write to the partition
 	cmd = fmt.Sprintf("cd %s\nwrite %s %s\nclose", filepath.Dir(imageFile), hostFile, filepath.Base(imageFile))
-	_, err = executeCommand(cmd, image)
+	_, err = debugfsExecuteCommand(cmd, image)
 	return err
 }
 
 func debugfsRemoveFileOrDir(imageFile, image string, recursive bool) (err error) {
 	// Check that the file or directory exists.
 	cmd := fmt.Sprintf("cd %s", filepath.Dir(imageFile))
-	if _, err = executeCommand(cmd, image); err != nil {
+	if _, err = debugfsExecuteCommand(cmd, image); err != nil {
 		return err
 	}
 	isDir := filepath.Dir(imageFile) == filepath.Clean(imageFile)
@@ -134,7 +99,7 @@ func debugfsRemoveFileOrDir(imageFile, image string, recursive bool) (err error)
 		return debugfsRemoveDir(imageFile, image, recursive)
 	}
 	cmd = fmt.Sprintf("%s %s\nclose", "rm", imageFile)
-	_, err = executeCommand(cmd, image)
+	_, err = debugfsExecuteCommand(cmd, image)
 	return err
 }
 
@@ -142,11 +107,11 @@ func debugfsRemoveDir(imageFile, image string, recursive bool) (err error) {
 	// Remove the `/` suffix if present, as debugfs does not play nice with it.
 	imageFile = strings.TrimRight(imageFile, "/")
 	cmd := fmt.Sprintf("rmdir %s", imageFile)
-	if _, err = executeCommand(cmd, image); err != nil {
+	if _, err = debugfsExecuteCommand(cmd, image); err != nil {
 		if recursive && strings.Contains(err.Error(), "directory not empty") {
 			// Recurse and remove all files in the directory.
 			cmd = fmt.Sprintf("ls %s", imageFile)
-			buf, err := executeCommand(cmd, image)
+			buf, err := debugfsExecuteCommand(cmd, image)
 			if err != nil {
 				return errors.Wrap(err, "debugfsRemoveDir")
 			}
@@ -166,8 +131,8 @@ func debugfsRemoveDir(imageFile, image string, recursive bool) (err error) {
 	return nil
 }
 
-// executeCommand takes a command string and passes it on to debugfs on the image given.
-func executeCommand(cmdstr, image string) (stdout *bytes.Buffer, err error) {
+// debugfsExecuteCommand takes a command string and passes it on to debugfs on the image given.
+func debugfsExecuteCommand(cmdstr, image string) (stdout *bytes.Buffer, err error) {
 	scr, err := ioutil.TempFile("", "mender-debugfs")
 	if err != nil {
 		return nil, errors.Wrap(err, "debugfs: create sync script file")

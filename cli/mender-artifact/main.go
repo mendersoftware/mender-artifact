@@ -52,16 +52,7 @@ func applyCompressionInCommand(c *cli.Context) error {
 	// Let --compression argument work after command as well. Latest one
 	// applies.
 	if c.String("compression") != "" {
-		parent := c
-		// Find top level context, where the original --compression
-		// argument lives.
-		for {
-			if parent.Parent() == nil {
-				break
-			}
-			parent = parent.Parent()
-		}
-		parent.Set("compression", c.String("compression"))
+		c.GlobalSet("compression", c.String("compression"))
 	}
 	return nil
 }
@@ -89,7 +80,7 @@ func getCliContext() *cli.App {
 
 	privateKeyFlag := cli.StringFlag{
 		Name: "key, k",
-		Usage: "Full path to the private key that will be used to verify " +
+		Usage: "Full path to the private key that will be used to sign " +
 			"the artifact signature.",
 	}
 
@@ -347,6 +338,7 @@ func getCliContext() *cli.App {
 			Name:  "tenant-token, t",
 			Usage: "Full path to the tenant token that will be injected into modified file.",
 		},
+		privateKeyFlag,
 		compressionFlag,
 	}
 	modify.Before = applyCompressionInCommand
@@ -363,6 +355,7 @@ func getCliContext() *cli.App {
 
 	copy.Flags = []cli.Flag{
 		compressionFlag,
+		privateKeyFlag,
 	}
 	copy.Before = applyCompressionInCommand
 

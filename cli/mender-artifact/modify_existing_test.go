@@ -101,24 +101,19 @@ func verify(image, file, expected string) bool {
 
 func verifySDImg(image, file, expected string) bool {
 
-	candidateType, modifyCandidates, err :=
-		getCandidatesForModify(image)
-
-	defer func(partitions []partition) {
-		for _, part := range partitions {
-			os.Remove(part.path)
-		}
-	}(modifyCandidates)
+	part, err := virtualImage.Open(nil, nil, image)
 
 	if err != nil {
 		return false
 	}
+	defer part.Close()
 
-	if candidateType != RawSDImage {
+	sdimg, ok := part.(*ModImageSdimg)
+	if !ok {
 		return false
 	}
 
-	return verify(modifyCandidates[1].path, file, expected)
+	return verify(sdimg.candidates[1].path, file, expected)
 }
 
 func TestModifyImage(t *testing.T) {
@@ -393,26 +388,30 @@ func TestModifyModuleArtifact(t *testing.T) {
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "mender-artifact can only modify ext4 payloads")
+	assert.Contains(t, err.Error(), errFsTypeUnsupported.Error())
 
+	require.NoError(t, ioutil.WriteFile("dummy-cert", []byte("SecretCert"), 0644))
+	defer os.Remove("dummy-cert")
 	os.Args = []string{
 		"mender-artifact", "modify", "-c", "dummy-cert", artfile,
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "mender-artifact can only modify ext4 payloads")
+	assert.Contains(t, err.Error(), errFsTypeUnsupported.Error())
 
+	require.NoError(t, ioutil.WriteFile("dummy-key", []byte("SecretKey"), 0644))
+	defer os.Remove("dummy-key")
 	os.Args = []string{
 		"mender-artifact", "modify", "-v", "dummy-key", artfile,
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "mender-artifact can only modify ext4 payloads")
+	assert.Contains(t, err.Error(), errFsTypeUnsupported.Error())
 
 	os.Args = []string{
 		"mender-artifact", "modify", "-t", "dummy-token", artfile,
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "mender-artifact can only modify ext4 payloads")
+	assert.Contains(t, err.Error(), errFsTypeUnsupported.Error())
 }

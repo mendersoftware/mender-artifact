@@ -37,7 +37,13 @@ func Cat(c *cli.Context) (err error) {
 	if !isimg.MatchString(c.Args().First()) {
 		return cli.NewExitError("The input image does not seem to be a valid image", 1)
 	}
-	r, err := virtualPartitionFile.Open(comp, c.Args().First())
+
+	privateKey, err := getKey(c.String("key"))
+	if err != nil {
+		return cli.NewExitError("Unable to load key: "+err.Error(), 1)
+	}
+
+	r, err := virtualImage.OpenFile(comp, privateKey, c.Args().First())
 	defer func() {
 		if r == nil {
 			return
@@ -63,6 +69,11 @@ func Copy(c *cli.Context) (err error) {
 		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
 	}
 
+	privateKey, err := getKey(c.String("key"))
+	if err != nil {
+		return cli.NewExitError("Unable to load key: "+err.Error(), 1)
+	}
+
 	var r io.ReadCloser
 	var w io.WriteCloser
 	wclose := func(w io.Closer) {
@@ -82,7 +93,7 @@ func Copy(c *cli.Context) (err error) {
 		if err != nil {
 			return cli.NewExitError(err, 1)
 		}
-		vfile, err = virtualPartitionFile.Open(comp, c.Args().Get(1))
+		vfile, err = virtualImage.OpenFile(comp, privateKey, c.Args().Get(1))
 		defer wclose(vfile)
 		if err != nil {
 			return cli.NewExitError(err, 1)
@@ -93,14 +104,14 @@ func Copy(c *cli.Context) (err error) {
 		return nil
 	case copyinstdin:
 		r = os.Stdin
-		vfile, err = virtualPartitionFile.Open(comp, c.Args().Get(1))
+		vfile, err = virtualImage.OpenFile(comp, privateKey, c.Args().Get(1))
 		defer wclose(vfile)
 		if err != nil {
 			return cli.NewExitError(err, 1)
 		}
 		w = vfile
 	case copyout:
-		vfile, err = virtualPartitionFile.Open(comp, c.Args().First())
+		vfile, err = virtualImage.OpenFile(comp, privateKey, c.Args().First())
 		defer wclose(vfile)
 		if err != nil {
 			return cli.NewExitError(err, 1)
@@ -132,6 +143,11 @@ func Install(c *cli.Context) (err error) {
 		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
 	}
 
+	privateKey, err := getKey(c.String("key"))
+	if err != nil {
+		return cli.NewExitError("Unable to load key: "+err.Error(), 1)
+	}
+
 	var r io.ReadCloser
 	var w io.WriteCloser
 	wclose := func(w io.Closer) {
@@ -155,7 +171,7 @@ func Install(c *cli.Context) (err error) {
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		f, err := virtualPartitionFile.Open(comp, c.Args().Get(1))
+		f, err := virtualImage.OpenFile(comp, privateKey, c.Args().Get(1))
 		defer wclose(f)
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
@@ -184,6 +200,12 @@ func Remove(c *cli.Context) (err error) {
 			err = cerr
 		}
 	}
+
+	privateKey, err := getKey(c.String("key"))
+	if err != nil {
+		return cli.NewExitError("Unable to load key: "+err.Error(), 1)
+	}
+
 	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
 	if err != nil {
 		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
@@ -194,7 +216,7 @@ func Remove(c *cli.Context) (err error) {
 	if !isimg.MatchString(c.Args().First()) {
 		return cli.NewExitError("The input image does not have a valid extension", 1)
 	}
-	f, err := virtualPartitionFile.Open(comp, c.Args().First())
+	f, err := virtualImage.OpenFile(comp, privateKey, c.Args().First())
 	defer wclose(f)
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)

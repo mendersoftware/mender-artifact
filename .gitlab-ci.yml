@@ -34,7 +34,7 @@ before_script:
 test:static:
   stage: test
   script:
-    - apk add bash e2fsprogs e2fsprogs-extra gcc libc6-compat mtools musl-dev parted perl-utils xz-dev
+    - apk add bash dosfstools e2fsprogs e2fsprogs-extra gcc libc6-compat mtools musl-dev parted perl-utils xz-dev
     - make extracheck
     - make coverage
     - mv /go/src/github.com/mendersoftware/mender-artifact/coverage.txt $CI_PROJECT_DIR/coverage.txt
