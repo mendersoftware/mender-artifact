@@ -604,3 +604,110 @@ func TestModifyBrokenArtifact(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "can not execute `parted` command or image is broken")
 }
+
+func TestModifyExtraAttributes(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+	artfile := filepath.Join(tmpdir, "artifact.mender")
+
+	err = ioutil.WriteFile(filepath.Join(tmpdir, "updateFile"), []byte("updateContent"), 0644)
+	require.NoError(t, err)
+
+	err = ioutil.WriteFile(filepath.Join(tmpdir, "meta-data"), []byte(`{"meta":"data"}`), 0644)
+	require.NoError(t, err)
+
+	os.Args = []string{
+		"mender-artifact", "write", "module-image",
+		"-o", artfile,
+		"-n", "testName",
+		"-t", "testDevice",
+		"-T", "testType",
+		"-f", filepath.Join(tmpdir, "updateFile"),
+	}
+	err = run()
+	require.NoError(t, err)
+
+	// Test that we can add attributes.
+	data := modifyAndRead(t, artfile, "--artifact-name-depends", "testNameDepends",
+		"--artifact-name-depends", "testNameDepends2",
+		"--provides-group", "testProvidesGroup",
+		"--depends-groups", "testDependsGroup",
+		"--depends-groups", "testDependsGroup2",
+		"--provides", "testProvide1:SomeStuff1",
+		"--provides", "testProvide2:SomeStuff2",
+		"--depends", "testDepends1:SomeStuff1",
+		"--depends", "testDepends2:SomeStuff2",
+		"--meta-data", filepath.Join(tmpdir, "meta-data"),
+	)
+	expected := `Mender artifact:
+  Name: testName
+  Format: mender
+  Version: 3
+  Signature: no signature
+  Compatible devices: '[testDevice]'
+  Provides group: testProvidesGroup
+  Depends on one of artifact(s): [testNameDepends, testNameDepends2]
+  Depends on one of group(s): [testDependsGroup, testDependsGroup2]
+  State scripts:
+
+Updates:
+    0:
+    Type:   testType
+    Provides:
+	testProvide1: SomeStuff1
+	testProvide2: SomeStuff2
+    Depends:
+	testDepends1: SomeStuff1
+	testDepends2: SomeStuff2
+    Metadata:
+	{
+	  "meta": "data"
+	}
+    Files:
+      name:     updateFile
+      size:     13
+
+`
+	assert.Equal(t, expected, removeVolatileEntries(data))
+
+	// Test that attributes are not disturbed by a no-op modification.
+	data = modifyAndRead(t, artfile)
+	assert.Equal(t, expected, removeVolatileEntries(data))
+}
+
+func TestModifyExtraAttributesOnNonArtifact(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+
+	art := filepath.Join(tmpdir, "mender_test.img")
+	err = copyFile("mender_test.img", art)
+	require.NoError(t, err)
+
+	err = ioutil.WriteFile(filepath.Join(tmpdir, "meta-data"), []byte(`{"meta":"data"}`), 0644)
+	require.NoError(t, err)
+
+	paramPairs := [][]string{
+		{"--artifact-name-depends", "testNameDepends"},
+		{"--provides-group", "testGroupProvides"},
+		{"--depends-groups", "testGroupDepends"},
+		{"--depends", "depends:value"},
+		{"--provides", "provides:value"},
+		{"--meta-data", filepath.Join(tmpdir, "meta-data")},
+	}
+
+	for _, p := range paramPairs {
+		t.Run(p[0], func(t *testing.T) {
+			testModifyExtraAttributesOnNonArtifact(t, art, p)
+		})
+	}
+}
+
+func testModifyExtraAttributesOnNonArtifact(t *testing.T, art string, p []string) {
+	os.Args = []string{"mender-artifact", "modify", p[0], p[1], art}
+
+	err := run()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be used with an Artifact")
+}

@@ -81,29 +81,25 @@ func getCliContext() *cli.App {
 	privateKeyFlag := cli.StringFlag{
 		Name: "key, k",
 		Usage: "Full path to the private key that will be used to sign " +
-			"the artifact signature.",
+			"the Artifact.",
 	}
 
 	publicKeyFlag := cli.StringFlag{
 		Name: "key, k",
 		Usage: "Full path to the public key that will be used to verify " +
-			"the artifact signature.",
+			"the Artifact signature.",
 	}
 
 	//
-	// Common Artifact Depends and Provides flags
+	// Common Artifact flags
 	//
+	artifactName := cli.StringFlag{
+		Name:  "artifact-name, n",
+		Usage: "Name of the artifact",
+	}
 	artifactNameDepends := cli.StringSliceFlag{
 		Name:  "artifact-name-depends, N",
 		Usage: "Sets the name(s) of the artifact(s) which this update depends upon",
-	}
-	artifactProvides := cli.StringSliceFlag{
-		Name:  "provides, p",
-		Usage: "Generic `KEY:VALUE` which is added to the type-info -> artifact_provides section. Can be given multiple times",
-	}
-	artifactDepends := cli.StringSliceFlag{
-		Name:  "depends, d",
-		Usage: "Generic `KEY:VALUE` which is added to the type-info -> artifact_depends section. Can be given multiple times",
 	}
 	artifactProvidesGroup := cli.StringFlag{
 		Name:  "provides-group, g",
@@ -112,6 +108,22 @@ func getCliContext() *cli.App {
 	artifactDependsGroups := cli.StringSliceFlag{
 		Name:  "depends-groups, G",
 		Usage: "The group(s) the artifact depends on",
+	}
+
+	//
+	// Common Payload flags
+	//
+	payloadProvides := cli.StringSliceFlag{
+		Name:  "provides, p",
+		Usage: "Generic `KEY:VALUE` which is added to the type-info -> artifact_provides section. Can be given multiple times",
+	}
+	payloadDepends := cli.StringSliceFlag{
+		Name:  "depends, d",
+		Usage: "Generic `KEY:VALUE` which is added to the type-info -> artifact_depends section. Can be given multiple times",
+	}
+	payloadMetaData := cli.StringFlag{
+		Name:  "meta-data, m",
+		Usage: "The meta-data JSON `FILE` for this payload",
 	}
 
 	//
@@ -134,10 +146,7 @@ func getCliContext() *cli.App {
 			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
 				"compatible devices providing this parameter multiple times.",
 		},
-		cli.StringFlag{
-			Name:  "artifact-name, n",
-			Usage: "Name of the artifact",
-		},
+		artifactName,
 		cli.StringFlag{
 			Name:  "output-path, o",
 			Usage: "Full path to output artifact file.",
@@ -157,10 +166,10 @@ func getCliContext() *cli.App {
 		// Version 3 specifics.//
 		/////////////////////////
 		artifactNameDepends,
-		artifactDepends,
-		artifactProvides,
 		artifactProvidesGroup,
 		artifactDependsGroups,
+		payloadDepends,
+		payloadProvides,
 		compressionFlag,
 	}
 	writeRootfsCommand.Before = applyCompressionInCommand
@@ -185,10 +194,6 @@ func getCliContext() *cli.App {
 				"compatible devices providing this parameter multiple times.",
 		},
 		cli.StringFlag{
-			Name:  "artifact-name, n",
-			Usage: "Name of the artifact",
-		},
-		cli.StringFlag{
 			Name:  "output-path, o",
 			Usage: "Full path to output artifact file.",
 		},
@@ -206,19 +211,17 @@ func getCliContext() *cli.App {
 			Usage: "Full path to the state script(s). You can specify multiple " +
 				"scripts providing this parameter multiple times.",
 		},
+		artifactName,
 		artifactNameDepends,
-		artifactDepends,
-		artifactProvides,
 		artifactProvidesGroup,
 		artifactDependsGroups,
 		cli.StringFlag{
 			Name:  "type, T",
 			Usage: "Type of payload. This is the same as the name of the update module",
 		},
-		cli.StringFlag{
-			Name:  "meta-data, m",
-			Usage: "The meta-data JSON `FILE` for this payload",
-		},
+		payloadProvides,
+		payloadDepends,
+		payloadMetaData,
 		cli.StringSliceFlag{
 			Name:  "file, f",
 			Usage: "Include `FILE` in payload. Can be given more than once.",
@@ -330,10 +333,17 @@ func getCliContext() *cli.App {
 			Usage: "Full path to the public verification key that is used by the client " +
 				"to verify the artifact.",
 		},
+		artifactName,
 		cli.StringFlag{
-			Name:  "name, n",
-			Usage: "New name of the artifact.",
+			Name:  "name",
+			Usage: "Deprecated. This is an alias for --artifact-name",
 		},
+		artifactNameDepends,
+		artifactProvidesGroup,
+		artifactDependsGroups,
+		payloadProvides,
+		payloadDepends,
+		payloadMetaData,
 		cli.StringFlag{
 			Name:  "tenant-token, t",
 			Usage: "Full path to the tenant token that will be injected into modified file.",
@@ -341,7 +351,12 @@ func getCliContext() *cli.App {
 		privateKeyFlag,
 		compressionFlag,
 	}
-	modify.Before = applyCompressionInCommand
+	modify.Before = func(c *cli.Context) error {
+		if c.String("name") != "" {
+			c.Set("artifact-name", c.String("name"))
+		}
+		return applyCompressionInCommand(c)
+	}
 
 	copy := cli.Command{
 		Name:        "cp",

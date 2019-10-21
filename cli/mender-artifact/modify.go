@@ -163,13 +163,21 @@ func modifyMenderConfVar(confKey, confValue string, image VPImage) error {
 	return CopyIntoImage(localFile, image, confFile)
 }
 
-func modifyExisting(c *cli.Context, image VPImage) error {
-	if c.String("name") != "" {
-		if err := modifyArtifactInfoName(c.String("name"), image); err != nil {
-			return err
-		}
+func extractKeyValuesIfArtifact(ctx *cli.Context, key string, image VPImage) (*map[string]string, error) {
+	keyValues, err := extractKeyValues(ctx.StringSlice(key))
+	if keyValues == nil || err != nil {
+		return nil, err
 	}
 
+	_, ok := image.(*ModImageArtifact)
+	if !ok {
+		return nil, errors.Errorf("Argument `--%s` must be used with an Artifact", key)
+	}
+
+	return keyValues, nil
+}
+
+func modifyExisting(c *cli.Context, image VPImage) error {
 	if c.String("server-uri") != "" {
 		if err := modifyMenderConfVar("ServerURL",
 			c.String("server-uri"), image); err != nil {
@@ -194,6 +202,118 @@ func modifyExisting(c *cli.Context, image VPImage) error {
 			c.String("tenant-token"), image); err != nil {
 			return err
 		}
+	}
+
+	err := modifyArtifactAttributes(c, image)
+	if err != nil {
+		return err
+	}
+
+	err = modifyPayloadAttributes(c, image)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func modifyArtifactAttributes(c *cli.Context, image VPImage) error {
+	if c.String("artifact-name") != "" {
+		if err := modifyArtifactInfoName(c.String("artifact-name"), image); err != nil {
+			return err
+		}
+	}
+
+	art, isArt := image.(*ModImageArtifact)
+
+	if c.IsSet("artifact-name-depends") {
+		if !isArt {
+			return errors.New("`--artifact-name-depends` argument must be used with an Artifact")
+		}
+		art.writeArgs.Depends.ArtifactName = c.StringSlice("artifact-name-depends")
+	}
+
+	if c.IsSet("depends-groups") {
+		if !isArt {
+			return errors.New("`--depends-groups` argument must be used with an Artifact")
+		}
+		art.writeArgs.Depends.ArtifactGroup = c.StringSlice("depends-groups")
+	}
+
+	if c.IsSet("provides-group") {
+		if !isArt {
+			return errors.New("`--provides-group` argument must be used with an Artifact")
+		}
+		art.writeArgs.Provides.ArtifactGroup = c.String("provides-group")
+	}
+
+	return nil
+}
+
+func modifyPayloadAttributes(c *cli.Context, image VPImage) error {
+	art, isArt := image.(*ModImageArtifact)
+
+	keyValues, err := extractKeyValuesIfArtifact(c, "depends", image)
+	if err != nil {
+		return err
+	} else if keyValues != nil {
+		typeInfoDepends, err := artifact.NewTypeInfoDepends(*keyValues)
+		if err != nil {
+			return err
+		}
+		// The unconditional cast usage here is safe due to the
+		// `extractKeyValuesIfArtifact` call above.
+		art.writeArgs.TypeInfoV3.ArtifactDepends = &typeInfoDepends
+	}
+
+	keyValues, err = extractKeyValuesIfArtifact(c, "provides", image)
+	if err != nil {
+		return err
+	} else if keyValues != nil {
+		typeInfoProvides, err := artifact.NewTypeInfoProvides(*keyValues)
+		if err != nil {
+			return err
+		}
+		art.writeArgs.TypeInfoV3.ArtifactProvides = &typeInfoProvides
+	}
+
+	keyValues, err = extractKeyValuesIfArtifact(c, "augment-depends", image)
+	if err != nil {
+		return err
+	} else if keyValues != nil {
+		typeInfoDepends, err := artifact.NewTypeInfoDepends(*keyValues)
+		if err != nil {
+			return err
+		}
+		art.writeArgs.AugmentTypeInfoV3.ArtifactDepends = &typeInfoDepends
+	}
+
+	keyValues, err = extractKeyValuesIfArtifact(c, "augment-provides", image)
+	if err != nil {
+		return err
+	} else if keyValues != nil {
+		typeInfoProvides, err := artifact.NewTypeInfoProvides(*keyValues)
+		if err != nil {
+			return err
+		}
+		art.writeArgs.AugmentTypeInfoV3.ArtifactProvides = &typeInfoProvides
+	}
+
+	metaData, augMetaData, err := makeMetaData(c)
+	if err != nil {
+		return err
+	}
+	if metaData != nil {
+		if !isArt {
+			return errors.New("`--meta-data` argument must be used with an Artifact")
+		}
+		art.writeArgs.MetaData = metaData
+	}
+	if augMetaData != nil {
+		if !isArt {
+			return errors.New("`--augment-meta-data` argument must be used with an Artifact")
+		}
+		art.writeArgs.AugmentMetaData = augMetaData
 	}
 
 	return nil
