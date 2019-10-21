@@ -202,13 +202,17 @@ func modifyAndRead(t *testing.T, artFile string, args ...string) string {
 	}()
 	os.Stdout = w
 
+	goErr := make(chan error)
+
 	go func() {
-		err = run()
-		require.NoError(t, err)
+		err := run()
 		w.Close()
+		goErr <- err
 	}()
 
 	data, err := ioutil.ReadAll(r)
+	require.NoError(t, err)
+	err = <-goErr
 	require.NoError(t, err)
 
 	return string(data)
