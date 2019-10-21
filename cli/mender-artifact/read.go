@@ -57,7 +57,7 @@ func readArtifact(c *cli.Context) error {
 	ver := func(message, sig []byte) error {
 		sigInfo = "signed but no key for verification provided; " +
 			"please use `-k` option for providing verification key"
-		if verifyCallback != nil {
+		if c.String("key") != "" {
 			err = verifyCallback(message, sig)
 			if err != nil {
 				sigInfo = "signed; verification using provided key failed"
