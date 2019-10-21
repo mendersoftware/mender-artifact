@@ -137,11 +137,6 @@ func unpackArtifact(name string) (ua *unpackedArtifact, err error) {
 	aReader := areader.NewReader(f)
 	ua.ar = aReader
 
-	err = aReader.ReadArtifactHeaders()
-	if err != nil {
-		return nil, err
-	}
-
 	tmpdir, err := ioutil.TempDir("", "mender-artifact")
 	if err != nil {
 		return nil, err
@@ -176,6 +171,11 @@ func unpackArtifact(name string) (ua *unpackedArtifact, err error) {
 		return nil
 	}
 	aReader.ScriptsReadCallback = storeScripts
+
+	err = aReader.ReadArtifactHeaders()
+	if err != nil {
+		return nil, err
+	}
 
 	fDir := filepath.Join(tmpdir, "files")
 	err = os.Mkdir(fDir, 0755)

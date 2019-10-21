@@ -278,6 +278,21 @@ yOTl4wVLQKA6mFvMV9o8B9yTBNg3mQS0vA==
 -----END EC PRIVATE KEY-----`
 )
 
+// Remove entries from 'mender-artifact read' that are always changing and
+// therefore cannot be compared.
+func removeVolatileEntries(input string) string {
+	var output strings.Builder
+	for _, line := range strings.Split(input, "\n") {
+		if strings.HasPrefix(line, "      checksum:") ||
+			strings.HasPrefix(line, "      modified:") {
+			continue
+		}
+		output.WriteString(line)
+		output.WriteByte('\n')
+	}
+	return output.String()
+}
+
 func TestModifyRootfsSigned(t *testing.T) {
 	tmp, err := ioutil.TempDir("", "mender-modify")
 	assert.NoError(t, err)
@@ -328,10 +343,154 @@ func TestModifyRootfsSigned(t *testing.T) {
 		}()
 
 		data, _ := ioutil.ReadAll(r)
-		assert.Contains(t, string(data), "Name: release-2")
-		assert.Contains(t, string(data), "Signature: no signature")
+		expected := `Mender artifact:
+  Name: release-2
+  Format: mender
+  Version: 3
+  Signature: no signature
+  Compatible devices: '[my-device]'
+  Provides group: 
+  Depends on one of artifact(s): []
+  Depends on one of group(s): []
+  State scripts:
 
+Updates:
+    0:
+    Type:   rootfs-image
+    Provides: Nothing
+    Depends: Nothing
+    Metadata: Nothing
+    Files:
+      name:     mender_test.img
+      size:     524288
+
+`
+		assert.Equal(t, expected, removeVolatileEntries(string(data)))
+
+		// Modify again with a private key, and the result shall be signed
+		os.Args = []string{"mender-artifact", "modify",
+			"-n", "release-3", "-k", filepath.Join(tmp, key),
+			filepath.Join(tmp, "artifact.mender")}
+
+		err = run()
+		assert.NoError(t, err)
+
+		// Check for field update and unsigned state
+		os.Args = []string{"mender-artifact", "read",
+			filepath.Join(tmp, "artifact.mender")}
+
+		r, w, err = os.Pipe()
+		out = os.Stdout
+		defer func() {
+			os.Stdout = out
+		}()
+		os.Stdout = w
+
+		go func() {
+			err = run()
+			assert.NoError(t, err)
+			w.Close()
+		}()
+
+		data, _ = ioutil.ReadAll(r)
+		expected = `Mender artifact:
+  Name: release-3
+  Format: mender
+  Version: 3
+  Signature: signed but no key for verification provided; please use ` + "`-k`" + ` option for providing verification key
+  Compatible devices: '[my-device]'
+  Provides group: 
+  Depends on one of artifact(s): []
+  Depends on one of group(s): []
+  State scripts:
+
+Updates:
+    0:
+    Type:   rootfs-image
+    Provides: Nothing
+    Depends: Nothing
+    Metadata: Nothing
+    Files:
+      name:     mender_test.img
+      size:     524288
+
+`
+		assert.Equal(t, expected, removeVolatileEntries(string(data)))
 	}
+
+	// Make sure scripts are preserved.
+
+	err = ioutil.WriteFile(filepath.Join(tmp, "ArtifactInstall_Enter_00"), []byte("commands"), 0755)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(filepath.Join(tmp, "ArtifactCommit_Leave_00"), []byte("more commands"), 0755)
+	require.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+		"-n", "release-1", "-f", filepath.Join(tmp, "mender_test.img"),
+		"-o", filepath.Join(tmp, "artifact.mender"),
+		"-s", filepath.Join(tmp, "ArtifactInstall_Enter_00"),
+		"-s", filepath.Join(tmp, "ArtifactCommit_Leave_00"),
+	}
+	err = run()
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "modify",
+		"-n", "release-2",
+		filepath.Join(tmp, "artifact.mender")}
+
+	err = run()
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "read",
+		filepath.Join(tmp, "artifact.mender")}
+
+	r, w, err := os.Pipe()
+	out := os.Stdout
+	defer func() {
+		os.Stdout = out
+	}()
+	os.Stdout = w
+
+	go func() {
+		err = run()
+		assert.NoError(t, err)
+		w.Close()
+	}()
+
+	data, _ := ioutil.ReadAll(r)
+	// State scripts can unfortunately be in any order.
+	var expectedScripts string
+	if strings.Index(string(data), "ArtifactInstall") < strings.Index(string(data), "ArtifactCommit") {
+		expectedScripts = `    ArtifactInstall_Enter_00
+    ArtifactCommit_Leave_00`
+	} else {
+		expectedScripts = `    ArtifactCommit_Leave_00
+    ArtifactInstall_Enter_00`
+	}
+	expected := `Mender artifact:
+  Name: release-2
+  Format: mender
+  Version: 3
+  Signature: no signature
+  Compatible devices: '[my-device]'
+  Provides group: 
+  Depends on one of artifact(s): []
+  Depends on one of group(s): []
+  State scripts:
+` + expectedScripts + `
+
+Updates:
+    0:
+    Type:   rootfs-image
+    Provides: Nothing
+    Depends: Nothing
+    Metadata: Nothing
+    Files:
+      name:     mender_test.img
+      size:     524288
+
+`
+	assert.Equal(t, expected, removeVolatileEntries(string(data)))
 }
 
 func TestModifyModuleArtifact(t *testing.T) {
@@ -341,10 +500,11 @@ func TestModifyModuleArtifact(t *testing.T) {
 	defer os.RemoveAll(tmpdir)
 	artfile := filepath.Join(tmpdir, "artifact.mender")
 
-	fd, err := os.OpenFile(filepath.Join(tmpdir, "updateFile"), os.O_WRONLY|os.O_CREATE, 0644)
+	err = ioutil.WriteFile(filepath.Join(tmpdir, "updateFile"), []byte("updateContent"), 0644)
 	require.NoError(t, err)
-	fd.Write([]byte("updateContent"))
-	fd.Close()
+
+	err = ioutil.WriteFile(filepath.Join(tmpdir, "updateFile2"), []byte("updateContent2"), 0644)
+	require.NoError(t, err)
 
 	os.Args = []string{
 		"mender-artifact", "write", "module-image",
@@ -353,6 +513,7 @@ func TestModifyModuleArtifact(t *testing.T) {
 		"-t", "testDevice",
 		"-T", "testType",
 		"-f", filepath.Join(tmpdir, "updateFile"),
+		"-f", filepath.Join(tmpdir, "updateFile2"),
 	}
 
 	err = run()
@@ -381,7 +542,31 @@ func TestModifyModuleArtifact(t *testing.T) {
 	}()
 
 	data, _ := ioutil.ReadAll(r)
-	assert.Contains(t, string(data), "Name: release-1")
+	expected := `Mender artifact:
+  Name: release-1
+  Format: mender
+  Version: 3
+  Signature: no signature
+  Compatible devices: '[testDevice]'
+  Provides group: 
+  Depends on one of artifact(s): []
+  Depends on one of group(s): []
+  State scripts:
+
+Updates:
+    0:
+    Type:   testType
+    Provides: Nothing
+    Depends: Nothing
+    Metadata: Nothing
+    Files:
+      name:     updateFile
+      size:     13
+      name:     updateFile2
+      size:     14
+
+`
+	assert.Equal(t, expected, removeVolatileEntries(string(data)))
 
 	// The rest of modifications shall not work
 	os.Args = []string{
@@ -415,4 +600,107 @@ func TestModifyModuleArtifact(t *testing.T) {
 	err = run()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), errFsTypeUnsupported.Error())
+
+	// Make sure scripts and meta-data are preserved.
+
+	err = ioutil.WriteFile(filepath.Join(tmpdir, "ArtifactInstall_Enter_00"), []byte("commands"), 0755)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(filepath.Join(tmpdir, "ArtifactCommit_Leave_00"), []byte("more commands"), 0755)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(filepath.Join(tmpdir, "meta-data"), []byte(`{"a":"b"}`), 0644)
+	require.NoError(t, err)
+
+	os.Args = []string{
+		"mender-artifact", "write", "module-image",
+		"-o", artfile,
+		"-n", "testName",
+		"-t", "testDevice",
+		"-T", "testType",
+		"-f", filepath.Join(tmpdir, "updateFile"),
+		"-f", filepath.Join(tmpdir, "updateFile2"),
+		"-s", filepath.Join(tmpdir, "ArtifactInstall_Enter_00"),
+		"-s", filepath.Join(tmpdir, "ArtifactCommit_Leave_00"),
+		"-m", filepath.Join(tmpdir, "meta-data"),
+	}
+
+	err = run()
+	assert.NoError(t, err)
+
+	// Modify Artifact name shall work
+	os.Args = []string{"mender-artifact", "modify",
+		"-n", "release-1", artfile}
+
+	err = run()
+	assert.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "read", artfile}
+
+	r, w, err = os.Pipe()
+	out = os.Stdout
+	defer func() {
+		os.Stdout = out
+	}()
+	os.Stdout = w
+
+	go func() {
+		err = run()
+		assert.NoError(t, err)
+		w.Close()
+	}()
+
+	data, _ = ioutil.ReadAll(r)
+	// State scripts can unfortunately be in any order.
+	var expectedScripts string
+	if strings.Index(string(data), "ArtifactInstall") < strings.Index(string(data), "ArtifactCommit") {
+		expectedScripts = `    ArtifactInstall_Enter_00
+    ArtifactCommit_Leave_00`
+	} else {
+		expectedScripts = `    ArtifactCommit_Leave_00
+    ArtifactInstall_Enter_00`
+	}
+	expected = `Mender artifact:
+  Name: release-1
+  Format: mender
+  Version: 3
+  Signature: no signature
+  Compatible devices: '[testDevice]'
+  Provides group: 
+  Depends on one of artifact(s): []
+  Depends on one of group(s): []
+  State scripts:
+` + expectedScripts + `
+
+Updates:
+    0:
+    Type:   testType
+    Provides: Nothing
+    Depends: Nothing
+    Metadata:
+	{
+	  "a": "b"
+	}
+    Files:
+      name:     updateFile
+      size:     13
+      name:     updateFile2
+      size:     14
+
+`
+	assert.Equal(t, expected, removeVolatileEntries(string(data)))
+}
+
+func TestModifyBrokenArtifact(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+
+	artFile := filepath.Join(tmpdir, "artifact.mender")
+	err = ioutil.WriteFile(artFile, []byte("bogus content"), 0644)
+	require.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "modify",
+		"-n", "release-1", artFile}
+	err = run()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "can not execute `parted` command or image is broken")
 }
