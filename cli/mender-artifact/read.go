@@ -181,11 +181,15 @@ func printPayload(index int, p handlers.Installer) {
 		}
 	}
 
-	for _, f := range p.GetUpdateAllFiles() {
+	if len(p.GetUpdateAllFiles()) == 0 {
+		fmt.Printf("    Files: None\n")
+	} else {
 		fmt.Printf("    Files:\n")
-		fmt.Printf("      name:     %s\n", f.Name)
-		fmt.Printf("      size:     %d\n", f.Size)
-		fmt.Printf("      modified: %s\n", f.Date)
-		fmt.Printf("      checksum: %s\n", f.Checksum)
+		for _, f := range p.GetUpdateAllFiles() {
+			fmt.Printf("      name:     %s\n", f.Name)
+			fmt.Printf("      size:     %d\n", f.Size)
+			fmt.Printf("      modified: %s\n", f.Date)
+			fmt.Printf("      checksum: %s\n", f.Checksum)
+		}
 	}
 }
