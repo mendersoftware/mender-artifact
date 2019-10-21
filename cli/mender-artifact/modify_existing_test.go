@@ -185,6 +185,35 @@ func TestModifySdimage(t *testing.T) {
 
 }
 
+func modifyAndRead(t *testing.T, artFile string, args ...string) string {
+	os.Args = []string{"mender-artifact", "modify"}
+	os.Args = append(os.Args, args...)
+	os.Args = append(os.Args, artFile)
+
+	err := run()
+	require.NoError(t, err)
+
+	os.Args = []string{"mender-artifact", "read", artFile}
+
+	r, w, err := os.Pipe()
+	out := os.Stdout
+	defer func() {
+		os.Stdout = out
+	}()
+	os.Stdout = w
+
+	go func() {
+		err = run()
+		require.NoError(t, err)
+		w.Close()
+	}()
+
+	data, err := ioutil.ReadAll(r)
+	require.NoError(t, err)
+
+	return string(data)
+}
+
 func TestModifyRootfsArtifact(t *testing.T) {
 	tmp, err := ioutil.TempDir("", "mender-modify")
 	require.NoError(t, err)
@@ -197,31 +226,8 @@ func TestModifyRootfsArtifact(t *testing.T) {
 		err = WriteArtifact(tmp, ver, filepath.Join(tmp, "mender_test.img"))
 		assert.NoError(t, err)
 
-		os.Args = []string{"mender-artifact", "modify",
-			"-n", "release-1",
-			filepath.Join(tmp, "artifact.mender")}
-
-		err = run()
-		assert.NoError(t, err)
-
-		os.Args = []string{"mender-artifact", "read",
-			filepath.Join(tmp, "artifact.mender")}
-
-		r, w, err := os.Pipe()
-		out := os.Stdout
-		defer func() {
-			os.Stdout = out
-		}()
-		os.Stdout = w
-
-		go func() {
-			err = run()
-			assert.NoError(t, err)
-			w.Close()
-		}()
-
-		data, _ := ioutil.ReadAll(r)
-		assert.Contains(t, string(data), "Name: release-1")
+		data := modifyAndRead(t, filepath.Join(tmp, "artifact.mender"), "-n", "release-1")
+		assert.Contains(t, data, "Name: release-1")
 	}
 }
 
@@ -318,31 +324,7 @@ func TestModifyRootfsSigned(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Modify the artifact, the result shall be unsigned
-		os.Args = []string{"mender-artifact", "modify",
-			"-n", "release-2",
-			filepath.Join(tmp, "artifact.mender")}
-
-		err = run()
-		assert.NoError(t, err)
-
-		// Check for field update and unsigned state
-		os.Args = []string{"mender-artifact", "read",
-			filepath.Join(tmp, "artifact.mender")}
-
-		r, w, err := os.Pipe()
-		out := os.Stdout
-		defer func() {
-			os.Stdout = out
-		}()
-		os.Stdout = w
-
-		go func() {
-			err = run()
-			assert.NoError(t, err)
-			w.Close()
-		}()
-
-		data, _ := ioutil.ReadAll(r)
+		data := modifyAndRead(t, filepath.Join(tmp, "artifact.mender"), "-n", "release-2")
 		expected := `Mender artifact:
   Name: release-2
   Format: mender
@@ -365,34 +347,11 @@ Updates:
       size:     524288
 
 `
-		assert.Equal(t, expected, removeVolatileEntries(string(data)))
+		assert.Equal(t, expected, removeVolatileEntries(data))
 
 		// Modify again with a private key, and the result shall be signed
-		os.Args = []string{"mender-artifact", "modify",
-			"-n", "release-3", "-k", filepath.Join(tmp, key),
-			filepath.Join(tmp, "artifact.mender")}
-
-		err = run()
-		assert.NoError(t, err)
-
-		// Check for field update and unsigned state
-		os.Args = []string{"mender-artifact", "read",
-			filepath.Join(tmp, "artifact.mender")}
-
-		r, w, err = os.Pipe()
-		out = os.Stdout
-		defer func() {
-			os.Stdout = out
-		}()
-		os.Stdout = w
-
-		go func() {
-			err = run()
-			assert.NoError(t, err)
-			w.Close()
-		}()
-
-		data, _ = ioutil.ReadAll(r)
+		data = modifyAndRead(t, filepath.Join(tmp, "artifact.mender"),
+			"-n", "release-3", "-k", filepath.Join(tmp, key))
 		expected = `Mender artifact:
   Name: release-3
   Format: mender
@@ -415,7 +374,7 @@ Updates:
       size:     524288
 
 `
-		assert.Equal(t, expected, removeVolatileEntries(string(data)))
+		assert.Equal(t, expected, removeVolatileEntries(data))
 	}
 
 	// Make sure scripts are preserved.
@@ -434,33 +393,12 @@ Updates:
 	err = run()
 	assert.NoError(t, err)
 
-	os.Args = []string{"mender-artifact", "modify",
-		"-n", "release-2",
-		filepath.Join(tmp, "artifact.mender")}
+	data := modifyAndRead(t, filepath.Join(tmp, "artifact.mender"),
+		"-n", "release-2")
 
-	err = run()
-	assert.NoError(t, err)
-
-	os.Args = []string{"mender-artifact", "read",
-		filepath.Join(tmp, "artifact.mender")}
-
-	r, w, err := os.Pipe()
-	out := os.Stdout
-	defer func() {
-		os.Stdout = out
-	}()
-	os.Stdout = w
-
-	go func() {
-		err = run()
-		assert.NoError(t, err)
-		w.Close()
-	}()
-
-	data, _ := ioutil.ReadAll(r)
 	// State scripts can unfortunately be in any order.
 	var expectedScripts string
-	if strings.Index(string(data), "ArtifactInstall") < strings.Index(string(data), "ArtifactCommit") {
+	if strings.Index(data, "ArtifactInstall") < strings.Index(data, "ArtifactCommit") {
 		expectedScripts = `    ArtifactInstall_Enter_00
     ArtifactCommit_Leave_00`
 	} else {
@@ -490,7 +428,7 @@ Updates:
       size:     524288
 
 `
-	assert.Equal(t, expected, removeVolatileEntries(string(data)))
+	assert.Equal(t, expected, removeVolatileEntries(data))
 }
 
 func TestModifyModuleArtifact(t *testing.T) {
@@ -520,28 +458,7 @@ func TestModifyModuleArtifact(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Modify Artifact name shall work
-	os.Args = []string{"mender-artifact", "modify",
-		"-n", "release-1", artfile}
-
-	err = run()
-	assert.NoError(t, err)
-
-	os.Args = []string{"mender-artifact", "read", artfile}
-
-	r, w, err := os.Pipe()
-	out := os.Stdout
-	defer func() {
-		os.Stdout = out
-	}()
-	os.Stdout = w
-
-	go func() {
-		err = run()
-		assert.NoError(t, err)
-		w.Close()
-	}()
-
-	data, _ := ioutil.ReadAll(r)
+	data := modifyAndRead(t, artfile, "-n", "release-1")
 	expected := `Mender artifact:
   Name: release-1
   Format: mender
@@ -566,7 +483,7 @@ Updates:
       size:     14
 
 `
-	assert.Equal(t, expected, removeVolatileEntries(string(data)))
+	assert.Equal(t, expected, removeVolatileEntries(data))
 
 	// The rest of modifications shall not work
 	os.Args = []string{
@@ -627,28 +544,7 @@ Updates:
 	assert.NoError(t, err)
 
 	// Modify Artifact name shall work
-	os.Args = []string{"mender-artifact", "modify",
-		"-n", "release-1", artfile}
-
-	err = run()
-	assert.NoError(t, err)
-
-	os.Args = []string{"mender-artifact", "read", artfile}
-
-	r, w, err = os.Pipe()
-	out = os.Stdout
-	defer func() {
-		os.Stdout = out
-	}()
-	os.Stdout = w
-
-	go func() {
-		err = run()
-		assert.NoError(t, err)
-		w.Close()
-	}()
-
-	data, _ = ioutil.ReadAll(r)
+	data = modifyAndRead(t, artfile, "-n", "release-1")
 	// State scripts can unfortunately be in any order.
 	var expectedScripts string
 	if strings.Index(string(data), "ArtifactInstall") < strings.Index(string(data), "ArtifactCommit") {
@@ -686,7 +582,7 @@ Updates:
       size:     14
 
 `
-	assert.Equal(t, expected, removeVolatileEntries(string(data)))
+	assert.Equal(t, expected, removeVolatileEntries(data))
 }
 
 func TestModifyBrokenArtifact(t *testing.T) {
