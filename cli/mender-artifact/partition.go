@@ -25,7 +25,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 
+	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/utils"
 	"github.com/pkg/errors"
@@ -36,10 +38,17 @@ const (
 	ext
 	unsupported
 
-	// empty placeholder, so that we can write virtualPartitionFile.Open()
+	// empty placeholder, so that we can write virtualImage.Open()
 	// as the API call (better semantics).
-	virtualPartitionFile vFile = 1
+	virtualImage vImage = 1
 )
+
+var errFsTypeUnsupported = errors.New("mender-artifact can only modify ext4 and vfat payloads")
+
+type VPImage interface {
+	io.Closer
+	Open(fpath string) (VPFile, error)
+}
 
 // V(irtual)P(artition)File mimicks a file in an Artifact or on an sdimg.
 type VPFile interface {
@@ -53,37 +62,195 @@ type partition struct {
 	offset string
 	size   string
 	path   string
-	name   string
 }
 
-type vFile int
+type ModImageBase struct {
+	path string
+}
 
-// Open is a utility function that parses an input image and path
-// and returns a V(irtual)P(artition)File.
-func (v vFile) Open(comp artifact.Compressor, imgpath string) (VPFile, error) {
-	imgname, fpath, err := parseImgPath(imgpath)
+type ModImageArtifact struct {
+	ModImageBase
+	*unpackedArtifact
+	comp artifact.Compressor
+	key  []byte
+}
+
+type ModImageSdimg struct {
+	ModImageBase
+	candidates []partition
+}
+
+type ModImageRaw struct {
+	ModImageBase
+}
+
+type vImage int
+
+type vImageAndFile struct {
+	image VPImage
+	file  VPFile
+}
+
+// Open is a utility function that parses an input image and returns a
+// V(irtual)P(artition)Image.
+func (v vImage) Open(comp artifact.Compressor, key []byte, imgname string) (VPImage, error) {
+	// first we need to check  if we are having artifact or image file
+	art, err := os.Open(imgname)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "can not open artifact")
 	}
-	candidateType, modcands, err := getCandidatesForModify(imgname)
-	if err != nil {
-		return nil, err
-	}
-	if modcands == nil {
-		return nil, fmt.Errorf("No partitions found in file %s, only "+
-			"rootfs Artifact or image are supported", imgname)
+	defer art.Close()
+
+	aReader := areader.NewReader(art)
+	err = aReader.ReadArtifact()
+	if err == nil {
+		// we have VALID artifact,
+
+		// First check if it is a module-image type
+		inst := aReader.GetHandlers()
+
+		if len(inst) > 1 {
+			return nil, errors.New("Modifying artifacts with more than one payload is not supported")
+		}
+
+		unpackedArtifact, err := unpackArtifact(imgname)
+		if err != nil {
+			return nil, errors.Wrap(err, "can not process artifact")
+		}
+
+		return &ModImageArtifact{
+			ModImageBase: ModImageBase{
+				path: imgname,
+			},
+			unpackedArtifact: unpackedArtifact,
+			comp:             comp,
+			key:              key,
+		}, nil
 	} else {
-		for i := 0; i < len(modcands); i++ {
-			modcands[i].name = imgname
+		return processSdimg(imgname)
+	}
+}
+
+// Shortcut to use an image with one file. This is inefficient if you are going
+// to write more than one file, since it writes out the entire image
+// afterwards. In that case use VPImage and VPFile instead.
+func (v vImage) OpenFile(comp artifact.Compressor, key []byte, imgAndPath string) (VPFile, error) {
+	imagepath, filepath, err := parseImgPath(imgAndPath)
+	if err != nil {
+		return nil, err
+	}
+
+	image, err := v.Open(comp, key, imagepath)
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := image.Open(filepath)
+	if err != nil {
+		image.Close()
+		return nil, err
+	}
+
+	return &vImageAndFile{
+		image: image,
+		file:  file,
+	}, nil
+}
+
+// Shortcut to open a file in the image, write into it, and close it again.
+func CopyIntoImage(hostFile string, image VPImage, imageFile string) error {
+	imageFd, err := image.Open(imageFile)
+	if err != nil {
+		return err
+	}
+
+	err = imageFd.CopyTo(hostFile)
+	if err != nil {
+		imageFd.Close()
+		return err
+	}
+	return imageFd.Close()
+}
+
+// Shortcut to open a file in the image, read from it, and close it again.
+func CopyFromImage(image VPImage, imageFile string, hostFile string) error {
+	imageFd, err := image.Open(imageFile)
+	if err != nil {
+		return err
+	}
+
+	err = imageFd.CopyFrom(hostFile)
+	if err != nil {
+		imageFd.Close()
+		return err
+	}
+	return imageFd.Close()
+}
+
+func (v *vImageAndFile) Read(buf []byte) (int, error) {
+	return v.file.Read(buf)
+}
+
+func (v *vImageAndFile) Write(buf []byte) (int, error) {
+	return v.file.Write(buf)
+}
+
+func (v *vImageAndFile) Delete(recursive bool) error {
+	return v.file.Delete(recursive)
+}
+
+func (v *vImageAndFile) CopyTo(hostFile string) error {
+	return v.file.CopyTo(hostFile)
+}
+
+func (v *vImageAndFile) CopyFrom(hostFile string) error {
+	return v.file.CopyFrom(hostFile)
+}
+
+func (v *vImageAndFile) Close() error {
+	fileErr := v.file.Close()
+	imageErr := v.image.Close()
+
+	if fileErr != nil {
+		return fileErr
+	} else {
+		return imageErr
+	}
+}
+
+// Opens a file inside the image(s) represented by the ModImageArtifact
+func (i *ModImageArtifact) Open(fpath string) (VPFile, error) {
+	return newArtifactExtFile(i, i.comp, fpath, i.files[0])
+}
+
+// Closes and repacks the artifact or sdimg.
+func (i *ModImageArtifact) Close() error {
+	if i.unpackDir != "" {
+		defer os.RemoveAll(i.unpackDir)
+	}
+	return repackArtifact(i.comp, i.key, i.unpackedArtifact)
+}
+
+// Opens a file inside the image(s) represented by the ModImageSdimg
+func (i *ModImageSdimg) Open(fpath string) (VPFile, error) {
+	return newSDImgFile(i, fpath, i.candidates)
+}
+
+func (i *ModImageSdimg) Close() error {
+	for _, cand := range i.candidates {
+		if cand.path != "" && cand.path != i.path {
+			defer os.RemoveAll(cand.path)
 		}
 	}
-	if candidateType == RootfsImageArtifact {
-		return newArtifactExtFile(comp, fpath, modcands[0])
-	} else if candidateType == RawSDImage {
-		return newSDImgFile(fpath, modcands)
-	}
+	return repackSdimg(i.candidates, i.path)
+}
 
-	return nil, fmt.Errorf("Unknown image type for file %s", imgname)
+func (i *ModImageRaw) Open(fpath string) (VPFile, error) {
+	return newExtFile(i.path, fpath)
+}
+
+func (i *ModImageRaw) Close() error {
+	return nil
 }
 
 // parseImgPath parses cli input of the form
@@ -121,64 +288,91 @@ func imgFilesystemType(imgpath string) (int, error) {
 	return unsupported, nil
 }
 
+// From the fsck man page:
+// The exit code returned by fsck is the sum of the following conditions:
+//
+//              0      No errors
+//              1      Filesystem errors corrected
+//              2      System should be rebooted
+//              4      Filesystem errors left uncorrected
+//              8      Operational error
+//              16     Usage or syntax error
+//              32     Checking canceled by user request
+//              128    Shared-library error
+func runFsck(image, fstype string) error {
+	bin, err := utils.GetBinaryPath("fsck." + fstype)
+	if err != nil {
+		return errors.Wrap(err, "fsck command not found")
+	}
+	cmd := exec.Command(bin, "-a", image)
+	if err := cmd.Run(); err != nil {
+		// try to get the exit code
+		if exitError, ok := err.(*exec.ExitError); ok {
+			ws := exitError.Sys().(syscall.WaitStatus)
+			if ws.ExitStatus() == 0 || ws.ExitStatus() == 1 {
+				return nil
+			}
+			if ws.ExitStatus() == 8 {
+				return errFsTypeUnsupported
+			}
+			return errors.Wrap(err, "fsck error")
+		}
+		return errors.New("fsck returned unparsed error")
+	}
+	return nil
+}
+
 // sdimgFile is a virtual file for files on an sdimg.
 // It can write and read to and from all partitions (boot,rootfsa,roofsb,data),
 // where if a file is located on the rootfs, a write will be duplicated to both
 // partitions.
 type sdimgFile []VPFile
 
-func newSDImgFile(fpath string, modcands []partition) (sdimgFile, error) {
-	var delPartition []partition
-	defer func() {
-		for _, part := range delPartition {
-			os.Remove(part.path)
-		}
-	}()
+func newSDImgFile(image *ModImageSdimg, fpath string, modcands []partition) (sdimgFile, error) {
 	if len(modcands) < 4 {
 		return nil, fmt.Errorf("newSDImgFile: %d partitions found, 4 needed", len(modcands))
 	}
-	// Only return the data partition.
+
+	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))[/]")
+
+	var filesystems []partition
 	if strings.HasPrefix(fpath, "/data") {
 		// The data dir is not a directory in the data partition
 		fpath = strings.TrimPrefix(fpath, "/data/")
-		delPartition = append(delPartition, modcands[0:3]...)
-		ext, err := newExtFile(fpath, modcands[3]) // Data partition
-		return sdimgFile{ext}, err
-	}
-	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))[/]")
-	// Only return the boot-partition.
-	if reg.MatchString(fpath) {
+		filesystems = append(filesystems, modcands[3])
+	} else if reg.MatchString(fpath) {
 		// /uboot, /boot/efi, /boot/grub are not directories on the boot partition.
 		fpath = reg.ReplaceAllString(fpath, "")
-		// Since boot partitions can be either fat or ext,
-		// return a readWriteCloser dependent upon the underlying filesystem type.
-		fstype, err := imgFilesystemType(modcands[0].path)
+		filesystems = append(filesystems, modcands[0])
+	} else {
+		filesystems = append(filesystems, modcands[1:3]...)
+	}
+
+	// Since boot partitions can be either fat or ext, return a
+	// readWriteCloser dependent upon the underlying filesystem type.
+	var sdimgFile sdimgFile
+	for _, fs := range filesystems {
+		fstype, err := imgFilesystemType(fs.path)
 		if err != nil {
-			return nil, errors.Wrap(err, "partition: error reading file-system type on the boot partition")
+			return nil, errors.Wrap(err, "partition: error reading file-system type on partition")
 		}
+		var f VPFile
 		switch fstype {
 		case fat:
-			delPartition = append(delPartition, modcands[1:]...)
-			ff, err := newFatFile(fpath, modcands[0]) // Boot partition.
-			return sdimgFile{ff}, err
+			f, err = newFatFile(fs.path, fpath)
 		case ext:
-			delPartition = append(delPartition, modcands[1:]...)
-			extf, err := newExtFile(fpath, modcands[0])
-			return sdimgFile{extf}, err
+			f, err = newExtFile(fs.path, fpath)
 		case unsupported:
-			return nil, errors.New("partition: error reading file-system type on the boot partition")
+			err = errors.New("partition: unsupported filesystem")
 
 		}
+		if err != nil {
+			sdimgFile.Close()
+			return nil, err
+		}
+		sdimgFile = append(sdimgFile, f)
 	}
-	delPartition = append(delPartition, modcands[0])
-	delPartition = append(delPartition, modcands[2:]...)
-	rootfsa, err := newExtFile(fpath, modcands[1]) // rootfsa
-	if err != nil {
-		return sdimgFile{rootfsa}, err
-	}
-	delPartition = []partition{modcands[0], modcands[3]}
-	rootfsb, err := newExtFile(fpath, modcands[2]) // rootfsb
-	return sdimgFile{rootfsa, rootfsb}, err
+	return sdimgFile, nil
 }
 
 // Write forces a write from the underlying writers sdimgFile wraps.
@@ -246,74 +440,41 @@ func (p sdimgFile) Close() (err error) {
 	return nil
 }
 
-// artifactExtFile is a wrapper for a reader and writer to the underlying
-// file in a mender artifact with an ext file system.
-type artifactExtFile struct {
-	extFile
-	comp artifact.Compressor
-}
-
-func newArtifactExtFile(comp artifact.Compressor, fpath string, p partition) (af *artifactExtFile, err error) {
+func newArtifactExtFile(image *ModImageArtifact, comp artifact.Compressor, fpath, imgpath string) (VPFile, error) {
 	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))")
 	if reg.MatchString(fpath) {
-		return af, errors.New("newArtifactExtFile: A mender artifact does not contain a boot partition, only a rootfs")
+		return nil, errors.New("newArtifactExtFile: A mender artifact does not contain a boot partition, only a rootfs")
 	}
 	if strings.HasPrefix(fpath, "/data") {
-		return af, errors.New("newArtifactExtFile: A mender artifact does not contain a data partition, only a rootfs")
+		return nil, errors.New("newArtifactExtFile: A mender artifact does not contain a data partition, only a rootfs")
 	}
 
-	extf, err := newExtFile(fpath, p)
-	if err != nil {
-		return nil, err
-	}
-	af = &artifactExtFile{*extf, comp}
-	if err != nil {
-		return af, err
-	}
-	return af, nil
-}
-
-func (a *artifactExtFile) Close() (err error) {
-	if a == nil {
-		return nil
-	}
-	if a.tmpf != nil {
-		if a.flush {
-			err = debugfsReplaceFile(a.imagefilepath, a.tmpf.Name(), a.path)
-			if err != nil {
-				return err
-			}
-		}
-		a.tmpf.Close()
-		os.Remove(a.tmpf.Name())
-	}
-	if a.repack {
-		err = repackArtifact(a.comp, a.name, a.path, "")
-	}
-	os.Remove(a.path)
-	return err
+	return newExtFile(imgpath, fpath)
 }
 
 // extFile wraps partition and implements ReadWriteCloser
 type extFile struct {
-	partition
-	imagefilepath string
-	repack        bool     // True if a write has been done
+	imagePath     string
+	imageFilePath string
 	flush         bool     // True if Close() needs to copy the file to the image
 	tmpf          *os.File // Used as a buffer for multiple write operations
 }
 
-func newExtFile(imagefilepath string, p partition) (e *extFile, err error) {
+func newExtFile(imagePath, imageFilePath string) (e *extFile, err error) {
+	if err := runFsck(imagePath, "ext4"); err != nil {
+		return nil, err
+	}
+
 	// Check that the given directory exists.
-	_, err = executeCommand(fmt.Sprintf("cd %s", filepath.Dir(imagefilepath)), p.path)
+	_, err = debugfsExecuteCommand(fmt.Sprintf("cd %s", filepath.Dir(imageFilePath)), imagePath)
 	if err != nil {
-		return nil, fmt.Errorf("The directory: %s does not exist in the image", filepath.Dir(imagefilepath))
+		return nil, fmt.Errorf("The directory: %s does not exist in the image", filepath.Dir(imageFilePath))
 	}
 	tmpf, err := ioutil.TempFile("", "mendertmp-extfile")
 	// Cleanup resources in case of error.
 	e = &extFile{
-		partition:     p,
-		imagefilepath: imagefilepath,
+		imagePath:     imagePath,
+		imageFilePath: imageFilePath,
 		tmpf:          tmpf,
 	}
 	return e, err
@@ -322,39 +483,37 @@ func newExtFile(imagefilepath string, p partition) (e *extFile, err error) {
 // Write reads all bytes from b into the partitionFile using debugfs.
 func (ef *extFile) Write(b []byte) (int, error) {
 	n, err := ef.tmpf.Write(b)
-	ef.repack = true
 	ef.flush = true
 	return n, err
 }
 
 // Read reads all bytes from the filepath on the partition image into b
 func (ef *extFile) Read(b []byte) (int, error) {
-	str, err := debugfsCopyFile(ef.imagefilepath, ef.path)
+	str, err := debugfsCopyFile(ef.imageFilePath, ef.imagePath)
 	defer os.RemoveAll(str) // ignore error removing tmp-dir
 	if err != nil {
 		return 0, errors.Wrap(err, "extFile: ReadError: debugfsCopyFile failed")
 	}
-	data, err := ioutil.ReadFile(filepath.Join(str, filepath.Base(ef.imagefilepath)))
+	data, err := ioutil.ReadFile(filepath.Join(str, filepath.Base(ef.imageFilePath)))
 	if err != nil {
-		return 0, errors.Wrapf(err, "extFile: ReadError: ioutil.Readfile failed to read file: %s", filepath.Join(str, filepath.Base(ef.imagefilepath)))
+		return 0, errors.Wrapf(err, "extFile: ReadError: ioutil.Readfile failed to read file: %s", filepath.Join(str, filepath.Base(ef.imageFilePath)))
 	}
 	return copy(b, data), io.EOF
 }
 
 func (ef *extFile) CopyTo(hostFile string) error {
-	if err := debugfsReplaceFile(ef.imagefilepath, hostFile, ef.path); err != nil {
+	if err := debugfsReplaceFile(ef.imageFilePath, hostFile, ef.imagePath); err != nil {
 		return err
 	}
-	ef.repack = true
 	return nil
 }
 
 func (ef *extFile) CopyFrom(hostFile string) error {
 	// Get the file permissions
-	d, err := executeCommand(fmt.Sprintf("stat %s", ef.imagefilepath), ef.partition.path)
+	d, err := debugfsExecuteCommand(fmt.Sprintf("stat %s", ef.imageFilePath), ef.imagePath)
 	if err != nil {
 		if strings.Contains(err.Error(), "File not found by ext2_lookup") {
-			return fmt.Errorf("The file: %s does not exist in the image", ef.imagefilepath)
+			return fmt.Errorf("The file: %s does not exist in the image", ef.imageFilePath)
 		}
 		return err
 	}
@@ -362,16 +521,16 @@ func (ef *extFile) CopyFrom(hostFile string) error {
 	reg := regexp.MustCompile(`Mode: +(0[0-9]{3})`)
 	m := reg.FindStringSubmatch(d.String())
 	if m == nil || len(m) != 2 {
-		return fmt.Errorf("Could not extract the filemode information from the file: %s\n", ef.imagefilepath)
+		return fmt.Errorf("Could not extract the filemode information from the file: %s\n", ef.imageFilePath)
 	}
 	mode, err := strconv.ParseInt(m[1], 8, 32)
 	if err != nil {
-		return fmt.Errorf("Failed to extract the file permissions for the file: %s\nerr: %s", ef.imagefilepath, err)
+		return fmt.Errorf("Failed to extract the file permissions for the file: %s\nerr: %s", ef.imageFilePath, err)
 	}
-	_, err = executeCommand(fmt.Sprintf("dump %s %s\nclose", ef.imagefilepath, hostFile), ef.partition.path)
+	_, err = debugfsExecuteCommand(fmt.Sprintf("dump %s %s\nclose", ef.imageFilePath, hostFile), ef.imagePath)
 	if err != nil {
 		if strings.Contains(err.Error(), "File not found by ext2_lookup") {
-			return fmt.Errorf("The file: %s does not exist in the image", ef.imagefilepath)
+			return fmt.Errorf("The file: %s does not exist in the image", ef.imageFilePath)
 		}
 		return err
 	}
@@ -382,51 +541,50 @@ func (ef *extFile) CopyFrom(hostFile string) error {
 }
 
 func (ef *extFile) Delete(recursive bool) (err error) {
-	err = debugfsRemoveFileOrDir(ef.imagefilepath, ef.path, recursive)
+	err = debugfsRemoveFileOrDir(ef.imageFilePath, ef.imagePath, recursive)
 	if err != nil {
 		return err
 	}
-	ef.repack = true
 	return nil
 }
 
-// Close closes the temporary file held by partitionFile path, and repacks the partition if needed.
+// Close closes the temporary file held by partitionFile path.
 func (ef *extFile) Close() (err error) {
 	if ef == nil {
 		return nil
 	}
 	if ef.tmpf != nil {
+		defer func() {
+			// Ignore tmp-errors
+			ef.tmpf.Close()
+			os.Remove(ef.tmpf.Name())
+		}()
 		if ef.flush {
-			err = debugfsReplaceFile(ef.imagefilepath, ef.tmpf.Name(), ef.path)
+			err = debugfsReplaceFile(ef.imageFilePath, ef.tmpf.Name(), ef.imagePath)
 			if err != nil {
 				return err
 			}
 		}
-		// Ignore tmp-errors
-		ef.tmpf.Close()
-		os.Remove(ef.tmpf.Name())
 	}
-	if ef.repack {
-		part := []partition{ef.partition}
-		err = repackSdimg(part, ef.name)
-	}
-	os.Remove(ef.path) // ignore error for tmp-dir
 	return err
 }
 
 // fatFile wraps a partition struct with a reader/writer for fat filesystems
 type fatFile struct {
-	partition
+	imagePath     string
 	imageFilePath string // The local filesystem path to the image
-	repack        bool
 	flush         bool
 	tmpf          *os.File
 }
 
-func newFatFile(imageFilePath string, partition partition) (*fatFile, error) {
+func newFatFile(imagePath, imageFilePath string) (*fatFile, error) {
+	if err := runFsck(imagePath, "vfat"); err != nil {
+		return nil, err
+	}
+
 	tmpf, err := ioutil.TempFile("", "mendertmp-fatfile")
 	ff := &fatFile{
-		partition:     partition,
+		imagePath:     imagePath,
 		imageFilePath: imageFilePath,
 		tmpf:          tmpf,
 	}
@@ -435,7 +593,7 @@ func newFatFile(imageFilePath string, partition partition) (*fatFile, error) {
 
 // Read Dump the file contents to stdout, and capture, using MTools' mtype
 func (f *fatFile) Read(b []byte) (n int, err error) {
-	cmd := exec.Command("mtype", "-n", "-i", f.path, "::"+f.imageFilePath)
+	cmd := exec.Command("mtype", "-n", "-i", f.imagePath, "::"+f.imageFilePath)
 	dbuf := bytes.NewBuffer(nil)
 	cmd.Stdout = dbuf // capture Stdout
 	if err = cmd.Run(); err != nil {
@@ -447,24 +605,22 @@ func (f *fatFile) Read(b []byte) (n int, err error) {
 // Write Writes to the underlying fat image, using MTools' mcopy
 func (f *fatFile) Write(b []byte) (n int, err error) {
 	n, err = f.tmpf.Write(b)
-	f.repack = true
 	f.flush = true
 	return len(b), nil
 }
 
 func (f *fatFile) CopyTo(hostFile string) error {
-	cmd := exec.Command("mcopy", "-oi", f.path, hostFile, "::"+f.imageFilePath)
+	cmd := exec.Command("mcopy", "-oi", f.imagePath, hostFile, "::"+f.imageFilePath)
 	data := bytes.NewBuffer(nil)
 	cmd.Stdout = data
 	if err := cmd.Run(); err != nil {
 		return errors.Wrap(err, "fatFile: Write: MTools execution failed")
 	}
-	f.repack = true
 	return nil
 }
 
 func (f *fatFile) CopyFrom(hostFile string) error {
-	cmd := exec.Command("mcopy", "-n", "-i", f.path, "::"+f.imageFilePath, hostFile)
+	cmd := exec.Command("mcopy", "-n", "-i", f.imagePath, "::"+f.imageFilePath, hostFile)
 	dbuf := bytes.NewBuffer(nil)
 	cmd.Stdout = dbuf // capture Stdout
 	if err := cmd.Run(); err != nil {
@@ -481,11 +637,10 @@ func (f *fatFile) Delete(recursive bool) (err error) {
 	} else {
 		deleteCmd = "mdel"
 	}
-	cmd := exec.Command(deleteCmd, "-i", f.path, "::"+f.imageFilePath)
+	cmd := exec.Command(deleteCmd, "-i", f.imagePath, "::"+f.imageFilePath)
 	if err = cmd.Run(); err != nil {
 		return errors.Wrap(err, "fatFile: Delete: execution failed: "+deleteCmd)
 	}
-	f.repack = true
 	return nil
 }
 
@@ -494,21 +649,93 @@ func (f *fatFile) Close() (err error) {
 		return nil
 	}
 	if f.tmpf != nil {
+		defer func() {
+			f.tmpf.Close()
+			os.Remove(f.tmpf.Name())
+		}()
 		if f.flush {
-			cmd := exec.Command("mcopy", "-n", "-i", f.path, f.tmpf.Name(), "::"+f.imageFilePath)
+			cmd := exec.Command("mcopy", "-n", "-i", f.imagePath, f.tmpf.Name(), "::"+f.imageFilePath)
 			data := bytes.NewBuffer(nil)
 			cmd.Stdout = data
 			if err = cmd.Run(); err != nil {
 				return errors.Wrap(err, "fatFile: Write: MTools execution failed")
 			}
 		}
-		f.tmpf.Close()
-		os.Remove(f.tmpf.Name())
 	}
-	if f.repack {
-		p := []partition{f.partition}
-		err = repackSdimg(p, f.name)
-	}
-	os.Remove(f.path) // Ignore error for tmp-dir
 	return err
+}
+
+func processSdimg(image string) (VPImage, error) {
+	bin, err := utils.GetBinaryPath("parted")
+	if err != nil {
+		return nil, fmt.Errorf("`parted` binary not found on the system")
+	}
+	out, err := exec.Command(bin, image, "unit s", "print").Output()
+	if err != nil {
+		return nil, errors.Wrap(err, "can not execute `parted` command or image is broken; "+
+			"make sure parted is available in your system and is in the $PATH")
+	}
+
+
+	reg := regexp.MustCompile(`(?m)^[[:blank:]][0-9]+[[:blank:]]+([0-9]+)s[[:blank:]]+[0-9]+s[[:blank:]]+([0-9]+)s`)
+	partitionMatch := reg.FindAllStringSubmatch(string(out), -1)
+
+	if len(partitionMatch) == 4 {
+		partitions := make([]partition, 0)
+		// we will have three groups per each entry in the partition table
+		for i := 0; i < 4; i++ {
+			single := partitionMatch[i]
+			partitions = append(partitions, partition{offset: single[1], size: single[2]})
+		}
+		if partitions, err = extractFromSdimg(partitions, image); err != nil {
+			return nil, err
+		}
+		return &ModImageSdimg{
+			ModImageBase: ModImageBase{
+				path: image,
+			},
+			candidates: partitions,
+		}, nil
+		// if we have single ext file there is no need to mount it
+
+	} else if len(partitionMatch) == 1 && partitionMatch[0][1] == "0" {
+		// For one partition match which has an offset of zero, we
+		// assume it is a raw filesystem image.
+		return &ModImageRaw{
+			ModImageBase: ModImageBase{
+				path: image,
+			},
+		}, nil
+	}
+	return nil, fmt.Errorf("invalid partition table: %s", string(out))
+}
+
+func extractFromSdimg(partitions []partition, image string) ([]partition, error) {
+	for i, part := range partitions {
+		tmp, err := ioutil.TempFile("", "mender-modify-image")
+		if err != nil {
+			return nil, errors.Wrap(err, "can not create temp file for storing image")
+		}
+		if err = tmp.Close(); err != nil {
+			return nil, errors.Wrapf(err, "can not close temporary file: %s", tmp.Name())
+		}
+		cmd := exec.Command("dd", "if="+image, "of="+tmp.Name(),
+			"skip="+part.offset, "count="+part.size)
+		if err = cmd.Run(); err != nil {
+			return nil, errors.Wrap(err, "can not extract image from sdimg")
+		}
+		partitions[i].path = tmp.Name()
+	}
+	return partitions, nil
+}
+
+func repackSdimg(partitions []partition, image string) error {
+	for _, part := range partitions {
+		if err := exec.Command("dd", "if="+part.path, "of="+image,
+			"seek="+part.offset, "count="+part.size,
+			"conv=notrunc").Run(); err != nil {
+			return errors.Wrap(err, "can not copy image back to sdimg")
+		}
+	}
+	return nil
 }

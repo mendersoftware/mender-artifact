@@ -15,31 +15,44 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
-	"github.com/mendersoftware/mender-artifact/utils"
 
 	"github.com/pkg/errors"
 )
 
+type unpackedArtifact struct {
+	origPath  string
+	unpackDir string
+	ar        *areader.Reader
+	scripts   []string
+	files     []string
+
+	// Args needed to reconstruct the artifact
+	writeArgs *awriter.WriteArtifactArgs
+}
+
 type writeUpdateStorer struct {
-	name   string
-	writer io.Writer
+	// Dir to store files in
+	dir string
+	// Files that are stored. Will be filled in while storing
+	names []string
 }
 
 func (w *writeUpdateStorer) Initialize(artifactHeaders,
 	artifactAugmentedHeaders artifact.HeaderInfoer,
 	payloadHeaders handlers.ArtifactUpdateHeaders) error {
+
+	if artifactAugmentedHeaders != nil {
+		return errors.New("Modifying augmented artifacts is not supported")
+	}
 
 	return nil
 }
@@ -49,8 +62,13 @@ func (w *writeUpdateStorer) PrepareStoreUpdate() error {
 }
 
 func (w *writeUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
-	w.name = info.Name()
-	_, err := io.Copy(w.writer, r)
+	fullpath := filepath.Join(w.dir, info.Name())
+	w.names = append(w.names, fullpath)
+	fd, err := os.OpenFile(fullpath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(fd, r)
 	return err
 }
 
@@ -59,14 +77,8 @@ func (w *writeUpdateStorer) FinishStoreUpdate() error {
 }
 
 func (w *writeUpdateStorer) NewUpdateStorer(updateType string, payloadNum int) (handlers.UpdateStorer, error) {
-	// For rootfs, which is the only type we support for artifact
-	// modifications, there should only ever be one payload, with one file,
-	// so our producer just returns itself.
 	if payloadNum != 0 {
 		return nil, errors.New("More than one payload or update file is not supported")
-	}
-	if updateType != "rootfs-image" {
-		return nil, errors.New("Only rootfs update types supported")
 	}
 	return w, nil
 }
@@ -99,27 +111,6 @@ func scripts(scripts []string) (*artifact.Scripts, error) {
 	return &scr, nil
 }
 
-func read(ar *areader.Reader, verify areader.SignatureVerifyFn,
-	readScripts areader.ScriptsReadFn) (*areader.Reader, error) {
-
-	if ar == nil {
-		return nil, errors.New("can not read artifact file")
-	}
-
-	if verify != nil {
-		ar.VerifySignatureCallback = verify
-	}
-	if readScripts != nil {
-		ar.ScriptsReadCallback = readScripts
-	}
-
-	if err := ar.ReadArtifact(); err != nil {
-		return nil, err
-	}
-
-	return ar, nil
-}
-
 func getKey(keyPath string) ([]byte, error) {
 	if keyPath == "" {
 		return nil, nil
@@ -132,61 +123,39 @@ func getKey(keyPath string) ([]byte, error) {
 	return key, nil
 }
 
-func unpackArtifact(name string) (string, error) {
+func unpackArtifact(name string) (ua *unpackedArtifact, err error) {
+	ua = &unpackedArtifact{
+		origPath: name,
+	}
+
 	f, err := os.Open(name)
 	if err != nil {
-		return "", errors.Wrapf(err, "Can not open: %s", name)
+		return nil, errors.Wrapf(err, "Can not open: %s", name)
 	}
 	defer f.Close()
 
-	// initialize raw reader and writer
 	aReader := areader.NewReader(f)
-	rootfs := handlers.NewRootfsInstaller()
+	ua.ar = aReader
 
-	tmp, err := ioutil.TempFile("", "mender-artifact")
-	if err != nil {
-		return "", err
-	}
-	defer tmp.Close()
-
-	updateStore := &writeUpdateStorer{
-		writer: tmp,
-	}
-	rootfs.SetUpdateStorerProducer(updateStore)
-
-	if err = aReader.RegisterHandler(rootfs); err != nil {
-		return "", errors.Wrap(err, "failed to register install handler")
-	}
-
-	r, err := read(aReader, nil, nil)
-	if err != nil {
-		return "", err
-	}
-
-	inst := r.GetHandlers()
-	if !(len(inst) == 1 && inst[0].GetUpdateType() == "rootfs-image") {
-		return "", errors.New("Only rootfs update types supported")
-	}
-
-	// Give the tempfile it's original name, so that the update does not change name upon a write.
-	tmpfilePath := tmp.Name()
-	newNamePath := filepath.Join(filepath.Dir(tmpfilePath), updateStore.name)
-	if err = os.Rename(tmpfilePath, newNamePath); err != nil {
-		return "", err
-	}
-	return newNamePath, nil
-}
-
-func repack(comp artifact.Compressor, artifactName string, from io.Reader, to io.Writer, key []byte,
-	newName string, dataFile string) (*areader.Reader, error) {
-	sDir, err := ioutil.TempDir(filepath.Dir(artifactName), "mender-repack")
+	tmpdir, err := ioutil.TempDir("", "mender-artifact")
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(sDir)
+	ua.unpackDir = tmpdir
+	defer func() {
+		if err != nil {
+			os.RemoveAll(tmpdir)
+		}
+	}()
 
+	sDir := filepath.Join(tmpdir, "scripts")
+	err = os.Mkdir(sDir, 0755)
+	if err != nil {
+		return nil, err
+	}
 	storeScripts := func(r io.Reader, info os.FileInfo) error {
 		sLocation := filepath.Join(sDir, info.Name())
+		ua.scripts = append(ua.scripts, sLocation)
 		f, fileErr := os.OpenFile(sLocation, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0755)
 		if fileErr != nil {
 			return errors.Wrapf(fileErr,
@@ -199,231 +168,184 @@ func repack(comp artifact.Compressor, artifactName string, from io.Reader, to io
 			return errors.Wrapf(err,
 				"can not write script file: %v", sLocation)
 		}
-		f.Sync()
 		return nil
 	}
+	aReader.ScriptsReadCallback = storeScripts
 
-	verify := func(message, sig []byte) error {
-		return nil
-	}
-
-	data := dataFile
-	ar := areader.NewReader(from)
-
-	if dataFile == "" {
-		tmpData, tmpErr := ioutil.TempFile("", "mender-repack")
-		if tmpErr != nil {
-			return nil, tmpErr
-		}
-		defer os.Remove(tmpData.Name())
-		defer tmpData.Close()
-
-		rootfs := handlers.NewRootfsInstaller()
-		updateStore := &writeUpdateStorer{
-			writer: tmpData,
-		}
-		rootfs.SetUpdateStorerProducer(updateStore)
-
-		data = tmpData.Name()
-		ar.RegisterHandler(rootfs)
-	}
-
-	r, err := read(ar, verify, storeScripts)
+	err = aReader.ReadArtifactHeaders()
 	if err != nil {
 		return nil, err
 	}
 
-	info := r.GetInfo()
-
-	// now once arifact is read we need to
-	var h *handlers.Rootfs
-	switch info.Version {
-	case 1:
-		return nil, errors.New("Mender-Artifact version 1 no longer supported")
-	case 2:
-		h = handlers.NewRootfsV2(data)
-	case 3:
-		h = handlers.NewRootfsV3(data)
-	default:
-		return nil, errors.Errorf("unsupported artifact version: %d", info.Version)
-	}
-
-	upd := &awriter.Updates{
-		Updates: []handlers.Composer{h},
-	}
-	scr, err := scripts([]string{sDir})
+	fDir := filepath.Join(tmpdir, "files")
+	err = os.Mkdir(fDir, 0755)
 	if err != nil {
 		return nil, err
 	}
 
+	updateStore := &writeUpdateStorer{
+		dir: fDir,
+	}
+	inst := aReader.GetHandlers()
+	if len(inst) == 1 {
+		inst[0].SetUpdateStorerProducer(updateStore)
+	} else if len(inst) > 1 {
+		return nil, errors.New("More than one payload not supported")
+	}
+
+	if err := aReader.ReadArtifactData(); err != nil {
+		return nil, err
+	}
+
+	ua.files = updateStore.names
+
+	if len(inst) > 0 &&
+		inst[0].GetUpdateType() == "rootfs-image" &&
+		len(ua.files) != 1 {
+
+		return nil, errors.New("rootfs-image artifacts with more than one file not supported")
+	}
+
+	ua.writeArgs, err = reconstructArtifactWriteData(ua)
+	return ua, err
+}
+
+func reconstructPayloadWriteData(info *artifact.Info, inst map[int]handlers.Installer) (upd *awriter.Updates,
+	typeInfoV3 *artifact.TypeInfoV3,
+	augTypeInfoV3 *artifact.TypeInfoV3,
+	metaData map[string]interface{},
+	augMetaData map[string]interface{},
+	err error) {
+
+	if len(inst) > 1 {
+		err = errors.New("More than one payload not supported")
+		return
+	} else if len(inst) == 1 {
+		var updateType string
+		upd = &awriter.Updates{}
+
+		switch info.Version {
+		case 1:
+			err = errors.New("Mender-Artifact version 1 no longer supported")
+			return
+		case 2:
+			updateType = inst[0].GetUpdateType()
+			upd.Updates = []handlers.Composer{handlers.NewRootfsV2(updateType)}
+		case 3:
+			// Even rootfs images will be written using ModuleImage, which
+			// is a superset
+			updateType = inst[0].GetUpdateOriginalType()
+			if updateType != "" {
+				// If augmented artifact.
+				upd.Augments = []handlers.Composer{handlers.NewModuleImage(updateType)}
+				augTypeInfoV3 = &artifact.TypeInfoV3{
+					Type:             updateType,
+					ArtifactDepends:  inst[0].GetUpdateOriginalDepends(),
+					ArtifactProvides: inst[0].GetUpdateOriginalProvides(),
+				}
+				augMetaData = inst[0].GetUpdateOriginalMetaData()
+			}
+
+			updateType = inst[0].GetUpdateType()
+			upd.Updates = []handlers.Composer{handlers.NewModuleImage(updateType)}
+
+		default:
+			err = errors.Errorf("unsupported artifact version: %d", info.Version)
+			return
+		}
+
+		var uDepends *artifact.TypeInfoDepends
+		var uProvides *artifact.TypeInfoProvides
+
+		if uDepends, err = inst[0].GetUpdateDepends(); err != nil {
+			return
+		}
+		if uProvides, err = inst[0].GetUpdateProvides(); err != nil {
+			return
+		}
+		typeInfoV3 = &artifact.TypeInfoV3{
+			Type:             updateType,
+			ArtifactDepends:  uDepends,
+			ArtifactProvides: uProvides,
+		}
+
+		if metaData, err = inst[0].GetUpdateMetaData(); err != nil {
+			return
+		}
+	}
+
+	return
+}
+
+func reconstructArtifactWriteData(ua *unpackedArtifact) (*awriter.WriteArtifactArgs, error) {
+	info := ua.ar.GetInfo()
+	inst := ua.ar.GetHandlers()
+
+	upd, typeInfoV3, augTypeInfoV3, metaData, augMetaData, err := reconstructPayloadWriteData(&info, inst)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(inst) == 1 {
+		dataFiles := make([]*handlers.DataFile, 0, len(ua.files))
+		for _, file := range ua.files {
+			dataFiles = append(dataFiles, &handlers.DataFile{Name: file})
+		}
+		err := upd.Updates[0].SetUpdateFiles(dataFiles)
+		if err != nil {
+			return nil, errors.Wrap(err, "Cannot assign payload files")
+		}
+	} else if len(inst) > 1 {
+		return nil, errors.New("Multiple payloads not supported")
+	}
+
+	scr, err := scripts(ua.scripts)
+	if err != nil {
+		return nil, err
+	}
+
+	name := ua.ar.GetArtifactName()
+
+	args := &awriter.WriteArtifactArgs{
+		Format:            info.Format,
+		Version:           info.Version,
+		Devices:           ua.ar.GetCompatibleDevices(),
+		Name:              name,
+		Updates:           upd,
+		Scripts:           scr,
+		Provides:          ua.ar.GetArtifactProvides(),
+		Depends:           ua.ar.GetArtifactDepends(),
+		TypeInfoV3:        typeInfoV3,
+		MetaData:          metaData,
+		AugmentTypeInfoV3: augTypeInfoV3,
+		AugmentMetaData:   augMetaData,
+	}
+
+	return args, nil
+}
+
+func repack(comp artifact.Compressor, ua *unpackedArtifact, to io.Writer, key []byte) error {
 	aWriter := awriter.NewWriter(to, comp)
 	if key != nil {
 		aWriter = awriter.NewWriterSigned(to, comp, artifact.NewSigner(key))
 	}
 
-	name := ar.GetArtifactName()
-	provides := ar.GetArtifactProvides()
-	if newName != "" {
-		name = newName
-		if provides != nil {
-			provides.ArtifactName = newName
-		}
-	}
-
-	typeInfoV3 := artifact.TypeInfoV3{
-		Type: "rootfs-image",
-		// Keeping these empty for now. We will likely introduce these
-		// later, when we add support for augmented artifacts.
-		// ArtifactDepends:  &artifact.TypeInfoDepends{"rootfs_image_checksum": c.String("depends-rootfs-image-checksum")},
-		// ArtifactProvides: &artifact.TypeInfoProvides{"rootfs_image_checksum": c.String("provides-rootfs-image-checksum")},
-		ArtifactDepends:  &artifact.TypeInfoDepends{},
-		ArtifactProvides: &artifact.TypeInfoProvides{},
-	}
-
-	err = aWriter.WriteArtifact(
-		&awriter.WriteArtifactArgs{
-			Format:     info.Format,
-			Version:    info.Version,
-			Devices:    ar.GetCompatibleDevices(),
-			Name:       name,
-			Updates:    upd,
-			Scripts:    scr,
-			Provides:   provides,
-			Depends:    ar.GetArtifactDepends(),
-			TypeInfoV3: &typeInfoV3,
-		})
-	return ar, err
+	return aWriter.WriteArtifact(ua.writeArgs)
 }
 
-func repackArtifact(comp artifact.Compressor, artifact, rootfs, newName string) error {
-	art, err := os.Open(artifact)
-	if err != nil {
-		return err
-	}
-	defer art.Close()
-
-	tmp, err := ioutil.TempFile(filepath.Dir(artifact), "mender-artifact")
+func repackArtifact(comp artifact.Compressor, key []byte, ua *unpackedArtifact) error {
+	tmp, err := ioutil.TempFile(filepath.Dir(ua.origPath), "mender-artifact")
 	if err != nil {
 		return err
 	}
 	defer os.Remove(tmp.Name())
 	defer tmp.Close()
 
-	if _, err = repack(comp, artifact, art, tmp, nil, newName, rootfs); err != nil {
+	if err = repack(comp, ua, tmp, key); err != nil {
 		return err
 	}
 
-	return os.Rename(tmp.Name(), artifact)
-}
+	tmp.Close()
 
-func processSdimg(image string) ([]partition, error) {
-	bin, err := utils.GetBinaryPath("parted")
-	if err != nil {
-		return nil, fmt.Errorf("`parted` binary not found on the system")
-	}
-	out, err := exec.Command(bin, image, "unit s", "print").Output()
-	if err != nil {
-		return nil, errors.Wrap(err, "can not execute `parted` command or image is broken; "+
-			"make sure parted is available in your system and is in the $PATH")
-	}
-
-	partitions := make([]partition, 0)
-
-	reg := regexp.MustCompile(`(?m)^[[:blank:]][0-9]+[[:blank:]]+([0-9]+)s[[:blank:]]+[0-9]+s[[:blank:]]+([0-9]+)s`)
-	partitionMatch := reg.FindAllStringSubmatch(string(out), -1)
-
-	if len(partitionMatch) == 4 {
-		// we will have three groups per each entry in the partition table
-		for i := 0; i < 4; i++ {
-			single := partitionMatch[i]
-			partitions = append(partitions, partition{offset: single[1], size: single[2]})
-		}
-		if err = extractFromSdimg(partitions, image); err != nil {
-			return nil, err
-		}
-		return partitions, nil
-		// if we have single ext file there is no need to mount it
-	} else if len(partitionMatch) == 1 {
-		return []partition{{path: image}}, nil
-	}
-	return nil, fmt.Errorf("invalid partition table: %s", string(out))
-}
-
-func extractFromSdimg(partitions []partition, image string) error {
-	for i, part := range partitions {
-		tmp, err := ioutil.TempFile("", "mender-modify-image")
-		if err != nil {
-			return errors.Wrap(err, "can not create temp file for storing image")
-		}
-		if err = tmp.Close(); err != nil {
-			return errors.Wrapf(err, "can not close temporary file: %s", tmp.Name())
-		}
-		cmd := exec.Command("dd", "if="+image, "of="+tmp.Name(),
-			"skip="+part.offset, "count="+part.size)
-		if err = cmd.Run(); err != nil {
-			return errors.Wrap(err, "can not extract image from sdimg")
-		}
-		partitions[i].path = tmp.Name()
-	}
-	return nil
-}
-
-func repackSdimg(partitions []partition, image string) error {
-	for _, part := range partitions {
-		if err := exec.Command("dd", "if="+part.path, "of="+image,
-			"seek="+part.offset, "count="+part.size,
-			"conv=notrunc").Run(); err != nil {
-			return errors.Wrap(err, "can not copy image back to sdimg")
-		}
-	}
-	return nil
-}
-
-type CandidateType int
-
-const (
-	Unknown CandidateType = iota
-	ModuleImageArtifact
-	RootfsImageArtifact
-	RawSDImage
-)
-
-func getCandidatesForModify(path string) (CandidateType, []partition, error) {
-	modifyCandidates := make([]partition, 0)
-
-	// first we need to check  if we are having artifact or image file
-	art, err := os.Open(path)
-	if err != nil {
-		return Unknown, nil, errors.Wrap(err, "can not open artifact")
-	}
-	defer art.Close()
-
-	var foundType = Unknown
-	aReader := areader.NewReader(art)
-	r, err := read(aReader, nil, nil)
-	if err == nil {
-		// we have VALID artifact,
-
-		// First check if it is a module-image type
-		inst := r.GetHandlers()
-		if len(inst) > 0 && inst[0].GetUpdateType() != "rootfs-image" {
-			return ModuleImageArtifact, nil, nil
-		}
-
-		// Else, it must be a rootfs-image so extract the partitions
-		foundType = RootfsImageArtifact
-		rawImage, err := unpackArtifact(path)
-		if err != nil {
-			return Unknown, nil, errors.Wrap(err, "can not process artifact")
-		}
-		modifyCandidates = append(modifyCandidates, partition{path: rawImage})
-	} else {
-		foundType = RawSDImage
-		parts, err := processSdimg(path)
-		if err != nil {
-			return Unknown, nil, errors.Wrap(err, "can not process image file")
-		}
-		modifyCandidates = append(modifyCandidates, parts...)
-	}
-	return foundType, modifyCandidates, nil
+	return os.Rename(tmp.Name(), ua.origPath)
 }

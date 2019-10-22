@@ -115,6 +115,7 @@ func MakeModuleImageArtifact(signed, hasScripts bool, updateType string,
 		if err != nil {
 			return nil, err
 		}
+		defer os.Remove(file)
 		files[index] = &handlers.DataFile{Name: file}
 	}
 	compose.SetUpdateFiles(files)
@@ -128,6 +129,7 @@ func MakeModuleImageArtifact(signed, hasScripts bool, updateType string,
 			if err != nil {
 				return nil, err
 			}
+			defer os.Remove(file)
 			augmentFiles[index] = &handlers.DataFile{Name: file}
 		}
 		compose.SetUpdateAugmentFiles(augmentFiles)

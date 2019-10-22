@@ -57,7 +57,7 @@ func readArtifact(c *cli.Context) error {
 	ver := func(message, sig []byte) error {
 		sigInfo = "signed but no key for verification provided; " +
 			"please use `-k` option for providing verification key"
-		if verifyCallback != nil {
+		if c.String("key") != "" {
 			err = verifyCallback(message, sig)
 			if err != nil {
 				sigInfo = "signed; verification using provided key failed"
@@ -75,20 +75,22 @@ func readArtifact(c *cli.Context) error {
 	}
 
 	ar := areader.NewReader(f)
-	r, err := read(ar, ver, readScripts)
+	ar.ScriptsReadCallback = readScripts
+	ar.VerifySignatureCallback = ver
+	err = ar.ReadArtifact()
 	if err != nil {
 		return cli.NewExitError(err.Error(), 0)
 	}
 
-	inst := r.GetHandlers()
-	info := r.GetInfo()
+	inst := ar.GetHandlers()
+	info := ar.GetInfo()
 
 	fmt.Printf("Mender artifact:\n")
-	fmt.Printf("  Name: %s\n", r.GetArtifactName())
+	fmt.Printf("  Name: %s\n", ar.GetArtifactName())
 	fmt.Printf("  Format: %s\n", info.Format)
 	fmt.Printf("  Version: %d\n", info.Version)
 	fmt.Printf("  Signature: %s\n", sigInfo)
-	fmt.Printf("  Compatible devices: '%s'\n", r.GetCompatibleDevices())
+	fmt.Printf("  Compatible devices: '%s'\n", ar.GetCompatibleDevices())
 	provides := ar.GetArtifactProvides()
 	if provides != nil {
 		fmt.Printf("  Provides group: %s\n", provides.ArtifactGroup)
@@ -179,11 +181,15 @@ func printPayload(index int, p handlers.Installer) {
 		}
 	}
 
-	for _, f := range p.GetUpdateAllFiles() {
+	if len(p.GetUpdateAllFiles()) == 0 {
+		fmt.Printf("    Files: None\n")
+	} else {
 		fmt.Printf("    Files:\n")
-		fmt.Printf("      name:     %s\n", f.Name)
-		fmt.Printf("      size:     %d\n", f.Size)
-		fmt.Printf("      modified: %s\n", f.Date)
-		fmt.Printf("      checksum: %s\n", f.Checksum)
+		for _, f := range p.GetUpdateAllFiles() {
+			fmt.Printf("      name:     %s\n", f.Name)
+			fmt.Printf("      size:     %d\n", f.Size)
+			fmt.Printf("      modified: %s\n", f.Date)
+			fmt.Printf("      checksum: %s\n", f.Checksum)
+		}
 	}
 }

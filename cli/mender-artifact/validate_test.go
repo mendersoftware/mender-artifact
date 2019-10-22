@@ -72,7 +72,7 @@ var validateTests = []struct {
 		"verification error"},
 	{2, []byte(PrivateValidateRSAKey), []byte(PublicValidateRSAKeyInvalid),
 		"failed to parse public key"},
-	{2, []byte(PrivateValidateRSAKey), nil, "missing key"}, // MEN-2802
+	{2, []byte(PrivateValidateRSAKey), nil, "missing key"},      // MEN-2802
 	{2, nil, []byte(PublicValidateRSAKey), "missing signature"}, // MEN-2155
 }
 

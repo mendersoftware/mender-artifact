@@ -289,27 +289,27 @@ func TestCopyRootfsImage(t *testing.T) {
 				// Cleanup the testkey
 				assert.Nil(t, os.Remove("testkey"))
 				// Check that the permission bits have been set correctly!
-				pf, err := virtualPartitionFile.Open(comp, imgpath+":/etc/mender/testkey.key")
+				pf, err := virtualImage.OpenFile(comp, nil, imgpath+":/etc/mender/testkey.key")
 				defer pf.Close()
 				require.Nil(t, err)
 				// Type switch on the artifact, or sdimg underlying
-				switch pf.(type) {
-				case *artifactExtFile:
-					imgpath := pf.(*artifactExtFile).path
+				switch innerImg := pf.(*vImageAndFile).file.(type) {
+				case *extFile:
 					bin, err := utils.GetBinaryPath("debugfs")
 					require.Nil(t, err)
-					cmd := exec.Command(bin, "-R", "stat /etc/mender/testkey.key", imgpath)
+					cmd := exec.Command(bin, "-R", "stat /etc/mender/testkey.key", innerImg.imagePath)
 					out, err := cmd.CombinedOutput()
 					require.Nil(t, err)
 					require.True(t, strings.Contains(string(out), "Mode:  0600"))
 				case sdimgFile:
-					imgpath := pf.(sdimgFile)[0].(*extFile).path
 					bin, err := utils.GetBinaryPath("debugfs")
 					require.Nil(t, err)
-					cmd := exec.Command(bin, "-R", "stat /etc/mender/testkey.key", imgpath)
+					cmd := exec.Command(bin, "-R", "stat /etc/mender/testkey.key", innerImg[0].(*extFile).imagePath)
 					out, err := cmd.CombinedOutput()
 					require.Nil(t, err)
 					require.True(t, strings.Contains(string(out), "Mode:  0600"))
+				default:
+					t.Fatal("Unexpected file type")
 				}
 			},
 		},
@@ -421,7 +421,9 @@ func TestCopyRootfsImage(t *testing.T) {
 					return nil
 				}
 				ar := areader.NewReader(f)
-				_, err = read(ar, ver, readScripts)
+				ar.ScriptsReadCallback = readScripts
+				ar.VerifySignatureCallback = ver
+				err = ar.ReadArtifact()
 				require.Nil(t, err)
 				// Verify that the artifact-name has not changed.
 				assert.Equal(t, "test-artifact", ar.GetArtifactName())
@@ -447,9 +449,11 @@ func TestCopyRootfsImage(t *testing.T) {
 					return nil
 				}
 				ar := areader.NewReader(f)
-				r, err := read(ar, ver, readScripts)
+				ar.ScriptsReadCallback = readScripts
+				ar.VerifySignatureCallback = ver
+				err = ar.ReadArtifact()
 				require.Nil(t, err)
-				inst := r.GetHandlers()
+				inst := ar.GetHandlers()
 				// Verify that the update name has not changed.
 				assert.Equal(t, "mender_test.img", inst[0].GetUpdateFiles()[0].Name)
 			},
@@ -511,24 +515,22 @@ func TestCopyRootfsImage(t *testing.T) {
 			verifyTestFunc: func(imgpath string) {
 				defer os.Remove("foobar.txt")
 				comp := artifact.NewCompressorGzip()
-				pf, err := virtualPartitionFile.Open(comp, imgpath+":/etc/mender/foo.txt")
+				pf, err := virtualImage.OpenFile(comp, nil, imgpath+":/etc/mender/foo.txt")
 				defer pf.Close()
 				require.Nil(t, err)
 				// Type switch on the artifact, or sdimg underlying
-				switch pf.(type) {
-				case *artifactExtFile:
-					imgpath := pf.(*artifactExtFile).path
+				switch innerImg := pf.(*vImageAndFile).file.(type) {
+				case *extFile:
 					bin, err := utils.GetBinaryPath("debugfs")
 					require.Nil(t, err)
-					cmd := exec.Command(bin, "-R", "stat etc/mender/foo.txt", imgpath)
+					cmd := exec.Command(bin, "-R", "stat etc/mender/foo.txt", innerImg.imagePath)
 					out, err := cmd.CombinedOutput()
 					require.Nil(t, err)
 					require.True(t, strings.Contains(string(out), "Mode:  0666"))
 				case sdimgFile:
-					imgpath := pf.(sdimgFile)[0].(*extFile).path
 					bin, err := utils.GetBinaryPath("debugfs")
 					require.Nil(t, err)
-					cmd := exec.Command(bin, "-R", "stat etc/mender/foo.txt", imgpath)
+					cmd := exec.Command(bin, "-R", "stat etc/mender/foo.txt", innerImg[0].(*extFile).imagePath)
 					out, err := cmd.CombinedOutput()
 					require.Nil(t, err)
 					require.True(t, strings.Contains(string(out), "Mode:  0666"))
@@ -538,108 +540,110 @@ func TestCopyRootfsImage(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 
-		// create a copy of the working images
-		artifact, sdimg, fatsdimg, closer := testSetupTeardown(t)
-		defer closer()
-		type testArgs struct {
-			validImg    string
-			testArgVect []string
-		}
-		targs := []testArgs{}
-		// Add the images the test is valid for.
-		targv := make([][]string, 3)
-		targv[0] = make([]string, len(test.argv))
-		targv[1] = make([]string, len(test.argv))
-		targv[2] = make([]string, len(test.argv))
-		copy(targv[0], test.argv)
-		copy(targv[1], test.argv)
-		copy(targv[2], test.argv)
-		for i, arg := range test.argv {
-			sarr := strings.Split(arg, ":")
-			if len(sarr) == 2 {
-				testimgs := strings.Split(strings.Trim(sarr[0], "<>"), "|")
-				for _, str := range testimgs {
-					switch str {
-					case "artifact":
-						targv[0][i] = artifact + ":" + sarr[1]
-						targs = append(targs, testArgs{
-							validImg:    artifact,
-							testArgVect: targv[0],
-						})
-					case "sdimg":
-						targv[1][i] = sdimg + ":" + sarr[1]
-						targs = append(targs, testArgs{
-							validImg:    sdimg,
-							testArgVect: targv[1],
-						})
-					case "fat-sdimg":
-						targv[2][i] = fatsdimg + ":" + sarr[1]
-						targs = append(targs, testArgs{
-							validImg:    fatsdimg,
-							testArgVect: targv[2],
-						})
-					default:
-						t.Fatalf("Unrecognized image type: %s\n", str)
+			// create a copy of the working images
+			artifact, sdimg, fatsdimg, closer := testSetupTeardown(t)
+			defer closer()
+			type testArgs struct {
+				validImg    string
+				testArgVect []string
+			}
+			targs := []testArgs{}
+			// Add the images the test is valid for.
+			targv := make([][]string, 3)
+			targv[0] = make([]string, len(test.argv))
+			targv[1] = make([]string, len(test.argv))
+			targv[2] = make([]string, len(test.argv))
+			copy(targv[0], test.argv)
+			copy(targv[1], test.argv)
+			copy(targv[2], test.argv)
+			for i, arg := range test.argv {
+				sarr := strings.Split(arg, ":")
+				if len(sarr) == 2 {
+					testimgs := strings.Split(strings.Trim(sarr[0], "<>"), "|")
+					for _, str := range testimgs {
+						switch str {
+						case "artifact":
+							targv[0][i] = artifact + ":" + sarr[1]
+							targs = append(targs, testArgs{
+								validImg:    artifact,
+								testArgVect: targv[0],
+							})
+						case "sdimg":
+							targv[1][i] = sdimg + ":" + sarr[1]
+							targs = append(targs, testArgs{
+								validImg:    sdimg,
+								testArgVect: targv[1],
+							})
+						case "fat-sdimg":
+							targv[2][i] = fatsdimg + ":" + sarr[1]
+							targs = append(targs, testArgs{
+								validImg:    fatsdimg,
+								testArgVect: targv[2],
+							})
+						default:
+							t.Fatalf("Unrecognized image type: %s\n", str)
+						}
 					}
-				}
-				break
-			}
-		}
-
-		if len(targs) == 0 {
-			t.Fatalf("Test: %s - enabled no test cases\n", test.name)
-		}
-
-		for _, targ := range targs {
-
-			if test.initfunc != nil {
-				test.initfunc(targ.validImg)
-			}
-
-			os.Args = targ.testArgVect
-
-			old := os.Stdout // keep backup of the real stdout
-			r, w, err := os.Pipe()
-			if err != nil {
-				log.Fatal(err)
-			}
-			os.Stdout = w
-
-			outC := make(chan string)
-			// copy the output in a separate goroutine so printing can't block indefinitely
-			go func() {
-				var buf bytes.Buffer
-				io.Copy(&buf, r)
-				outC <- buf.String()
-			}()
-
-			err = run()
-
-			// back to normal state
-			w.Close()
-			os.Stdout = old // restoring the real stdout
-			out := <-outC
-
-			if test.err != "" {
-				assert.Contains(t, err.Error(), test.err)
-			}
-
-			if err != nil {
-				if test.err != "" {
-					assert.Contains(t, err.Error(), test.err, test.name)
-				} else {
-					t.Log(out)
-					t.Fatal(fmt.Sprintf("cmd: %s failed with err: %v", test.name, err))
-				}
-			} else {
-				if test.verifyTestFunc != nil {
-					test.verifyTestFunc(targ.validImg)
-				} else {
-					assert.Equal(t, test.expected, out, test.name)
+					break
 				}
 			}
-		}
+
+			if len(targs) == 0 {
+				t.Fatalf("Test: %s - enabled no test cases\n", test.name)
+			}
+
+			for _, targ := range targs {
+				t.Run(filepath.Base(targ.validImg), func(t *testing.T) {
+					if test.initfunc != nil {
+						test.initfunc(targ.validImg)
+					}
+
+					os.Args = targ.testArgVect
+
+					old := os.Stdout // keep backup of the real stdout
+					r, w, err := os.Pipe()
+					if err != nil {
+						log.Fatal(err)
+					}
+					os.Stdout = w
+
+					outC := make(chan string)
+					// copy the output in a separate goroutine so printing can't block indefinitely
+					go func() {
+						var buf bytes.Buffer
+						io.Copy(&buf, r)
+						outC <- buf.String()
+					}()
+
+					err = run()
+
+					// back to normal state
+					w.Close()
+					os.Stdout = old // restoring the real stdout
+					out := <-outC
+
+					if test.err != "" {
+						assert.Contains(t, err.Error(), test.err)
+					}
+
+					if err != nil {
+						if test.err != "" {
+							assert.Contains(t, err.Error(), test.err, test.name)
+						} else {
+							t.Log(out)
+							t.Fatal(fmt.Sprintf("cmd: %s failed with err: %v", test.name, err))
+						}
+					}
+					if test.verifyTestFunc != nil {
+						test.verifyTestFunc(targ.validImg)
+					} else {
+						assert.Equal(t, test.expected, out, test.name)
+					}
+				})
+			}
+		})
 	}
 }
 
@@ -765,27 +769,27 @@ func TestCopyModuleImage(t *testing.T) {
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "only rootfs Artifact or image are supported")
+	assert.Contains(t, err.Error(), errFsTypeUnsupported.Error())
 
 	os.Args = []string{
 		"mender-artifact", "cat", artfile + ":/dummy/path",
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "only rootfs Artifact or image are supported")
+	assert.Contains(t, err.Error(), errFsTypeUnsupported.Error())
 
 	os.Args = []string{
 		"mender-artifact", "install", "-m", "777", df.Name(), artfile + ":/dummy/path",
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "only rootfs Artifact or image are supported")
+	assert.Contains(t, err.Error(), errFsTypeUnsupported.Error())
 
 	os.Args = []string{
 		"mender-artifact", "rm", artfile + ":/dummy/path",
 	}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "only rootfs Artifact or image are supported")
+	assert.Contains(t, err.Error(), errFsTypeUnsupported.Error())
 
 }

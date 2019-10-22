@@ -143,7 +143,6 @@ Updates:
       size:     13
       modified: .*
       checksum: ee7cd8c4f4613a5dd2bf585815a77209a13ea7410aa5dedcc8654993b30a4972
-    Files:
       name:     updateFileAugment
       size:     14
       modified: .*

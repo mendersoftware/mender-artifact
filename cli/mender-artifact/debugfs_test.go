@@ -22,14 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFsck(t *testing.T) {
-	err := debugfsRunFsck("mender_test.img.broken")
-	assert.Error(t, err)
-
-	err = debugfsRunFsck("mender_test.img")
-	assert.NoError(t, err)
-}
-
 func TestExecuteCommand(t *testing.T) {
 	tests := map[string]struct {
 		cmd      string
@@ -42,7 +34,7 @@ func TestExecuteCommand(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		_, err := executeCommand(test.cmd, "mender_test.img")
+		_, err := debugfsExecuteCommand(test.cmd, "mender_test.img")
 		t.Log(name)
 		assert.Contains(t, err.Error(), test.expected, "Unexpected error")
 	}
@@ -57,10 +49,11 @@ func TestExternalBinaryDependency(t *testing.T) {
 		os.Setenv("PATH", origPATH)
 	}()
 	os.Setenv("PATH", "")
-	_, err := debugfsCopyFile("foo", "bar")
+	tmpdir, err := debugfsCopyFile("foo", "bar")
 	assert.EqualError(t, err, debugfsMissingErr)
+	defer os.RemoveAll(tmpdir)
 
-	_, err = executeCommand("foobar", "bash")
+	_, err = debugfsExecuteCommand("foobar", "bash")
 	assert.EqualError(t, err, debugfsMissingErr)
 
 	_, err = processSdimg("foobar")

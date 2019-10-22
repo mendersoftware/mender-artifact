@@ -126,6 +126,7 @@ func writeTempHeader(c artifact.Compressor, manifestChecksumStore *artifact.Chec
 	}()
 
 	if err != nil {
+		os.Remove(f.Name())
 		return nil, err
 	}
 	fullName := fmt.Sprintf("%s.tar%s", name, c.GetFileExtension())

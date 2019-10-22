@@ -127,6 +127,7 @@ func TestWriteArtifactWithUpdates(t *testing.T) {
 	// Update with invalid data file name.
 	upd, err = MakeFakeInvalidUpdate("my test update")
 	assert.NoError(t, err)
+	defer os.Remove(upd)
 
 	u = handlers.NewRootfsV2(upd)
 	updates = &Updates{Updates: []handlers.Composer{u}}
@@ -170,6 +171,7 @@ func TestWriteMultipleUpdates(t *testing.T) {
 	// Update with invalid data file name.
 	upd, err = MakeFakeInvalidUpdate("my test update")
 	assert.NoError(t, err)
+	defer os.Remove(upd)
 
 	u1 = handlers.NewRootfsV2(upd)
 	u2 = handlers.NewRootfsV2(upd)
@@ -244,6 +246,7 @@ func TestWriteArtifactV2(t *testing.T) {
 	// Update with invalid data file name.
 	upd, err = MakeFakeInvalidUpdate("my test update")
 	assert.NoError(t, err)
+	defer os.Remove(upd)
 
 	u = handlers.NewRootfsV2(upd)
 	updates = &Updates{Updates: []handlers.Composer{u}}
@@ -582,6 +585,7 @@ func TestWriteArtifactV3(t *testing.T) {
 	// Update with invalid data file name.
 	upd, err = MakeFakeInvalidUpdate("my test update")
 	assert.NoError(t, err)
+	defer os.Remove(upd)
 
 	u = handlers.NewRootfsV3(upd)
 	updates = &Updates{Updates: []handlers.Composer{u}}
