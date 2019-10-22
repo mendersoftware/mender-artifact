@@ -15,13 +15,17 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 const (
@@ -448,9 +452,72 @@ func getCliContext() *cli.App {
 	}
 	app.Flags = append([]cli.Flag{}, globalFlags...)
 
+	cli.HelpPrinter = upgradeHelpPrinter(cli.HelpPrinter)
+
 	return app
 }
 
 func run() error {
 	return getCliContext().Run(os.Args)
+}
+
+func upgradeHelpPrinter(defaultPrinter func(w io.Writer, templ string, data interface{})) func(
+	w io.Writer, templ string, data interface{}) {
+	// Applies the ordinary help printer with column post processing
+	return func(stdout io.Writer, templ string, data interface{}) {
+		// Need at least 10 characters for lastr column in order to
+		// pretty print; otherwise the output is unreadable.
+		const minColumnWidth = 10
+		isLowerCase := func(c rune) bool {
+			// returns true if c in [a-z] else false
+			ascii_val := int(c)
+			if ascii_val >= 0x61 && ascii_val <= 0x7A {
+				return true
+			}
+			return false
+		}
+		// defaultPrinter parses the text-template and outputs to buffer
+		var buf bytes.Buffer
+		defaultPrinter(&buf, templ, data)
+		terminalWidth, _, err := terminal.GetSize(int(os.Stdout.Fd()))
+		if err != nil {
+			// Just write help as is.
+			stdout.Write(buf.Bytes())
+			return
+		}
+		for line, err := buf.ReadString('\n'); err == nil; line, err = buf.ReadString('\n') {
+			if len(line) <= terminalWidth+1 {
+				stdout.Write([]byte(line))
+				continue
+			}
+			newLine := line
+			indent := strings.LastIndex(
+				line[:terminalWidth], "  ")
+			// find indentation of last column
+			if indent == -1 {
+				indent = 0
+			}
+			indent += strings.IndexFunc(
+				strings.ToLower(line[indent:]), isLowerCase) - 1
+			if indent >= terminalWidth-minColumnWidth ||
+				indent == -1 {
+				indent = 0
+			}
+			// Format the last column to be aligned
+			for len(newLine) > terminalWidth {
+				// find word to insert newline
+				idx := strings.LastIndex(newLine[:terminalWidth], " ")
+				if idx == indent || idx == -1 {
+					idx = terminalWidth
+				}
+				stdout.Write([]byte(newLine[:idx] + "\n"))
+				newLine = newLine[idx:]
+				newLine = strings.Repeat(" ", indent) + newLine
+			}
+			stdout.Write([]byte(newLine))
+		}
+		if err != nil {
+			log.Fatalf("CLI HELP: error writing help string: %v\n", err)
+		}
+	}
 }
