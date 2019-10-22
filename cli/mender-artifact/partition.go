@@ -91,8 +91,8 @@ type vImageAndFile struct {
 	file  VPFile
 }
 
-// Open is a utility function that parses an input image and path
-// and returns a V(irtual)P(artition)File.
+// Open is a utility function that parses an input image and returns a
+// V(irtual)P(artition)Image.
 func (v vImage) Open(comp artifact.Compressor, key []byte, imgname string) (VPImage, error) {
 	// first we need to check  if we are having artifact or image file
 	art, err := os.Open(imgname)
@@ -223,21 +223,17 @@ func (i *ModImageArtifact) Open(fpath string) (VPFile, error) {
 	return newArtifactExtFile(i, i.comp, fpath, i.files[0])
 }
 
-// Opens a file inside the image(s) represented by the ModImageSdimg
-func (i *ModImageSdimg) Open(fpath string) (VPFile, error) {
-	return newSDImgFile(i, fpath, i.candidates)
-}
-
-func (i *ModImageRaw) Open(fpath string) (VPFile, error) {
-	return newExtFile(i.path, fpath)
-}
-
 // Closes and repacks the artifact or sdimg.
 func (i *ModImageArtifact) Close() error {
 	if i.unpackDir != "" {
 		defer os.RemoveAll(i.unpackDir)
 	}
 	return repackArtifact(i.comp, i.key, i.unpackedArtifact)
+}
+
+// Opens a file inside the image(s) represented by the ModImageSdimg
+func (i *ModImageSdimg) Open(fpath string) (VPFile, error) {
+	return newSDImgFile(i, fpath, i.candidates)
 }
 
 func (i *ModImageSdimg) Close() error {
@@ -247,6 +243,10 @@ func (i *ModImageSdimg) Close() error {
 		}
 	}
 	return repackSdimg(i.candidates, i.path)
+}
+
+func (i *ModImageRaw) Open(fpath string) (VPFile, error) {
+	return newExtFile(i.path, fpath)
 }
 
 func (i *ModImageRaw) Close() error {
