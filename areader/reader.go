@@ -1041,6 +1041,10 @@ func (ar *Reader) MergeArtifactDepends() (map[string]interface{}, error) {
 	retMap := make(map[string]interface{})
 
 	depends := ar.GetArtifactDepends()
+	if depends == nil {
+		// Artifact version < 3
+		return nil, nil
+	}
 
 	retMap["artifact_name"] = depends.ArtifactName
 	retMap["compatible_devices"] = depends.CompatibleDevices
@@ -1052,6 +1056,8 @@ func (ar *Reader) MergeArtifactDepends() (map[string]interface{}, error) {
 		deps, err := upd.GetUpdateDepends()
 		if err != nil {
 			return nil, err
+		} else if deps == nil {
+			continue
 		}
 		for key, val := range deps.Map() {
 			// Ensure there are no matching keys
@@ -1070,6 +1076,10 @@ func (ar *Reader) MergeArtifactProvides() (map[string]interface{}, error) {
 	retMap := make(map[string]interface{})
 
 	provides := ar.GetArtifactProvides()
+	if provides == nil {
+		// Artifact version < 3
+		return nil, nil
+	}
 
 	retMap["artifact_name"] = provides.ArtifactName
 	retMap["artifact_group"] = provides.ArtifactGroup
@@ -1080,6 +1090,8 @@ func (ar *Reader) MergeArtifactProvides() (map[string]interface{}, error) {
 		p, err := upd.GetUpdateProvides()
 		if err != nil {
 			return nil, err
+		} else if p == nil {
+			continue
 		}
 		for key, val := range p.Map() {
 			// Ensure there are no matching keys
