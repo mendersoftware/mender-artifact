@@ -301,7 +301,7 @@ func TestCopyRootfsImage(t *testing.T) {
 					cmd := exec.Command(bin, "-R", "stat /etc/mender/testkey.key", imgpath)
 					out, err := cmd.CombinedOutput()
 					require.Nil(t, err)
-					require.True(t, strings.Contains(string(out), "Mode:  0600"))
+					assert.True(t, strings.Contains(string(out), "Mode:  0600"))
 				case sdimgFile:
 					imgpath := pf.(sdimgFile)[0].(*extFile).path
 					bin, err := utils.GetBinaryPath("debugfs")
@@ -309,7 +309,95 @@ func TestCopyRootfsImage(t *testing.T) {
 					cmd := exec.Command(bin, "-R", "stat /etc/mender/testkey.key", imgpath)
 					out, err := cmd.CombinedOutput()
 					require.Nil(t, err)
-					require.True(t, strings.Contains(string(out), "Mode:  0600"))
+					assert.True(t, strings.Contains(string(out), "Mode:  0600"))
+				default:
+					t.Fatal("Unexpected file type")
+				}
+			},
+		},
+		{
+			name: "Install file with permissions (0777)",
+			initfunc: func(imgpath string) {
+				require.Nil(t, ioutil.WriteFile("testkey", []byte("foobar"), 0644))
+			},
+			argv: []string{"mender-artifact", "install", "-m", "0777", "testkey", "<artifact|sdimg|fat-sdimg>:/etc/mender/testkey.key"},
+			verifyTestFunc: func(imgpath string) {
+				comp := artifact.NewCompressorGzip()
+				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/etc/mender/testkey.key")
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				err := cmd.Run()
+				assert.Nil(t, err, "got unexpected error: %v", err)
+				assert.Equal(t, "foobar", out.String())
+				// Cleanup the testkey
+				assert.Nil(t, os.Remove("testkey"))
+				// Check that the permission bits have been set correctly!
+				pf, err := virtualPartitionFile.Open(comp, imgpath+":/etc/mender/testkey.key")
+				defer pf.Close()
+				require.Nil(t, err)
+				// Type switch on the artifact, or sdimg underlying
+				switch pf.(type) {
+				case *artifactExtFile:
+					imgpath := pf.(*artifactExtFile).path
+					bin, err := utils.GetBinaryPath("debugfs")
+					require.Nil(t, err)
+					cmd := exec.Command(bin, "-R", "stat /etc/mender/testkey.key", imgpath)
+					out, err := cmd.CombinedOutput()
+					require.Nil(t, err)
+					assert.True(t, strings.Contains(string(out), "Mode:  0777"))
+				case sdimgFile:
+					imgpath := pf.(sdimgFile)[0].(*extFile).path
+					bin, err := utils.GetBinaryPath("debugfs")
+					require.Nil(t, err)
+					cmd := exec.Command(bin, "-R", "stat /etc/mender/testkey.key", imgpath)
+					out, err := cmd.CombinedOutput()
+					require.Nil(t, err)
+					assert.True(t, strings.Contains(string(out), "Mode:  0777"))
+				default:
+					t.Fatal("Unexpected file type")
+				}
+			},
+		},
+		{
+			name: "Install file with permissions (0700)",
+			initfunc: func(imgpath string) {
+				require.Nil(t, ioutil.WriteFile("testkey", []byte("foobar"), 0644))
+			},
+			argv: []string{"mender-artifact", "install", "-m", "0700", "testkey", "<artifact|sdimg|fat-sdimg>:/etc/mender/testkey.key"},
+			verifyTestFunc: func(imgpath string) {
+				comp := artifact.NewCompressorGzip()
+				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/etc/mender/testkey.key")
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				err := cmd.Run()
+				assert.Nil(t, err, "got unexpected error: %v", err)
+				assert.Equal(t, "foobar", out.String())
+				// Cleanup the testkey
+				assert.Nil(t, os.Remove("testkey"))
+				// Check that the permission bits have been set correctly!
+				pf, err := virtualPartitionFile.Open(comp, imgpath+":/etc/mender/testkey.key")
+				defer pf.Close()
+				require.Nil(t, err)
+				// Type switch on the artifact, or sdimg underlying
+				switch pf.(type) {
+				case *artifactExtFile:
+					imgpath := pf.(*artifactExtFile).path
+					bin, err := utils.GetBinaryPath("debugfs")
+					require.Nil(t, err)
+					cmd := exec.Command(bin, "-R", "stat /etc/mender/testkey.key", imgpath)
+					out, err := cmd.CombinedOutput()
+					require.Nil(t, err)
+					assert.True(t, strings.Contains(string(out), "Mode:  0700"))
+				case sdimgFile:
+					imgpath := pf.(sdimgFile)[0].(*extFile).path
+					bin, err := utils.GetBinaryPath("debugfs")
+					require.Nil(t, err)
+					cmd := exec.Command(bin, "-R", "stat /etc/mender/testkey.key", imgpath)
+					out, err := cmd.CombinedOutput()
+					require.Nil(t, err)
+					assert.True(t, strings.Contains(string(out), "Mode:  0700"))
+				default:
+					t.Fatal("Unexpected file type")
 				}
 			},
 		},

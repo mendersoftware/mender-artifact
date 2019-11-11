@@ -17,7 +17,9 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -132,8 +134,6 @@ func Install(c *cli.Context) (err error) {
 		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
 	}
 
-	var r io.ReadCloser
-	var w io.WriteCloser
 	wclose := func(w io.Closer) {
 		if w == nil {
 			return
@@ -150,19 +150,32 @@ func Install(c *cli.Context) (err error) {
 			return cli.NewExitError("File permissions needs to be set, if you are simply copying, the cp command should fit your needs", 1)
 		}
 		perm = os.FileMode(c.Int("mode"))
-		r, err = os.OpenFile(c.Args().First(), os.O_RDWR, perm)
-		defer r.Close()
+		f, err := os.Open(c.Args().First())
+		defer f.Close()
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		f, err := virtualPartitionFile.Open(comp, c.Args().Get(1))
-		defer wclose(f)
+		vfile, err := virtualPartitionFile.Open(comp, c.Args().Get(1))
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		w = f
-		if _, err = io.Copy(w, r); err != nil {
+		defer wclose(vfile)
+
+		tfName, err := createTmpFileWithPerm(f, perm)
+		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+		}
+
+		Log.Debugf("Created tempfile: %s", tfName)
+		defer func() {
+			lerr := os.RemoveAll(filepath.Dir(tfName))
+			if lerr != nil {
+				Log.Warnf("Failed to remove tmpdir with: %v", lerr)
+			}
+		}()
+
+		if err = vfile.CopyTo(tfName); err != nil {
+			return cli.NewExitError(err, 1)
 		}
 		return nil
 	case parseError:
@@ -238,4 +251,47 @@ func parseCLIOptions(c *cli.Context) int {
 	default:
 		return parseError
 	}
+}
+
+// createTmpFileWithPerm Takes a file, and creates a temp-file copy of the
+// current file, with the permissions given by perm.
+func createTmpFileWithPerm(f *os.File, perm os.FileMode) (string, error) {
+
+	td, err := ioutil.TempDir("", "mender-artifact-install")
+	if err != nil {
+		return "", err
+	}
+
+	tf, err := os.OpenFile(filepath.Join(td,
+		filepath.Base(f.Name())), os.O_CREATE|os.O_WRONLY, perm)
+	if err != nil {
+		return "", err
+	}
+
+	_, err = io.Copy(tf, f)
+	if err != nil {
+		return "", err
+	}
+
+	// override umask
+	err = tf.Chmod(perm)
+	if err != nil {
+		return "", err
+	}
+
+	name := tf.Name()
+	Log.Debugf("Tempfile name: %s\n", name)
+
+	s, _ := tf.Stat()
+	err = tf.Close()
+	if err != nil {
+		return "", err
+	}
+
+	if s != nil {
+		Log.Debugf("The tempfile: %s got permissions: %v\noriginal-permissions: %s\n",
+			name, s.Mode(), perm)
+	}
+
+	return name, nil
 }
