@@ -49,6 +49,13 @@ import (
 
 For sample usage, please see the [Mender client source code](https://github.com/mendersoftware/mender).
 
+
+## Downloading the binaries
+
+You can find the latest `mender-artifact` binaries in the [Downloads page on
+Mender Docs](https://docs.mender.io/downloads).
+
+
 ## Contributing
 
 We welcome and ask for your contribution. If you would like to contribute to Mender, please read our guide on how to best get started [contributing code or
