@@ -1346,6 +1346,43 @@ func TestMergeDependsSuccess(t *testing.T) {
 				"foo":                "boo",
 			},
 		},
+		{
+			// No type-info depends
+			r: Reader{
+				hInfo: &artifact.HeaderInfoV3{
+					ArtifactDepends: &artifact.ArtifactDepends{
+						ArtifactName:      []string{"foo"},
+						CompatibleDevices: []string{"qemux86-64"},
+						ArtifactGroup:     []string{"ac-dc"},
+					},
+				},
+				installers: map[int]handlers.Installer{
+					1: &installer{
+						typeInfoV3: &artifact.TypeInfoV3{
+							ArtifactDepends: nil,
+						},
+					},
+				},
+			},
+			expected: map[string]interface{}{
+				"artifact_name":      []string{"foo"},
+				"compatible_devices": []string{"qemux86-64"},
+				"artifact_group":     []string{"ac-dc"},
+			},
+		},
+		{
+			// Artifact version 2
+			r: Reader{
+				hInfo: &artifact.HeaderInfo{
+					ArtifactName:      "foo",
+					CompatibleDevices: []string{"qemux86-64"},
+				},
+				installers: map[int]handlers.Installer{
+					1: &installer{},
+				},
+			},
+			expected: nil,
+		},
 	}
 
 	for _, test := range tests {
@@ -1382,7 +1419,6 @@ func TestMergeDependsError(t *testing.T) {
 			},
 		},
 	}
-
 	for _, test := range tests {
 		_, err := test.r.MergeArtifactDepends()
 		assert.NotNil(t, err)
@@ -1420,6 +1456,41 @@ func TestMergeProvidesSuccess(t *testing.T) {
 				"bar":            "baz",
 				"foo":            "boo",
 			},
+		},
+		{
+			// Single update -- empty type-info
+			r: Reader{
+				hInfo: &artifact.HeaderInfoV3{
+					ArtifactProvides: &artifact.ArtifactProvides{
+						ArtifactName:  "foo",
+						ArtifactGroup: "ac-dc",
+					},
+				},
+				installers: map[int]handlers.Installer{
+					1: &installer{
+						typeInfoV3: &artifact.TypeInfoV3{
+							ArtifactProvides: nil,
+						},
+					},
+				},
+			},
+			expected: map[string]interface{}{
+				"artifact_name":  "foo",
+				"artifact_group": "ac-dc",
+			},
+		},
+		{
+			// Single update -- version 2 header
+			r: Reader{
+				hInfo: &artifact.HeaderInfo{
+					ArtifactName:      "foo",
+					CompatibleDevices: []string{"ac-dc"},
+				},
+				installers: map[int]handlers.Installer{
+					1: &installer{},
+				},
+			},
+			expected: nil,
 		},
 	}
 
