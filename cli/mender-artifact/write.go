@@ -25,7 +25,36 @@ import (
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
+	"io"
+	"io/ioutil"
 )
+
+func writeRootfsImageChecksum(c *cli.Context, typeInfo *artifact.TypeInfoV3) (err error) {
+	chk := artifact.NewWriterChecksum(ioutil.Discard)
+	payload, err := os.Open(c.String("file"))
+	if err != nil {
+		return cli.NewExitError(fmt.Sprintf("Failed to open the payload file: %q", c.String("file")), 1)
+	}
+	if _, err = io.Copy(chk, payload); err != nil {
+		return cli.NewExitError("Failed to generate the checksum for the payload", 1)
+	}
+	checksum := string(chk.Checksum())
+
+	Log.Debugf("Adding the `rootfs_image_checksum`: %q to Artifact provides", checksum)
+	if typeInfo == nil {
+		return errors.New("Type-info is unitialized")
+	}
+	if typeInfo.ArtifactProvides == nil {
+		t, err := artifact.NewTypeInfoProvides(map[string]string{"rootfs_image_checksum": checksum})
+		if err != nil {
+			fmt.Errorf("Failed to write the `rootfs_image_checksum` provides")
+		}
+		typeInfo.ArtifactProvides = t
+	} else {
+		typeInfo.ArtifactProvides["rootfs_image_checksum"] = checksum
+	}
+	return nil
+}
 
 func validateInput(c *cli.Context) error {
 	// Version 2 and 3 validation.
@@ -123,6 +152,12 @@ func writeRootfs(c *cli.Context) error {
 		return err
 	}
 
+	if !c.Bool("no-checksum-provide") {
+		if err = writeRootfsImageChecksum(c, typeInfoV3); err != nil {
+			return cli.NewExitError(errors.Wrap(err, "Failed to write the `rootfs_image_checksum` to the artifact"), 1)
+		}
+	}
+
 	err = aw.WriteArtifact(
 		&awriter.WriteArtifactArgs{
 			Format:     "mender",
@@ -204,6 +239,8 @@ func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
 	return upd, nil
 }
 
+// makeTypeInfo returns the type-info provides and depends and the augmented
+// type-info provides and depends, or nil.
 func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3, error) {
 	// Make key value pairs from the type-info fields supplied on command
 	// line.

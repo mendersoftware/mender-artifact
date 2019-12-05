@@ -162,6 +162,12 @@ func getCliContext() *cli.App {
 			Usage: "Full path to the state script(s). You can specify multiple " +
 				"scripts providing this parameter multiple times.",
 		},
+		cli.BoolFlag{
+			Name: "no-checksum-provide",
+			Usage: "Disable writing the provides checksum to the Artifact provides " +
+				"parameters. This is needed in case the targeted devices do not support " +
+				"provides and depends yet.",
+		},
 		/////////////////////////
 		// Version 3 specifics.//
 		/////////////////////////

@@ -20,10 +20,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"flag"
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/urfave/cli"
 )
 
 func TestArtifactsWrite(t *testing.T) {
@@ -394,8 +396,70 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 	updProvides, err := handler.GetUpdateProvides()
 	require.NoError(t, err)
 	assert.Equal(t, artifact.TypeInfoProvides{
-		"testProvideKey1": "testProvideValue1",
-		"testProvideKey2": "testProvideValue2",
+		// `rootfs_image_checksum` is always enabled
+		"rootfs_image_checksum": "bfb4567944c5730face9f3d54efc0c1ff3b5dd1338862b23b849ac87679e162f",
+		"testProvideKey1":       "testProvideValue1",
+		"testProvideKey2":       "testProvideValue2",
 	}, updProvides)
+
+	// Test the `--no-checksum-provide` flag
+	tart := filepath.Join(tmpdir, "noprovides.mender")
+
+	os.Args = []string{
+		"mender-artifact", "write", "rootfs-image",
+		"-t", "mydevice",
+		"-o", tart,
+		"-f", filepath.Join(updateTestDir, "update.ext4"),
+		"-n", "noprovides",
+		"--no-checksum-provide",
+	}
+	err = run()
+	assert.NoError(t, err)
+
+	artFd, err = os.Open(tart)
+	assert.NoError(t, err)
+	reader = areader.NewReader(artFd)
+	err = reader.ReadArtifact()
+	assert.NoError(t, err)
+
+	assert.Equal(t, "noprovides", reader.GetArtifactName())
+	assert.Equal(t, []artifact.UpdateType{artifact.UpdateType{Type: "rootfs-image"}}, reader.GetUpdates())
+
+	handlers = reader.GetHandlers()
+	assert.Equal(t, 1, len(handlers))
+	handler = handlers[0]
+	assert.Equal(t, "rootfs-image", handler.GetUpdateType())
+
+	updProvides, err = handler.GetUpdateProvides()
+	require.NoError(t, err)
+	// Nil represents empty provides unfortunately
+	assert.Nil(t, updProvides)
+
+}
+
+func TestWriteRootfsImageChecksum(t *testing.T) {
+
+	// Cannot find payload file (nonexisting)
+	set := flag.NewFlagSet("provides", flag.ExitOnError)
+	set.String("file", "idonotexist", "foobar")
+	ctx := cli.NewContext(nil, set, nil)
+	err := writeRootfsImageChecksum(ctx, nil)
+	assert.Contains(t, writeRootfsImageChecksum(ctx, nil).Error(), "Failed to open the payload file")
+
+	// Checksum a dummy file
+	tf, err := ioutil.TempFile("", "TestWriteRootfsImageChecksum")
+	require.NoError(t, err)
+	_, err = tf.Write([]byte("foobar"))
+	require.NoError(t, err)
+	require.NoError(t, tf.Close())
+	typeInfo := artifact.TypeInfoV3{}
+	set = flag.NewFlagSet("file", flag.ExitOnError)
+	set.String("file", tf.Name(), "foo")
+	err = writeRootfsImageChecksum(
+		cli.NewContext(nil, set, nil), &typeInfo)
+	assert.NoError(t, err)
+	require.NotNil(t, typeInfo.ArtifactProvides)
+	_, ok := typeInfo.ArtifactProvides["rootfs_image_checksum"]
+	assert.True(t, ok)
 
 }
