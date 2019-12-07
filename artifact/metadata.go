@@ -395,9 +395,9 @@ type TypeInfoV3 struct {
 	Type string `json:"type"`
 	// Checksum of the image that needs to be installed on the device in order to
 	// apply the current update.
-	ArtifactDepends *TypeInfoDepends `json:"artifact_depends,omitempty"`
+	ArtifactDepends TypeInfoDepends `json:"artifact_depends,omitempty"`
 	// Checksum of the image currently installed on the device.
-	ArtifactProvides *TypeInfoProvides `json:"artifact_provides,omitempty"`
+	ArtifactProvides TypeInfoProvides `json:"artifact_provides,omitempty"`
 }
 
 // Validate checks that the required `Type` field is set.

@@ -254,8 +254,8 @@ func reconstructPayloadWriteData(info *artifact.Info, inst map[int]handlers.Inst
 			return
 		}
 
-		var uDepends *artifact.TypeInfoDepends
-		var uProvides *artifact.TypeInfoProvides
+		var uDepends artifact.TypeInfoDepends
+		var uProvides artifact.TypeInfoProvides
 
 		if uDepends, err = inst[0].GetUpdateDepends(); err != nil {
 			return

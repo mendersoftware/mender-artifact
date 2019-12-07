@@ -177,7 +177,7 @@ func TestComposeHeader(t *testing.T) {
 			rfs: NewAugmentedRootfs(NewRootfsV3(""), ""),
 			args: ComposeHeaderArgs{
 				TarWriter:  tar.NewWriter(bytes.NewBuffer(nil)),
-				TypeInfoV3: &artifact.TypeInfoV3{ArtifactProvides: &artifact.TypeInfoProvides{}},
+				TypeInfoV3: &artifact.TypeInfoV3{ArtifactProvides: artifact.TypeInfoProvides{}},
 				Augmented:  true,
 			},
 			verifyFunc: func(args ComposeHeaderArgs) { assert.Nil(t, args.TypeInfoV3) },

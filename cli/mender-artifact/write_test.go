@@ -256,13 +256,13 @@ func TestWriteModuleImage(t *testing.T) {
 		"testDependKey1":    "testDependValue1",
 		"testDependKey2":    "testDependValue2",
 		"overrideDependKey": "originalOverrideDependValue",
-	}, *updDepends)
+	}, updDepends)
 	updDepends = handler.GetUpdateAugmentDepends()
 	assert.Equal(t, artifact.TypeInfoDepends{
 		"augmentDependKey1": "augmentDependValue1",
 		"augmentDependKey2": "augmentDependValue2",
 		"overrideDependKey": "augmentOverrideDependValue",
-	}, *updDepends)
+	}, updDepends)
 	updDepends, err = handler.GetUpdateDepends()
 	require.NoError(t, err)
 	assert.Equal(t, artifact.TypeInfoDepends{
@@ -271,20 +271,20 @@ func TestWriteModuleImage(t *testing.T) {
 		"augmentDependKey1": "augmentDependValue1",
 		"augmentDependKey2": "augmentDependValue2",
 		"overrideDependKey": "augmentOverrideDependValue",
-	}, *updDepends)
+	}, updDepends)
 
 	updProvides := handler.GetUpdateOriginalProvides()
 	assert.Equal(t, artifact.TypeInfoProvides{
 		"testProvideKey1":    "testProvideValue1",
 		"testProvideKey2":    "testProvideValue2",
 		"overrideProvideKey": "originalOverrideProvideValue",
-	}, *updProvides)
+	}, updProvides)
 	updProvides = handler.GetUpdateAugmentProvides()
 	assert.Equal(t, artifact.TypeInfoProvides{
 		"augmentProvideKey1": "augmentProvideValue1",
 		"augmentProvideKey2": "augmentProvideValue2",
 		"overrideProvideKey": "augmentOverrideProvideValue",
-	}, *updProvides)
+	}, updProvides)
 	updProvides, err = handler.GetUpdateProvides()
 	require.NoError(t, err)
 	assert.Equal(t, artifact.TypeInfoProvides{
@@ -293,7 +293,7 @@ func TestWriteModuleImage(t *testing.T) {
 		"augmentProvideKey1": "augmentProvideValue1",
 		"augmentProvideKey2": "augmentProvideValue2",
 		"overrideProvideKey": "augmentOverrideProvideValue",
-	}, *updProvides)
+	}, updProvides)
 
 	assert.Equal(t, map[string]interface{}{"metadata": "test"}, handler.GetUpdateOriginalMetaData())
 	assert.Equal(t, map[string]interface{}{"metadata": "augment"}, handler.GetUpdateAugmentMetaData())
@@ -388,7 +388,7 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 	assert.Equal(t, artifact.TypeInfoDepends{
 		"testDependKey1": "testDependValue1",
 		"testDependKey2": "testDependValue2",
-	}, *updDepends)
+	}, updDepends)
 
 	// Type-Info Provides
 	updProvides, err := handler.GetUpdateProvides()
@@ -396,6 +396,6 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 	assert.Equal(t, artifact.TypeInfoProvides{
 		"testProvideKey1": "testProvideValue1",
 		"testProvideKey2": "testProvideValue2",
-	}, *updProvides)
+	}, updProvides)
 
 }

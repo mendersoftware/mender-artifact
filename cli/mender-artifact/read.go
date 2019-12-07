@@ -133,14 +133,14 @@ func printPayload(index int, p handlers.Installer) {
 	fmt.Printf("    Provides:")
 	if err != nil {
 		fmt.Printf(" Invalid provides section: %s\n", err.Error())
-	} else if provides == nil || len(*provides) == 0 {
+	} else if provides == nil || len(provides) == 0 {
 		fmt.Printf(" Nothing\n")
 	} else {
-		providesKeys := sortedKeys(*provides)
+		providesKeys := sortedKeys(provides)
 
 		fmt.Printf("\n")
 		for _, provideKey := range providesKeys {
-			fmt.Printf("\t%s: %s\n", provideKey, (*provides)[provideKey])
+			fmt.Printf("\t%s: %s\n", provideKey, (provides)[provideKey])
 		}
 	}
 
@@ -148,14 +148,14 @@ func printPayload(index int, p handlers.Installer) {
 	fmt.Printf("    Depends:")
 	if err != nil {
 		fmt.Printf(" Invalid depends section: %s\n", err.Error())
-	} else if depends == nil || len(*depends) == 0 {
+	} else if depends == nil || len(depends) == 0 {
 		fmt.Printf(" Nothing\n")
 	} else {
-		dependsKeys := sortedKeys(*depends)
+		dependsKeys := sortedKeys(depends)
 
 		fmt.Printf("\n")
 		for _, dependKey := range dependsKeys {
-			fmt.Printf("\t%s: %s\n", dependKey, (*depends)[dependKey])
+			fmt.Printf("\t%s: %s\n", dependKey, (depends)[dependKey])
 		}
 	}
 

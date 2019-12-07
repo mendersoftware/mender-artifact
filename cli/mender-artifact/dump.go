@@ -205,14 +205,14 @@ func printCmdline(ar *areader.Reader, args []string) {
 
 	provs := handler.GetUpdateOriginalProvides()
 	if provs != nil {
-		for key, value := range *provs {
+		for key, value := range provs {
 			fmt.Printf(" --provides %s:%s", key, value)
 		}
 	}
 
 	deps := handler.GetUpdateOriginalDepends()
 	if deps != nil {
-		for key, value := range *deps {
+		for key, value := range deps {
 			fmt.Printf(" --depends %s:%s", key, value)
 		}
 	}

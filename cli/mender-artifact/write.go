@@ -251,8 +251,8 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 
 	typeInfoV3 := &artifact.TypeInfoV3{
 		Type:             ctx.String("type"),
-		ArtifactDepends:  &typeInfoDepends,
-		ArtifactProvides: &typeInfoProvides,
+		ArtifactDepends:  typeInfoDepends,
+		ArtifactProvides: typeInfoProvides,
 	}
 
 	if ctx.String("augment-type") == "" {
@@ -271,8 +271,8 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 
 	augmentTypeInfoV3 := &artifact.TypeInfoV3{
 		Type:             ctx.String("augment-type"),
-		ArtifactDepends:  &augmentTypeInfoDepends,
-		ArtifactProvides: &augmentTypeInfoProvides,
+		ArtifactDepends:  augmentTypeInfoDepends,
+		ArtifactProvides: augmentTypeInfoProvides,
 	}
 
 	return typeInfoV3, augmentTypeInfoV3, nil
