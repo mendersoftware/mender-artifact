@@ -343,7 +343,8 @@ func TestModifyRootfsSigned(t *testing.T) {
 Updates:
     0:
     Type:   rootfs-image
-    Provides: Nothing
+    Provides:
+	rootfs_image_checksum: dc66c40bc3e52e1d0d3f46f417cbb8e12a86bc63b2a9b3be91ee77aa0fd680b0
     Depends: Nothing
     Metadata: Nothing
     Files:
@@ -370,7 +371,8 @@ Updates:
 Updates:
     0:
     Type:   rootfs-image
-    Provides: Nothing
+    Provides:
+	rootfs_image_checksum: dc66c40bc3e52e1d0d3f46f417cbb8e12a86bc63b2a9b3be91ee77aa0fd680b0
     Depends: Nothing
     Metadata: Nothing
     Files:
@@ -424,7 +426,8 @@ Updates:
 Updates:
     0:
     Type:   rootfs-image
-    Provides: Nothing
+    Provides:
+	rootfs_image_checksum: dc66c40bc3e52e1d0d3f46f417cbb8e12a86bc63b2a9b3be91ee77aa0fd680b0
     Depends: Nothing
     Metadata: Nothing
     Files:
