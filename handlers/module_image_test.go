@@ -1,4 +1,4 @@
-// Copyright 2018 Northern.tech AS
+// Copyright 2019 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -159,10 +159,10 @@ func TestModuleImageGetProperties(t *testing.T) {
 	augm := NewAugmentedModuleImage(orig, "test-type")
 
 	orig.typeInfoV3 = &artifact.TypeInfoV3{}
-	orig.typeInfoV3.ArtifactDepends = &artifact.TypeInfoDepends{
+	orig.typeInfoV3.ArtifactDepends = artifact.TypeInfoDepends{
 		"testDependKey": "testDependValue",
 	}
-	orig.typeInfoV3.ArtifactProvides = &artifact.TypeInfoProvides{
+	orig.typeInfoV3.ArtifactProvides = artifact.TypeInfoProvides{
 		"testProvideKey": "testProvideValue",
 	}
 	orig.metaData = map[string]interface{}{
@@ -170,10 +170,10 @@ func TestModuleImageGetProperties(t *testing.T) {
 	}
 
 	augm.typeInfoV3 = &artifact.TypeInfoV3{}
-	augm.typeInfoV3.ArtifactDepends = &artifact.TypeInfoDepends{
+	augm.typeInfoV3.ArtifactDepends = artifact.TypeInfoDepends{
 		"testAugmentDependKey": "testAugmentDependValue",
 	}
-	augm.typeInfoV3.ArtifactProvides = &artifact.TypeInfoProvides{
+	augm.typeInfoV3.ArtifactProvides = artifact.TypeInfoProvides{
 		"testAugmentProvideKey": "testAugmentProvideValue",
 	}
 	augm.metaData = map[string]interface{}{
@@ -184,13 +184,13 @@ func TestModuleImageGetProperties(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, artifact.TypeInfoDepends{
 		"testDependKey": "testDependValue",
-	}, *depends)
+	}, depends)
 
 	provides, err := orig.GetUpdateProvides()
 	assert.NoError(t, err)
 	assert.Equal(t, artifact.TypeInfoProvides{
 		"testProvideKey": "testProvideValue",
-	}, *provides)
+	}, provides)
 
 	metaData, err := orig.GetUpdateMetaData()
 	assert.NoError(t, err)
@@ -203,14 +203,14 @@ func TestModuleImageGetProperties(t *testing.T) {
 	assert.Equal(t, artifact.TypeInfoDepends{
 		"testDependKey":        "testDependValue",
 		"testAugmentDependKey": "testAugmentDependValue",
-	}, *depends)
+	}, depends)
 
 	provides, err = augm.GetUpdateProvides()
 	assert.NoError(t, err)
 	assert.Equal(t, artifact.TypeInfoProvides{
 		"testProvideKey":        "testProvideValue",
 		"testAugmentProvideKey": "testAugmentProvideValue",
-	}, *provides)
+	}, provides)
 
 	metaData, err = augm.GetUpdateMetaData()
 	assert.NoError(t, err)
@@ -219,8 +219,8 @@ func TestModuleImageGetProperties(t *testing.T) {
 		"testAugmentMetaDataKey": "testAugmentMetaDataValue",
 	}, metaData)
 
-	(*augm.typeInfoV3.ArtifactDepends)["testDependKey"] = "alternateValue"
-	(*augm.typeInfoV3.ArtifactProvides)["testProvideKey"] = "alternateValue"
+	(augm.typeInfoV3.ArtifactDepends)["testDependKey"] = "alternateValue"
+	(augm.typeInfoV3.ArtifactProvides)["testProvideKey"] = "alternateValue"
 	augm.metaData["testMetaDataKey"] = "alternateValue"
 
 	depends, err = augm.GetUpdateDepends()
@@ -228,14 +228,14 @@ func TestModuleImageGetProperties(t *testing.T) {
 	assert.Equal(t, artifact.TypeInfoDepends{
 		"testDependKey":        "alternateValue",
 		"testAugmentDependKey": "testAugmentDependValue",
-	}, *depends)
+	}, depends)
 
 	provides, err = augm.GetUpdateProvides()
 	assert.NoError(t, err)
 	assert.Equal(t, artifact.TypeInfoProvides{
 		"testProvideKey":        "alternateValue",
 		"testAugmentProvideKey": "testAugmentProvideValue",
-	}, *provides)
+	}, provides)
 
 	metaData, err = augm.GetUpdateMetaData()
 	assert.NoError(t, err)

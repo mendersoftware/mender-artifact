@@ -418,14 +418,14 @@ func (i *installer) SetUpdateAugmentFiles(files [](*handlers.DataFile)) error {
 	return nil
 }
 
-func (i *installer) GetUpdateDepends() (*artifact.TypeInfoDepends, error) {
+func (i *installer) GetUpdateDepends() (artifact.TypeInfoDepends, error) {
 	// NOTE: For testing purposes, only typeInfoV3 is returned.
 	//Original functionality merges typeInfo, and the augmentedTypeInfo,
 	// So beware!
 	return i.typeInfoV3.ArtifactDepends, nil
 }
 
-func (i *installer) GetUpdateProvides() (*artifact.TypeInfoProvides, error) {
+func (i *installer) GetUpdateProvides() (artifact.TypeInfoProvides, error) {
 	// NOTE: For testing purposes, only typeInfoV3 is returned.
 	//Original functionality merges typeInfo, and the augmentedTypeInfo,
 	// So beware!
@@ -436,24 +436,24 @@ func (i *installer) GetUpdateMetaData() (map[string]interface{}, error) {
 	return nil, nil
 }
 
-func (i *installer) GetUpdateOriginalDepends() *artifact.TypeInfoDepends {
-	return &artifact.TypeInfoDepends{}
+func (i *installer) GetUpdateOriginalDepends() artifact.TypeInfoDepends {
+	return artifact.TypeInfoDepends{}
 }
 
-func (i *installer) GetUpdateOriginalProvides() *artifact.TypeInfoProvides {
-	return &artifact.TypeInfoProvides{}
+func (i *installer) GetUpdateOriginalProvides() artifact.TypeInfoProvides {
+	return artifact.TypeInfoProvides{}
 }
 
 func (i *installer) GetUpdateOriginalMetaData() map[string]interface{} {
 	return nil
 }
 
-func (i *installer) GetUpdateAugmentDepends() *artifact.TypeInfoDepends {
-	return &artifact.TypeInfoDepends{}
+func (i *installer) GetUpdateAugmentDepends() artifact.TypeInfoDepends {
+	return artifact.TypeInfoDepends{}
 }
 
-func (i *installer) GetUpdateAugmentProvides() *artifact.TypeInfoProvides {
-	return &artifact.TypeInfoProvides{}
+func (i *installer) GetUpdateAugmentProvides() artifact.TypeInfoProvides {
+	return artifact.TypeInfoProvides{}
 }
 
 func (i *installer) GetUpdateAugmentMetaData() map[string]interface{} {
@@ -1332,7 +1332,7 @@ func TestMergeDependsSuccess(t *testing.T) {
 				installers: map[int]handlers.Installer{
 					1: &installer{
 						typeInfoV3: &artifact.TypeInfoV3{
-							ArtifactDepends: &artifact.TypeInfoDepends{
+							ArtifactDepends: artifact.TypeInfoDepends{
 								"foo": "boo",
 							},
 						},
@@ -1410,7 +1410,7 @@ func TestMergeDependsError(t *testing.T) {
 				installers: map[int]handlers.Installer{
 					1: &installer{
 						typeInfoV3: &artifact.TypeInfoV3{
-							ArtifactDepends: &artifact.TypeInfoDepends{
+							ArtifactDepends: artifact.TypeInfoDepends{
 								"artifact_name": "boo",
 							},
 						},
@@ -1442,7 +1442,7 @@ func TestMergeProvidesSuccess(t *testing.T) {
 				installers: map[int]handlers.Installer{
 					1: &installer{
 						typeInfoV3: &artifact.TypeInfoV3{
-							ArtifactProvides: &artifact.TypeInfoProvides{
+							ArtifactProvides: artifact.TypeInfoProvides{
 								"bar": "baz",
 								"foo": "boo",
 							},
@@ -1517,7 +1517,7 @@ func TestMergeProvidesError(t *testing.T) {
 				installers: map[int]handlers.Installer{
 					1: &installer{
 						typeInfoV3: &artifact.TypeInfoV3{
-							ArtifactProvides: &artifact.TypeInfoProvides{
+							ArtifactProvides: artifact.TypeInfoProvides{
 								"artifact_name": 1,
 							},
 						},

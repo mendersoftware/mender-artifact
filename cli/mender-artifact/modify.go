@@ -263,7 +263,7 @@ func modifyPayloadAttributes(c *cli.Context, image VPImage) error {
 		}
 		// The unconditional cast usage here is safe due to the
 		// `extractKeyValuesIfArtifact` call above.
-		art.writeArgs.TypeInfoV3.ArtifactDepends = &typeInfoDepends
+		art.writeArgs.TypeInfoV3.ArtifactDepends = typeInfoDepends
 	}
 
 	keyValues, err = extractKeyValuesIfArtifact(c, "provides", image)
@@ -274,7 +274,7 @@ func modifyPayloadAttributes(c *cli.Context, image VPImage) error {
 		if err != nil {
 			return err
 		}
-		art.writeArgs.TypeInfoV3.ArtifactProvides = &typeInfoProvides
+		art.writeArgs.TypeInfoV3.ArtifactProvides = typeInfoProvides
 	}
 
 	keyValues, err = extractKeyValuesIfArtifact(c, "augment-depends", image)
@@ -285,7 +285,7 @@ func modifyPayloadAttributes(c *cli.Context, image VPImage) error {
 		if err != nil {
 			return err
 		}
-		art.writeArgs.AugmentTypeInfoV3.ArtifactDepends = &typeInfoDepends
+		art.writeArgs.AugmentTypeInfoV3.ArtifactDepends = typeInfoDepends
 	}
 
 	keyValues, err = extractKeyValuesIfArtifact(c, "augment-provides", image)
@@ -296,7 +296,7 @@ func modifyPayloadAttributes(c *cli.Context, image VPImage) error {
 		if err != nil {
 			return err
 		}
-		art.writeArgs.AugmentTypeInfoV3.ArtifactProvides = &typeInfoProvides
+		art.writeArgs.AugmentTypeInfoV3.ArtifactProvides = typeInfoProvides
 	}
 
 	metaData, augMetaData, err := makeMetaData(c)

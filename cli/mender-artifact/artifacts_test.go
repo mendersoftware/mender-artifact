@@ -165,8 +165,8 @@ func WriteArtifact(dir string, ver int, update string) error {
 		// later, when we add support for augmented artifacts.
 		// ArtifactDepends:  &artifact.TypeInfoDepends{"rootfs_image_checksum": c.String("depends-rootfs-image-checksum")},
 		// ArtifactProvides: &artifact.TypeInfoProvides{"rootfs_image_checksum": c.String("provides-rootfs-image-checksum")},
-		ArtifactDepends:  &artifact.TypeInfoDepends{},
-		ArtifactProvides: &artifact.TypeInfoProvides{},
+		ArtifactDepends:  artifact.TypeInfoDepends{},
+		ArtifactProvides: artifact.TypeInfoProvides{},
 	}
 
 	return aw.WriteArtifact(&awriter.WriteArtifactArgs{
