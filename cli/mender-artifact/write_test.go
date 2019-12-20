@@ -20,12 +20,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"flag"
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/urfave/cli"
 )
 
 func TestArtifactsWrite(t *testing.T) {
@@ -158,7 +156,7 @@ func TestWithScripts(t *testing.T) {
 	fakeErrWriter.Reset()
 	err = run()
 	assert.Error(t, err)
-	assert.Equal(t, "Error: Mender-Artifact version 1 is not supported\n",
+	assert.Equal(t, "Artifact version 1 is not supported\n",
 		fakeErrWriter.String())
 
 	// write artifact vith invalid script name
@@ -440,11 +438,8 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 func TestWriteRootfsImageChecksum(t *testing.T) {
 
 	// Cannot find payload file (nonexisting)
-	set := flag.NewFlagSet("provides", flag.ExitOnError)
-	set.String("file", "idonotexist", "foobar")
-	ctx := cli.NewContext(nil, set, nil)
-	err := writeRootfsImageChecksum(ctx, nil)
-	assert.Contains(t, writeRootfsImageChecksum(ctx, nil).Error(), "Failed to open the payload file")
+	err := writeRootfsImageChecksum("idonotexist", nil)
+	assert.Contains(t, err.Error(), "Failed to open the payload file")
 
 	// Checksum a dummy file
 	tf, err := ioutil.TempFile("", "TestWriteRootfsImageChecksum")
@@ -453,10 +448,7 @@ func TestWriteRootfsImageChecksum(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, tf.Close())
 	typeInfo := artifact.TypeInfoV3{}
-	set = flag.NewFlagSet("file", flag.ExitOnError)
-	set.String("file", tf.Name(), "foo")
-	err = writeRootfsImageChecksum(
-		cli.NewContext(nil, set, nil), &typeInfo)
+	err = writeRootfsImageChecksum(tf.Name(), &typeInfo)
 	assert.NoError(t, err)
 	require.NotNil(t, typeInfo.ArtifactProvides)
 	_, ok := typeInfo.ArtifactProvides["rootfs_image_checksum"]

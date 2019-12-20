@@ -306,7 +306,7 @@ func TestArtifactsSigned(t *testing.T) {
 	fakeErrWriter.Reset()
 	err = run()
 	assert.Error(t, err)
-	assert.Equal(t, "Error: Mender-Artifact version 1 is not supported\n",
+	assert.Equal(t, "Artifact version 1 is not supported\n",
 		fakeErrWriter.String())
 }
 

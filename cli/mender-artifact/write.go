@@ -15,10 +15,14 @@
 package main
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
@@ -29,11 +33,12 @@ import (
 	"io/ioutil"
 )
 
-func writeRootfsImageChecksum(c *cli.Context, typeInfo *artifact.TypeInfoV3) (err error) {
+func writeRootfsImageChecksum(rootfsFilename string,
+	typeInfo *artifact.TypeInfoV3) (err error) {
 	chk := artifact.NewWriterChecksum(ioutil.Discard)
-	payload, err := os.Open(c.String("file"))
+	payload, err := os.Open(rootfsFilename)
 	if err != nil {
-		return cli.NewExitError(fmt.Sprintf("Failed to open the payload file: %q", c.String("file")), 1)
+		return cli.NewExitError(fmt.Sprintf("Failed to open the payload file: %q", rootfsFilename), 1)
 	}
 	if _, err = io.Copy(chk, payload); err != nil {
 		return cli.NewExitError("Failed to generate the checksum for the payload", 1)
@@ -95,18 +100,23 @@ func writeRootfs(c *cli.Context) error {
 	version := c.Int("version")
 
 	Log.Debugf("creating artifact [%s], version: %d", name, version)
+	rootfsFilename := c.String("file")
+	if strings.HasPrefix(rootfsFilename, "ssh://") {
+		rootfsFilename, err = getDeviceSnapshot(c)
+		if err != nil {
+			return cli.NewExitError("SSH error: "+err.Error(), 1)
+		}
+	}
 
 	var h handlers.Composer
 	switch version {
-	case 1:
-		return cli.NewExitError("Error: Mender-Artifact version 1 is not supported", errArtifactUnsupportedVersion)
 	case 2:
-		h = handlers.NewRootfsV2(c.String("file"))
+		h = handlers.NewRootfsV2(rootfsFilename)
 	case 3:
-		h = handlers.NewRootfsV3(c.String("file"))
+		h = handlers.NewRootfsV3(rootfsFilename)
 	default:
 		return cli.NewExitError(
-			fmt.Sprintf("unsupported artifact version: %v", version),
+			fmt.Sprintf("Artifact version %d is not supported", version),
 			errArtifactUnsupportedVersion,
 		)
 	}
@@ -153,7 +163,7 @@ func writeRootfs(c *cli.Context) error {
 	}
 
 	if !c.Bool("no-checksum-provide") {
-		if err = writeRootfsImageChecksum(c, typeInfoV3); err != nil {
+		if err = writeRootfsImageChecksum(rootfsFilename, typeInfoV3); err != nil {
 			return cli.NewExitError(errors.Wrap(err, "Failed to write the `rootfs_image_checksum` to the artifact"), 1)
 		}
 	}
@@ -459,4 +469,125 @@ func extractKeyValues(params []string) (*map[string]string, error) {
 		}
 	}
 	return keyValues, nil
+}
+
+// SSH to remote host and dump rootfs snapshot to a local temporary file.
+func getDeviceSnapshot(c *cli.Context) (string, error) {
+	var userAtHost string
+	port := "22"
+	host := strings.TrimPrefix(c.String("file"), "ssh://")
+	if remotePort := strings.Split(host, ":"); len(remotePort) == 2 {
+		port = remotePort[1]
+		userAtHost = remotePort[0]
+	} else {
+		userAtHost = host
+	}
+
+	// First echo to stdout such that we know when ssh connection is
+	// established (password prompt is written to /dev/tty directly,
+	// and hence impossible to detect).
+	args := append(c.StringSlice("ssh-args"), "-p", port, userAtHost)
+	args = append(args, "sudo", "-S", "/bin/sh", "-c",
+		"'echo \"aLL SET!\"; mender snapshot dump | cat'")
+
+	cmd := exec.Command("ssh", args...)
+
+	// Simply connect stdin/stderr
+	cmd.Stdin = os.Stdin
+	cmd.Stderr = os.Stderr
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", errors.New("Error redirecting stdout on exec")
+	}
+
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+
+	// Wait for 60 seconds for ssh to establish connection
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	errChan := make(chan error)
+	go func() {
+		stdoutRdr := bufio.NewReader(stdout)
+		for {
+			line, err := stdoutRdr.ReadString('\n')
+			if err != nil {
+				errChan <- errors.Wrap(err, "Error waiting for "+
+					"device to start dumping snapshot")
+				return
+			}
+			if strings.Contains(line, "aLL SET!") {
+				break
+			}
+		}
+		errChan <- nil
+	}()
+	select {
+	case err = <-errChan:
+		// Go routine finished
+
+	case <-ctx.Done():
+		// Context deadline exceeded
+		err = ctx.Err()
+	}
+
+	if err != nil {
+		cmd.Process.Kill()
+		return "", err
+	}
+	f, err := ioutil.TempFile("", "rootfs.ext4")
+	if err != nil {
+		cmd.Process.Kill()
+		return "", err
+	}
+	defer f.Close()
+	filePath := f.Name()
+
+	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
+		return "", errors.New("SSH session closed unexpectedly")
+	}
+
+	buf := make([]byte, 1024*1024*32)
+	var written int64
+	for {
+		nr, err := stdout.Read(buf)
+		if err != nil {
+			cmd.Process.Kill()
+			return "", errors.Wrap(err,
+				"Error receiving snapshot from device")
+		}
+		nw, err := f.Write(buf[:nr])
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			cmd.Process.Kill()
+			return "", errors.Wrap(err, "Error storing snapshot locally")
+		} else if nw < nr {
+			cmd.Process.Kill()
+			return "", io.ErrShortWrite
+		}
+		written += int64(nw)
+	}
+
+	if err = cmd.Wait(); err != nil {
+		return "", errors.Wrap(err,
+			"SSH session closed with error")
+	} else {
+		fmt.Printf("Snapshot of size %s received\n", sizeStr(written))
+	}
+	return filePath, nil
+}
+
+func sizeStr(bytes int64) string {
+	tmp := bytes
+	var i int
+	var suffixes = [...]string{"B", "KiB", "MiB", "GiB", "TiB"}
+	for i = 0; i < len(suffixes); i++ {
+		if (tmp / 1024) == 0 {
+			break
+		}
+		tmp /= 1024
+	}
+	return fmt.Sprintf("%d %s", tmp, suffixes[i])
 }
