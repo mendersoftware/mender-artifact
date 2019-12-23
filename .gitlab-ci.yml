@@ -1,6 +1,7 @@
 stages:
   - test
   - build
+  - smoketests
   - publish
 
 include:
@@ -84,6 +85,50 @@ build:make:
       - mender-artifact-*
   tags:
     - docker
+
+smoketests:mac:
+  stage: smoketests
+  dependencies:
+    - build:make
+  before_script:
+    - wget https://dgsbl4vditpls.cloudfront.net/mender-demo-artifact.mender
+    - touch test.txt
+  script:
+    - ./mender-artifact-darwin
+    - ./mender-artifact-darwin --version
+    - ./mender-artifact-darwin validate mender-demo-artifact.mender
+    - ./mender-artifact-darwin write module-image -t test -o test.mender -T script -n test -f test.txt
+    - ./mender-artifact-darwin read test.mender
+    - ./mender-artifact-darwin validate test.mender
+    - ./mender-artifact-darwin write rootfs-image -t test -o test-rfs.mender -n test -f test.txt
+    - ./mender-artifact-darwin read test-rfs.mender
+    - ./mender-artifact-darwin validate test-rfs.mender
+  after_script:
+    - rm test.txt test.mender mender-demo-artifact.mender
+  tags:
+    - mac-runner
+
+smoketests:linux:
+  image: debian:9
+  stage: smoketests
+  dependencies:
+    - build:make
+  before_script:
+    - apt-get update && apt-get install -yq wget
+    - wget -q https://dgsbl4vditpls.cloudfront.net/mender-demo-artifact.mender
+    - touch test.txt
+  script:
+    - ./mender-artifact-linux
+    - ./mender-artifact-linux --version
+    - ./mender-artifact-linux validate mender-demo-artifact.mender
+    - ./mender-artifact-linux write module-image -t test -o test.mender -T script -n test -f test.txt
+    - ./mender-artifact-linux read test.mender
+    - ./mender-artifact-linux validate test.mender
+    - ./mender-artifact-linux write rootfs-image -t test -o test-rfs.mender -n test -f test.txt
+    - ./mender-artifact-linux read test-rfs.mender
+    - ./mender-artifact-linux validate test-rfs.mender
+  after_script:
+    - rm test.txt test.mender mender-demo-artifact.mender
 
 publish:tests:codecov:
   image: alpine
