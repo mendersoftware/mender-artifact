@@ -1,4 +1,4 @@
-// Copyright 2019 Northern.tech AS
+// Copyright 2020 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -16,11 +16,11 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
 	"time"
 
@@ -29,6 +29,7 @@ import (
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
+	"golang.org/x/sys/unix"
 	"io"
 	"io/ioutil"
 )
@@ -106,6 +107,7 @@ func writeRootfs(c *cli.Context) error {
 		if err != nil {
 			return cli.NewExitError("SSH error: "+err.Error(), 1)
 		}
+		defer os.Remove(rootfsFilename)
 	}
 
 	var h handlers.Composer
@@ -471,11 +473,57 @@ func extractKeyValues(params []string) (*map[string]string, error) {
 	return keyValues, nil
 }
 
+// Disable TTY echo of stdin.
+func disableEcho(fd int) (*unix.Termios, error) {
+	term, err := unix.IoctlGetTermios(fd, unix.TCGETS)
+	if err != nil {
+		return nil, err
+	}
+
+	newTerm := *term
+	newTerm.Lflag &^= unix.ECHO
+	newTerm.Lflag |= unix.ICANON | unix.ISIG
+	newTerm.Iflag |= unix.ICRNL
+	if err := unix.IoctlSetTermios(fd, unix.TCSETS, &newTerm); err != nil {
+		return nil, err
+	}
+	return term, nil
+}
+
+// Signal handler to re-enable tty echo on interrupt. The signal handler is
+// transparent with system default, and immedeately releases the channel and
+// calling the system sighandler after termios is set. To invoke it manually,
+// simply close the sigChan (make sure to call signal.Stop prior to closing).
+func echoSigHandler(sigChan chan os.Signal, errChan chan error,
+	term *unix.Termios, tmpFile string) {
+	sig, sigRecved := <-sigChan
+	// Restore Termios
+	unix.IoctlSetTermios(int(os.Stdin.Fd()), unix.TCSETS, term)
+	if sigRecved {
+		signal.Stop(sigChan)
+		errChan <- errors.Errorf("Received signal: %s",
+			unix.SignalName(sig.(unix.Signal)))
+		os.Remove(tmpFile)
+		if sig == unix.SIGCHLD {
+			sig = unix.SIGTERM
+		}
+		// Relay signal to default handler
+		unix.Kill(os.Getpid(), sig.(unix.Signal))
+	} else {
+		errChan <- nil
+	}
+}
+
 // SSH to remote host and dump rootfs snapshot to a local temporary file.
 func getDeviceSnapshot(c *cli.Context) (string, error) {
+
+	const sshInitMagic = "Initializing snapshot..."
 	var userAtHost string
+	sigChan := make(chan os.Signal)
+	errChan := make(chan error)
 	port := "22"
 	host := strings.TrimPrefix(c.String("file"), "ssh://")
+
 	if remotePort := strings.Split(host, ":"); len(remotePort) == 2 {
 		port = remotePort[1]
 		userAtHost = remotePort[0]
@@ -483,12 +531,25 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 		userAtHost = host
 	}
 
+	// Prepare command-line arguments
+	args := c.StringSlice("ssh-args")
+	// Check if port is specified explicitly with the --ssh-args flag
+	addPort := true
+	for _, arg := range args {
+		if strings.Contains(arg, "-p") {
+			addPort = false
+			break
+		}
+	}
+	if addPort {
+		args = append(args, "-p", port)
+	}
+	args = append(args, userAtHost)
 	// First echo to stdout such that we know when ssh connection is
 	// established (password prompt is written to /dev/tty directly,
 	// and hence impossible to detect).
-	args := append(c.StringSlice("ssh-args"), "-p", port, userAtHost)
 	args = append(args, "sudo", "-S", "/bin/sh", "-c",
-		"'echo \"aLL SET!\"; mender snapshot dump | cat'")
+		`'echo "`+sshInitMagic+`"; mender snapshot dump | cat'`)
 
 	cmd := exec.Command("ssh", args...)
 
@@ -500,83 +561,135 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 		return "", errors.New("Error redirecting stdout on exec")
 	}
 
+	// Create tempfile for storing the snapshot
+	f, err := ioutil.TempFile("", "rootfs.tmp")
+	if err != nil {
+		return "", err
+	}
+	filePath := f.Name()
+
+	defer func() {
+		// Close sigChan only if still open
+		select {
+		case _, open := <-sigChan:
+			if open {
+				signal.Stop(sigChan)
+				close(sigChan)
+			}
+		default:
+			// No data ready on sigChan
+			signal.Stop(sigChan)
+			close(sigChan)
+		}
+		f.Close()
+	}()
+
+	// Disable tty echo before starting
+	term, err := disableEcho(int(os.Stdin.Fd()))
+	if err != nil {
+		return "", err
+	}
+
+	// Make sure that echo is enabled if the process gets interrupted
+	signal.Notify(sigChan, unix.SIGINT, unix.SIGPIPE, unix.SIGQUIT, unix.SIGTERM)
+	go echoSigHandler(sigChan, errChan, term, filePath)
+
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}
 
 	// Wait for 60 seconds for ssh to establish connection
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	errChan := make(chan error)
-	go func() {
-		stdoutRdr := bufio.NewReader(stdout)
-		for {
-			line, err := stdoutRdr.ReadString('\n')
-			if err != nil {
-				errChan <- errors.Wrap(err, "Error waiting for "+
-					"device to start dumping snapshot")
-				return
-			}
-			if strings.Contains(line, "aLL SET!") {
-				break
-			}
-		}
-		errChan <- nil
-	}()
-	select {
-	case err = <-errChan:
-		// Go routine finished
-
-	case <-ctx.Done():
-		// Context deadline exceeded
-		err = ctx.Err()
+	err = waitForBufferSignal(stdout, os.Stdout, sshInitMagic, 2*time.Minute)
+	if err != nil {
+		cmd.Process.Kill()
+		return "", errors.Wrap(err,
+			"Error waiting for ssh session to be established.")
 	}
 
+	_, err = recvSnapshot(f, stdout)
 	if err != nil {
 		cmd.Process.Kill()
 		return "", err
 	}
-	f, err := ioutil.TempFile("", "rootfs.ext4")
-	if err != nil {
-		cmd.Process.Kill()
-		return "", err
-	}
-	defer f.Close()
-	filePath := f.Name()
 
 	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
 		return "", errors.New("SSH session closed unexpectedly")
 	}
 
-	buf := make([]byte, 1024*1024*32)
-	var written int64
-	for {
-		nr, err := stdout.Read(buf)
-		if err != nil {
-			cmd.Process.Kill()
-			return "", errors.Wrap(err,
-				"Error receiving snapshot from device")
-		}
-		nw, err := f.Write(buf[:nr])
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			cmd.Process.Kill()
-			return "", errors.Wrap(err, "Error storing snapshot locally")
-		} else if nw < nr {
-			cmd.Process.Kill()
-			return "", io.ErrShortWrite
-		}
-		written += int64(nw)
-	}
-
 	if err = cmd.Wait(); err != nil {
 		return "", errors.Wrap(err,
 			"SSH session closed with error")
-	} else {
-		fmt.Printf("Snapshot of size %s received\n", sizeStr(written))
 	}
-	return filePath, nil
+
+	// Wait for signal handler to execute
+	signal.Stop(sigChan)
+	close(sigChan)
+	err = <-errChan
+
+	return filePath, err
+}
+
+// Reads from src waiting for the string specified by signal, writing all other
+// output appearing at src to sink. The function returns an error if occurs
+// reading from the stream or the deadline exceeds.
+func waitForBufferSignal(src io.Reader, sink io.Writer,
+	signal string, deadline time.Duration) error {
+
+	var err error
+	errChan := make(chan error)
+
+	go func() {
+		stdoutRdr := bufio.NewReader(src)
+		for {
+			line, err := stdoutRdr.ReadString('\n')
+			if err != nil {
+				errChan <- err
+				break
+			}
+			if strings.Contains(line, signal) {
+				errChan <- nil
+				break
+			}
+			_, err = sink.Write([]byte(line + "\n"))
+			if err != nil {
+				errChan <- err
+				break
+			}
+		}
+	}()
+
+	select {
+	case err = <-errChan:
+		// Error from goroutine
+	case <-time.After(deadline):
+		err = errors.New("Input deadline exceeded")
+	}
+	return err
+}
+
+// Performs the same operation as io.Copy while at the same time prining
+// the number of bytes written at any time.
+func recvSnapshot(dst io.Writer, src io.Reader) (int64, error) {
+	buf := make([]byte, 1024*1024*32)
+	var written int64
+	for {
+		nr, err := src.Read(buf)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return written, errors.Wrap(err,
+				"Error receiving snapshot from device")
+		}
+		nw, err := dst.Write(buf[:nr])
+		if err != nil {
+			return written, errors.Wrap(err,
+				"Error storing snapshot locally")
+		} else if nw < nr {
+			return written, io.ErrShortWrite
+		}
+		written += int64(nw)
+	}
+	return written, nil
 }
 
 func sizeStr(bytes int64) string {
