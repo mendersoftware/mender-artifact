@@ -26,10 +26,10 @@ import (
 
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
+	"github.com/mendersoftware/mender-artifact/cli/mender-artifact/util"
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
-	"golang.org/x/sys/unix"
 	"io"
 	"io/ioutil"
 )
@@ -53,7 +53,8 @@ func writeRootfsImageChecksum(rootfsFilename string,
 	if typeInfo.ArtifactProvides == nil {
 		t, err := artifact.NewTypeInfoProvides(map[string]string{"rootfs_image_checksum": checksum})
 		if err != nil {
-			fmt.Errorf("Failed to write the `rootfs_image_checksum` provides")
+			return errors.Wrapf(err, "Failed to write the "+
+				"`rootfs_image_checksum` provides")
 		}
 		typeInfo.ArtifactProvides = t
 	} else {
@@ -473,47 +474,6 @@ func extractKeyValues(params []string) (*map[string]string, error) {
 	return keyValues, nil
 }
 
-// Disable TTY echo of stdin.
-func disableEcho(fd int) (*unix.Termios, error) {
-	term, err := unix.IoctlGetTermios(fd, unix.TCGETS)
-	if err != nil {
-		return nil, err
-	}
-
-	newTerm := *term
-	newTerm.Lflag &^= unix.ECHO
-	newTerm.Lflag |= unix.ICANON | unix.ISIG
-	newTerm.Iflag |= unix.ICRNL
-	if err := unix.IoctlSetTermios(fd, unix.TCSETS, &newTerm); err != nil {
-		return nil, err
-	}
-	return term, nil
-}
-
-// Signal handler to re-enable tty echo on interrupt. The signal handler is
-// transparent with system default, and immedeately releases the channel and
-// calling the system sighandler after termios is set. To invoke it manually,
-// simply close the sigChan (make sure to call signal.Stop prior to closing).
-func echoSigHandler(sigChan chan os.Signal, errChan chan error,
-	term *unix.Termios, tmpFile string) {
-	sig, sigRecved := <-sigChan
-	// Restore Termios
-	unix.IoctlSetTermios(int(os.Stdin.Fd()), unix.TCSETS, term)
-	if sigRecved {
-		signal.Stop(sigChan)
-		errChan <- errors.Errorf("Received signal: %s",
-			unix.SignalName(sig.(unix.Signal)))
-		os.Remove(tmpFile)
-		if sig == unix.SIGCHLD {
-			sig = unix.SIGTERM
-		}
-		// Relay signal to default handler
-		unix.Kill(os.Getpid(), sig.(unix.Signal))
-	} else {
-		errChan <- nil
-	}
-}
-
 // SSH to remote host and dump rootfs snapshot to a local temporary file.
 func getDeviceSnapshot(c *cli.Context) (string, error) {
 
@@ -585,14 +545,14 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	}()
 
 	// Disable tty echo before starting
-	term, err := disableEcho(int(os.Stdin.Fd()))
+	term, err := util.DisableEcho(int(os.Stdin.Fd()))
 	if err != nil {
 		return "", err
 	}
 
 	// Make sure that echo is enabled if the process gets interrupted
-	signal.Notify(sigChan, unix.SIGINT, unix.SIGPIPE, unix.SIGQUIT, unix.SIGTERM)
-	go echoSigHandler(sigChan, errChan, term, filePath)
+	signal.Notify(sigChan)
+	go util.EchoSigHandler(sigChan, errChan, term, filePath)
 
 	if err := cmd.Start(); err != nil {
 		return "", err
