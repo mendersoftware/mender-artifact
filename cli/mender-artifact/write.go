@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
@@ -479,8 +480,8 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 
 	const sshInitMagic = "Initializing snapshot..."
 	var userAtHost string
-	sigChan := make(chan os.Signal)
-	errChan := make(chan error)
+	var sigChan chan os.Signal
+	var errChan chan error
 	port := "22"
 	host := strings.TrimPrefix(c.String("file"), "ssh://")
 
@@ -530,29 +531,34 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 
 	defer func() {
 		// Close sigChan only if still open
-		select {
-		case _, open := <-sigChan:
-			if open {
+		if sigChan != nil {
+			select {
+			case _, open := <-sigChan:
+				if open {
+					signal.Stop(sigChan)
+					close(sigChan)
+				}
+			default:
+				// No data ready on sigChan
 				signal.Stop(sigChan)
 				close(sigChan)
 			}
-		default:
-			// No data ready on sigChan
-			signal.Stop(sigChan)
-			close(sigChan)
 		}
 		f.Close()
 	}()
 
 	// Disable tty echo before starting
 	term, err := util.DisableEcho(int(os.Stdin.Fd()))
-	if err != nil {
+	if err == nil {
+		sigChan = make(chan os.Signal)
+		errChan = make(chan error)
+		// Make sure that echo is enabled if the process gets
+		// interrupted
+		signal.Notify(sigChan)
+		go util.EchoSigHandler(sigChan, errChan, term, filePath)
+	} else if err != syscall.ENOTTY {
 		return "", err
 	}
-
-	// Make sure that echo is enabled if the process gets interrupted
-	signal.Notify(sigChan)
-	go util.EchoSigHandler(sigChan, errChan, term, filePath)
 
 	if err := cmd.Start(); err != nil {
 		return "", err
@@ -581,10 +587,12 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 			"SSH session closed with error")
 	}
 
-	// Wait for signal handler to execute
-	signal.Stop(sigChan)
-	close(sigChan)
-	err = <-errChan
+	if sigChan != nil {
+		// Wait for signal handler to execute
+		signal.Stop(sigChan)
+		close(sigChan)
+		err = <-errChan
+	}
 
 	return filePath, err
 }
