@@ -1,4 +1,4 @@
-// Copyright 2019 Northern.tech AS
+// Copyright 2020 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -15,13 +15,19 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
+	"github.com/mendersoftware/mender-artifact/cli/mender-artifact/util"
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
@@ -29,11 +35,12 @@ import (
 	"io/ioutil"
 )
 
-func writeRootfsImageChecksum(c *cli.Context, typeInfo *artifact.TypeInfoV3) (err error) {
+func writeRootfsImageChecksum(rootfsFilename string,
+	typeInfo *artifact.TypeInfoV3) (err error) {
 	chk := artifact.NewWriterChecksum(ioutil.Discard)
-	payload, err := os.Open(c.String("file"))
+	payload, err := os.Open(rootfsFilename)
 	if err != nil {
-		return cli.NewExitError(fmt.Sprintf("Failed to open the payload file: %q", c.String("file")), 1)
+		return cli.NewExitError(fmt.Sprintf("Failed to open the payload file: %q", rootfsFilename), 1)
 	}
 	if _, err = io.Copy(chk, payload); err != nil {
 		return cli.NewExitError("Failed to generate the checksum for the payload", 1)
@@ -47,7 +54,8 @@ func writeRootfsImageChecksum(c *cli.Context, typeInfo *artifact.TypeInfoV3) (er
 	if typeInfo.ArtifactProvides == nil {
 		t, err := artifact.NewTypeInfoProvides(map[string]string{"rootfs_image_checksum": checksum})
 		if err != nil {
-			fmt.Errorf("Failed to write the `rootfs_image_checksum` provides")
+			return errors.Wrapf(err, "Failed to write the "+
+				"`rootfs_image_checksum` provides")
 		}
 		typeInfo.ArtifactProvides = t
 	} else {
@@ -95,18 +103,24 @@ func writeRootfs(c *cli.Context) error {
 	version := c.Int("version")
 
 	Log.Debugf("creating artifact [%s], version: %d", name, version)
+	rootfsFilename := c.String("file")
+	if strings.HasPrefix(rootfsFilename, "ssh://") {
+		rootfsFilename, err = getDeviceSnapshot(c)
+		if err != nil {
+			return cli.NewExitError("SSH error: "+err.Error(), 1)
+		}
+		defer os.Remove(rootfsFilename)
+	}
 
 	var h handlers.Composer
 	switch version {
-	case 1:
-		return cli.NewExitError("Error: Mender-Artifact version 1 is not supported", errArtifactUnsupportedVersion)
 	case 2:
-		h = handlers.NewRootfsV2(c.String("file"))
+		h = handlers.NewRootfsV2(rootfsFilename)
 	case 3:
-		h = handlers.NewRootfsV3(c.String("file"))
+		h = handlers.NewRootfsV3(rootfsFilename)
 	default:
 		return cli.NewExitError(
-			fmt.Sprintf("unsupported artifact version: %v", version),
+			fmt.Sprintf("Artifact version %d is not supported", version),
 			errArtifactUnsupportedVersion,
 		)
 	}
@@ -153,7 +167,7 @@ func writeRootfs(c *cli.Context) error {
 	}
 
 	if !c.Bool("no-checksum-provide") {
-		if err = writeRootfsImageChecksum(c, typeInfoV3); err != nil {
+		if err = writeRootfsImageChecksum(rootfsFilename, typeInfoV3); err != nil {
 			return cli.NewExitError(errors.Wrap(err, "Failed to write the `rootfs_image_checksum` to the artifact"), 1)
 		}
 	}
@@ -459,4 +473,202 @@ func extractKeyValues(params []string) (*map[string]string, error) {
 		}
 	}
 	return keyValues, nil
+}
+
+// SSH to remote host and dump rootfs snapshot to a local temporary file.
+func getDeviceSnapshot(c *cli.Context) (string, error) {
+
+	const sshInitMagic = "Initializing snapshot..."
+	var userAtHost string
+	var sigChan chan os.Signal
+	var errChan chan error
+	port := "22"
+	host := strings.TrimPrefix(c.String("file"), "ssh://")
+
+	if remotePort := strings.Split(host, ":"); len(remotePort) == 2 {
+		port = remotePort[1]
+		userAtHost = remotePort[0]
+	} else {
+		userAtHost = host
+	}
+
+	// Prepare command-line arguments
+	args := c.StringSlice("ssh-args")
+	// Check if port is specified explicitly with the --ssh-args flag
+	addPort := true
+	for _, arg := range args {
+		if strings.Contains(arg, "-p") {
+			addPort = false
+			break
+		}
+	}
+	if addPort {
+		args = append(args, "-p", port)
+	}
+	args = append(args, userAtHost)
+	// First echo to stdout such that we know when ssh connection is
+	// established (password prompt is written to /dev/tty directly,
+	// and hence impossible to detect).
+	args = append(args, "sudo", "-S", "/bin/sh", "-c",
+		`'echo "`+sshInitMagic+`"; mender snapshot dump | cat'`)
+
+	cmd := exec.Command("ssh", args...)
+
+	// Simply connect stdin/stderr
+	cmd.Stdin = os.Stdin
+	cmd.Stderr = os.Stderr
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", errors.New("Error redirecting stdout on exec")
+	}
+
+	// Create tempfile for storing the snapshot
+	f, err := ioutil.TempFile("", "rootfs.tmp")
+	if err != nil {
+		return "", err
+	}
+	filePath := f.Name()
+
+	defer func() {
+		// Close sigChan only if still open
+		if sigChan != nil {
+			select {
+			case _, open := <-sigChan:
+				if open {
+					signal.Stop(sigChan)
+					close(sigChan)
+				}
+			default:
+				// No data ready on sigChan
+				signal.Stop(sigChan)
+				close(sigChan)
+			}
+		}
+		f.Close()
+	}()
+
+	// Disable tty echo before starting
+	term, err := util.DisableEcho(int(os.Stdin.Fd()))
+	if err == nil {
+		sigChan = make(chan os.Signal)
+		errChan = make(chan error)
+		// Make sure that echo is enabled if the process gets
+		// interrupted
+		signal.Notify(sigChan)
+		go util.EchoSigHandler(sigChan, errChan, term, filePath)
+	} else if err != syscall.ENOTTY {
+		return "", err
+	}
+
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+
+	// Wait for 60 seconds for ssh to establish connection
+	err = waitForBufferSignal(stdout, os.Stdout, sshInitMagic, 2*time.Minute)
+	if err != nil {
+		cmd.Process.Kill()
+		return "", errors.Wrap(err,
+			"Error waiting for ssh session to be established.")
+	}
+
+	_, err = recvSnapshot(f, stdout)
+	if err != nil {
+		cmd.Process.Kill()
+		return "", err
+	}
+
+	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
+		return "", errors.New("SSH session closed unexpectedly")
+	}
+
+	if err = cmd.Wait(); err != nil {
+		return "", errors.Wrap(err,
+			"SSH session closed with error")
+	}
+
+	if sigChan != nil {
+		// Wait for signal handler to execute
+		signal.Stop(sigChan)
+		close(sigChan)
+		err = <-errChan
+	}
+
+	return filePath, err
+}
+
+// Reads from src waiting for the string specified by signal, writing all other
+// output appearing at src to sink. The function returns an error if occurs
+// reading from the stream or the deadline exceeds.
+func waitForBufferSignal(src io.Reader, sink io.Writer,
+	signal string, deadline time.Duration) error {
+
+	var err error
+	errChan := make(chan error)
+
+	go func() {
+		stdoutRdr := bufio.NewReader(src)
+		for {
+			line, err := stdoutRdr.ReadString('\n')
+			if err != nil {
+				errChan <- err
+				break
+			}
+			if strings.Contains(line, signal) {
+				errChan <- nil
+				break
+			}
+			_, err = sink.Write([]byte(line + "\n"))
+			if err != nil {
+				errChan <- err
+				break
+			}
+		}
+	}()
+
+	select {
+	case err = <-errChan:
+		// Error from goroutine
+	case <-time.After(deadline):
+		err = errors.New("Input deadline exceeded")
+	}
+	return err
+}
+
+// Performs the same operation as io.Copy while at the same time prining
+// the number of bytes written at any time.
+func recvSnapshot(dst io.Writer, src io.Reader) (int64, error) {
+	buf := make([]byte, 1024*1024*32)
+	var written int64
+	for {
+		nr, err := src.Read(buf)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return written, errors.Wrap(err,
+				"Error receiving snapshot from device")
+		}
+		nw, err := dst.Write(buf[:nr])
+		if err != nil {
+			return written, errors.Wrap(err,
+				"Error storing snapshot locally")
+		} else if nw < nr {
+			return written, io.ErrShortWrite
+		}
+		written += int64(nw)
+	}
+	return written, nil
+}
+
+func sizeStr(bytes int64) string {
+	tmp := bytes
+	var i int
+	var suffixes = [...]string{"B", "KiB", "MiB", "GiB", "TiB"}
+	for i = 0; i < len(suffixes); i++ {
+		if (tmp / 1024) == 0 {
+			break
+		}
+		tmp /= 1024
+	}
+	return fmt.Sprintf("%d %s", tmp, suffixes[i])
 }

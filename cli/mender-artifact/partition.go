@@ -1,4 +1,4 @@
-// Copyright 2019 Northern.tech AS
+// Copyright 2020 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -675,7 +675,6 @@ func processSdimg(image string) (VPImage, error) {
 		return nil, errors.Wrap(err, "can not execute `parted` command or image is broken; "+
 			"make sure parted is available in your system and is in the $PATH")
 	}
-
 
 	reg := regexp.MustCompile(`(?m)^[[:blank:]][0-9]+[[:blank:]]+([0-9]+)s[[:blank:]]+[0-9]+s[[:blank:]]+([0-9]+)s`)
 	partitionMatch := reg.FindAllStringSubmatch(string(out), -1)

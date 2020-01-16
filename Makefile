@@ -3,7 +3,7 @@ GOFMT ?= gofmt
 V ?=
 PKGS = $(shell go list ./... | grep -v vendor)
 SUBPKGS = $(shell go list ./... | sed '1d' | tr '\n' ',' | sed 's/,$$//1')
-BUILDFILES = $(shell find cli/mender-artifact \( -path ./vendor -o -path ./Godeps \) -prune \
+BUILDFILES = $(shell find cli/mender-artifact -maxdepth 1 \( -path ./vendor -o -path ./Godeps \) -prune \
 	                     -o -type f -name '*.go' -print |  tr ' ' '\n' | grep -v _test.go)
 PKGNAME = mender-artifact
 PKGFILES = $(shell find . \( -path ./vendor -o -path ./Godeps \) -prune \

@@ -1,4 +1,4 @@
-// Copyright 2019 Northern.tech AS
+// Copyright 2020 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -130,16 +130,16 @@ func getCliContext() *cli.App {
 	// write
 	//
 	writeRootfsCommand := cli.Command{
-		Name:      "rootfs-image",
-		Action:    writeRootfs,
-		Usage:     "Writes Mender artifact containing rootfs image",
-		ArgsUsage: "<image path>",
+		Name:   "rootfs-image",
+		Action: writeRootfs,
+		Usage:  "Writes Mender artifact containing rootfs image",
 	}
 
 	writeRootfsCommand.Flags = []cli.Flag{
 		cli.StringFlag{
-			Name:  "file, f",
-			Usage: "Payload `FILE`.",
+			Name: "file, f",
+			Usage: "Payload `FILE` path or ssh-url to device for system " +
+				"snapshot (e.g. ssh://user@device:22022).",
 		},
 		cli.StringSliceFlag{
 			Name: "device-type, t",
@@ -167,6 +167,12 @@ func getCliContext() *cli.App {
 			Usage: "Disable writing the provides checksum to the Artifact provides " +
 				"parameters. This is needed in case the targeted devices do not support " +
 				"provides and depends yet.",
+		},
+		cli.StringSliceFlag{
+			Name: "ssh-args, S",
+			Usage: "Arguments to pass to ssh - only applies when " +
+				"creating artifact from snapshot (i.e. FILE " +
+				"contains 'ssh://' schema)",
 		},
 		/////////////////////////
 		// Version 3 specifics.//

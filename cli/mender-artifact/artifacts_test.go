@@ -1,4 +1,4 @@
-// Copyright 2019 Northern.tech AS
+// Copyright 2020 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -306,7 +306,7 @@ func TestArtifactsSigned(t *testing.T) {
 	fakeErrWriter.Reset()
 	err = run()
 	assert.Error(t, err)
-	assert.Equal(t, "Error: Mender-Artifact version 1 is not supported\n",
+	assert.Equal(t, "Artifact version 1 is not supported\n",
 		fakeErrWriter.String())
 }
 
