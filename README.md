@@ -41,8 +41,9 @@ You can use the parser and reader in go in the standard way:
 
 ```
 import (
-        "github.com/mendersoftware/mender-artifact/parser"
-        "github.com/mendersoftware/mender-artifact/reader"
+        "github.com/mendersoftware/mender-artifact/awriter"
+        "github.com/mendersoftware/mender-artifact/areader"
+        "github.com/mendersoftware/mender-artifact/artifact"
 ...
 )
 ```
