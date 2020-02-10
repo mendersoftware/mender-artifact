@@ -26,7 +26,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-var isimg = regexp.MustCompile(`\.(mender|sdimg|uefiimg)`)
+var isimg = regexp.MustCompile(`\.(mender|sdimg|uefiimg|img)`)
 
 func Cat(c *cli.Context) (err error) {
 	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
