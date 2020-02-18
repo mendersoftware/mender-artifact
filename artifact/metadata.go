@@ -56,6 +56,7 @@ func decode(p []byte, data WriteValidator) error {
 	}
 
 	dec := json.NewDecoder(bytes.NewReader(p))
+	dec.DisallowUnknownFields()
 	err := dec.Decode(data)
 	if err != nil {
 		return err
