@@ -14,7 +14,7 @@ variables:
    S3_BUCKET_PATH: "mender-artifact"
 
 services:
-  - docker:dind
+  - docker:19.03.5-dind
 
 stages:
   - test
