@@ -449,6 +449,16 @@ func TestNewTypeInfoSuccess(t *testing.T) {
 			},
 			err: nil,
 		},
+		{
+			name: "Valid: json-encoded map[string]interface{}",
+			input: map[string]interface{}{
+				"foo": "bar",
+				"bar": []interface{}{
+					"boo", "baz",
+				},
+			},
+			err: nil,
+		},
 	}
 
 	for _, test := range tests {

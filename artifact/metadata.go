@@ -296,17 +296,38 @@ func (t TypeInfoDepends) Map() map[string]interface{} {
 }
 
 func NewTypeInfoDepends(m interface{}) (ti TypeInfoDepends, err error) {
+
+	const errMsgInvalidTypeFmt = "Invalid TypeInfo depends type: %T"
+	const errMsgInvalidTypeEntFmt = errMsgInvalidTypeFmt + ", with value %v"
+
 	ti = make(map[string]interface{})
 	switch m.(type) {
 	case map[string]interface{}:
 		m := m.(map[string]interface{})
 		for k, v := range m {
 			switch v.(type) {
+
 			case string, []string:
 				ti[k] = v
-				continue
+
+			case []interface{}:
+				valFace := v.([]interface{})
+				valStr := make([]string, len(valFace))
+				for i, entFace := range v.([]interface{}) {
+					entStr, ok := entFace.(string)
+					if !ok {
+						return nil, fmt.Errorf(
+							errMsgInvalidTypeEntFmt,
+							v, v)
+					}
+					valStr[i] = entStr
+				}
+				ti[k] = valStr
+
 			default:
-				return nil, fmt.Errorf("Invalid TypeInfo type: %T", m)
+				return nil, fmt.Errorf(
+					errMsgInvalidTypeEntFmt,
+					v, v)
 			}
 		}
 		return ti, nil
@@ -323,7 +344,7 @@ func NewTypeInfoDepends(m interface{}) (ti TypeInfoDepends, err error) {
 		}
 		return ti, nil
 	default:
-		return nil, fmt.Errorf("Invalid TypeInfo type: %T", m)
+		return nil, fmt.Errorf(errMsgInvalidTypeFmt, m)
 	}
 }
 
@@ -346,17 +367,36 @@ func (t TypeInfoProvides) Map() map[string]interface{} {
 }
 
 func NewTypeInfoProvides(m interface{}) (ti TypeInfoProvides, err error) {
+
+	const errMsgInvalidTypeFmt = "Invalid TypeInfo provides type: %T"
+	const errMsgInvalidTypeEntFmt = errMsgInvalidTypeFmt + ", with value %v"
+
 	ti = make(map[string]interface{})
 	switch m.(type) {
 	case map[string]interface{}:
 		m := m.(map[string]interface{})
 		for k, v := range m {
 			switch v.(type) {
+			case []interface{}:
+				valFace := v.([]interface{})
+				valStr := make([]string, len(valFace))
+				for i, entFace := range v.([]interface{}) {
+					entStr, ok := entFace.(string)
+					if !ok {
+						return nil, fmt.Errorf(
+							errMsgInvalidTypeEntFmt,
+							v, v)
+					}
+					valStr[i] = entStr
+				}
+				ti[k] = valStr
+
 			case string, []string:
 				ti[k] = v
 				continue
 			default:
-				return nil, fmt.Errorf("Invalid TypeInfo type: %T", m)
+				return nil, fmt.Errorf(errMsgInvalidTypeEntFmt,
+					v, v)
 			}
 		}
 		return ti, nil
@@ -373,7 +413,7 @@ func NewTypeInfoProvides(m interface{}) (ti TypeInfoProvides, err error) {
 		}
 		return ti, nil
 	default:
-		return nil, fmt.Errorf("Invalid TypeInfo type: %T", m)
+		return nil, fmt.Errorf(errMsgInvalidTypeFmt, m)
 	}
 }
 
