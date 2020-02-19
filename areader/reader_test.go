@@ -1340,10 +1340,10 @@ func TestMergeDependsSuccess(t *testing.T) {
 				},
 			},
 			expected: map[string]interface{}{
-				"artifact_name":      []string{"foo"},
-				"compatible_devices": []string{"qemux86-64"},
-				"artifact_group":     []string{"ac-dc"},
-				"foo":                "boo",
+				"artifact_name":  []interface{}{"foo"},
+				"device_type":    []interface{}{"qemux86-64"},
+				"artifact_group": []interface{}{"ac-dc"},
+				"foo":            "boo",
 			},
 		},
 		{
@@ -1365,9 +1365,9 @@ func TestMergeDependsSuccess(t *testing.T) {
 				},
 			},
 			expected: map[string]interface{}{
-				"artifact_name":      []string{"foo"},
-				"compatible_devices": []string{"qemux86-64"},
-				"artifact_group":     []string{"ac-dc"},
+				"artifact_name":  []interface{}{"foo"},
+				"device_type":    []interface{}{"qemux86-64"},
+				"artifact_group": []interface{}{"ac-dc"},
 			},
 		},
 		{
@@ -1388,7 +1388,7 @@ func TestMergeDependsSuccess(t *testing.T) {
 	for _, test := range tests {
 		d, err := test.r.MergeArtifactDepends()
 		assert.Nil(t, err)
-		assert.Equal(t, d, test.expected)
+		assert.Equal(t, test.expected, d)
 	}
 }
 
@@ -1497,7 +1497,7 @@ func TestMergeProvidesSuccess(t *testing.T) {
 	for _, test := range tests {
 		d, err := test.r.MergeArtifactProvides()
 		assert.Nil(t, err)
-		assert.Equal(t, d, test.expected)
+		assert.EqualValues(t, d, test.expected)
 	}
 }
 
