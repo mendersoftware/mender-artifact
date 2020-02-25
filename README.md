@@ -26,7 +26,7 @@ The artifacts library might also be useful for other updaters or
 purposes. We are always happy to see other uses of it!
 
 
-![Mender logo](https://mender.io/user/pages/resources/06.digital-assets/mender.io.png)
+![Mender logo](https://mender.io/user/pages/04.resources/logos/logoS.png)
 
 
 ## Getting started
