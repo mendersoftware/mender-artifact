@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -116,10 +117,16 @@ func readArtifact(c *cli.Context) error {
 	return nil
 }
 
-func sortedKeys(mapWithKeys map[string]interface{}) sort.StringSlice {
-	var keys sort.StringSlice = make([]string, 0, len(mapWithKeys))
-	for key := range mapWithKeys {
-		keys = append(keys, key)
+func sortedKeys(mapWithKeys interface{}) sort.StringSlice {
+	var keys sort.StringSlice
+	mapVal := reflect.ValueOf(mapWithKeys)
+	if mapVal.Kind() != reflect.Map {
+		return nil
+	}
+	keys = make([]string, mapVal.Len())
+	keysVal := mapVal.MapKeys()
+	for i, keyVal := range keysVal {
+		keys[i] = keyVal.String()
 	}
 	keys.Sort()
 	return keys

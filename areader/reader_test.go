@@ -1428,7 +1428,7 @@ func TestMergeDependsError(t *testing.T) {
 func TestMergeProvidesSuccess(t *testing.T) {
 	tests := []struct {
 		r        Reader
-		expected map[string]interface{}
+		expected map[string]string
 	}{
 		{
 			// Single update -- string type-info
@@ -1450,7 +1450,7 @@ func TestMergeProvidesSuccess(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]interface{}{
+			expected: map[string]string{
 				"artifact_name":  "foo",
 				"artifact_group": "ac-dc",
 				"bar":            "baz",
@@ -1474,7 +1474,7 @@ func TestMergeProvidesSuccess(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]interface{}{
+			expected: map[string]string{
 				"artifact_name":  "foo",
 				"artifact_group": "ac-dc",
 			},
@@ -1518,7 +1518,7 @@ func TestMergeProvidesError(t *testing.T) {
 					1: &installer{
 						typeInfoV3: &artifact.TypeInfoV3{
 							ArtifactProvides: artifact.TypeInfoProvides{
-								"artifact_name": 1,
+								"artifact_name": "foo",
 							},
 						},
 					},

@@ -466,9 +466,11 @@ func TestNewTypeInfoSuccess(t *testing.T) {
 		assert.Equal(t, err, test.err)
 		assert.NotNil(t, ti)
 
-		tip, err := NewTypeInfoProvides(test.input)
-		assert.Equal(t, err, test.err)
-		assert.NotNil(t, tip)
+		if _, ok := test.input.(map[string]string); ok {
+			tip, err := NewTypeInfoProvides(test.input)
+			assert.Equal(t, err, test.err)
+			assert.NotNil(t, tip)
+		}
 	}
 }
 
