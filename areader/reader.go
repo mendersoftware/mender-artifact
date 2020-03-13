@@ -1072,17 +1072,21 @@ func (ar *Reader) MergeArtifactDepends() (map[string]interface{}, error) {
 	return retMap, nil
 }
 
-func (ar *Reader) MergeArtifactProvides() (map[string]interface{}, error) {
+func (ar *Reader) MergeArtifactProvides() (map[string]string, error) {
 
 	provides := ar.GetArtifactProvides()
 	if provides == nil {
 		// Artifact version < 3
 		return nil, nil
 	}
-	retMap, err := utils.MarshallStructToMap(provides)
+	providesMap, err := utils.MarshallStructToMap(provides)
 	if err != nil {
 		return nil, errors.Wrap(err,
 			"error encoding struct as type map")
+	}
+	retMap := make(map[string]string)
+	for key, value := range providesMap {
+		retMap[key] = value.(string)
 	}
 
 	// No provides in the augmented header info

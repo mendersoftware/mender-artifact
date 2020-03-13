@@ -360,10 +360,10 @@ func (t *TypeInfoDepends) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-type TypeInfoProvides map[string]interface{}
+type TypeInfoProvides map[string]string
 
-func (t TypeInfoProvides) Map() map[string]interface{} {
-	return map[string]interface{}(t)
+func (t TypeInfoProvides) Map() map[string]string {
+	return t
 }
 
 func NewTypeInfoProvides(m interface{}) (ti TypeInfoProvides, err error) {
@@ -371,28 +371,14 @@ func NewTypeInfoProvides(m interface{}) (ti TypeInfoProvides, err error) {
 	const errMsgInvalidTypeFmt = "Invalid TypeInfo provides type: %T"
 	const errMsgInvalidTypeEntFmt = errMsgInvalidTypeFmt + ", with value %v"
 
-	ti = make(map[string]interface{})
+	ti = make(map[string]string)
 	switch m.(type) {
 	case map[string]interface{}:
 		m := m.(map[string]interface{})
 		for k, v := range m {
 			switch v.(type) {
-			case []interface{}:
-				valFace := v.([]interface{})
-				valStr := make([]string, len(valFace))
-				for i, entFace := range v.([]interface{}) {
-					entStr, ok := entFace.(string)
-					if !ok {
-						return nil, fmt.Errorf(
-							errMsgInvalidTypeEntFmt,
-							v, v)
-					}
-					valStr[i] = entStr
-				}
-				ti[k] = valStr
-
-			case string, []string:
-				ti[k] = v
+			case string:
+				ti[k] = v.(string)
 				continue
 			default:
 				return nil, fmt.Errorf(errMsgInvalidTypeEntFmt,
@@ -402,12 +388,6 @@ func NewTypeInfoProvides(m interface{}) (ti TypeInfoProvides, err error) {
 		return ti, nil
 	case map[string]string:
 		m := m.(map[string]string)
-		for k, v := range m {
-			ti[k] = v
-		}
-		return ti, nil
-	case map[string][]string:
-		m := m.(map[string][]string)
 		for k, v := range m {
 			ti[k] = v
 		}
