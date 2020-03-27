@@ -125,7 +125,17 @@ func TestCLIErrors(t *testing.T) {
 		{
 			name: "Install: Error on  wrong number of arguments given",
 			argv: []string{"mender-artifact", "install", "foo.txt", "bar.txt", ":/some/path/file.txt"},
-			err:  "got 3 arguments, wants two",
+			err:  "Wrong number of arguments, got 3",
+		},
+		{
+			name: "Install: Error on wrong number of arguments given to directory install",
+			argv: []string{"mender-artifact", "install", "-d", "foo.txt", ":/some/path/file.txt"},
+			err:  "Wrong number of arguments, got 2",
+		},
+		{
+			name: "Install: Error on parse error for directory install",
+			argv: []string{"mender-artifact", "install", "-d", "foo.txt"},
+			err:  "No artifact or sdimg provided",
 		},
 	}
 
@@ -647,6 +657,46 @@ func TestCopyRootfsImage(t *testing.T) {
 				provides, err := inst[0].GetUpdateProvides()
 				require.NoError(t, err)
 				assert.Equal(t, string(inst[0].GetUpdateFiles()[0].Checksum), provides["rootfs_image_checksum"])
+			},
+		},
+		{
+			name: "Install a directory",
+			initfunc: func(imgpath string) {
+				require.Nil(t, ioutil.WriteFile("test.txt", []byte("foobar"), 0644))
+			},
+			argv: []string{"mender-artifact", "install", "-d", "<artifact|sdimg|fat-sdimg>:/foo"},
+			verifyTestFunc: func(imgpath string) {
+				os.Args = []string{"mender-artifact", "install", "-m", "0644", "test.txt", imgpath + ":/foo/test.txt"}
+				err := run()
+				assert.NoError(t, err)
+				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/foo/test.txt")
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				err = cmd.Run()
+				assert.Nil(t, err, "got unexpected error: %v", err)
+				assert.Equal(t, "foobar", out.String())
+				// Cleanup the testkey
+				assert.Nil(t, os.Remove("test.txt"))
+			},
+		},
+		{
+			name: "Install nested directories",
+			initfunc: func(imgpath string) {
+				require.Nil(t, ioutil.WriteFile("test.txt", []byte("foobar"), 0644))
+			},
+			argv: []string{"mender-artifact", "install", "-d", "<artifact|sdimg|fat-sdimg>:/foo/bar"},
+			verifyTestFunc: func(imgpath string) {
+				os.Args = []string{"mender-artifact", "install", "-m", "0644", "test.txt", imgpath + ":/foo/bar/test.txt"}
+				err := run()
+				assert.NoError(t, err)
+				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/foo/bar/test.txt")
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				err = cmd.Run()
+				assert.Nil(t, err, "got unexpected error: %v", err)
+				assert.Equal(t, "foobar", out.String())
+				// Cleanup the testkey
+				assert.Nil(t, os.Remove("test.txt"))
 			},
 		},
 	}
