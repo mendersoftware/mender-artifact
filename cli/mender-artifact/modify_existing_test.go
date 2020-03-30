@@ -294,7 +294,8 @@ func removeVolatileEntries(input string) string {
 	var output strings.Builder
 	for _, line := range strings.Split(input, "\n") {
 		if strings.HasPrefix(line, "      checksum:") ||
-			strings.HasPrefix(line, "      modified:") {
+			strings.HasPrefix(line, "      modified:") ||
+			strings.HasPrefix(line, "\trootfs_image_checksum:") {
 			continue
 		}
 		output.WriteString(line)
@@ -344,7 +345,6 @@ Updates:
     0:
     Type:   rootfs-image
     Provides:
-	rootfs_image_checksum: dc66c40bc3e52e1d0d3f46f417cbb8e12a86bc63b2a9b3be91ee77aa0fd680b0
     Depends: Nothing
     Metadata: Nothing
     Files:
@@ -372,7 +372,6 @@ Updates:
     0:
     Type:   rootfs-image
     Provides:
-	rootfs_image_checksum: dc66c40bc3e52e1d0d3f46f417cbb8e12a86bc63b2a9b3be91ee77aa0fd680b0
     Depends: Nothing
     Metadata: Nothing
     Files:
@@ -427,7 +426,6 @@ Updates:
     0:
     Type:   rootfs-image
     Provides:
-	rootfs_image_checksum: dc66c40bc3e52e1d0d3f46f417cbb8e12a86bc63b2a9b3be91ee77aa0fd680b0
     Depends: Nothing
     Metadata: Nothing
     Files:
@@ -627,6 +625,11 @@ func TestModifyExtraAttributes(t *testing.T) {
 		"-t", "testDevice",
 		"-T", "testType",
 		"-f", filepath.Join(tmpdir, "updateFile"),
+		// This provide attribute is not used by most Update Module. We
+		// put it here to make sure that the modification logic
+		// *doesn't* modify it, since this belongs only to the
+		// rootfs-image domain.
+		"-p", "rootfs_image_checksum:test",
 	}
 	err = run()
 	require.NoError(t, err)

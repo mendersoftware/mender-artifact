@@ -42,7 +42,7 @@ func testSetupTeardown(t *testing.T) (artifact, sdimg, fatsdimg string, f func()
 	err = copyFile("mender_test.img", filepath.Join(tmp, "mender_test.img"))
 	assert.NoError(t, err)
 
-	err = WriteArtifact(tmp, 2, filepath.Join(tmp, "mender_test.img"))
+	err = WriteArtifact(tmp, LatestFormatVersion, filepath.Join(tmp, "mender_test.img"))
 	assert.NoError(t, err)
 	artifact = filepath.Join(tmp, "artifact.mender")
 
@@ -617,6 +617,36 @@ func TestCopyRootfsImage(t *testing.T) {
 					require.Nil(t, err)
 					require.True(t, strings.Contains(string(out), "Mode:  0666"))
 				}
+			},
+		},
+		{
+			name: "Make sure that rootfs_image_checksum is updated when repacking Artifact",
+			initfunc: func(imgpath string) {
+				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+			},
+			argv: []string{"mender-artifact", "cp", "foo.txt", "<artifact>:/etc/test.txt"},
+			verifyTestFunc: func(imgpath string) {
+				defer os.Remove("foo.txt")
+				// Read the artifact after cp.
+				readScripts := func(r io.Reader, info os.FileInfo) error {
+					return nil
+				}
+				f, err := os.Open(imgpath)
+				require.Nil(t, err)
+				defer f.Close()
+				ver := func(message, sig []byte) error {
+					return nil
+				}
+				ar := areader.NewReader(f)
+				ar.ScriptsReadCallback = readScripts
+				ar.VerifySignatureCallback = ver
+				err = ar.ReadArtifact()
+				require.Nil(t, err)
+				inst := ar.GetHandlers()
+
+				provides, err := inst[0].GetUpdateProvides()
+				require.NoError(t, err)
+				assert.Equal(t, string(inst[0].GetUpdateFiles()[0].Checksum), provides["rootfs_image_checksum"])
 			},
 		},
 	}

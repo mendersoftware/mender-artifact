@@ -169,6 +169,13 @@ func WriteArtifact(dir string, ver int, update string) error {
 		ArtifactProvides: artifact.TypeInfoProvides{},
 	}
 
+	if ver >= 3 {
+		err = writeRootfsImageChecksum(update, &typeInfoV3)
+		if err != nil {
+			return err
+		}
+	}
+
 	return aw.WriteArtifact(&awriter.WriteArtifactArgs{
 		Format:     "mender",
 		Name:       "test-artifact",
