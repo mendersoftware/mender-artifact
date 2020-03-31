@@ -171,7 +171,7 @@ func Install(c *cli.Context) (err error) {
 			vdir, err := virtualImage.OpenDir(comp, privateKey, c.Args().First())
 			defer wclose(vdir)
 			if err != nil {
-				return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+				return cli.NewExitError(err, 1)
 			}
 
 			if err = vdir.Create(); err != nil {
