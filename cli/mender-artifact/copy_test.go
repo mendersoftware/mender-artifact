@@ -660,7 +660,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			},
 		},
 		{
-			name: "Install a directory",
+			name: "Create a directory",
 			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("test.txt", []byte("foobar"), 0644))
 			},
@@ -680,7 +680,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			},
 		},
 		{
-			name: "Install nested directories",
+			name: "Create nested directories",
 			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("test.txt", []byte("foobar"), 0644))
 			},
