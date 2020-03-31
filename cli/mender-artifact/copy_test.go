@@ -699,6 +699,10 @@ func TestCopyRootfsImage(t *testing.T) {
 				assert.Nil(t, os.Remove("test.txt"))
 			},
 		},
+		{
+			name: "Create a directory that already exists",
+			argv: []string{"mender-artifact", "install", "-d", "<artifact|sdimg|fat-sdimg>:/"},
+		},
 	}
 
 	for _, test := range tests {
