@@ -79,7 +79,7 @@ func debugfsMakeDir(imageFile, image string) (err error) {
 	if err == nil {
 		return err
 	}
-	// Remove the `/` suffix if present, as debugfs does not play nice with it.
+	// Remove the `/` suffix if present, as debugfs mkdir does not play nice with it.
 	imageFile = strings.TrimRight(imageFile, "/")
 	// Recursively create parent directories if they do not exist
 	dir, _ := filepath.Split(imageFile)
