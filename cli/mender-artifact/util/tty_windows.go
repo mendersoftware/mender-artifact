@@ -49,7 +49,7 @@ func DisableEcho(fd int) (uint32, error) {
 // handles ^C or ^BREAK events to the terminal, thus the signal won't be
 // relayed to the OS handler for this case.
 func EchoSigHandler(sigChan chan os.Signal, errChan chan error,
-	cmode uint32, tmpFile string) {
+	cmode uint32) {
 	sig, sigRecved := <-sigChan
 	// Enable console echo (restore cmode)
 	windows.SetConsoleMode(windows.Handle(int(os.Stdin.Fd())), cmode)
@@ -57,7 +57,6 @@ func EchoSigHandler(sigChan chan os.Signal, errChan chan error,
 		signal.Stop(sigChan)
 		errChan <- errors.Errorf("Received signal: %s",
 			sig.String())
-		os.Remove(tmpFile)
 	} else {
 		errChan <- nil
 	}

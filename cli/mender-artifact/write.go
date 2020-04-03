@@ -510,7 +510,7 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	// established (password prompt is written to /dev/tty directly,
 	// and hence impossible to detect).
 	args = append(args, "sudo", "-S", "/bin/sh", "-c",
-		`'echo "`+sshInitMagic+`"; mender snapshot dump | cat'`)
+		`'echo "`+sshInitMagic+`" && mender snapshot dump | cat'`)
 
 	cmd := exec.Command("ssh", args...)
 
@@ -529,33 +529,19 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	}
 	filePath := f.Name()
 
-	defer func() {
-		// Close sigChan only if still open
-		if sigChan != nil {
-			select {
-			case _, open := <-sigChan:
-				if open {
-					signal.Stop(sigChan)
-					close(sigChan)
-				}
-			default:
-				// No data ready on sigChan
-				signal.Stop(sigChan)
-				close(sigChan)
-			}
-		}
-		f.Close()
-	}()
+	defer removeOnPanic(filePath)
+	defer f.Close()
 
 	// Disable tty echo before starting
 	term, err := util.DisableEcho(int(os.Stdin.Fd()))
 	if err == nil {
 		sigChan = make(chan os.Signal)
 		errChan = make(chan error)
+		defer closeSigChanIfOpen(sigChan)
 		// Make sure that echo is enabled if the process gets
 		// interrupted
 		signal.Notify(sigChan)
-		go util.EchoSigHandler(sigChan, errChan, term, filePath)
+		go util.EchoSigHandler(sigChan, errChan, term)
 	} else if err != syscall.ENOTTY {
 		return "", err
 	}
@@ -671,4 +657,40 @@ func sizeStr(bytes int64) string {
 		tmp /= 1024
 	}
 	return fmt.Sprintf("%d %s", tmp, suffixes[i])
+}
+
+func removeOnPanic(filename string) {
+	if r := recover(); r != nil {
+		err := os.Remove(filename)
+		if err != nil {
+			switch r.(type) {
+			case string:
+				err = errors.Wrap(errors.
+					New(r.(string)), err.Error())
+				panic(err)
+			case error:
+				err = errors.Wrap(r.(error), err.Error())
+			default:
+				panic(r)
+			}
+		}
+		panic(r)
+	}
+}
+
+func closeSigChanIfOpen(sigChan chan os.Signal) {
+	// Close sigChan only if still open
+	if sigChan != nil {
+		select {
+		case _, open := <-sigChan:
+			if open {
+				signal.Stop(sigChan)
+				close(sigChan)
+			}
+		default:
+			// No data ready on sigChan
+			signal.Stop(sigChan)
+			close(sigChan)
+		}
+	}
 }
