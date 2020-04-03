@@ -45,14 +45,15 @@ func DisableEcho(fd int) (*unix.Termios, error) {
 // transparent with system default, and immedeately releases the channel and
 // calling the system sighandler after termios is set. To invoke it manually,
 // simply close the sigChan (make sure to call signal.Stop prior to closing).
-func EchoSigHandler(sigChan chan os.Signal, errChan chan error,
-	term *unix.Termios, tmpFile string) {
+func EchoSigHandler(
+	sigChan chan os.Signal,
+	errChan chan error,
+	term *unix.Termios) {
 	for {
 		sig, sigRecved := <-sigChan
-		if sig == unix.SIGCHLD ||
-			sig == unix.SIGURG ||
-			sig == unix.SIGWINCH {
-			unix.Kill(os.Getpid(), sig.(unix.Signal))
+		if sig == unix.SIGWINCH || sig == unix.SIGURG {
+			// Though SIGCHLD is ignored by default, in this context
+			// we want to restore echo state.
 			continue
 		}
 		// Restore Termios
@@ -61,7 +62,6 @@ func EchoSigHandler(sigChan chan os.Signal, errChan chan error,
 			signal.Stop(sigChan)
 			errChan <- errors.Errorf("Received signal: %s",
 				unix.SignalName(sig.(unix.Signal)))
-			os.Remove(tmpFile)
 			// Relay signal to default handler
 			unix.Kill(os.Getpid(), sig.(unix.Signal))
 		} else {
