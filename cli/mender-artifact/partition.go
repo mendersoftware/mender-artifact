@@ -48,6 +48,7 @@ var errFsTypeUnsupported = errors.New("mender-artifact can only modify ext4 and 
 type VPImage interface {
 	io.Closer
 	Open(fpath string) (VPFile, error)
+	OpenDir(fpath string) (VPDir, error)
 }
 
 // V(irtual)P(artition)File mimicks a file in an Artifact or on an sdimg.
@@ -56,6 +57,12 @@ type VPFile interface {
 	Delete(recursive bool) error
 	CopyTo(hostFile string) error
 	CopyFrom(hostFile string) error
+}
+
+// VPDir V(irtual)P(artition)Dir mimics a directory in an Artifact or on an sdimg.
+type VPDir interface {
+	io.Closer
+	Create() error
 }
 
 type partition struct {
@@ -89,6 +96,11 @@ type vImage int
 type vImageAndFile struct {
 	image VPImage
 	file  VPFile
+}
+
+type vImageAndDir struct {
+	image VPImage
+	dir   VPDir
 }
 
 // Open is a utility function that parses an input image and returns a
@@ -157,6 +169,30 @@ func (v vImage) OpenFile(comp artifact.Compressor, key []byte, imgAndPath string
 	}, nil
 }
 
+// Shortcut to use an image with one directory.
+func (v vImage) OpenDir(comp artifact.Compressor, key []byte, imgAndPath string) (VPDir, error) {
+	imagepath, dirpath, err := parseImgPath(imgAndPath)
+	if err != nil {
+		return nil, err
+	}
+
+	image, err := v.Open(comp, key, imagepath)
+	if err != nil {
+		return nil, err
+	}
+
+	dir, err := image.OpenDir(dirpath)
+	if err != nil {
+		image.Close()
+		return nil, err
+	}
+
+	return &vImageAndDir{
+		image: image,
+		dir:   dir,
+	}, nil
+}
+
 // Shortcut to open a file in the image, write into it, and close it again.
 func CopyIntoImage(hostFile string, image VPImage, imageFile string) error {
 	imageFd, err := image.Open(imageFile)
@@ -218,9 +254,29 @@ func (v *vImageAndFile) Close() error {
 	}
 }
 
+func (v *vImageAndDir) Create() error {
+	return v.dir.Create()
+}
+
+func (v *vImageAndDir) Close() error {
+	dirErr := v.dir.Close()
+	imageErr := v.image.Close()
+
+	if dirErr != nil {
+		return dirErr
+	} else {
+		return imageErr
+	}
+}
+
 // Opens a file inside the image(s) represented by the ModImageArtifact
 func (i *ModImageArtifact) Open(fpath string) (VPFile, error) {
 	return newArtifactExtFile(i, i.comp, fpath, i.files[0])
+}
+
+// Opens a dir inside the image(s) represented by the ModImageArtifact
+func (i *ModImageArtifact) OpenDir(fpath string) (VPDir, error) {
+	return newArtifactExtDir(i, i.comp, fpath, i.files[0])
 }
 
 // Closes and repacks the artifact or sdimg.
@@ -236,6 +292,10 @@ func (i *ModImageSdimg) Open(fpath string) (VPFile, error) {
 	return newSDImgFile(i, fpath, i.candidates)
 }
 
+func (i *ModImageSdimg) OpenDir(fpath string) (VPDir, error) {
+	return newSDImgDir(i, fpath, i.candidates)
+}
+
 func (i *ModImageSdimg) Close() error {
 	for _, cand := range i.candidates {
 		if cand.path != "" && cand.path != i.path {
@@ -247,6 +307,10 @@ func (i *ModImageSdimg) Close() error {
 
 func (i *ModImageRaw) Open(fpath string) (VPFile, error) {
 	return newExtFile(i.path, fpath)
+}
+
+func (i *ModImageRaw) OpenDir(fpath string) (VPDir, error) {
+	return newExtDir(i.path, fpath)
 }
 
 func (i *ModImageRaw) Close() error {
@@ -328,6 +392,9 @@ func runFsck(image, fstype string) error {
 // partitions.
 type sdimgFile []VPFile
 
+// sdimgDir is a virtual directory for files on an sdimg.
+type sdimgDir []VPDir
+
 func newSDImgFile(image *ModImageSdimg, fpath string, modcands []partition) (sdimgFile, error) {
 	if len(modcands) < 4 {
 		return nil, fmt.Errorf("newSDImgFile: %d partitions found, 4 needed", len(modcands))
@@ -373,6 +440,53 @@ func newSDImgFile(image *ModImageSdimg, fpath string, modcands []partition) (sdi
 		sdimgFile = append(sdimgFile, f)
 	}
 	return sdimgFile, nil
+}
+
+func newSDImgDir(image *ModImageSdimg, fpath string, modcands []partition) (sdimgDir, error) {
+	if len(modcands) < 4 {
+		return nil, fmt.Errorf("newSDImgDir: %d partitions found, 4 needed", len(modcands))
+	}
+
+	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))[/]")
+
+	var filesystems []partition
+	if strings.HasPrefix(fpath, "/data") {
+		// The data dir is not a directory in the data partition
+		fpath = strings.TrimPrefix(fpath, "/data/")
+		filesystems = append(filesystems, modcands[3])
+	} else if reg.MatchString(fpath) {
+		// /uboot, /boot/efi, /boot/grub are not directories on the boot partition.
+		fpath = reg.ReplaceAllString(fpath, "")
+		filesystems = append(filesystems, modcands[0])
+	} else {
+		filesystems = append(filesystems, modcands[1:3]...)
+	}
+
+	// Since boot partitions can be either fat or ext, return a
+	// Closer dependent upon the underlying filesystem type.
+	var sdimgDir sdimgDir
+	for _, fs := range filesystems {
+		fstype, err := imgFilesystemType(fs.path)
+		if err != nil {
+			return nil, errors.Wrap(err, "partition: error reading file-system type on partition")
+		}
+		var d VPDir
+		switch fstype {
+		case fat:
+			d, err = newFatDir(fs.path, fpath)
+		case ext:
+			d, err = newExtDir(fs.path, fpath)
+		case unsupported:
+			err = errors.New("partition: unsupported filesystem")
+
+		}
+		if err != nil {
+			sdimgDir.Close()
+			return nil, err
+		}
+		sdimgDir = append(sdimgDir, d)
+	}
+	return sdimgDir, nil
 }
 
 // Write forces a write from the underlying writers sdimgFile wraps.
@@ -440,6 +554,30 @@ func (p sdimgFile) Close() (err error) {
 	return nil
 }
 
+func (p sdimgDir) Create() (err error) {
+	for _, part := range p {
+		err := part.Create()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Close closes the underlying closers.
+func (p sdimgDir) Close() (err error) {
+	if p == nil {
+		return nil
+	}
+	for _, part := range p {
+		err = part.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func newArtifactExtFile(image *ModImageArtifact, comp artifact.Compressor, fpath, imgpath string) (VPFile, error) {
 	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))")
 	if reg.MatchString(fpath) {
@@ -452,12 +590,30 @@ func newArtifactExtFile(image *ModImageArtifact, comp artifact.Compressor, fpath
 	return newExtFile(imgpath, fpath)
 }
 
+func newArtifactExtDir(image *ModImageArtifact, comp artifact.Compressor, fpath string, imgpath string) (VPDir, error) {
+	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))")
+	if reg.MatchString(fpath) {
+		return nil, errors.New("newArtifactExtDir: A mender artifact does not contain a boot partition, only a rootfs")
+	}
+	if strings.HasPrefix(fpath, "/data") {
+		return nil, errors.New("newArtifactExtFile: A mender artifact does not contain a data partition, only a rootfs")
+	}
+
+	return newExtDir(imgpath, fpath)
+}
+
 // extFile wraps partition and implements ReadWriteCloser
 type extFile struct {
 	imagePath     string
 	imageFilePath string
 	flush         bool     // True if Close() needs to copy the file to the image
 	tmpf          *os.File // Used as a buffer for multiple write operations
+}
+
+// extDir wraps partition
+type extDir struct {
+	imagePath     string
+	imageFilePath string
 }
 
 func newExtFile(imagePath, imageFilePath string) (e *extFile, err error) {
@@ -476,6 +632,19 @@ func newExtFile(imagePath, imageFilePath string) (e *extFile, err error) {
 		imagePath:     imagePath,
 		imageFilePath: imageFilePath,
 		tmpf:          tmpf,
+	}
+	return e, err
+}
+
+func newExtDir(imagePath, imageFilePath string) (e *extDir, err error) {
+	if err := runFsck(imagePath, "ext4"); err != nil {
+		return nil, err
+	}
+
+	// Cleanup resources in case of error.
+	e = &extDir{
+		imagePath:     imagePath,
+		imageFilePath: imageFilePath,
 	}
 	return e, err
 }
@@ -569,12 +738,30 @@ func (ef *extFile) Close() (err error) {
 	return err
 }
 
+func (ed *extDir) Create() error {
+	err := debugfsMakeDir(ed.imageFilePath, ed.imagePath)
+	return err
+}
+
+// Close closes the temporary file held by partitionFile path.
+func (ed *extDir) Close() (err error) {
+	if ed == nil {
+		return nil
+	}
+	return err
+}
+
 // fatFile wraps a partition struct with a reader/writer for fat filesystems
 type fatFile struct {
 	imagePath     string
 	imageFilePath string // The local filesystem path to the image
 	flush         bool
 	tmpf          *os.File
+}
+
+type fatDir struct {
+	imagePath     string
+	imageFilePath string
 }
 
 func newFatFile(imagePath, imageFilePath string) (*fatFile, error) {
@@ -589,6 +776,18 @@ func newFatFile(imagePath, imageFilePath string) (*fatFile, error) {
 		tmpf:          tmpf,
 	}
 	return ff, err
+}
+
+func newFatDir(imagePath, imageFilePath string) (fd *fatDir, err error) {
+	if err := runFsck(imagePath, "vfat"); err != nil {
+		return nil, err
+	}
+
+	fd = &fatDir{
+		imagePath:     imagePath,
+		imageFilePath: imageFilePath,
+	}
+	return fd, err
 }
 
 // Read Dump the file contents to stdout, and capture, using MTools' mtype
@@ -662,6 +861,24 @@ func (f *fatFile) Close() (err error) {
 			}
 		}
 	}
+	return err
+}
+
+func (fd *fatDir) Create() (err error) {
+	cmd := exec.Command("mmd", fd.imageFilePath)
+	data := bytes.NewBuffer(nil)
+	cmd.Stdout = data
+	if err := cmd.Run(); err != nil {
+		return errors.Wrap(err, "fatDir: Create: MTools execution failed")
+	}
+	return err
+}
+
+func (fd *fatDir) Close() (err error) {
+	if fd == nil {
+		return nil
+	}
+	os.Remove(fd.imagePath)
 	return err
 }
 

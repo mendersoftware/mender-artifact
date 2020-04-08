@@ -395,8 +395,8 @@ func getCliContext() *cli.App {
 
 	install := cli.Command{
 		Name:        "install",
-		Usage:       "install -m <permissions> <hostfile> [artifact|sdimg|uefiimg]:<filepath>",
-		Description: "Installs a file from the host filesystem to the artifact or sdimg.",
+		Usage:       "install -m <permissions> <hostfile> [artifact|sdimg|uefiimg]:<filepath> or install -d [artifact|sdimg|uefiimg]:<directory>",
+		Description: "Installs a directory, or a file from the host filesystem, to the artifact or sdimg.",
 		Action:      Install,
 	}
 
@@ -404,6 +404,10 @@ func getCliContext() *cli.App {
 		cli.IntFlag{
 			Name:  "mode, m",
 			Usage: "Set the permission bits in the file",
+		},
+		cli.BoolFlag{
+			Name:  "directory, d",
+			Usage: "Create a directory inside an artifact",
 		},
 	}
 

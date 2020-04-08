@@ -137,7 +137,7 @@ func Copy(c *cli.Context) (err error) {
 	return nil
 }
 
-// Install installs a file from the host filesystem onto either
+// Install installs a file from the host filesystem or directory onto either
 // a mender artifact, or an sdimg.
 func Install(c *cli.Context) (err error) {
 	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
@@ -161,11 +161,24 @@ func Install(c *cli.Context) (err error) {
 	}
 	switch parseCLIOptions(c) {
 	case copyin:
+		directory := c.Bool("directory")
 		var perm os.FileMode
-		if c.Int("mode") == 0 {
+		if c.Int("mode") == 0 && !directory {
 			return cli.NewExitError("File permissions needs to be set, if you are simply copying, the cp command should fit your needs", 1)
 		}
 		perm = os.FileMode(c.Int("mode"))
+		if directory {
+			vdir, err := virtualImage.OpenDir(comp, privateKey, c.Args().First())
+			defer wclose(vdir)
+			if err != nil {
+				return cli.NewExitError(err, 1)
+			}
+
+			if err = vdir.Create(); err != nil {
+				return cli.NewExitError(err, 1)
+			}
+			return nil
+		}
 		f, err := os.Open(c.Args().First())
 		defer f.Close()
 		if err != nil {
@@ -198,7 +211,7 @@ func Install(c *cli.Context) (err error) {
 	case parseError:
 		return cli.NewExitError("No artifact or sdimg provided", 1)
 	case argerror:
-		return cli.NewExitError(fmt.Sprintf("got %d arguments, wants two", c.NArg()), 1)
+		return cli.NewExitError(fmt.Sprintf("Wrong number of arguments, got %d", c.NArg()), 1)
 	default:
 		return cli.NewExitError("Unrecognized parse error", 1)
 	}
@@ -249,6 +262,17 @@ const (
 )
 
 func parseCLIOptions(c *cli.Context) int {
+
+	// If the -d flag is passed, parse for installing a directory
+	if c.Bool("directory") {
+		if c.NArg() != 1 {
+			return argerror
+		}
+		if !isimg.MatchString(c.Args().First()) {
+			return parseError
+		}
+		return copyin
+	}
 
 	if c.NArg() != 2 {
 		return argerror

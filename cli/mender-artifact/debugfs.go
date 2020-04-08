@@ -73,6 +73,26 @@ func debugfsCopyFile(file, image string) (ret string, err error) {
 	return tmpDir, nil
 }
 
+func debugfsMakeDir(imageFile, image string) (err error) {
+	_, err = debugfsExecuteCommand(fmt.Sprintf("stat %s", imageFile), image)
+	// If directory already exists, just return
+	if err == nil {
+		return err
+	}
+	// Remove the `/` suffix if present, as debugfs mkdir does not play nice with it.
+	imageFile = strings.TrimRight(imageFile, "/")
+	// Recursively create parent directories if they do not exist
+	dir, _ := filepath.Split(imageFile)
+	if dir != "" {
+		debugfsMakeDir(dir, image)
+	}
+	cmd := fmt.Sprintf("mkdir %s", imageFile)
+	if _, err = debugfsExecuteCommand(cmd, image); err != nil {
+		return errors.Wrap(err, "debugfsMakeDir")
+	}
+	return nil
+}
+
 func debugfsReplaceFile(imageFile, hostFile, image string) (err error) {
 	// First check that the path exists. (cd path)
 	cmd := fmt.Sprintf("cd %s\nclose", filepath.Dir(imageFile))
