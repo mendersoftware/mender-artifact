@@ -16,7 +16,7 @@ package artifact
 
 import (
 	"bytes"
-	"crypto/sha256"
+	"github.com/minio/sha256-simd"
 	"encoding/hex"
 	"fmt"
 	"hash"
