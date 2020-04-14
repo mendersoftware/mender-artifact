@@ -19,7 +19,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
+	"github.com/minio/sha256-simd"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
