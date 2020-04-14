@@ -32,6 +32,12 @@
 			"revisionTime": "2019-03-01T08:02:31Z"
 		},
 		{
+			"checksumSHA1": "bc4H+6KKPRabvHMBae/Xn0oy49I=",
+			"path": "github.com/minio/sha256-simd",
+			"revision": "f675151bb5e19dc10d7430bd9d4ef5e7d1b5521f",
+			"revisionTime": "2019-09-17T23:37:21Z"
+		},
+		{
 			"checksumSHA1": "Hky3u+8Rqum+wB5BHMj0A8ZmT4g=",
 			"comment": "v0.7.1-1-ga887431",
 			"path": "github.com/pkg/errors",
