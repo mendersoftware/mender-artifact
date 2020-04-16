@@ -55,6 +55,39 @@ For sample usage, please see the [Mender client source code](https://github.com/
 You can find the latest `mender-artifact` binaries in the [Downloads page on
 Mender Docs](https://docs.mender.io/downloads).
 
+## Enabling auto-completion in Bash & ZSH
+
+ auto-completion of `mender-artifact` sub-commands can be added to either ZSH or
+ Bash through:
+
+ ### Bash
+
+ The simplest way of enabling auto-completion in Bash is to copy the
+ `./autocomplete/bash_autocomplete` file into `/etc/bash_completion.d/` like so:
+
+ ```bash
+sudo cp path/to/mender-aritfact/autocomplete/bash_autocomplete /etc/bash_completion.d/mender-artifact
+source /etc/bash_completion.d/mender-artifact
+ ```
+
+ Alternatively the following can be added to `.bashrc`:
+
+ ```bash
+PROG=mender-artifact
+source path/to/mender-artifact/autocomplete/bash_autocomplete
+ ```
+
+ ### ZSH
+
+Auto-completion for ZSH is supported through the `zsh_autocompletion` script
+found in the `./autocomplete` directory. In order to enable it consistently, add
+these lines to your `.zshrc` file:
+
+```bash
+PROG=mender-artifact
+_CLI_ZSH_AUTOCOMPLETE_HACK=1
+source  path/to/mender-artifact/autocomplete/zsh_autocomplete```
+
 
 ## Contributing
 
