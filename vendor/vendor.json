@@ -14,6 +14,12 @@
 			"revision": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d"
 		},
 		{
+			"checksumSHA1": "Ma+Zdx96uJz8axRrSjH/2MyE7Ts=",
+			"path": "github.com/klauspost/pgzip",
+			"revision": "083b1c3f84dd6486588802e5ce295de3a7f41a8b",
+			"revisionTime": "2018-11-28T19:29:09Z"
+		},
+		{
 			"checksumSHA1": "8VREmaKpYjppYOd/OEl0RN5VEdU=",
 			"path": "github.com/mendersoftware/mendertesting",
 			"revision": "dedd2c0a90a4896a2ea4beba0c39cf26ddab38a4",
