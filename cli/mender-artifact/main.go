@@ -67,6 +67,8 @@ func getCliContext() *cli.App {
 	app.Author = "Northern.tech AS"
 	app.Email = "contact@northern.tech"
 
+	app.EnableBashCompletion = true
+
 	compressors := artifact.GetRegisteredCompressorIds()
 
 	compressionFlag := cli.StringFlag{
