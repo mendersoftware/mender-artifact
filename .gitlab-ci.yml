@@ -1,3 +1,12 @@
+stages:
+  - test
+  - build
+  - publish
+
+include:
+  - project: 'Northern.tech/Mender/mendertesting'
+    file: '.gitlab-ci-github-status-updates.yml'
+
 image: golang:1.11-alpine3.9
 
 cache:
@@ -13,26 +22,16 @@ variables:
    S3_BUCKET_NAME: "mender"
    S3_BUCKET_PATH: "mender-artifact"
 
-services:
-  - docker:19.03.5-dind
-
-stages:
-  - test
-  - build
-  - publish
-  - integration
-
-before_script:
-  - mkdir -p /go/src/github.com/mendersoftware /go/src/_/builds
-  - cp -r $CI_PROJECT_DIR /go/src/github.com/mendersoftware/mender-artifact
-  - ln -s /go/src/github.com/mendersoftware /go/src/_/builds/mendersoftware
-  - cd /go/src/github.com/mendersoftware/mender-artifact
-  - apk update && apk add git make
-  # Install code coverage tooling
-  - make get-tools
-
 test:static:
   stage: test
+  before_script:
+    - mkdir -p /go/src/github.com/mendersoftware /go/src/_/builds
+    - cp -r $CI_PROJECT_DIR /go/src/github.com/mendersoftware/mender-artifact
+    - ln -s /go/src/github.com/mendersoftware /go/src/_/builds/mendersoftware
+    - cd /go/src/github.com/mendersoftware/mender-artifact
+    - apk update && apk add git make
+    # Install code coverage tooling
+    - make get-tools
   script:
     - apk add bash dosfstools e2fsprogs e2fsprogs-extra gcc libc6-compat mtools musl-dev parted perl-utils xz-dev
     - make extracheck
@@ -46,7 +45,8 @@ test:static:
 
 build:docker:
   image: docker
-  before_script: []
+  services:
+    - docker:19.03.5-dind
   stage: build
   script:
     - docker build -t $DOCKER_REPOSITORY:pr .
@@ -60,6 +60,8 @@ build:docker:
 
 build:make:
   image: docker
+  services:
+    - docker:19.03.5-dind
   before_script:
     - apk add --no-cache make
   stage: build
