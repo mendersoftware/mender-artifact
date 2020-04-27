@@ -379,6 +379,11 @@ func writeModuleImage(ctx *cli.Context) error {
 		return cli.NewExitError("Mender-Artifact version 1 is not supported", 1)
 	}
 
+	// The device-type flag is required
+	if len(ctx.StringSlice("device-type")) == 0 {
+		return cli.NewExitError("The `device-type` flag is required", 1)
+	}
+
 	upd, err := makeUpdates(ctx)
 	if err != nil {
 		return err
