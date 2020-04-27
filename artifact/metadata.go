@@ -263,15 +263,7 @@ type ArtifactDepends struct {
 	ArtifactGroup     []string `json:"artifact_group,omitempty"`
 }
 
-type Error struct {
-	Err string
-}
-
-func (e *Error) Error() string {
-	return e.Err
-}
-
-var ErrCompatibleDevices *Error = &Error{"ArtifactDepends: Required field 'CompatibleDevices' not found"}
+var ErrCompatibleDevices error = errors.New("ArtifactDepends: Required field 'CompatibleDevices' not found")
 
 func (a *ArtifactDepends) UnmarshalJSON(b []byte) error {
 	type Alias ArtifactDepends // Same fields, no inherited UnmarshalJSON method
