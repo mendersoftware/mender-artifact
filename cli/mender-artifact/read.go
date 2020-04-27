@@ -81,6 +81,7 @@ func readArtifact(c *cli.Context) error {
 	err = ar.ReadArtifact()
 	if err != nil {
 		return cli.NewExitError(err.Error(), 0)
+		return cli.NewExitError(err.Error(), 1)
 	}
 
 	inst := ar.GetHandlers()
