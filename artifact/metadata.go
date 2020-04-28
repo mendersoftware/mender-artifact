@@ -96,6 +96,21 @@ type HeaderInfo struct {
 	CompatibleDevices []string     `json:"device_types_compatible"`
 }
 
+func (h *HeaderInfo) UnmarshalJSON(b []byte) error {
+	type Alias HeaderInfo
+	buf := &Alias{}
+	if err := json.Unmarshal(b, &buf); err != nil {
+		return err
+	}
+	if len(buf.CompatibleDevices) == 0 {
+		return ErrCompatibleDevices
+	}
+	h.ArtifactName = buf.ArtifactName
+	h.Updates = buf.Updates
+	h.CompatibleDevices = buf.CompatibleDevices
+	return nil
+}
+
 func NewHeaderInfo(artifactName string, updates []UpdateType, compatibleDevices []string) *HeaderInfo {
 	return &HeaderInfo{
 		ArtifactName:      artifactName,
