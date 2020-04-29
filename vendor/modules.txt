@@ -1,3 +1,5 @@
+# github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d
+github.com/cpuguy83/go-md2man/v2/md2man
 # github.com/davecgh/go-spew v1.1.1
 ## explicit
 github.com/davecgh/go-spew/spew
@@ -27,6 +29,10 @@ github.com/pmezard/go-difflib/difflib
 # github.com/remyoudompheng/go-liblzma v0.0.0-20190301141425-da7c45f32144
 ## explicit
 github.com/remyoudompheng/go-liblzma
+# github.com/russross/blackfriday/v2 v2.0.1
+github.com/russross/blackfriday/v2
+# github.com/shurcooL/sanitized_anchor_name v1.0.0
+github.com/shurcooL/sanitized_anchor_name
 # github.com/sirupsen/logrus v0.0.0-20180315010703-90150a8ed11b
 ## explicit
 github.com/sirupsen/logrus
@@ -34,7 +40,7 @@ github.com/sirupsen/logrus
 ## explicit
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
-# github.com/urfave/cli v0.0.0-20181029213200-b67dcf995b6a
+# github.com/urfave/cli v1.22.4
 ## explicit
 github.com/urfave/cli
 # golang.org/x/crypto v0.0.0-20191117063200-497ca9f6d64f
