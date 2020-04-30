@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sort"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
 
@@ -473,6 +474,18 @@ func getCliContext() *cli.App {
 		dumpCommand,
 	}
 	app.Flags = append([]cli.Flag{}, globalFlags...)
+
+	// Display all flags and commands alphabetically
+	for _, cmd := range app.Commands {
+		sort.Sort(cli.FlagsByName(cmd.Flags))
+		sort.Sort(cli.CommandsByName(cmd.Subcommands))
+		for _, subcmd := range cmd.Subcommands {
+			sort.Sort(cli.FlagsByName(subcmd.Flags))
+		}
+	}
+	sort.Sort(cli.FlagsByName(app.Flags))
+	sort.Sort(cli.CommandsByName(app.Commands))
+
 
 	return app
 }
