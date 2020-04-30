@@ -99,6 +99,7 @@ func getCliContext() *cli.App {
 	artifactName := cli.StringFlag{
 		Name:  "artifact-name, n",
 		Usage: "Name of the artifact",
+		Required: true,
 	}
 	artifactNameDepends := cli.StringSliceFlag{
 		Name:  "artifact-name-depends, N",
@@ -138,16 +139,20 @@ func getCliContext() *cli.App {
 		Usage:  "Writes Mender artifact containing rootfs image",
 	}
 
+	writeRootfsCommand.CustomHelpTemplate = CustomSubcommandHelpTemplate
+
 	writeRootfsCommand.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name: "file, f",
 			Usage: "Payload `FILE` path or ssh-url to device for system " +
 				"snapshot (e.g. ssh://user@device:22022).",
+			Required: true,
 		},
 		cli.StringSliceFlag{
 			Name: "device-type, t",
 			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
 				"compatible devices providing this parameter multiple times.",
+			Required: true,
 		},
 		artifactName,
 		cli.StringFlag{
@@ -187,6 +192,7 @@ func getCliContext() *cli.App {
 		payloadProvides,
 		compressionFlag,
 	}
+
 	writeRootfsCommand.Before = applyCompressionInCommand
 
 	//
@@ -202,11 +208,14 @@ func getCliContext() *cli.App {
 			"for that update module.",
 	}
 
+	writeModuleCommand.CustomHelpTemplate = CustomSubcommandHelpTemplate
+
 	writeModuleCommand.Flags = []cli.Flag{
 		cli.StringSliceFlag{
 			Name: "device-type, t",
-			Usage: "[Required] Type of device(s) supported by the Artifact. You can specify multiple " +
+			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
 				"compatible devices providing this parameter multiple times.",
+			Required: true,
 		},
 		cli.StringFlag{
 			Name:  "output-path, o",
@@ -233,6 +242,7 @@ func getCliContext() *cli.App {
 		cli.StringFlag{
 			Name:  "type, T",
 			Usage: "Type of payload. This is the same as the name of the update module",
+			Required: true,
 		},
 		payloadProvides,
 		payloadDepends,
@@ -240,6 +250,7 @@ func getCliContext() *cli.App {
 		cli.StringSliceFlag{
 			Name:  "file, f",
 			Usage: "Include `FILE` in payload. Can be given more than once.",
+			Required: true,
 		},
 		cli.StringFlag{
 			Name:  "augment-type",
@@ -348,7 +359,10 @@ func getCliContext() *cli.App {
 			Usage: "Full path to the public verification key that is used by the client " +
 				"to verify the artifact.",
 		},
-		artifactName,
+		cli.StringFlag{
+			Name:  "artifact-name, n",
+			Usage: "Name of the artifact",
+		},
 		cli.StringFlag{
 			Name:  "name",
 			Usage: "Deprecated. This is an alias for --artifact-name",
