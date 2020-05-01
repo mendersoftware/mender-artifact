@@ -514,5 +514,9 @@ func getCliContext() *cli.App {
 }
 
 func run() error {
-	return getCliContext().Run(os.Args)
+	err := getCliContext().Run(os.Args)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return err
 }
