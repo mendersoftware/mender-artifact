@@ -14,6 +14,7 @@
 
 package main
 
+// Foobar
 import (
 	"fmt"
 	"os"
