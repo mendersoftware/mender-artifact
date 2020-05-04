@@ -37,9 +37,8 @@ func TestArtifactsWrite(t *testing.T) {
 	os.Args = []string{"mender-artifact", "write", "rootfs-image"}
 	err = run()
 	assert.Error(t, err)
-	assert.Equal(t, 1, lastExitCode)
-	assert.Equal(t, "must provide `device-type`, `artifact-name` and `update`\n",
-		fakeErrWriter.String())
+	assert.Contains(t, err.Error(), "Required flags \" n,  t,  f\" not set",
+		"Required flags error missing")
 
 	updateTestDir, _ := ioutil.TempDir("", "update")
 	defer os.RemoveAll(updateTestDir)
