@@ -116,4 +116,14 @@ func TestCompressionArgumentLocations(t *testing.T) {
 	assert.Contains(t, string(outputBytes), "header.tar.gz")
 	assert.NotContains(t, string(outputBytes), "header.tar.xz")
 	assert.NoError(t, err)
+
+	// write module-image now requires 'device-type' to be set
+	assert.Error(t, app.Run([]string{"mender-artifact",
+		"write",
+		"module-image",
+		"-T", "script",
+		"-f", dummyName,
+		"-n", "dummy",
+		"-o", menderName,
+	}))
 }

@@ -792,6 +792,7 @@ func TestCopyRootfsImage(t *testing.T) {
 
 					if test.err != "" {
 						assert.Contains(t, err.Error(), test.err)
+						return
 					}
 
 					if err != nil {

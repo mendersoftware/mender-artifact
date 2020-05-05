@@ -32,6 +32,17 @@ test:static:
     - apk update && apk add git make
     # Install code coverage tooling
     - make get-tools
+
+    # Rename the branch we're on, so that it's not in the way for the
+    # subsequent fetch. It's ok if this fails, it just means we're not on any
+    # branch.
+    - git branch -m temp-branch || true
+    # Git trick: Fetch directly into our local branches instead of remote
+    # branches.
+    - git fetch origin 'refs/heads/*:refs/heads/*'
+    # Get last remaining tags, if any.
+    - git fetch --tags origin
+
   script:
     - apk add bash dosfstools e2fsprogs e2fsprogs-extra gcc libc6-compat mtools musl-dev parted perl-utils xz-dev
     - make extracheck

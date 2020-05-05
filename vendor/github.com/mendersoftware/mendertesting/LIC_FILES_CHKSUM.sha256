@@ -1,1 +1,10 @@
-beb140be4cd64599bedc691a55b2729c9cc611a4b9d6ec44e01270105daf18a2  LICENSE
+32714818ad6f98ee0185a52e23a475d89122e3efd2b2c26c733781c28e798c99  LICENSE
+#
+# BSD-3-Clause
+2eb550be6801c1ea434feba53bf6d12e7c71c90253e0a9de4a4f46cf88b56477  vendor/github.com/pmezard/go-difflib/LICENSE
+#
+# ISC license
+1b93a317849ee09d3d7e4f1d20c2b78ddb230b4becb12d7c224c927b9d470251  vendor/github.com/davecgh/go-spew/LICENSE
+#
+# MIT license
+dad2b0b2cc2dbdbf95ad5d800ef7588956e74dc2479014829d42be295125c25d  vendor/github.com/stretchr/testify/LICENSE

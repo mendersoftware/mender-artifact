@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sort"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
 
@@ -98,6 +99,7 @@ func getCliContext() *cli.App {
 	artifactName := cli.StringFlag{
 		Name:  "artifact-name, n",
 		Usage: "Name of the artifact",
+		Required: true,
 	}
 	artifactNameDepends := cli.StringSliceFlag{
 		Name:  "artifact-name-depends, N",
@@ -137,16 +139,20 @@ func getCliContext() *cli.App {
 		Usage:  "Writes Mender artifact containing rootfs image",
 	}
 
+	writeRootfsCommand.CustomHelpTemplate = CustomSubcommandHelpTemplate
+
 	writeRootfsCommand.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name: "file, f",
 			Usage: "Payload `FILE` path or ssh-url to device for system " +
 				"snapshot (e.g. ssh://user@device:22022).",
+			Required: true,
 		},
 		cli.StringSliceFlag{
 			Name: "device-type, t",
 			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
 				"compatible devices providing this parameter multiple times.",
+			Required: true,
 		},
 		artifactName,
 		cli.StringFlag{
@@ -186,6 +192,7 @@ func getCliContext() *cli.App {
 		payloadProvides,
 		compressionFlag,
 	}
+
 	writeRootfsCommand.Before = applyCompressionInCommand
 
 	//
@@ -201,11 +208,14 @@ func getCliContext() *cli.App {
 			"for that update module.",
 	}
 
+	writeModuleCommand.CustomHelpTemplate = CustomSubcommandHelpTemplate
+
 	writeModuleCommand.Flags = []cli.Flag{
 		cli.StringSliceFlag{
 			Name: "device-type, t",
 			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
 				"compatible devices providing this parameter multiple times.",
+			Required: true,
 		},
 		cli.StringFlag{
 			Name:  "output-path, o",
@@ -232,6 +242,7 @@ func getCliContext() *cli.App {
 		cli.StringFlag{
 			Name:  "type, T",
 			Usage: "Type of payload. This is the same as the name of the update module",
+			Required: true,
 		},
 		payloadProvides,
 		payloadDepends,
@@ -239,6 +250,7 @@ func getCliContext() *cli.App {
 		cli.StringSliceFlag{
 			Name:  "file, f",
 			Usage: "Include `FILE` in payload. Can be given more than once.",
+			Required: true,
 		},
 		cli.StringFlag{
 			Name:  "augment-type",
@@ -267,6 +279,7 @@ func getCliContext() *cli.App {
 	writeCommand := cli.Command{
 		Name:  "write",
 		Usage: "Writes artifact file.",
+		Category: "Artifact creation and validation",
 		Subcommands: []cli.Command{
 			writeRootfsCommand,
 			writeModuleCommand,
@@ -279,6 +292,7 @@ func getCliContext() *cli.App {
 	validate := cli.Command{
 		Name:        "validate",
 		Usage:       "Validates artifact file.",
+		Category: "Artifact creation and validation",
 		Action:      validateArtifact,
 		UsageText:   "mender-artifact validate [options] <pathspec>",
 		Description: "This command validates artifact file provided by pathspec.",
@@ -292,6 +306,7 @@ func getCliContext() *cli.App {
 		Name:        "read",
 		Usage:       "Reads artifact file.",
 		ArgsUsage:   "<artifact path>",
+		Category: "Artifact creation and validation",
 		Action:      readArtifact,
 		Description: "This command validates artifact file provided by pathspec.",
 		Flags:       []cli.Flag{publicKeyFlag},
@@ -304,6 +319,7 @@ func getCliContext() *cli.App {
 
 		Name:        "sign",
 		Usage:       "Signs existing artifact file.",
+		Category: "Artifact modification",
 		Action:      signExisting,
 		UsageText:   "mender-artifact sign [options] <pathspec>",
 		Description: "This command signs artifact file provided by pathspec.",
@@ -327,6 +343,7 @@ func getCliContext() *cli.App {
 	modify := cli.Command{
 		Name:        "modify",
 		Usage:       "Modifies image or artifact file.",
+		Category: "Artifact modification",
 		Action:      modifyArtifact,
 		UsageText:   "mender-artifact modify [options] <pathspec>",
 		Description: "This command modifies existing image or artifact file provided by pathspec. NOTE: Currently only ext4 payloads can be modified",
@@ -347,7 +364,10 @@ func getCliContext() *cli.App {
 			Usage: "Full path to the public verification key that is used by the client " +
 				"to verify the artifact.",
 		},
-		artifactName,
+		cli.StringFlag{
+			Name:  "artifact-name, n",
+			Usage: "Name of the artifact",
+		},
 		cli.StringFlag{
 			Name:  "name",
 			Usage: "Deprecated. This is an alias for --artifact-name",
@@ -375,6 +395,7 @@ func getCliContext() *cli.App {
 	copy := cli.Command{
 		Name:        "cp",
 		Usage:       "cp <src> <dst>",
+		Category: "Artifact modification",
 		Description: "Copies a file into or out of a mender artifact, or sdimg",
 		UsageText: "Copy from or into an artifact, or sdimg where either the <src>" +
 			" or <dst> has to be of the form [artifact|sdimg]:<filepath>, <src> can" +
@@ -392,6 +413,7 @@ func getCliContext() *cli.App {
 		Name:        "cat",
 		Usage:       "cat [artifact|sdimg|uefiimg]:<filepath>",
 		Description: "Cat can output a file from a mender artifact or mender image to stdout.",
+		Category: "Artifact modification",
 		Action:      Cat,
 	}
 
@@ -399,6 +421,7 @@ func getCliContext() *cli.App {
 		Name:        "install",
 		Usage:       "install -m <permissions> <hostfile> [artifact|sdimg|uefiimg]:<filepath> or install -d [artifact|sdimg|uefiimg]:<directory>",
 		Description: "Installs a directory, or a file from the host filesystem, to the artifact or sdimg.",
+		Category: "Artifact modification",
 		Action:      Install,
 	}
 
@@ -416,6 +439,7 @@ func getCliContext() *cli.App {
 	remove := cli.Command{
 		Name:        "rm",
 		Usage:       "rm [artifact|sdimg|uefiimg]:<filepath>",
+		Category: "Artifact modification",
 		Description: "Removes the given file or directory from an Artifact or sdimg.",
 		Action:      Remove,
 	}
@@ -474,9 +498,25 @@ func getCliContext() *cli.App {
 	}
 	app.Flags = append([]cli.Flag{}, globalFlags...)
 
+	// Display all flags and commands alphabetically
+	for _, cmd := range app.Commands {
+		sort.Sort(cli.FlagsByName(cmd.Flags))
+		sort.Sort(cli.CommandsByName(cmd.Subcommands))
+		for _, subcmd := range cmd.Subcommands {
+			sort.Sort(cli.FlagsByName(subcmd.Flags))
+		}
+	}
+	sort.Sort(cli.FlagsByName(app.Flags))
+	sort.Sort(cli.CommandsByName(app.Commands))
+
+
 	return app
 }
 
 func run() error {
-	return getCliContext().Run(os.Args)
+	err := getCliContext().Run(os.Args)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return err
 }

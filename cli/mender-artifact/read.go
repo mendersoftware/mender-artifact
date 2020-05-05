@@ -27,6 +27,7 @@ import (
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/handlers"
+	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )
 
@@ -80,7 +81,10 @@ func readArtifact(c *cli.Context) error {
 	ar.VerifySignatureCallback = ver
 	err = ar.ReadArtifact()
 	if err != nil {
-		return cli.NewExitError(err.Error(), 0)
+		if errors.Cause(err) == artifact.ErrCompatibleDevices {
+			return cli.NewExitError("Invalid Artifact. No 'device-type' found.", 1)
+		}
+		return cli.NewExitError(err.Error(), 1)
 	}
 
 	inst := ar.GetHandlers()

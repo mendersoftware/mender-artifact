@@ -96,6 +96,21 @@ type HeaderInfo struct {
 	CompatibleDevices []string     `json:"device_types_compatible"`
 }
 
+func (h *HeaderInfo) UnmarshalJSON(b []byte) error {
+	type Alias HeaderInfo
+	buf := &Alias{}
+	if err := json.Unmarshal(b, &buf); err != nil {
+		return err
+	}
+	if len(buf.CompatibleDevices) == 0 {
+		return ErrCompatibleDevices
+	}
+	h.ArtifactName = buf.ArtifactName
+	h.Updates = buf.Updates
+	h.CompatibleDevices = buf.CompatibleDevices
+	return nil
+}
+
 func NewHeaderInfo(artifactName string, updates []UpdateType, compatibleDevices []string) *HeaderInfo {
 	return &HeaderInfo{
 		ArtifactName:      artifactName,
@@ -261,6 +276,23 @@ type ArtifactDepends struct {
 	ArtifactName      []string `json:"artifact_name,omitempty"`
 	CompatibleDevices []string `json:"device_type,omitempty"`
 	ArtifactGroup     []string `json:"artifact_group,omitempty"`
+}
+
+var ErrCompatibleDevices error = errors.New("ArtifactDepends: Required field 'CompatibleDevices' not found")
+
+func (a *ArtifactDepends) UnmarshalJSON(b []byte) error {
+	type Alias ArtifactDepends // Same fields, no inherited UnmarshalJSON method
+	buf := &Alias{}
+	if err := json.Unmarshal(b, buf); err != nil {
+		return err
+	}
+	if len(buf.CompatibleDevices) == 0 {
+		return ErrCompatibleDevices
+	}
+	a.ArtifactName = buf.ArtifactName
+	a.CompatibleDevices = buf.CompatibleDevices
+	a.ArtifactGroup = buf.ArtifactGroup
+	return nil
 }
 
 type ArtifactProvides struct {

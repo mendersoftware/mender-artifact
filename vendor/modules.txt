@@ -1,3 +1,5 @@
+# github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d
+github.com/cpuguy83/go-md2man/v2/md2man
 # github.com/davecgh/go-spew v1.1.1
 ## explicit
 github.com/davecgh/go-spew/spew
@@ -9,7 +11,7 @@ github.com/klauspost/compress/flate
 github.com/klauspost/pgzip
 # github.com/kr/pretty v0.1.0
 ## explicit
-# github.com/mendersoftware/mendertesting v0.0.0-20190301095837-dedd2c0a90a4
+# github.com/mendersoftware/mendertesting v0.0.0-20200504153946-0f55153f51b3
 ## explicit
 github.com/mendersoftware/mendertesting
 # github.com/minio/sha256-simd v0.1.1
@@ -27,14 +29,18 @@ github.com/pmezard/go-difflib/difflib
 # github.com/remyoudompheng/go-liblzma v0.0.0-20190301141425-da7c45f32144
 ## explicit
 github.com/remyoudompheng/go-liblzma
+# github.com/russross/blackfriday/v2 v2.0.1
+github.com/russross/blackfriday/v2
+# github.com/shurcooL/sanitized_anchor_name v1.0.0
+github.com/shurcooL/sanitized_anchor_name
 # github.com/sirupsen/logrus v0.0.0-20180315010703-90150a8ed11b
 ## explicit
 github.com/sirupsen/logrus
-# github.com/stretchr/testify v1.3.0
+# github.com/stretchr/testify v1.5.1
 ## explicit
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
-# github.com/urfave/cli v0.0.0-20181029213200-b67dcf995b6a
+# github.com/urfave/cli v1.22.4
 ## explicit
 github.com/urfave/cli
 # golang.org/x/crypto v0.0.0-20191117063200-497ca9f6d64f
@@ -56,3 +62,6 @@ golang.org/x/sys/windows
 ## explicit
 # gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2
 ## explicit
+# gopkg.in/yaml.v2 v2.2.8
+## explicit
+gopkg.in/yaml.v2
