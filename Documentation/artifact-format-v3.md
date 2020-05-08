@@ -292,9 +292,13 @@ be empty.
 
 For other package types this file can contain for example number of files in the
 `data` directory, if the payload contains more than one. Or it can contain
-network address(es) and credentials if Mender is to do a proxy update. This file
-is parsed by the standard Go JSON parser, so the following changes are made to
-this file:
+network address(es) and credentials if Mender is to do a proxy update.
+
+There are some restrictions on the JSON content that can be present in the
+meta-data file. It can only contain top level keys with values that are strings,
+numbers, or lists of strings and numbers. In addition the file is parsed by the
+standard Go JSON parser, so the following changes are made to this file:
+
 * the JSON data is minified, removing unnecessary spaces
 * invalid UTF-8 or invalid UTF-16 surrogate pairs in strings are replaced by the
   Unicode replacement character U+FFFD
