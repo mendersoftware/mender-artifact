@@ -60,10 +60,16 @@ func EchoSigHandler(
 		unix.IoctlSetTermios(int(os.Stdin.Fd()), ioctlSetTermios, term)
 		if sigRecved {
 			signal.Stop(sigChan)
-			errChan <- errors.Errorf("Received signal: %s",
-				unix.SignalName(sig.(unix.Signal)))
-			// Relay signal to default handler
-			unix.Kill(os.Getpid(), sig.(unix.Signal))
+			switch sig {
+			case unix.SIGCHLD:
+				// SIGCHLD is expected when ssh terminates.
+				errChan <- nil
+			default:
+				errChan <- errors.Errorf("Received signal: %s",
+					unix.SignalName(sig.(unix.Signal)))
+				// Relay signal to default handler
+				unix.Kill(os.Getpid(), sig.(unix.Signal))
+			}
 		} else {
 			errChan <- nil
 		}
