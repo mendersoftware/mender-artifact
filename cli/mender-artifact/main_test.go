@@ -42,7 +42,7 @@ func TestCompressionArgumentLocations(t *testing.T) {
 	defer os.Remove(menderName)
 
 	// Default
-	app.Run([]string{"mender-artifact",
+	err = app.Run([]string{"mender-artifact",
 		"write",
 		"rootfs-image",
 		"-f", dummyName,
@@ -50,13 +50,14 @@ func TestCompressionArgumentLocations(t *testing.T) {
 		"-n", "dummy",
 		"-o", menderName,
 	})
+	assert.NoError(t, err)
 	outputBytes, err := exec.Command("tar", "tf", menderName).Output()
 	assert.Contains(t, string(outputBytes), "header.tar.gz")
 	assert.NotContains(t, string(outputBytes), "header.tar.xz")
 	assert.NoError(t, err)
 
 	// Global flag
-	app.Run([]string{"mender-artifact",
+	err = app.Run([]string{"mender-artifact",
 		"--compression", "lzma",
 		"write",
 		"rootfs-image",
@@ -65,13 +66,14 @@ func TestCompressionArgumentLocations(t *testing.T) {
 		"-n", "dummy",
 		"-o", menderName,
 	})
+	assert.NoError(t, err)
 	outputBytes, err = exec.Command("tar", "tf", menderName).Output()
 	assert.Contains(t, string(outputBytes), "header.tar.xz")
 	assert.NotContains(t, string(outputBytes), "header.tar.gz")
 	assert.NoError(t, err)
 
 	// Command flag
-	app.Run([]string{"mender-artifact",
+	err = app.Run([]string{"mender-artifact",
 		"write",
 		"rootfs-image",
 		"-f", dummyName,
@@ -80,13 +82,14 @@ func TestCompressionArgumentLocations(t *testing.T) {
 		"-o", menderName,
 		"--compression", "lzma",
 	})
+	assert.NoError(t, err)
 	outputBytes, err = exec.Command("tar", "tf", menderName).Output()
 	assert.Contains(t, string(outputBytes), "header.tar.xz")
 	assert.NotContains(t, string(outputBytes), "header.tar.gz")
 	assert.NoError(t, err)
 
 	// Overriding with lzma
-	app.Run([]string{"mender-artifact",
+	err = app.Run([]string{"mender-artifact",
 		"--compression", "gzip",
 		"write",
 		"rootfs-image",
@@ -96,13 +99,14 @@ func TestCompressionArgumentLocations(t *testing.T) {
 		"-o", menderName,
 		"--compression", "lzma",
 	})
+	assert.NoError(t, err)
 	outputBytes, err = exec.Command("tar", "tf", menderName).Output()
 	assert.Contains(t, string(outputBytes), "header.tar.xz")
 	assert.NotContains(t, string(outputBytes), "header.tar.gz")
 	assert.NoError(t, err)
 
 	// Overriding with gz
-	app.Run([]string{"mender-artifact",
+	err = app.Run([]string{"mender-artifact",
 		"--compression", "lzma",
 		"write",
 		"rootfs-image",
@@ -112,6 +116,7 @@ func TestCompressionArgumentLocations(t *testing.T) {
 		"-o", menderName,
 		"--compression", "gzip",
 	})
+	assert.NoError(t, err)
 	outputBytes, err = exec.Command("tar", "tf", menderName).Output()
 	assert.Contains(t, string(outputBytes), "header.tar.gz")
 	assert.NotContains(t, string(outputBytes), "header.tar.xz")
