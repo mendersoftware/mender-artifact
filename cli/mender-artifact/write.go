@@ -131,7 +131,10 @@ func writeRootfs(c *cli.Context) error {
 
 	f, err := os.Create(name + ".tmp")
 	if err != nil {
-		return cli.NewExitError("can not create artifact file", errArtifactCreate)
+		return cli.NewExitError(
+			"can not create artifact file: "+err.Error(),
+			errArtifactCreate,
+		)
 	}
 	defer func() {
 		f.Close()
@@ -386,7 +389,10 @@ func writeModuleImage(ctx *cli.Context) error {
 
 	f, err := os.Create(name + ".tmp")
 	if err != nil {
-		return cli.NewExitError("can not create artifact file", errArtifactCreate)
+		return cli.NewExitError(
+			"can not create artifact file: "+err.Error(),
+			errArtifactCreate,
+		)
 	}
 	defer func() {
 		f.Close()
