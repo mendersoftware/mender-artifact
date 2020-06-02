@@ -250,7 +250,6 @@ func getCliContext() *cli.App {
 		cli.StringSliceFlag{
 			Name:  "file, f",
 			Usage: "Include `FILE` in payload. Can be given more than once.",
-			Required: true,
 		},
 		cli.StringFlag{
 			Name:  "augment-type",

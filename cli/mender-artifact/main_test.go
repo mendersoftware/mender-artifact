@@ -15,6 +15,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -131,4 +132,28 @@ func TestCompressionArgumentLocations(t *testing.T) {
 		"-n", "dummy",
 		"-o", menderName,
 	}))
+}
+
+func TestModuleImageWithoutPayload(t *testing.T) {
+	app := getCliContext()
+
+	menderFile, err := ioutil.TempFile("", "")
+	require.NoError(t, err)
+	menderFile.Close()
+	menderName := menderFile.Name()
+	defer os.Remove(menderName)
+
+	// Default
+	err = app.Run([]string{"mender-artifact",
+		"write",
+		"module-image",
+		"-t", "dummy",
+		"-n", "dummy",
+		"-T", "dummy",
+		"-o", menderName,
+	})
+	assert.NoError(t, err)
+	outputBytes, err := exec.Command("bash", "-c", fmt.Sprintf("tar xOf %s data/0000.tar.gz | tar tz", menderName)).Output()
+	assert.NoError(t, err)
+	assert.Empty(t, string(outputBytes))
 }
