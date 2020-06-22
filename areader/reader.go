@@ -660,7 +660,7 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error
 			if update.Type == "rootfs-image" {
 				return errors.New(errstr + ". Ensure that the Mender Client is fully integrated and that the RootfsPartA/B configuration variables are set correctly in 'mender.conf'")
 			} else {
-				return errors.New(errstr)
+				return errors.New(errstr + ". Make sure the Update Module is installed on the device")
 			}
 		} else {
 			err := ar.makeInstallersForUnknownTypes(update.Type, i, augmented)
