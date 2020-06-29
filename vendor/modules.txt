@@ -11,7 +11,7 @@ github.com/klauspost/compress/flate
 github.com/klauspost/pgzip
 # github.com/kr/pretty v0.1.0
 ## explicit
-# github.com/mendersoftware/mendertesting v0.0.0-20200504153946-0f55153f51b3
+# github.com/mendersoftware/mendertesting v0.0.1
 ## explicit
 github.com/mendersoftware/mendertesting
 # github.com/minio/sha256-simd v0.1.1
@@ -36,7 +36,7 @@ github.com/shurcooL/sanitized_anchor_name
 # github.com/sirupsen/logrus v0.0.0-20180315010703-90150a8ed11b
 ## explicit
 github.com/sirupsen/logrus
-# github.com/stretchr/testify v1.5.1
+# github.com/stretchr/testify v1.6.1
 ## explicit
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
@@ -62,6 +62,8 @@ golang.org/x/sys/windows
 ## explicit
 # gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2
 ## explicit
-# gopkg.in/yaml.v2 v2.2.8
+# gopkg.in/yaml.v2 v2.3.0
 ## explicit
-gopkg.in/yaml.v2
+# gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
+## explicit
+gopkg.in/yaml.v3
