@@ -99,9 +99,8 @@ found in the `./autocomplete` directory. In order to enable it consistently, add
 these lines to your `.zshrc` file:
 
 ```bash
-PROG=mender-artifact
-_CLI_ZSH_AUTOCOMPLETE_HACK=1
-source  path/to/mender-artifact/autocomplete/zsh_autocomplete```
+source  path/to/mender-artifact/autocomplete/zsh_autocomplete
+```
 
 
 ## Contributing
