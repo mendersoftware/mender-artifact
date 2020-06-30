@@ -7,6 +7,13 @@ stages:
   - test
   - publish
 
+test:lint:
+  image: python:3
+  before_script:
+    - pip install requests
+  script:
+    - ./gitlab_ci_lint.py
+
 test:unit:
   image: golang:1.13
   stage: test
@@ -28,8 +35,8 @@ test:unit:
     - cd /go/src/github.com/mendersoftware/mendertesting
 
     # Install code coverage / coveralls tooling
-    - go get -u github.com/axw/gocov/gocov
-    - go get -u golang.org/x/tools/cmd/cover
+    - GO111MODULE=off go get -u github.com/axw/gocov/gocov
+    - GO111MODULE=off go get -u golang.org/x/tools/cmd/cover
 
   script:
     # Test if code was formatted with 'go fmt'

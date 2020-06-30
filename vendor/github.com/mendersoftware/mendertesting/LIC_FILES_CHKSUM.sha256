@@ -4,7 +4,12 @@
 2eb550be6801c1ea434feba53bf6d12e7c71c90253e0a9de4a4f46cf88b56477  vendor/github.com/pmezard/go-difflib/LICENSE
 #
 # ISC license
-1b93a317849ee09d3d7e4f1d20c2b78ddb230b4becb12d7c224c927b9d470251  vendor/github.com/davecgh/go-spew/LICENSE
+6a6ae99c69879233ddb1095938f7f3ea651fd91d82d46988fb0be6489c7a1bb6  vendor/github.com/davecgh/go-spew/LICENSE
 #
 # MIT license
 dad2b0b2cc2dbdbf95ad5d800ef7588956e74dc2479014829d42be295125c25d  vendor/github.com/stretchr/testify/LICENSE
+a94710b55e03b5285f77d048c5ba61bb9d6ee04a06c0eb90e68821e11b0c707a  vendor/gopkg.in/yaml.v2/LICENSE.libyaml
+#
+# Apache license
+b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1  vendor/gopkg.in/yaml.v2/LICENSE
+
