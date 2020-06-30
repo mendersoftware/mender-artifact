@@ -73,6 +73,17 @@ build-natives-contained:
 install:
 	cd $(INSTALL_DIR) && $(GO) install $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
 
+install-autocomplete-scripts:
+	@echo "Installing Bash auto-complete script into ${DESTDIR}${PREFIX}/etc/bash_completion.d/"
+	@install -d ${DESTDIR}$(PREFIX)/etc/bash_completion.d/
+	@install -m 644 ./autocomplete/bash_autocomplete $(DESTDIR)$(PREFIX)/etc/bash_completion.d/mender-artifact
+	@if which zsh >/dev/null 2>&1 ; then \
+	echo "Installing zsh auto-complete script into ${DESTDIR}${PREFIX}/usr/local/share/zsh/site-functions/" \
+	install -d $(DESTDIR)$(PREFIX)/usr/local/share/zsh/site-functions/ && \
+	install -m 644 ./autocomplete/zsh_autocomplete $(DESTDIR)$(PREFIX)/usr/local/share/zsh/site-functions/_mender-artifact \
+	; fi
+
+
 clean:
 	$(GO) clean
 	rm -f mender-artifact-darwin mender-artifact-linux mender-artifact-windows.exe
