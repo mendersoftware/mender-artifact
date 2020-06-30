@@ -1,6 +1,6 @@
-#compdef $PROG
+#compdef _mender-artifact mender-artifact
 
-_cli_zsh_autocomplete() {
+_mender-artifact() {
 
   local -a opts
   local cur
@@ -20,4 +20,4 @@ _cli_zsh_autocomplete() {
   return
 }
 
-compdef _cli_zsh_autocomplete $PROG
+compdef _mender-artifact mender-artifact
