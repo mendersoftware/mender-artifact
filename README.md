@@ -57,10 +57,25 @@ Mender Docs](https://docs.mender.io/downloads).
 
 ## Enabling auto-completion in Bash & ZSH
 
+### Automatic installation through the Makefile
+
+This is the easiest approach, and all that is needed it to run:
+
+```bash
+sudo make install-autocomplete-scripts
+```
+
+And the `Bash` auto-complete script will be installed to
+`/etc/bash_completion.d`, and if `Zsh` is installed on the system, the
+corresponding auto-completion script is installed into
+`/usr/share/local/zsh/site-functions`.
+
+### Manual installation
+
  auto-completion of `mender-artifact` sub-commands can be added to either ZSH or
  Bash through:
 
- ### Bash
+#### Bash
 
  The simplest way of enabling auto-completion in Bash is to copy the
  `./autocomplete/bash_autocomplete` file into `/etc/bash_completion.d/` like so:
@@ -77,16 +92,15 @@ PROG=mender-artifact
 source path/to/mender-artifact/autocomplete/bash_autocomplete
  ```
 
- ### ZSH
+ #### ZSH
 
 Auto-completion for ZSH is supported through the `zsh_autocompletion` script
 found in the `./autocomplete` directory. In order to enable it consistently, add
 these lines to your `.zshrc` file:
 
 ```bash
-PROG=mender-artifact
-_CLI_ZSH_AUTOCOMPLETE_HACK=1
-source  path/to/mender-artifact/autocomplete/zsh_autocomplete```
+source  path/to/mender-artifact/autocomplete/zsh_autocomplete
+```
 
 
 ## Contributing
