@@ -11,7 +11,7 @@ require (
 	github.com/minio/sha256-simd v0.1.1
 	github.com/onsi/ginkgo v1.12.0 // indirect
 	github.com/onsi/gomega v1.9.0 // indirect
-	github.com/pkg/errors v0.8.1
+	github.com/pkg/errors v0.9.1
 	github.com/remyoudompheng/go-liblzma v0.0.0-20190301141425-da7c45f32144
 	github.com/sirupsen/logrus v0.0.0-20180315010703-90150a8ed11b
 	github.com/stretchr/testify v1.6.1
