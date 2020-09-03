@@ -70,6 +70,16 @@ build-natives-contained:
 	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact* /binary" && \
 	docker image rm $$image_id
 
+build-plugins:
+	@echo "Building the mender-artifact plugins..."
+	@for plugin in $(shell ls ./plug-source/*.go); do \
+		go build -o ./plug-source -buildmode=plugin $$plugin ; \
+	done
+
+install-plugins:
+	@echo "Installing the mender-artifact plugins..."
+	@install -D --target-directory /etc/mender-artifact/.mender-artifact-plugins ./plug-source/*.so
+
 install:
 	cd $(INSTALL_DIR) && $(GO) install $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
 

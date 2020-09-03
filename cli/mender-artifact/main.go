@@ -16,12 +16,14 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
-	"strings"
+	"path"
+	"plugin"
 	"sort"
+	"strings"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
-
 	"github.com/urfave/cli"
 )
 
@@ -38,6 +40,10 @@ const (
 
 // Version of the mender-artifact CLI tool
 var Version = "unknown"
+var pluginDirs = [...]string{
+	os.Getenv("HOME"),
+	"/etc/mender-artifact/",
+}
 
 // LatestFormatVersion is the latest version of the format, which is
 // also what we default to.
@@ -97,8 +103,8 @@ func getCliContext() *cli.App {
 	// Common Artifact flags
 	//
 	artifactName := cli.StringFlag{
-		Name:  "artifact-name, n",
-		Usage: "Name of the artifact",
+		Name:     "artifact-name, n",
+		Usage:    "Name of the artifact",
 		Required: true,
 	}
 	artifactNameDepends := cli.StringSliceFlag{
@@ -210,7 +216,7 @@ func getCliContext() *cli.App {
 
 	writeModuleCommand.CustomHelpTemplate = CustomSubcommandHelpTemplate
 
-	writeModuleCommand.Flags = []cli.Flag{
+	tmpFlagHolder := []cli.Flag{
 		cli.StringSliceFlag{
 			Name: "device-type, t",
 			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
@@ -239,11 +245,12 @@ func getCliContext() *cli.App {
 		artifactNameDepends,
 		artifactProvidesGroup,
 		artifactDependsGroups,
-		cli.StringFlag{
-			Name:  "type, T",
-			Usage: "Type of payload. This is the same as the name of the update module",
-			Required: true,
-		},
+		// Replaced with dynamically loaded sub-commands
+		// cli.StringFlag{
+		// 	Name:     "type, T",
+		// 	Usage:    "Type of payload. This is the same as the name of the update module",
+		// 	Required: true,
+		// },
 		payloadProvides,
 		payloadDepends,
 		payloadMetaData,
@@ -275,9 +282,56 @@ func getCliContext() *cli.App {
 	}
 	writeModuleCommand.Before = applyCompressionInCommand
 
+	generateCommand := cli.Command{
+		Name:     "generate",
+		Usage:    "Generates special Artifacts",
+		Category: "Artifact Generation",
+	}
+	generateCommand.Flags = append(generateCommand.Flags, writeModuleCommand.Flags...)
+	generateCommand.CustomHelpTemplate = CustomSubcommandHelpTemplate
+	// Check if there are any modules present in the <pluginDir> folders,
+	// and load them if present
+	for _, dir := range pluginDirs {
+		if files, err := ioutil.ReadDir(path.Join(dir, ".mender-artifact-plugins")); err == nil {
+			Log.Debugf("Found plugindir: %s", dir)
+			if len(files) > 0 {
+				for _, f := range files {
+					plug, err := plugin.Open(path.Join(dir, ".mender-artifact-plugins", f.Name()))
+					if err != nil {
+						Log.Debugf(
+							"Failed to load plugin: %s. Error: %v\n",
+							f.Name(), err)
+						continue
+					}
+					sym, err := plug.Lookup("CLI")
+					if err != nil {
+						Log.Debugf(
+							"Failed to find the symbol 'CLI' in the plugin")
+						continue
+					}
+					subCmdFunc, ok := sym.(func() cli.Command)
+					if !ok {
+						Log.Debug("Symbol returned is not a subcommand")
+						continue
+					}
+					subCmd := subCmdFunc()
+
+					subCmd.CustomHelpTemplate = CustomSubcommandHelpTemplate
+
+					subCmd.Flags = append(subCmd.Flags, tmpFlagHolder...)
+
+					generateCommand.Subcommands = append(generateCommand.Subcommands,
+						subCmd)
+				}
+			}
+		} else {
+			Log.Debugf("Got error: %v when reading the plugins dir: %s", err, dir)
+		}
+	}
+
 	writeCommand := cli.Command{
-		Name:  "write",
-		Usage: "Writes artifact file.",
+		Name:     "write",
+		Usage:    "Writes artifact file.",
 		Category: "Artifact creation and validation",
 		Subcommands: []cli.Command{
 			writeRootfsCommand,
@@ -291,7 +345,7 @@ func getCliContext() *cli.App {
 	validate := cli.Command{
 		Name:        "validate",
 		Usage:       "Validates artifact file.",
-		Category: "Artifact creation and validation",
+		Category:    "Artifact creation and validation",
 		Action:      validateArtifact,
 		UsageText:   "mender-artifact validate [options] <pathspec>",
 		Description: "This command validates artifact file provided by pathspec.",
@@ -305,7 +359,7 @@ func getCliContext() *cli.App {
 		Name:        "read",
 		Usage:       "Reads artifact file.",
 		ArgsUsage:   "<artifact path>",
-		Category: "Artifact creation and validation",
+		Category:    "Artifact creation and validation",
 		Action:      readArtifact,
 		Description: "This command validates artifact file provided by pathspec.",
 		Flags:       []cli.Flag{publicKeyFlag},
@@ -318,7 +372,7 @@ func getCliContext() *cli.App {
 
 		Name:        "sign",
 		Usage:       "Signs existing artifact file.",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Action:      signExisting,
 		UsageText:   "mender-artifact sign [options] <pathspec>",
 		Description: "This command signs artifact file provided by pathspec.",
@@ -342,7 +396,7 @@ func getCliContext() *cli.App {
 	modify := cli.Command{
 		Name:        "modify",
 		Usage:       "Modifies image or artifact file.",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Action:      modifyArtifact,
 		UsageText:   "mender-artifact modify [options] <pathspec>",
 		Description: "This command modifies existing image or artifact file provided by pathspec. NOTE: Currently only ext4 payloads can be modified",
@@ -394,7 +448,7 @@ func getCliContext() *cli.App {
 	copy := cli.Command{
 		Name:        "cp",
 		Usage:       "cp <src> <dst>",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Description: "Copies a file into or out of a mender artifact, or sdimg",
 		UsageText: "Copy from or into an artifact, or sdimg where either the <src>" +
 			" or <dst> has to be of the form [artifact|sdimg]:<filepath>, <src> can" +
@@ -412,7 +466,7 @@ func getCliContext() *cli.App {
 		Name:        "cat",
 		Usage:       "cat [artifact|sdimg|uefiimg]:<filepath>",
 		Description: "Cat can output a file from a mender artifact or mender image to stdout.",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Action:      Cat,
 	}
 
@@ -420,7 +474,7 @@ func getCliContext() *cli.App {
 		Name:        "install",
 		Usage:       "install -m <permissions> <hostfile> [artifact|sdimg|uefiimg]:<filepath> or install -d [artifact|sdimg|uefiimg]:<directory>",
 		Description: "Installs a directory, or a file from the host filesystem, to the artifact or sdimg.",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Action:      Install,
 	}
 
@@ -438,7 +492,7 @@ func getCliContext() *cli.App {
 	remove := cli.Command{
 		Name:        "rm",
 		Usage:       "rm [artifact|sdimg|uefiimg]:<filepath>",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Description: "Removes the given file or directory from an Artifact or sdimg.",
 		Action:      Remove,
 	}
@@ -494,6 +548,9 @@ func getCliContext() *cli.App {
 		install,
 		remove,
 		dumpCommand,
+	}
+	if len(generateCommand.Subcommands) > 0 {
+		app.Commands = append(app.Commands, generateCommand)
 	}
 	app.Flags = append([]cli.Flag{}, globalFlags...)
 
