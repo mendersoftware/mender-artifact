@@ -499,17 +499,18 @@ func getCliContext() *cli.App {
 
 	// Display all flags and commands alphabetically
 	for _, cmd := range app.Commands {
-		sort.Sort(cli.FlagsByName(cmd.Flags))
-		sort.Sort(cli.CommandsByName(cmd.Subcommands))
-		for _, subcmd := range cmd.Subcommands {
-			sort.Sort(cli.FlagsByName(subcmd.Flags))
-		}
+		sortFlags(cmd)
 	}
-	sort.Sort(cli.FlagsByName(app.Flags))
-	sort.Sort(cli.CommandsByName(app.Commands))
-
 
 	return app
+}
+
+func sortFlags(c cli.Command) {
+	sort.Sort(cli.FlagsByName(c.Flags))
+	sort.Sort(cli.CommandsByName(c.Subcommands))
+	for _, cmd := range c.Subcommands {
+		sortFlags(cmd)
+	}
 }
 
 func run() error {
