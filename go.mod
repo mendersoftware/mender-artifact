@@ -5,7 +5,7 @@ go 1.14
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/klauspost/compress v1.10.5 // indirect
-	github.com/klauspost/pgzip v1.2.3
+	github.com/klauspost/pgzip v1.2.4
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/mendersoftware/mendertesting v0.0.1
 	github.com/minio/sha256-simd v0.1.1
