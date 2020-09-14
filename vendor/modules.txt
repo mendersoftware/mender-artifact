@@ -6,7 +6,7 @@ github.com/davecgh/go-spew/spew
 # github.com/klauspost/compress v1.10.5
 ## explicit
 github.com/klauspost/compress/flate
-# github.com/klauspost/pgzip v1.2.4
+# github.com/klauspost/pgzip v1.2.5
 ## explicit
 github.com/klauspost/pgzip
 # github.com/kr/pretty v0.1.0
