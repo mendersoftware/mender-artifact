@@ -345,6 +345,7 @@ Updates:
     0:
     Type:   rootfs-image
     Provides:
+	rootfs-image.version: release-1
     Depends: Nothing
     Metadata: Nothing
     Files:
@@ -372,6 +373,7 @@ Updates:
     0:
     Type:   rootfs-image
     Provides:
+	rootfs-image.version: release-1
     Depends: Nothing
     Metadata: Nothing
     Files:
@@ -426,6 +428,7 @@ Updates:
     0:
     Type:   rootfs-image
     Provides:
+	rootfs-image.version: release-1
     Depends: Nothing
     Metadata: Nothing
     Files:
@@ -478,7 +481,8 @@ func TestModifyModuleArtifact(t *testing.T) {
 Updates:
     0:
     Type:   testType
-    Provides: Nothing
+    Provides:
+	rootfs-image.version: testName
     Depends: Nothing
     Metadata: Nothing
     Files:
@@ -574,7 +578,8 @@ Updates:
 Updates:
     0:
     Type:   testType
-    Provides: Nothing
+    Provides:
+	rootfs-image.version: testName
     Depends: Nothing
     Metadata:
 	{

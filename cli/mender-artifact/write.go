@@ -283,6 +283,7 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 			return nil, nil, err
 		}
 	}
+	typeInfoProvides = applySoftwareVersionToTypeInfoProvides(ctx, typeInfoProvides)
 
 	var augmentTypeInfoDepends artifact.TypeInfoDepends
 	keyValues, err = extractKeyValues(ctx.StringSlice("augment-depends"))
@@ -331,6 +332,41 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 	}
 
 	return typeInfoV3, augmentTypeInfoV3, nil
+}
+
+func getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareVersion string, noDefaultSoftwareVersion bool) map[string]string {
+	result := map[string]string{}
+	softwareVersionName := "rootfs-image"
+	if softwareFilesystem != "" {
+		softwareVersionName = softwareFilesystem
+	}
+	if softwareName != "" {
+		softwareVersionName += fmt.Sprintf(".%s", softwareName)
+	}
+	if noDefaultSoftwareVersion == false && softwareVersion == "" {
+		softwareVersion = artifactName
+	}
+	if softwareVersionName != "" && softwareVersion != "" {
+		result[softwareVersionName+".version"] = softwareVersion
+	}
+	return result
+}
+
+func applySoftwareVersionToTypeInfoProvides(ctx *cli.Context, typeInfoProvides artifact.TypeInfoProvides) artifact.TypeInfoProvides {
+	artifactName := ctx.String("artifact-name")
+	softwareFilesystem := ctx.String(softwareFilesystemFlag)
+	softwareName := ctx.String(softwareNameFlag)
+	softwareVersion := ctx.String(softwareVersionFlag)
+	noDefaultSoftwareVersion := ctx.Bool(noDefaultSoftwareVersionFlag)
+	if softwareVersionMapping := getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareVersion, noDefaultSoftwareVersion); len(softwareVersionMapping) > 0 {
+		if typeInfoProvides == nil {
+			typeInfoProvides = make(map[string]string)
+		}
+		for key, value := range softwareVersionMapping {
+			typeInfoProvides[key] = value
+		}
+	}
+	return typeInfoProvides
 }
 
 func makeMetaData(ctx *cli.Context) (map[string]interface{}, map[string]interface{}, error) {

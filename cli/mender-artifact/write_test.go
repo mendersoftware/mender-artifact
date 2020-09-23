@@ -274,9 +274,10 @@ func TestWriteModuleImage(t *testing.T) {
 
 	updProvides := handler.GetUpdateOriginalProvides()
 	assert.Equal(t, artifact.TypeInfoProvides{
-		"testProvideKey1":    "testProvideValue1",
-		"testProvideKey2":    "testProvideValue2",
-		"overrideProvideKey": "originalOverrideProvideValue",
+		"testProvideKey1":      "testProvideValue1",
+		"testProvideKey2":      "testProvideValue2",
+		"overrideProvideKey":   "originalOverrideProvideValue",
+		"rootfs-image.version": "testName",
 	}, updProvides)
 	updProvides = handler.GetUpdateAugmentProvides()
 	assert.Equal(t, artifact.TypeInfoProvides{
@@ -287,11 +288,12 @@ func TestWriteModuleImage(t *testing.T) {
 	updProvides, err = handler.GetUpdateProvides()
 	require.NoError(t, err)
 	assert.Equal(t, artifact.TypeInfoProvides{
-		"testProvideKey1":    "testProvideValue1",
-		"testProvideKey2":    "testProvideValue2",
-		"augmentProvideKey1": "augmentProvideValue1",
-		"augmentProvideKey2": "augmentProvideValue2",
-		"overrideProvideKey": "augmentOverrideProvideValue",
+		"testProvideKey1":      "testProvideValue1",
+		"testProvideKey2":      "testProvideValue2",
+		"augmentProvideKey1":   "augmentProvideValue1",
+		"augmentProvideKey2":   "augmentProvideValue2",
+		"overrideProvideKey":   "augmentOverrideProvideValue",
+		"rootfs-image.version": "testName",
 	}, updProvides)
 
 	assert.Equal(t, map[string]interface{}{"metadata": "test"}, handler.GetUpdateOriginalMetaData())
@@ -397,6 +399,7 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 		"rootfs_image_checksum": "bfb4567944c5730face9f3d54efc0c1ff3b5dd1338862b23b849ac87679e162f",
 		"testProvideKey1":       "testProvideValue1",
 		"testProvideKey2":       "testProvideValue2",
+		"rootfs-image.version":  "testName",
 	}, updProvides)
 
 	// Test the `--no-checksum-provide` flag
@@ -429,9 +432,8 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 
 	updProvides, err = handler.GetUpdateProvides()
 	require.NoError(t, err)
-	// Nil represents empty provides unfortunately
-	assert.Nil(t, updProvides)
-
+	expected := artifact.TypeInfoProvides(artifact.TypeInfoProvides{"rootfs-image.version": "noprovides"})
+	assert.Equal(t, expected, updProvides)
 }
 
 func TestWriteRootfsImageChecksum(t *testing.T) {
@@ -453,4 +455,76 @@ func TestWriteRootfsImageChecksum(t *testing.T) {
 	_, ok := typeInfo.ArtifactProvides["rootfs_image_checksum"]
 	assert.True(t, ok)
 
+}
+
+func TestGetArtifactProvides(t *testing.T) {
+	testCases := map[string]struct {
+		artifactName             string
+		artifactGroup            string
+		softwareFilesystem       string
+		softwareName             string
+		softwareVersion          string
+		noDefaultSoftwareVersion bool
+		out                      map[string]string
+	}{
+		"rootfs, no software version": {
+			artifactName:  "artifact-name",
+			artifactGroup: "artifact-group",
+			out: map[string]string{
+				"rootfs-image.version": "artifact-name",
+			},
+		},
+		"rootfs, software version": {
+			artifactName:    "artifact-name",
+			artifactGroup:   "artifact-group",
+			softwareVersion: "v1",
+			out: map[string]string{
+				"rootfs-image.version": "v1",
+			},
+		},
+		"rootfs, software name and version": {
+			artifactName:    "artifact-name",
+			artifactGroup:   "artifact-group",
+			softwareName:    "my-software",
+			softwareVersion: "v1",
+			out: map[string]string{
+				"rootfs-image.my-software.version": "v1",
+			},
+		},
+		"rootfs, software filesystem, name and version": {
+			artifactName:       "artifact-name",
+			artifactGroup:      "artifact-group",
+			softwareName:       "my-software",
+			softwareVersion:    "v1",
+			softwareFilesystem: "my-fs",
+			out: map[string]string{
+				"my-fs.my-software.version": "v1",
+			},
+		},
+		"rootfs, software filesystem, name and version with no default software version": {
+			artifactName:             "artifact-name",
+			artifactGroup:            "artifact-group",
+			softwareName:             "my-software",
+			softwareVersion:          "v1",
+			softwareFilesystem:       "my-fs",
+			noDefaultSoftwareVersion: true,
+			out: map[string]string{
+				"my-fs.my-software.version": "v1",
+			},
+		},
+		"rootfs, no default software version": {
+			artifactName:             "artifact-name",
+			artifactGroup:            "artifact-group",
+			noDefaultSoftwareVersion: true,
+			out:                      map[string]string{},
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			result := getSoftwareVersion(tc.artifactName, tc.softwareFilesystem,
+				tc.softwareName, tc.softwareVersion, tc.noDefaultSoftwareVersion)
+			assert.Equal(t, tc.out, result)
+		})
+	}
 }
