@@ -25,14 +25,15 @@ import (
 	"syscall"
 	"time"
 
+	"io"
+	"io/ioutil"
+
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/cli/mender-artifact/util"
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
-	"io"
-	"io/ioutil"
 )
 
 func writeRootfsImageChecksum(rootfsFilename string,
