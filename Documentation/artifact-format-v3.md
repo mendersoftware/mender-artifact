@@ -254,13 +254,13 @@ It can also contain some additional parameters extending or modifying the global
 
 ```
 {
-  "type": "rootfs-image"
-  "artifact_provides": {
-      "rootfs-image.checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
-  },
-  "artifact_depends": {
-      "rootfs-image.checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
-  },
+    "type": "rootfs-image"
+    "artifact_provides": {
+        "rootfs-image.checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
+    },
+    "artifact_depends": {
+        "rootfs-image.checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
+    }
 }
 ```
 
@@ -385,10 +385,10 @@ These files and attributes are allowed:
 * `type-info` file with `artifact_depends` and `rootfs-image.checksum`:
   ```
   {
-    "type": "rootfs-image"
-    "artifact_depends": {
-        "rootfs-image.checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
-    },
+      "type": "rootfs-image"
+      "artifact_depends": {
+          "rootfs-image.checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
+      },
   }
   ```
 
