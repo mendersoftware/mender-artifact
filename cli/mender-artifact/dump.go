@@ -183,19 +183,25 @@ func printCmdline(ar *areader.Reader, args []string) {
 	// this can recreate either type.
 	fmt.Printf("write module-image")
 
-	artProvs := ar.GetArtifactProvides()
-	fmt.Printf(" --artifact-name %s", artProvs.ArtifactName)
-	if len(artProvs.ArtifactGroup) > 0 {
-		fmt.Printf(" --provides-group %s", artProvs.ArtifactGroup)
-	}
+	if ar.GetInfo().Version == 3 {
+		artProvs := ar.GetArtifactProvides()
+		fmt.Printf(" --artifact-name %s", artProvs.ArtifactName)
+		if len(artProvs.ArtifactGroup) > 0 {
+			fmt.Printf(" --provides-group %s", artProvs.ArtifactGroup)
+		}
 
-	artDeps := ar.GetArtifactDepends()
-	if len(artDeps.ArtifactName) > 0 {
-		fmt.Printf(" --artifact-name-depends %s", strings.Join(artDeps.ArtifactName, " --artifact-name-depends "))
-	}
-	fmt.Printf(" --device-type %s", strings.Join(artDeps.CompatibleDevices, " --device-type "))
-	if len(artDeps.ArtifactGroup) > 0 {
-		fmt.Printf(" --depends-groups %s", strings.Join(artDeps.ArtifactGroup, " --depends-groups "))
+		artDeps := ar.GetArtifactDepends()
+		if len(artDeps.ArtifactName) > 0 {
+			fmt.Printf(" --artifact-name-depends %s", strings.Join(artDeps.ArtifactName, " --artifact-name-depends "))
+		}
+		fmt.Printf(" --device-type %s", strings.Join(artDeps.CompatibleDevices, " --device-type "))
+		if len(artDeps.ArtifactGroup) > 0 {
+			fmt.Printf(" --depends-groups %s", strings.Join(artDeps.ArtifactGroup, " --depends-groups "))
+		}
+
+	} else if ar.GetInfo().Version == 2 {
+		fmt.Printf(" --artifact-name %s", ar.GetArtifactName())
+		fmt.Printf(" --device-type %s", strings.Join(ar.GetCompatibleDevices(), " --device-type "))
 	}
 
 	handlers := ar.GetHandlers()
