@@ -94,6 +94,7 @@ get-tools:
 		echo "-- go getting $$t"; \
 		go get -u $$t; \
 	done
+	go mod vendor
 
 check: test extracheck
 
@@ -112,7 +113,7 @@ extracheck:
 		/bin/false; \
 	fi
 	echo "-- checking with govet"
-	$(GO) tool vet -unsafeptr=false $(PKGFILES_notest)
+	$(GO) vet -unsafeptr=false
 	echo "-- checking for dead code"
 	deadcode
 	echo "-- checking with varcheck"

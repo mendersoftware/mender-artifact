@@ -7,7 +7,7 @@ include:
   - project: 'Northern.tech/Mender/mendertesting'
     file: '.gitlab-ci-github-status-updates.yml'
 
-image: golang:1.11-alpine3.9
+image: golang:1.14-alpine3.11
 
 cache:
   paths:
