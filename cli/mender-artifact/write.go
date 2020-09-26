@@ -38,7 +38,7 @@ import (
 )
 
 func writeRootfsImageChecksum(rootfsFilename string,
-	typeInfo *artifact.TypeInfoV3) (err error) {
+	typeInfo *artifact.TypeInfoV3, legacy bool) (err error) {
 	chk := artifact.NewWriterChecksum(ioutil.Discard)
 	payload, err := os.Open(rootfsFilename)
 	if err != nil {
@@ -49,19 +49,23 @@ func writeRootfsImageChecksum(rootfsFilename string,
 	}
 	checksum := string(chk.Checksum())
 
-	Log.Debugf("Adding the `rootfs_image_checksum`: %q to Artifact provides", checksum)
+	checksumKey := "rootfs-image.checksum"
+	if legacy {
+		checksumKey = "rootfs_image_checksum"
+	}
+
+	Log.Debugf("Adding the `%s`: %q to Artifact provides", checksumKey, checksum)
 	if typeInfo == nil {
 		return errors.New("Type-info is unitialized")
 	}
 	if typeInfo.ArtifactProvides == nil {
-		t, err := artifact.NewTypeInfoProvides(map[string]string{"rootfs_image_checksum": checksum})
+		t, err := artifact.NewTypeInfoProvides(map[string]string{checksumKey: checksum})
 		if err != nil {
-			return errors.Wrapf(err, "Failed to write the "+
-				"`rootfs_image_checksum` provides")
+			return errors.Wrapf(err, "Failed to write the "+"`"+checksumKey+"` provides")
 		}
 		typeInfo.ArtifactProvides = t
 	} else {
-		typeInfo.ArtifactProvides["rootfs_image_checksum"] = checksum
+		typeInfo.ArtifactProvides[checksumKey] = checksum
 	}
 	return nil
 }
@@ -172,8 +176,9 @@ func writeRootfs(c *cli.Context) error {
 	}
 
 	if !c.Bool("no-checksum-provide") {
-		if err = writeRootfsImageChecksum(rootfsFilename, typeInfoV3); err != nil {
-			return cli.NewExitError(errors.Wrap(err, "Failed to write the `rootfs_image_checksum` to the artifact"), 1)
+		legacy := c.Bool("legacy-rootfs-image-checksum")
+		if err = writeRootfsImageChecksum(rootfsFilename, typeInfoV3, legacy); err != nil {
+			return cli.NewExitError(errors.Wrap(err, "Failed to write the `rootfs-image.checksum` to the artifact"), 1)
 		}
 	}
 

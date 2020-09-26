@@ -330,13 +330,13 @@ func repack(comp artifact.Compressor, ua *unpackedArtifact, to io.Writer, key []
 		aWriter = awriter.NewWriterSigned(to, comp, artifact.NewSigner(key))
 	}
 
-	// for rootfs-images: Update rootfs_image_checksum provide if there is one.
-	_, hasChecksumProvide := ua.writeArgs.TypeInfoV3.ArtifactProvides["rootfs_image_checksum"]
+	// for rootfs-images: Update rootfs-image.checksum provide if there is one.
+	_, hasChecksumProvide := ua.writeArgs.TypeInfoV3.ArtifactProvides["rootfs-image.checksum"]
 	if ua.writeArgs.TypeInfoV3.Type == "rootfs-image" && hasChecksumProvide {
 		if len(ua.files) != 1 {
 			return errors.New("Only rootfs-image Artifacts with one file are supported")
 		}
-		err := writeRootfsImageChecksum(ua.files[0], ua.writeArgs.TypeInfoV3)
+		err := writeRootfsImageChecksum(ua.files[0], ua.writeArgs.TypeInfoV3, false)
 		if err != nil {
 			return err
 		}

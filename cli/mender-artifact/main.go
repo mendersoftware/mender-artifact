@@ -196,6 +196,11 @@ func getCliContext() *cli.App {
 				"scripts providing this parameter multiple times.",
 		},
 		cli.BoolFlag{
+			Name: "legacy-rootfs-image-checksum",
+			Usage: "Use the legacy key name rootfs_image_checksum to store the providese checksum " +
+				"to the Artifact provides parameters instead of rootfs-image.checksum.",
+		},
+		cli.BoolFlag{
 			Name: "no-checksum-provide",
 			Usage: "Disable writing the provides checksum to the Artifact provides " +
 				"parameters. This is needed in case the targeted devices do not support " +

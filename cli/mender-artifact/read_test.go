@@ -177,8 +177,8 @@ Updates:
     0:
     Type:   rootfs-image
     Provides:
+	rootfs-image.checksum: ee7cd8c4f4613a5dd2bf585815a77209a13ea7410aa5dedcc8654993b30a4972
 	rootfs-image.version: testName
-	rootfs_image_checksum: ee7cd8c4f4613a5dd2bf585815a77209a13ea7410aa5dedcc8654993b30a4972
     Depends: Nothing
     Metadata: Nothing
     Files:

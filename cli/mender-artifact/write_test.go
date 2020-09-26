@@ -395,8 +395,8 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 	updProvides, err := handler.GetUpdateProvides()
 	require.NoError(t, err)
 	assert.Equal(t, artifact.TypeInfoProvides{
-		// `rootfs_image_checksum` is always enabled
-		"rootfs_image_checksum": "bfb4567944c5730face9f3d54efc0c1ff3b5dd1338862b23b849ac87679e162f",
+		// `rootfs-image.checksum` is always enabled
+		"rootfs-image.checksum": "bfb4567944c5730face9f3d54efc0c1ff3b5dd1338862b23b849ac87679e162f",
 		"testProvideKey1":       "testProvideValue1",
 		"testProvideKey2":       "testProvideValue2",
 		"rootfs-image.version":  "testName",
@@ -541,7 +541,7 @@ func TestWriteRootfsArtifactDependsAndProvidesOverrides(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, artifact.TypeInfoProvides{
-				"rootfs_image_checksum": "bfb4567944c5730face9f3d54efc0c1ff3b5dd1338862b23b849ac87679e162f",
+				"rootfs-image.checksum": "bfb4567944c5730face9f3d54efc0c1ff3b5dd1338862b23b849ac87679e162f",
 				"testProvideKey1":       "testProvideValue1",
 				"testProvideKey2":       "testProvideValue2",
 				"rootfs-image.version":  tc.softwareVersion,
@@ -553,7 +553,7 @@ func TestWriteRootfsArtifactDependsAndProvidesOverrides(t *testing.T) {
 func TestWriteRootfsImageChecksum(t *testing.T) {
 
 	// Cannot find payload file (nonexisting)
-	err := writeRootfsImageChecksum("idonotexist", nil)
+	err := writeRootfsImageChecksum("idonotexist", nil, false)
 	assert.Contains(t, err.Error(), "Failed to open the payload file")
 
 	// Checksum a dummy file
@@ -563,12 +563,19 @@ func TestWriteRootfsImageChecksum(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, tf.Close())
 	typeInfo := artifact.TypeInfoV3{}
-	err = writeRootfsImageChecksum(tf.Name(), &typeInfo)
+
+	err = writeRootfsImageChecksum(tf.Name(), &typeInfo, false)
 	assert.NoError(t, err)
 	require.NotNil(t, typeInfo.ArtifactProvides)
-	_, ok := typeInfo.ArtifactProvides["rootfs_image_checksum"]
+	_, ok := typeInfo.ArtifactProvides["rootfs-image.checksum"]
 	assert.True(t, ok)
 
+	// legacy key
+	err = writeRootfsImageChecksum(tf.Name(), &typeInfo, true)
+	assert.NoError(t, err)
+	require.NotNil(t, typeInfo.ArtifactProvides)
+	_, ok = typeInfo.ArtifactProvides["rootfs_image_checksum"]
+	assert.True(t, ok)
 }
 
 func TestGetArtifactProvides(t *testing.T) {
