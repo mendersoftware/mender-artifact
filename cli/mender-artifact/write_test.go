@@ -436,6 +436,120 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 	assert.Equal(t, expected, updProvides)
 }
 
+func TestWriteRootfsArtifactDependsAndProvidesOverrides(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+	artfile := filepath.Join(tmpdir, "artifact.mender")
+
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "update.ext4",
+				Content: []byte("my update"),
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	testCases := map[string]struct {
+		args            []string
+		softwareVersion string
+	}{
+		"default": {
+			args: []string{
+				"mender-artifact", "write", "rootfs-image",
+				"-t", "mydevice",
+				"-o", artfile,
+				"-f", filepath.Join(updateTestDir, "update.ext4"),
+				"-n", "testName",
+				"-N", "testNameDepends1",
+				"-N", "testNameDepends2",
+				"-G", "testGroupDepends1",
+				"-G", "testGroupDepends2",
+				"-g", "testGroupProvide",
+				"-d", "testDependKey1:testDependValue1",
+				"-d", "testDependKey2:testDependValue2",
+				"-p", "testProvideKey1:testProvideValue1",
+				"-p", "testProvideKey2:testProvideValue2",
+			},
+			softwareVersion: "testName",
+		},
+		"override with provides": {
+			args: []string{
+				"mender-artifact", "write", "rootfs-image",
+				"-t", "mydevice",
+				"-o", artfile,
+				"-f", filepath.Join(updateTestDir, "update.ext4"),
+				"-n", "testName",
+				"-N", "testNameDepends1",
+				"-N", "testNameDepends2",
+				"-G", "testGroupDepends1",
+				"-G", "testGroupDepends2",
+				"-g", "testGroupProvide",
+				"-d", "testDependKey1:testDependValue1",
+				"-d", "testDependKey2:testDependValue2",
+				"-p", "testProvideKey1:testProvideValue1",
+				"-p", "testProvideKey2:testProvideValue2",
+				"-p", "rootfs-image.version:v1",
+			},
+			softwareVersion: "v1",
+		},
+		"override with software-version": {
+			args: []string{
+				"mender-artifact", "write", "rootfs-image",
+				"-t", "mydevice",
+				"-o", artfile,
+				"-f", filepath.Join(updateTestDir, "update.ext4"),
+				"-n", "testName",
+				"-N", "testNameDepends1",
+				"-N", "testNameDepends2",
+				"-G", "testGroupDepends1",
+				"-G", "testGroupDepends2",
+				"-g", "testGroupProvide",
+				"-d", "testDependKey1:testDependValue1",
+				"-d", "testDependKey2:testDependValue2",
+				"-p", "testProvideKey1:testProvideValue1",
+				"-p", "testProvideKey2:testProvideValue2",
+				"-p", "rootfs-image.version:v1",
+				"--software-version", "v2",
+			},
+			softwareVersion: "v2",
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			os.Args = tc.args
+			err = run()
+			assert.NoError(t, err)
+
+			artFd, err := os.Open(artfile)
+			assert.NoError(t, err)
+			reader := areader.NewReader(artFd)
+			err = reader.ReadArtifact()
+			assert.NoError(t, err)
+
+			handlers := reader.GetHandlers()
+			assert.Equal(t, 1, len(handlers))
+			handler := handlers[0]
+			assert.Equal(t, "rootfs-image", handler.GetUpdateType())
+
+			updProvides, err := handler.GetUpdateProvides()
+			require.NoError(t, err)
+
+			assert.Equal(t, artifact.TypeInfoProvides{
+				"rootfs_image_checksum": "bfb4567944c5730face9f3d54efc0c1ff3b5dd1338862b23b849ac87679e162f",
+				"testProvideKey1":       "testProvideValue1",
+				"testProvideKey2":       "testProvideValue2",
+				"rootfs-image.version":  tc.softwareVersion,
+			}, updProvides)
+		})
+	}
+}
+
 func TestWriteRootfsImageChecksum(t *testing.T) {
 
 	// Cannot find payload file (nonexisting)

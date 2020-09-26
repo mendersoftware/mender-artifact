@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -363,10 +364,32 @@ func applySoftwareVersionToTypeInfoProvides(ctx *cli.Context, typeInfoProvides a
 			typeInfoProvides = make(map[string]string)
 		}
 		for key, value := range softwareVersionMapping {
-			typeInfoProvides[key] = value
+			if typeInfoProvides[key] == "" || softwareVersionOverridesProvides(ctx, key) {
+				typeInfoProvides[key] = value
+			}
 		}
 	}
 	return typeInfoProvides
+}
+
+func softwareVersionOverridesProvides(ctx *cli.Context, key string) bool {
+	cmdLine := strings.Join(os.Args, " ")
+
+	var providesVersion string = `(-p|--provides)(\s+|=)` + regexp.QuoteMeta(key) + ":"
+	reProvidesVersion := regexp.MustCompile(providesVersion)
+	providesIndexes := reProvidesVersion.FindStringIndex(cmdLine)
+
+	var softareVersion string = "--software-(name|version|filesystem)"
+	reSoftwareVersion := regexp.MustCompile(softareVersion)
+	softwareIndexes := reSoftwareVersion.FindStringIndex(cmdLine)
+
+	if len(providesIndexes) == 0 {
+		return true
+	} else if len(softwareIndexes) == 0 {
+		return false
+	} else {
+		return softwareIndexes[0] > providesIndexes[0]
+	}
 }
 
 func makeMetaData(ctx *cli.Context) (map[string]interface{}, map[string]interface{}, error) {
