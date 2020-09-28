@@ -600,12 +600,13 @@ func TestWriteRootfsImageChecksum(t *testing.T) {
 	assert.True(t, ok)
 }
 
-func TestGetArtifactProvides(t *testing.T) {
+func TestGetSoftwareVersion(t *testing.T) {
 	testCases := map[string]struct {
 		artifactName             string
 		artifactGroup            string
 		softwareFilesystem       string
 		softwareName             string
+		softwareNameDefault      string
 		softwareVersion          string
 		noDefaultSoftwareVersion bool
 		out                      map[string]string
@@ -634,12 +635,22 @@ func TestGetArtifactProvides(t *testing.T) {
 				"rootfs-image.my-software.version": "v1",
 			},
 		},
+		"rootfs, default software name and version": {
+			artifactName:        "artifact-name",
+			artifactGroup:       "artifact-group",
+			softwareNameDefault: "my-software",
+			softwareVersion:     "v1",
+			out: map[string]string{
+				"rootfs-image.my-software.version": "v1",
+			},
+		},
 		"rootfs, software filesystem, name and version": {
-			artifactName:       "artifact-name",
-			artifactGroup:      "artifact-group",
-			softwareName:       "my-software",
-			softwareVersion:    "v1",
-			softwareFilesystem: "my-fs",
+			artifactName:        "artifact-name",
+			artifactGroup:       "artifact-group",
+			softwareName:        "my-software",
+			softwareVersion:     "v1",
+			softwareFilesystem:  "my-fs",
+			softwareNameDefault: "default-name",
 			out: map[string]string{
 				"my-fs.my-software.version": "v1",
 			},
@@ -650,6 +661,7 @@ func TestGetArtifactProvides(t *testing.T) {
 			softwareName:             "my-software",
 			softwareVersion:          "v1",
 			softwareFilesystem:       "my-fs",
+			softwareNameDefault:      "default-name",
 			noDefaultSoftwareVersion: true,
 			out: map[string]string{
 				"my-fs.my-software.version": "v1",
@@ -658,15 +670,36 @@ func TestGetArtifactProvides(t *testing.T) {
 		"rootfs, no default software version": {
 			artifactName:             "artifact-name",
 			artifactGroup:            "artifact-group",
+			softwareNameDefault:      "default-name",
 			noDefaultSoftwareVersion: true,
 			out:                      map[string]string{},
+		},
+		"rootfs, no default software version, not enough other arguments": {
+			artifactName:             "artifact-name",
+			artifactGroup:            "artifact-group",
+			softwareName:             "my-name",
+			softwareFilesystem:       "my-fs",
+			softwareNameDefault:      "default-name",
+			noDefaultSoftwareVersion: true,
+			out:                      map[string]string{},
+		},
+		"rootfs, no default software version, filesystem and version given": {
+			artifactName:             "artifact-name",
+			artifactGroup:            "artifact-group",
+			softwareFilesystem:       "my-fs",
+			softwareVersion:          "my-version",
+			softwareNameDefault:      "default-name",
+			noDefaultSoftwareVersion: true,
+			out: map[string]string{
+				"my-fs.version": "my-version",
+			},
 		},
 	}
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			result := getSoftwareVersion(tc.artifactName, tc.softwareFilesystem,
-				tc.softwareName, tc.softwareVersion, tc.noDefaultSoftwareVersion)
+				tc.softwareName, tc.softwareNameDefault, tc.softwareVersion, tc.noDefaultSoftwareVersion)
 			assert.Equal(t, tc.out, result)
 		})
 	}

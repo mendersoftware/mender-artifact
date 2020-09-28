@@ -340,17 +340,22 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 	return typeInfoV3, augmentTypeInfoV3, nil
 }
 
-func getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareVersion string, noDefaultSoftwareVersion bool) map[string]string {
+func getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareNameDefault, softwareVersion string, noDefaultSoftwareVersion bool) map[string]string {
 	result := map[string]string{}
 	softwareVersionName := "rootfs-image"
 	if softwareFilesystem != "" {
 		softwareVersionName = softwareFilesystem
 	}
+	if noDefaultSoftwareVersion == false {
+		if softwareName == "" {
+			softwareName = softwareNameDefault
+		}
+		if softwareVersion == "" {
+			softwareVersion = artifactName
+		}
+	}
 	if softwareName != "" {
 		softwareVersionName += fmt.Sprintf(".%s", softwareName)
-	}
-	if noDefaultSoftwareVersion == false && softwareVersion == "" {
-		softwareVersion = artifactName
 	}
 	if softwareVersionName != "" && softwareVersion != "" {
 		result[softwareVersionName+".version"] = softwareVersion
@@ -370,12 +375,13 @@ func applySoftwareVersionToTypeInfoProvides(ctx *cli.Context, typeInfoProvides a
 	artifactName := ctx.String("artifact-name")
 	softwareFilesystem := ctx.String(softwareFilesystemFlag)
 	softwareName := ctx.String(softwareNameFlag)
-	if softwareName == "" && ctx.Command.Name == "module-image" {
-		softwareName = ctx.String("type")
+	softwareNameDefault := ""
+	if ctx.Command.Name == "module-image" {
+		softwareNameDefault = ctx.String("type")
 	}
 	softwareVersion := ctx.String(softwareVersionFlag)
 	noDefaultSoftwareVersion := ctx.Bool(noDefaultSoftwareVersionFlag)
-	if softwareVersionMapping := getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareVersion, noDefaultSoftwareVersion); len(softwareVersionMapping) > 0 {
+	if softwareVersionMapping := getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareNameDefault, softwareVersion, noDefaultSoftwareVersion); len(softwareVersionMapping) > 0 {
 		for key, value := range softwareVersionMapping {
 			if result[key] == "" || softwareVersionOverridesProvides(ctx, key) {
 				result[key] = value
