@@ -126,10 +126,6 @@ func getCliContext() *cli.App {
 		Name:  noDefaultSoftwareVersionFlag,
 		Usage: "Disable the software version field for compatibility with old clients",
 	}
-	softwareVersionName := cli.StringFlag{
-		Name:  softwareNameFlag,
-		Usage: "Name of the key to store the software version: rootfs-image.NAME.version, instead of rootfs-image.version",
-	}
 	softwareVersionValue := cli.StringFlag{
 		Name:  softwareVersionFlag,
 		Usage: "Value for the software version, defaults to the name of the artifact",
@@ -225,7 +221,10 @@ func getCliContext() *cli.App {
 		// Sotware versions //
 		//////////////////////
 		softwareVersionNoDefault,
-		softwareVersionName,
+		cli.StringFlag{
+			Name:  softwareNameFlag,
+			Usage: "Name of the key to store the software version: rootfs-image.NAME.version, instead of rootfs-image.version",
+		},
 		softwareVersionValue,
 		softwareFilesystem,
 	}
@@ -313,7 +312,10 @@ func getCliContext() *cli.App {
 		// Sotware versions //
 		//////////////////////
 		softwareVersionNoDefault,
-		softwareVersionName,
+		cli.StringFlag{
+			Name:  softwareNameFlag,
+			Usage: "Name of the key to store the software version: rootfs-image.NAME.version, instead of rootfs-image.PAYLOAD_TYPE.version",
+		},
 		softwareVersionValue,
 		softwareFilesystem,
 	}
