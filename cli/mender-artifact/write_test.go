@@ -519,6 +519,28 @@ func TestWriteRootfsArtifactDependsAndProvidesOverrides(t *testing.T) {
 			},
 			softwareVersion: "v2",
 		},
+		"override with software-version and provides": {
+			args: []string{
+				"mender-artifact", "write", "rootfs-image",
+				"-t", "mydevice",
+				"-o", artfile,
+				"-f", filepath.Join(updateTestDir, "update.ext4"),
+				"-n", "testName",
+				"-N", "testNameDepends1",
+				"-N", "testNameDepends2",
+				"-G", "testGroupDepends1",
+				"-G", "testGroupDepends2",
+				"-g", "testGroupProvide",
+				"-d", "testDependKey1:testDependValue1",
+				"-d", "testDependKey2:testDependValue2",
+				"-p", "testProvideKey1:testProvideValue1",
+				"-p", "testProvideKey2:testProvideValue2",
+				"-p", "rootfs-image.version:v1",
+				"--software-version", "v2",
+				"-p", "rootfs-image.version:v3",
+			},
+			softwareVersion: "v3",
+		},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {

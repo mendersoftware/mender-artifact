@@ -553,11 +553,6 @@ func extractKeyValues(params []string) (*map[string]string, error) {
 					fmt.Sprintf("argument must have a delimiting colon: %s", arg),
 					errArtifactInvalidParameters)
 			}
-			if _, exists := (*keyValues)[split[0]]; exists {
-				return nil, cli.NewExitError(
-					fmt.Sprintf("argument specified more than once: %s", split[0]),
-					errArtifactInvalidParameters)
-			}
 			(*keyValues)[split[0]] = split[1]
 		}
 	}
