@@ -274,10 +274,10 @@ func TestWriteModuleImage(t *testing.T) {
 
 	updProvides := handler.GetUpdateOriginalProvides()
 	assert.Equal(t, artifact.TypeInfoProvides{
-		"testProvideKey1":      "testProvideValue1",
-		"testProvideKey2":      "testProvideValue2",
-		"overrideProvideKey":   "originalOverrideProvideValue",
-		"rootfs-image.version": "testName",
+		"testProvideKey1":               "testProvideValue1",
+		"testProvideKey2":               "testProvideValue2",
+		"overrideProvideKey":            "originalOverrideProvideValue",
+		"rootfs-image.testType.version": "testName",
 	}, updProvides)
 	updProvides = handler.GetUpdateAugmentProvides()
 	assert.Equal(t, artifact.TypeInfoProvides{
@@ -288,12 +288,12 @@ func TestWriteModuleImage(t *testing.T) {
 	updProvides, err = handler.GetUpdateProvides()
 	require.NoError(t, err)
 	assert.Equal(t, artifact.TypeInfoProvides{
-		"testProvideKey1":      "testProvideValue1",
-		"testProvideKey2":      "testProvideValue2",
-		"augmentProvideKey1":   "augmentProvideValue1",
-		"augmentProvideKey2":   "augmentProvideValue2",
-		"overrideProvideKey":   "augmentOverrideProvideValue",
-		"rootfs-image.version": "testName",
+		"testProvideKey1":               "testProvideValue1",
+		"testProvideKey2":               "testProvideValue2",
+		"augmentProvideKey1":            "augmentProvideValue1",
+		"augmentProvideKey2":            "augmentProvideValue2",
+		"overrideProvideKey":            "augmentOverrideProvideValue",
+		"rootfs-image.testType.version": "testName",
 	}, updProvides)
 
 	assert.Equal(t, map[string]interface{}{"metadata": "test"}, handler.GetUpdateOriginalMetaData())

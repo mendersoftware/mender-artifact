@@ -37,6 +37,11 @@ import (
 	"github.com/urfave/cli"
 )
 
+const (
+	rootfsImage = "rootfs"
+	moduleImage = "module"
+)
+
 func writeRootfsImageChecksum(rootfsFilename string,
 	typeInfo *artifact.TypeInfoV3, legacy bool) (err error) {
 	chk := artifact.NewWriterChecksum(ioutil.Discard)
@@ -170,7 +175,7 @@ func writeRootfs(c *cli.Context) error {
 		ArtifactGroup: c.String("provides-group"),
 	}
 
-	typeInfoV3, _, err := makeTypeInfo(c)
+	typeInfoV3, _, err := makeTypeInfo(c, rootfsImage)
 	if err != nil {
 		return err
 	}
@@ -265,7 +270,7 @@ func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
 
 // makeTypeInfo returns the type-info provides and depends and the augmented
 // type-info provides and depends, or nil.
-func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3, error) {
+func makeTypeInfo(ctx *cli.Context, imageType string) (*artifact.TypeInfoV3, *artifact.TypeInfoV3, error) {
 	// Make key value pairs from the type-info fields supplied on command
 	// line.
 	var keyValues *map[string]string
@@ -289,7 +294,7 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 			return nil, nil, err
 		}
 	}
-	typeInfoProvides = applySoftwareVersionToTypeInfoProvides(ctx, typeInfoProvides)
+	typeInfoProvides = applySoftwareVersionToTypeInfoProvides(ctx, typeInfoProvides, imageType)
 
 	var augmentTypeInfoDepends artifact.TypeInfoDepends
 	keyValues, err = extractKeyValues(ctx.StringSlice("augment-depends"))
@@ -358,23 +363,31 @@ func getSoftwareVersion(artifactName, softwareFilesystem, softwareName, software
 	return result
 }
 
-func applySoftwareVersionToTypeInfoProvides(ctx *cli.Context, typeInfoProvides artifact.TypeInfoProvides) artifact.TypeInfoProvides {
+// applySoftwareVersionToTypeInfoProvides returns a new mapping, enriched with provides
+// for the software version; the mapping provided as argument is not modified
+func applySoftwareVersionToTypeInfoProvides(ctx *cli.Context, typeInfoProvides artifact.TypeInfoProvides, imageType string) artifact.TypeInfoProvides {
+	result := make(map[string]string)
+	if typeInfoProvides != nil {
+		for key, value := range typeInfoProvides {
+			result[key] = value
+		}
+	}
 	artifactName := ctx.String("artifact-name")
 	softwareFilesystem := ctx.String(softwareFilesystemFlag)
 	softwareName := ctx.String(softwareNameFlag)
+	if softwareName == "" && imageType == moduleImage {
+		softwareName = ctx.String("type")
+	}
 	softwareVersion := ctx.String(softwareVersionFlag)
 	noDefaultSoftwareVersion := ctx.Bool(noDefaultSoftwareVersionFlag)
 	if softwareVersionMapping := getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareVersion, noDefaultSoftwareVersion); len(softwareVersionMapping) > 0 {
-		if typeInfoProvides == nil {
-			typeInfoProvides = make(map[string]string)
-		}
 		for key, value := range softwareVersionMapping {
-			if typeInfoProvides[key] == "" || softwareVersionOverridesProvides(ctx, key) {
-				typeInfoProvides[key] = value
+			if result[key] == "" || softwareVersionOverridesProvides(ctx, key) {
+				result[key] = value
 			}
 		}
 	}
-	return typeInfoProvides
+	return result
 }
 
 func softwareVersionOverridesProvides(ctx *cli.Context, key string) bool {
@@ -382,18 +395,18 @@ func softwareVersionOverridesProvides(ctx *cli.Context, key string) bool {
 
 	var providesVersion string = `(-p|--provides)(\s+|=)` + regexp.QuoteMeta(key) + ":"
 	reProvidesVersion := regexp.MustCompile(providesVersion)
-	providesIndexes := reProvidesVersion.FindStringIndex(cmdLine)
+	providesIndexes := reProvidesVersion.FindAllStringIndex(cmdLine, -1)
 
 	var softareVersion string = "--software-(name|version|filesystem)"
 	reSoftwareVersion := regexp.MustCompile(softareVersion)
-	softwareIndexes := reSoftwareVersion.FindStringIndex(cmdLine)
+	softwareIndexes := reSoftwareVersion.FindAllStringIndex(cmdLine, -1)
 
 	if len(providesIndexes) == 0 {
 		return true
 	} else if len(softwareIndexes) == 0 {
 		return false
 	} else {
-		return softwareIndexes[0] > providesIndexes[0]
+		return softwareIndexes[len(softwareIndexes)-1][0] > providesIndexes[len(providesIndexes)-1][0]
 	}
 }
 
@@ -492,7 +505,7 @@ func writeModuleImage(ctx *cli.Context) error {
 		ArtifactGroup: ctx.String("provides-group"),
 	}
 
-	typeInfoV3, augmentTypeInfoV3, err := makeTypeInfo(ctx)
+	typeInfoV3, augmentTypeInfoV3, err := makeTypeInfo(ctx, moduleImage)
 	if err != nil {
 		return err
 	}
