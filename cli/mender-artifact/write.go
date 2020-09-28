@@ -37,11 +37,6 @@ import (
 	"github.com/urfave/cli"
 )
 
-const (
-	rootfsImage = "rootfs"
-	moduleImage = "module"
-)
-
 func writeRootfsImageChecksum(rootfsFilename string,
 	typeInfo *artifact.TypeInfoV3, legacy bool) (err error) {
 	chk := artifact.NewWriterChecksum(ioutil.Discard)
@@ -175,7 +170,7 @@ func writeRootfs(c *cli.Context) error {
 		ArtifactGroup: c.String("provides-group"),
 	}
 
-	typeInfoV3, _, err := makeTypeInfo(c, rootfsImage)
+	typeInfoV3, _, err := makeTypeInfo(c)
 	if err != nil {
 		return err
 	}
@@ -270,7 +265,7 @@ func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
 
 // makeTypeInfo returns the type-info provides and depends and the augmented
 // type-info provides and depends, or nil.
-func makeTypeInfo(ctx *cli.Context, imageType string) (*artifact.TypeInfoV3, *artifact.TypeInfoV3, error) {
+func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3, error) {
 	// Make key value pairs from the type-info fields supplied on command
 	// line.
 	var keyValues *map[string]string
@@ -294,7 +289,7 @@ func makeTypeInfo(ctx *cli.Context, imageType string) (*artifact.TypeInfoV3, *ar
 			return nil, nil, err
 		}
 	}
-	typeInfoProvides = applySoftwareVersionToTypeInfoProvides(ctx, typeInfoProvides, imageType)
+	typeInfoProvides = applySoftwareVersionToTypeInfoProvides(ctx, typeInfoProvides)
 
 	var augmentTypeInfoDepends artifact.TypeInfoDepends
 	keyValues, err = extractKeyValues(ctx.StringSlice("augment-depends"))
@@ -365,7 +360,7 @@ func getSoftwareVersion(artifactName, softwareFilesystem, softwareName, software
 
 // applySoftwareVersionToTypeInfoProvides returns a new mapping, enriched with provides
 // for the software version; the mapping provided as argument is not modified
-func applySoftwareVersionToTypeInfoProvides(ctx *cli.Context, typeInfoProvides artifact.TypeInfoProvides, imageType string) artifact.TypeInfoProvides {
+func applySoftwareVersionToTypeInfoProvides(ctx *cli.Context, typeInfoProvides artifact.TypeInfoProvides) artifact.TypeInfoProvides {
 	result := make(map[string]string)
 	if typeInfoProvides != nil {
 		for key, value := range typeInfoProvides {
@@ -375,7 +370,7 @@ func applySoftwareVersionToTypeInfoProvides(ctx *cli.Context, typeInfoProvides a
 	artifactName := ctx.String("artifact-name")
 	softwareFilesystem := ctx.String(softwareFilesystemFlag)
 	softwareName := ctx.String(softwareNameFlag)
-	if softwareName == "" && imageType == moduleImage {
+	if softwareName == "" && ctx.Command.Name == "module-image" {
 		softwareName = ctx.String("type")
 	}
 	softwareVersion := ctx.String(softwareVersionFlag)
@@ -505,7 +500,7 @@ func writeModuleImage(ctx *cli.Context) error {
 		ArtifactGroup: ctx.String("provides-group"),
 	}
 
-	typeInfoV3, augmentTypeInfoV3, err := makeTypeInfo(ctx, moduleImage)
+	typeInfoV3, augmentTypeInfoV3, err := makeTypeInfo(ctx)
 	if err != nil {
 		return err
 	}
