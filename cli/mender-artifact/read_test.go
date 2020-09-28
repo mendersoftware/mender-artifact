@@ -126,7 +126,7 @@ Updates:
 	augmentProvideKey1: augmentProvideValue1
 	augmentProvideKey2: augmentProvideValue2
 	overrideProvideKey: augmentOverrideProvideValue
-	rootfs-image.version: testName
+	rootfs-image.testType.version: testName
 	testProvideKey1: testProvideValue1
 	testProvideKey2: testProvideValue2
     Depends:

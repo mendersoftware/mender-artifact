@@ -482,7 +482,7 @@ Updates:
     0:
     Type:   testType
     Provides:
-	rootfs-image.version: testName
+	rootfs-image.testType.version: testName
     Depends: Nothing
     Metadata: Nothing
     Files:
@@ -579,7 +579,7 @@ Updates:
     0:
     Type:   testType
     Provides:
-	rootfs-image.version: testName
+	rootfs-image.testType.version: testName
     Depends: Nothing
     Metadata:
 	{
