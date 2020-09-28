@@ -17,8 +17,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 	"sort"
+	"strings"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
 
@@ -34,6 +34,13 @@ const (
 	errArtifactInvalid
 	errArtifactUnsupportedFeature
 	errSystemError
+)
+
+const (
+	noDefaultSoftwareVersionFlag = "no-default-software-version"
+	softwareNameFlag             = "software-name"
+	softwareVersionFlag          = "software-version"
+	softwareFilesystemFlag       = "software-filesystem"
 )
 
 // Version of the mender-artifact CLI tool
@@ -97,8 +104,8 @@ func getCliContext() *cli.App {
 	// Common Artifact flags
 	//
 	artifactName := cli.StringFlag{
-		Name:  "artifact-name, n",
-		Usage: "Name of the artifact",
+		Name:     "artifact-name, n",
+		Usage:    "Name of the artifact",
 		Required: true,
 	}
 	artifactNameDepends := cli.StringSliceFlag{
@@ -112,6 +119,20 @@ func getCliContext() *cli.App {
 	artifactDependsGroups := cli.StringSliceFlag{
 		Name:  "depends-groups, G",
 		Usage: "The group(s) the artifact depends on",
+	}
+
+	// Common Software Version flags
+	softwareVersionNoDefault := cli.BoolFlag{
+		Name:  noDefaultSoftwareVersionFlag,
+		Usage: "Disable the software version field for compatibility with old clients",
+	}
+	softwareVersionValue := cli.StringFlag{
+		Name:  softwareVersionFlag,
+		Usage: "Value for the software version, defaults to the name of the artifact",
+	}
+	softwareFilesystem := cli.StringFlag{
+		Name:  softwareFilesystemFlag,
+		Usage: "If specified, is used instead of rootfs-image",
 	}
 
 	//
@@ -171,6 +192,11 @@ func getCliContext() *cli.App {
 				"scripts providing this parameter multiple times.",
 		},
 		cli.BoolFlag{
+			Name: "legacy-rootfs-image-checksum",
+			Usage: "Use the legacy key name rootfs_image_checksum to store the providese checksum " +
+				"to the Artifact provides parameters instead of rootfs-image.checksum.",
+		},
+		cli.BoolFlag{
 			Name: "no-checksum-provide",
 			Usage: "Disable writing the provides checksum to the Artifact provides " +
 				"parameters. This is needed in case the targeted devices do not support " +
@@ -191,6 +217,16 @@ func getCliContext() *cli.App {
 		payloadDepends,
 		payloadProvides,
 		compressionFlag,
+		//////////////////////
+		// Sotware versions //
+		//////////////////////
+		softwareVersionNoDefault,
+		cli.StringFlag{
+			Name:  softwareNameFlag,
+			Usage: "Name of the key to store the software version: rootfs-image.NAME.version, instead of rootfs-image.version",
+		},
+		softwareVersionValue,
+		softwareFilesystem,
 	}
 
 	writeRootfsCommand.Before = applyCompressionInCommand
@@ -240,8 +276,8 @@ func getCliContext() *cli.App {
 		artifactProvidesGroup,
 		artifactDependsGroups,
 		cli.StringFlag{
-			Name:  "type, T",
-			Usage: "Type of payload. This is the same as the name of the update module",
+			Name:     "type, T",
+			Usage:    "Type of payload. This is the same as the name of the update module",
 			Required: true,
 		},
 		payloadProvides,
@@ -272,12 +308,22 @@ func getCliContext() *cli.App {
 			Usage: "Include `FILE` in payload in the augment section. Can be given more than once.",
 		},
 		compressionFlag,
+		//////////////////////
+		// Sotware versions //
+		//////////////////////
+		softwareVersionNoDefault,
+		cli.StringFlag{
+			Name:  softwareNameFlag,
+			Usage: "Name of the key to store the software version: rootfs-image.NAME.version, instead of rootfs-image.PAYLOAD_TYPE.version",
+		},
+		softwareVersionValue,
+		softwareFilesystem,
 	}
 	writeModuleCommand.Before = applyCompressionInCommand
 
 	writeCommand := cli.Command{
-		Name:  "write",
-		Usage: "Writes artifact file.",
+		Name:     "write",
+		Usage:    "Writes artifact file.",
 		Category: "Artifact creation and validation",
 		Subcommands: []cli.Command{
 			writeRootfsCommand,
@@ -291,7 +337,7 @@ func getCliContext() *cli.App {
 	validate := cli.Command{
 		Name:        "validate",
 		Usage:       "Validates artifact file.",
-		Category: "Artifact creation and validation",
+		Category:    "Artifact creation and validation",
 		Action:      validateArtifact,
 		UsageText:   "mender-artifact validate [options] <pathspec>",
 		Description: "This command validates artifact file provided by pathspec.",
@@ -305,7 +351,7 @@ func getCliContext() *cli.App {
 		Name:        "read",
 		Usage:       "Reads artifact file.",
 		ArgsUsage:   "<artifact path>",
-		Category: "Artifact creation and validation",
+		Category:    "Artifact creation and validation",
 		Action:      readArtifact,
 		Description: "This command validates artifact file provided by pathspec.",
 		Flags:       []cli.Flag{publicKeyFlag},
@@ -318,7 +364,7 @@ func getCliContext() *cli.App {
 
 		Name:        "sign",
 		Usage:       "Signs existing artifact file.",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Action:      signExisting,
 		UsageText:   "mender-artifact sign [options] <pathspec>",
 		Description: "This command signs artifact file provided by pathspec.",
@@ -342,7 +388,7 @@ func getCliContext() *cli.App {
 	modify := cli.Command{
 		Name:        "modify",
 		Usage:       "Modifies image or artifact file.",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Action:      modifyArtifact,
 		UsageText:   "mender-artifact modify [options] <pathspec>",
 		Description: "This command modifies existing image or artifact file provided by pathspec. NOTE: Currently only ext4 payloads can be modified",
@@ -394,7 +440,7 @@ func getCliContext() *cli.App {
 	copy := cli.Command{
 		Name:        "cp",
 		Usage:       "cp <src> <dst>",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Description: "Copies a file into or out of a mender artifact, or sdimg",
 		UsageText: "Copy from or into an artifact, or sdimg where either the <src>" +
 			" or <dst> has to be of the form [artifact|sdimg]:<filepath>, <src> can" +
@@ -412,7 +458,7 @@ func getCliContext() *cli.App {
 		Name:        "cat",
 		Usage:       "cat [artifact|sdimg|uefiimg]:<filepath>",
 		Description: "Cat can output a file from a mender artifact or mender image to stdout.",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Action:      Cat,
 	}
 
@@ -420,7 +466,7 @@ func getCliContext() *cli.App {
 		Name:        "install",
 		Usage:       "install -m <permissions> <hostfile> [artifact|sdimg|uefiimg]:<filepath> or install -d [artifact|sdimg|uefiimg]:<directory>",
 		Description: "Installs a directory, or a file from the host filesystem, to the artifact or sdimg.",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Action:      Install,
 	}
 
@@ -438,7 +484,7 @@ func getCliContext() *cli.App {
 	remove := cli.Command{
 		Name:        "rm",
 		Usage:       "rm [artifact|sdimg|uefiimg]:<filepath>",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Description: "Removes the given file or directory from an Artifact or sdimg.",
 		Action:      Remove,
 	}

@@ -256,10 +256,10 @@ It can also contain some additional parameters extending or modifying the global
 {
   "type": "rootfs-image"
   "artifact_provides": {
-      "rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
+      "rootfs-image.checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
   },
   "artifact_depends": {
-      "rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
+      "rootfs-image.checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
   },
 }
 ```
@@ -382,12 +382,12 @@ These files and attributes are allowed:
   disable overriding for that entry, which may be necessary in order to get
   indexing right if some entries are overriden, but not all.
 
-* `type-info` file with `artifact_depends` and `rootfs_image_checksum`:
+* `type-info` file with `artifact_depends` and `rootfs-image.checksum`:
   ```
   {
     "type": "rootfs-image"
     "artifact_depends": {
-        "rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
+        "rootfs-image.checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
     },
   }
   ```

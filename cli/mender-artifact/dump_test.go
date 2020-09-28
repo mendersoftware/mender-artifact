@@ -109,7 +109,8 @@ func testDumpContent(t *testing.T, imageType string) {
 		"-d", "testDepends:someDep",
 		"-p", "testProvides:someProv",
 		"-g", "providesGroup",
-		"-G", "dependsGroup"})
+		"-G", "dependsGroup",
+		"--no-default-software-version"})
 	require.NoError(t, err)
 
 	printed, err := runAndCollectStdout([]string{"mender-artifact", "dump",

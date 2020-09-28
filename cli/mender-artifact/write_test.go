@@ -274,9 +274,10 @@ func TestWriteModuleImage(t *testing.T) {
 
 	updProvides := handler.GetUpdateOriginalProvides()
 	assert.Equal(t, artifact.TypeInfoProvides{
-		"testProvideKey1":    "testProvideValue1",
-		"testProvideKey2":    "testProvideValue2",
-		"overrideProvideKey": "originalOverrideProvideValue",
+		"testProvideKey1":               "testProvideValue1",
+		"testProvideKey2":               "testProvideValue2",
+		"overrideProvideKey":            "originalOverrideProvideValue",
+		"rootfs-image.testType.version": "testName",
 	}, updProvides)
 	updProvides = handler.GetUpdateAugmentProvides()
 	assert.Equal(t, artifact.TypeInfoProvides{
@@ -287,11 +288,12 @@ func TestWriteModuleImage(t *testing.T) {
 	updProvides, err = handler.GetUpdateProvides()
 	require.NoError(t, err)
 	assert.Equal(t, artifact.TypeInfoProvides{
-		"testProvideKey1":    "testProvideValue1",
-		"testProvideKey2":    "testProvideValue2",
-		"augmentProvideKey1": "augmentProvideValue1",
-		"augmentProvideKey2": "augmentProvideValue2",
-		"overrideProvideKey": "augmentOverrideProvideValue",
+		"testProvideKey1":               "testProvideValue1",
+		"testProvideKey2":               "testProvideValue2",
+		"augmentProvideKey1":            "augmentProvideValue1",
+		"augmentProvideKey2":            "augmentProvideValue2",
+		"overrideProvideKey":            "augmentOverrideProvideValue",
+		"rootfs-image.testType.version": "testName",
 	}, updProvides)
 
 	assert.Equal(t, map[string]interface{}{"metadata": "test"}, handler.GetUpdateOriginalMetaData())
@@ -393,10 +395,11 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 	updProvides, err := handler.GetUpdateProvides()
 	require.NoError(t, err)
 	assert.Equal(t, artifact.TypeInfoProvides{
-		// `rootfs_image_checksum` is always enabled
-		"rootfs_image_checksum": "bfb4567944c5730face9f3d54efc0c1ff3b5dd1338862b23b849ac87679e162f",
+		// `rootfs-image.checksum` is always enabled
+		"rootfs-image.checksum": "bfb4567944c5730face9f3d54efc0c1ff3b5dd1338862b23b849ac87679e162f",
 		"testProvideKey1":       "testProvideValue1",
 		"testProvideKey2":       "testProvideValue2",
+		"rootfs-image.version":  "testName",
 	}, updProvides)
 
 	// Test the `--no-checksum-provide` flag
@@ -429,15 +432,150 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 
 	updProvides, err = handler.GetUpdateProvides()
 	require.NoError(t, err)
-	// Nil represents empty provides unfortunately
-	assert.Nil(t, updProvides)
+	expected := artifact.TypeInfoProvides(artifact.TypeInfoProvides{"rootfs-image.version": "noprovides"})
+	assert.Equal(t, expected, updProvides)
+}
 
+func TestWriteRootfsArtifactDependsAndProvidesOverrides(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+	artfile := filepath.Join(tmpdir, "artifact.mender")
+
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "update.ext4",
+				Content: []byte("my update"),
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	testCases := map[string]struct {
+		args            []string
+		softwareVersion string
+	}{
+		"default": {
+			args: []string{
+				"mender-artifact", "write", "rootfs-image",
+				"-t", "mydevice",
+				"-o", artfile,
+				"-f", filepath.Join(updateTestDir, "update.ext4"),
+				"-n", "testName",
+				"-N", "testNameDepends1",
+				"-N", "testNameDepends2",
+				"-G", "testGroupDepends1",
+				"-G", "testGroupDepends2",
+				"-g", "testGroupProvide",
+				"-d", "testDependKey1:testDependValue1",
+				"-d", "testDependKey2:testDependValue2",
+				"-p", "testProvideKey1:testProvideValue1",
+				"-p", "testProvideKey2:testProvideValue2",
+			},
+			softwareVersion: "testName",
+		},
+		"override with provides": {
+			args: []string{
+				"mender-artifact", "write", "rootfs-image",
+				"-t", "mydevice",
+				"-o", artfile,
+				"-f", filepath.Join(updateTestDir, "update.ext4"),
+				"-n", "testName",
+				"-N", "testNameDepends1",
+				"-N", "testNameDepends2",
+				"-G", "testGroupDepends1",
+				"-G", "testGroupDepends2",
+				"-g", "testGroupProvide",
+				"-d", "testDependKey1:testDependValue1",
+				"-d", "testDependKey2:testDependValue2",
+				"-p", "testProvideKey1:testProvideValue1",
+				"-p", "testProvideKey2:testProvideValue2",
+				"-p", "rootfs-image.version:v1",
+			},
+			softwareVersion: "v1",
+		},
+		"override with software-version": {
+			args: []string{
+				"mender-artifact", "write", "rootfs-image",
+				"-t", "mydevice",
+				"-o", artfile,
+				"-f", filepath.Join(updateTestDir, "update.ext4"),
+				"-n", "testName",
+				"-N", "testNameDepends1",
+				"-N", "testNameDepends2",
+				"-G", "testGroupDepends1",
+				"-G", "testGroupDepends2",
+				"-g", "testGroupProvide",
+				"-d", "testDependKey1:testDependValue1",
+				"-d", "testDependKey2:testDependValue2",
+				"-p", "testProvideKey1:testProvideValue1",
+				"-p", "testProvideKey2:testProvideValue2",
+				"-p", "rootfs-image.version:v1",
+				"--software-version", "v2",
+			},
+			softwareVersion: "v2",
+		},
+		"override with software-version and provides": {
+			args: []string{
+				"mender-artifact", "write", "rootfs-image",
+				"-t", "mydevice",
+				"-o", artfile,
+				"-f", filepath.Join(updateTestDir, "update.ext4"),
+				"-n", "testName",
+				"-N", "testNameDepends1",
+				"-N", "testNameDepends2",
+				"-G", "testGroupDepends1",
+				"-G", "testGroupDepends2",
+				"-g", "testGroupProvide",
+				"-d", "testDependKey1:testDependValue1",
+				"-d", "testDependKey2:testDependValue2",
+				"-p", "testProvideKey1:testProvideValue1",
+				"-p", "testProvideKey2:testProvideValue2",
+				"-p", "rootfs-image.version:v1",
+				"--software-version", "v2",
+				"-p", "rootfs-image.version:v3",
+			},
+			softwareVersion: "v3",
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			os.Args = tc.args
+			err = run()
+			assert.NoError(t, err)
+
+			artFd, err := os.Open(artfile)
+			assert.NoError(t, err)
+			reader := areader.NewReader(artFd)
+			err = reader.ReadArtifact()
+			assert.NoError(t, err)
+
+			handlers := reader.GetHandlers()
+			assert.Equal(t, 1, len(handlers))
+			handler := handlers[0]
+			assert.Equal(t, "rootfs-image", handler.GetUpdateType())
+
+			updProvides, err := handler.GetUpdateProvides()
+			require.NoError(t, err)
+
+			assert.Equal(t, artifact.TypeInfoProvides{
+				"rootfs-image.checksum": "bfb4567944c5730face9f3d54efc0c1ff3b5dd1338862b23b849ac87679e162f",
+				"testProvideKey1":       "testProvideValue1",
+				"testProvideKey2":       "testProvideValue2",
+				"rootfs-image.version":  tc.softwareVersion,
+			}, updProvides)
+		})
+	}
 }
 
 func TestWriteRootfsImageChecksum(t *testing.T) {
 
 	// Cannot find payload file (nonexisting)
-	err := writeRootfsImageChecksum("idonotexist", nil)
+	err := writeRootfsImageChecksum("idonotexist", nil, false)
 	assert.Contains(t, err.Error(), "Failed to open the payload file")
 
 	// Checksum a dummy file
@@ -447,10 +585,89 @@ func TestWriteRootfsImageChecksum(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, tf.Close())
 	typeInfo := artifact.TypeInfoV3{}
-	err = writeRootfsImageChecksum(tf.Name(), &typeInfo)
+
+	err = writeRootfsImageChecksum(tf.Name(), &typeInfo, false)
 	assert.NoError(t, err)
 	require.NotNil(t, typeInfo.ArtifactProvides)
-	_, ok := typeInfo.ArtifactProvides["rootfs_image_checksum"]
+	_, ok := typeInfo.ArtifactProvides["rootfs-image.checksum"]
 	assert.True(t, ok)
 
+	// legacy key
+	err = writeRootfsImageChecksum(tf.Name(), &typeInfo, true)
+	assert.NoError(t, err)
+	require.NotNil(t, typeInfo.ArtifactProvides)
+	_, ok = typeInfo.ArtifactProvides["rootfs_image_checksum"]
+	assert.True(t, ok)
+}
+
+func TestGetArtifactProvides(t *testing.T) {
+	testCases := map[string]struct {
+		artifactName             string
+		artifactGroup            string
+		softwareFilesystem       string
+		softwareName             string
+		softwareVersion          string
+		noDefaultSoftwareVersion bool
+		out                      map[string]string
+	}{
+		"rootfs, no software version": {
+			artifactName:  "artifact-name",
+			artifactGroup: "artifact-group",
+			out: map[string]string{
+				"rootfs-image.version": "artifact-name",
+			},
+		},
+		"rootfs, software version": {
+			artifactName:    "artifact-name",
+			artifactGroup:   "artifact-group",
+			softwareVersion: "v1",
+			out: map[string]string{
+				"rootfs-image.version": "v1",
+			},
+		},
+		"rootfs, software name and version": {
+			artifactName:    "artifact-name",
+			artifactGroup:   "artifact-group",
+			softwareName:    "my-software",
+			softwareVersion: "v1",
+			out: map[string]string{
+				"rootfs-image.my-software.version": "v1",
+			},
+		},
+		"rootfs, software filesystem, name and version": {
+			artifactName:       "artifact-name",
+			artifactGroup:      "artifact-group",
+			softwareName:       "my-software",
+			softwareVersion:    "v1",
+			softwareFilesystem: "my-fs",
+			out: map[string]string{
+				"my-fs.my-software.version": "v1",
+			},
+		},
+		"rootfs, software filesystem, name and version with no default software version": {
+			artifactName:             "artifact-name",
+			artifactGroup:            "artifact-group",
+			softwareName:             "my-software",
+			softwareVersion:          "v1",
+			softwareFilesystem:       "my-fs",
+			noDefaultSoftwareVersion: true,
+			out: map[string]string{
+				"my-fs.my-software.version": "v1",
+			},
+		},
+		"rootfs, no default software version": {
+			artifactName:             "artifact-name",
+			artifactGroup:            "artifact-group",
+			noDefaultSoftwareVersion: true,
+			out:                      map[string]string{},
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			result := getSoftwareVersion(tc.artifactName, tc.softwareFilesystem,
+				tc.softwareName, tc.softwareVersion, tc.noDefaultSoftwareVersion)
+			assert.Equal(t, tc.out, result)
+		})
+	}
 }

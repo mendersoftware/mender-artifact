@@ -295,7 +295,7 @@ func removeVolatileEntries(input string) string {
 	for _, line := range strings.Split(input, "\n") {
 		if strings.HasPrefix(line, "      checksum:") ||
 			strings.HasPrefix(line, "      modified:") ||
-			strings.HasPrefix(line, "\trootfs_image_checksum:") {
+			strings.HasPrefix(line, "\trootfs-image.checksum:") {
 			continue
 		}
 		output.WriteString(line)
@@ -345,6 +345,7 @@ Updates:
     0:
     Type:   rootfs-image
     Provides:
+	rootfs-image.version: release-1
     Depends: Nothing
     Metadata: Nothing
     Files:
@@ -372,6 +373,7 @@ Updates:
     0:
     Type:   rootfs-image
     Provides:
+	rootfs-image.version: release-1
     Depends: Nothing
     Metadata: Nothing
     Files:
@@ -426,6 +428,7 @@ Updates:
     0:
     Type:   rootfs-image
     Provides:
+	rootfs-image.version: release-1
     Depends: Nothing
     Metadata: Nothing
     Files:
@@ -478,7 +481,8 @@ func TestModifyModuleArtifact(t *testing.T) {
 Updates:
     0:
     Type:   testType
-    Provides: Nothing
+    Provides:
+	rootfs-image.testType.version: testName
     Depends: Nothing
     Metadata: Nothing
     Files:
@@ -574,7 +578,8 @@ Updates:
 Updates:
     0:
     Type:   testType
-    Provides: Nothing
+    Provides:
+	rootfs-image.testType.version: testName
     Depends: Nothing
     Metadata:
 	{
@@ -629,7 +634,7 @@ func TestModifyExtraAttributes(t *testing.T) {
 		// put it here to make sure that the modification logic
 		// *doesn't* modify it, since this belongs only to the
 		// rootfs-image domain.
-		"-p", "rootfs_image_checksum:test",
+		"-p", "rootfs-image.checksum:test",
 	}
 	err = run()
 	require.NoError(t, err)
