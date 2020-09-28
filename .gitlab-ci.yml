@@ -130,16 +130,6 @@ smoketests:linux:
   after_script:
     - rm test.txt test.mender mender-demo-artifact.mender
 
-publish:tests:codecov:
-  image: alpine
-  stage: publish
-  before_script:
-    - apk add --no-cache bash curl findutils git
-  dependencies:
-    - test:static
-  script:
-    - bash -c "bash <(curl -s https://codecov.io/bash) -Z"
-
 publish:tests:
   stage: publish
   image: golang:1.14-alpine3.11
