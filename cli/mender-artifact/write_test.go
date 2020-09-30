@@ -704,3 +704,184 @@ func TestGetSoftwareVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestWriteClearsProvides(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+	artfile := filepath.Join(tmpdir, "artifact.mender")
+
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "update.ext4",
+				Content: []byte("my update"),
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	testCases := map[string]struct {
+		extraArgs      []string
+		clearsProvides []string
+		onlyFor        string
+	}{
+		"rootfs-image/default": {
+			extraArgs: []string{},
+			clearsProvides: []string{
+				"rootfs_image_checksum",
+				"rootfs-image.*",
+			},
+			onlyFor: "rootfs-image",
+		},
+		"module-image/default": {
+			extraArgs: []string{},
+			clearsProvides: []string{
+				"rootfs-image.testType.*",
+			},
+			onlyFor: "module-image",
+		},
+		"no-default-software-version": {
+			extraArgs: []string{
+				"--no-default-software-version",
+			},
+			clearsProvides: nil,
+		},
+		"no-default-clears-provides": {
+			extraArgs: []string{
+				"--no-default-clears-provides",
+			},
+			clearsProvides: nil,
+		},
+		"rootfs-image/clears-provides": {
+			extraArgs: []string{
+				"--clears-provides", "my-fs.my-app.*",
+			},
+			clearsProvides: []string{
+				"my-fs.my-app.*",
+				"rootfs_image_checksum",
+				"rootfs-image.*",
+			},
+			onlyFor: "rootfs-image",
+		},
+		"module-image/clears-provides": {
+			extraArgs: []string{
+				"--clears-provides", "my-fs.my-app.*",
+			},
+			clearsProvides: []string{
+				"my-fs.my-app.*",
+				"rootfs-image.testType.*",
+			},
+			onlyFor: "module-image",
+		},
+		"no-default-software-version and clears-provides": {
+			extraArgs: []string{
+				"--no-default-software-version",
+				"--clears-provides", "my-fs.my-app.*",
+			},
+			clearsProvides: []string{
+				"my-fs.my-app.*",
+			},
+		},
+		"no-default-clears-provides and clears-provides": {
+			extraArgs: []string{
+				"--no-default-clears-provides",
+				"--clears-provides", "my-fs.my-app.*",
+			},
+			clearsProvides: []string{
+				"my-fs.my-app.*",
+			},
+		},
+		"rootfs-image/software-filesystem": {
+			extraArgs: []string{
+				"--software-filesystem", "my-fs",
+			},
+			clearsProvides: []string{
+				"my-fs.*",
+			},
+			onlyFor: "rootfs-image",
+		},
+		"module-image/software-filesystem": {
+			extraArgs: []string{
+				"--software-filesystem", "my-fs",
+			},
+			clearsProvides: []string{
+				"my-fs.testType.*",
+			},
+			onlyFor: "module-image",
+		},
+		"software-name": {
+			extraArgs: []string{
+				"--software-name", "my-app",
+			},
+			clearsProvides: []string{
+				"rootfs-image.my-app.*",
+			},
+		},
+		"software-filesystem and software-name": {
+			extraArgs: []string{
+				"--software-filesystem", "my-fs",
+				"--software-name", "my-app",
+			},
+			clearsProvides: []string{
+				"my-fs.my-app.*",
+			},
+		},
+		"clears-provides same as default": {
+			extraArgs: []string{
+				"--clears-provides", "rootfs-image.*",
+			},
+			clearsProvides: []string{
+				"rootfs-image.*",
+				"rootfs_image_checksum",
+			},
+			onlyFor: "rootfs-image",
+		},
+	}
+	for name, tc := range testCases {
+		testfunc := func(t *testing.T, payloadType string) {
+			args := []string{
+				"mender-artifact", "write", payloadType,
+				"-t", "mydevice",
+				"-o", artfile,
+				"-f", filepath.Join(updateTestDir, "update.ext4"),
+				"-n", "testName",
+			}
+			if payloadType == "module-image" {
+				args = append(args, "-T", "testType")
+			}
+			args = append(args, tc.extraArgs...)
+
+			os.Args = args
+			err = run()
+			assert.NoError(t, err)
+
+			artFd, err := os.Open(artfile)
+			assert.NoError(t, err)
+			reader := areader.NewReader(artFd)
+			err = reader.ReadArtifact()
+			assert.NoError(t, err)
+
+			handlers := reader.GetHandlers()
+			assert.Equal(t, 1, len(handlers))
+			handler := handlers[0]
+
+			clearsProvides := handler.GetUpdateClearsProvides()
+
+			assert.Equal(t, tc.clearsProvides, clearsProvides)
+		}
+		if tc.onlyFor == "" || tc.onlyFor == "rootfs-image" {
+			t.Run(name+"/rootfs-image", func(t *testing.T) {
+				testfunc(t, "rootfs-image")
+			})
+		}
+		if tc.onlyFor == "" || tc.onlyFor == "module-image" {
+			t.Run(name+"/module-image", func(t *testing.T) {
+				testfunc(t, "module-image")
+			})
+		}
+	}
+}

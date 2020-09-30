@@ -354,6 +354,7 @@ Updates:
     Provides:
 	rootfs-image.version: release-1
     Depends: Nothing
+    Clears Provides: ["rootfs_image_checksum", "rootfs-image.*"]
     Metadata: Nothing
     Files:
       name:     mender_test.img
@@ -382,6 +383,7 @@ Updates:
     Provides:
 	rootfs-image.version: release-1
     Depends: Nothing
+    Clears Provides: ["rootfs_image_checksum", "rootfs-image.*"]
     Metadata: Nothing
     Files:
       name:     mender_test.img
@@ -437,6 +439,7 @@ Updates:
     Provides:
 	rootfs-image.version: release-1
     Depends: Nothing
+    Clears Provides: ["rootfs_image_checksum", "rootfs-image.*"]
     Metadata: Nothing
     Files:
       name:     mender_test.img
@@ -506,6 +509,7 @@ Updates:
     Provides:
 	rootfs-image.testType.version: testName
     Depends: Nothing
+    Clears Provides: ["rootfs-image.testType.*"]
     Metadata: Nothing
     Files:
       name:     updateFile
@@ -603,6 +607,7 @@ Updates:
     Provides:
 	rootfs-image.testType.version: testName
     Depends: Nothing
+    Clears Provides: ["rootfs-image.testType.*"]
     Metadata:
 	{
 	  "a": "b"
@@ -667,6 +672,7 @@ func TestModifyExtraAttributes(t *testing.T) {
 		"-t", "testDevice",
 		"-T", "testType",
 		"-f", filepath.Join(tmpdir, "updateFile"),
+		"--no-default-clears-provides",
 		"--no-default-software-version",
 		// This provide attribute is not used by most Update Module. We
 		// put it here to make sure that the modification logic
@@ -732,6 +738,7 @@ Updates:
 		"device-type",
 		"file",
 		"legacy-rootfs-image-checksum", // Just a generic provide
+		"no-default-clears-provides",
 		"no-default-software-version",
 		"output-path",
 		"provides",
@@ -773,6 +780,8 @@ func TestModifyExtraAttributesOnNonArtifact(t *testing.T) {
 		{"--depends", "depends:value"},
 		{"--provides", "provides:value"},
 		{"--meta-data", filepath.Join(tmpdir, "meta-data")},
+		{"--clears-provides", "rootfs-image.my-new-app.*"},
+		{"--delete-clears-provides", "rootfs-image.*"},
 	}
 
 	for _, p := range paramPairs {
@@ -788,6 +797,67 @@ func testModifyExtraAttributesOnNonArtifact(t *testing.T, art string, p []string
 	err := run()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be used with an Artifact")
+}
+
+func TestModifyClearsProvides(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+	artfile := filepath.Join(tmpdir, "artifact.mender")
+
+	os.Args = []string{
+		"mender-artifact", "write", "module-image",
+		"-o", artfile,
+		"-n", "testName",
+		"-t", "testDevice",
+		"-T", "testType",
+	}
+	err = run()
+	require.NoError(t, err)
+
+	// Test that we can manipulate "Clears Provides" values.
+	data := modifyAndRead(t, artfile, "--clears-provides", "my-fs.*",
+		"--delete-clears-provides", "rootfs-image.testType.*",
+	)
+	expected := `Mender artifact:
+  Name: testName
+  Format: mender
+  Version: 3
+  Signature: no signature
+  Compatible devices: '[testDevice]'
+  Provides group: 
+  Depends on one of artifact(s): []
+  Depends on one of group(s): []
+  State scripts:
+
+Updates:
+    0:
+    Type:   testType
+    Provides:
+	rootfs-image.testType.version: testName
+    Depends: Nothing
+    Clears Provides: ["my-fs.*"]
+    Metadata: Nothing
+    Files: None
+
+`
+	assert.Equal(t, expected, removeVolatileEntries(data))
+
+	// Test that attributes are not disturbed by a no-op modification.
+	data = modifyAndRead(t, artfile)
+	assert.Equal(t, expected, removeVolatileEntries(data))
+
+	modifyWriteFlagsTested.addFlags([]string{
+		"artifact-name",
+		"clears-provides",
+		"device-type",
+		"output-path",
+		"type",
+	})
+	modifyFlagsTested.addFlags([]string{
+		"clears-provides",
+		"delete-clears-provides",
+	})
 }
 
 func TestModifyNoProvides(t *testing.T) {
@@ -888,6 +958,7 @@ Updates:
     Provides:
 	rootfs-image.version: testName
     Depends: Nothing
+    Clears Provides: ["rootfs_image_checksum", "rootfs-image.*"]
     Metadata: Nothing
     Files:
       name:     updateFile

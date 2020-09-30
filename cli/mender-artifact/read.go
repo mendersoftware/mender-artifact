@@ -170,6 +170,11 @@ func printPayload(index int, p handlers.Installer) {
 		}
 	}
 
+	caps := p.GetUpdateClearsProvides()
+	if caps != nil {
+		fmt.Printf("    Clears Provides: [\"%s\"]\n", strings.Join(caps, "\", \""))
+	}
+
 	metaData, err := p.GetUpdateMetaData()
 	fmt.Printf("    Metadata:")
 	if err != nil {

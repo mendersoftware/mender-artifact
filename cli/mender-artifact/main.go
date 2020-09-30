@@ -37,7 +37,10 @@ const (
 )
 
 const (
+	clearsProvidesFlag           = "clears-provides"
+	deleteClearsProvidesFlag     = "delete-clears-provides"
 	noDefaultSoftwareVersionFlag = "no-default-software-version"
+	noDefaultClearsProvidesFlag  = "no-default-clears-provides"
 	softwareNameFlag             = "software-name"
 	softwareVersionFlag          = "software-version"
 	softwareFilesystemFlag       = "software-filesystem"
@@ -150,6 +153,14 @@ func getCliContext() *cli.App {
 		Name:  "meta-data, m",
 		Usage: "The meta-data JSON `FILE` for this payload",
 	}
+	clearsArtifactProvides := cli.StringSliceFlag{
+		Name:  clearsProvidesFlag,
+		Usage: "Add a clears_artifact_provides field to Artifact payload",
+	}
+	noDefaultClearsArtifactProvides := cli.BoolFlag{
+		Name:  noDefaultClearsProvidesFlag,
+		Usage: "Do not add any default clears_artifact_provides fields to Artifact payload",
+	}
 
 	//
 	// write
@@ -216,6 +227,8 @@ func getCliContext() *cli.App {
 		artifactDependsGroups,
 		payloadDepends,
 		payloadProvides,
+		clearsArtifactProvides,
+		noDefaultClearsArtifactProvides,
 		compressionFlag,
 		//////////////////////
 		// Sotware versions //
@@ -307,6 +320,8 @@ func getCliContext() *cli.App {
 			Name:  "augment-file",
 			Usage: "Include `FILE` in payload in the augment section. Can be given more than once.",
 		},
+		clearsArtifactProvides,
+		noDefaultClearsArtifactProvides,
 		compressionFlag,
 		//////////////////////
 		// Sotware versions //
@@ -423,6 +438,11 @@ func getCliContext() *cli.App {
 		payloadProvides,
 		payloadDepends,
 		payloadMetaData,
+		clearsArtifactProvides,
+		cli.StringSliceFlag{
+			Name:  deleteClearsProvidesFlag,
+			Usage: "Erase one \"Clears Provides\" filter from the Artifact.",
+		},
 		cli.StringFlag{
 			Name:  "tenant-token, t",
 			Usage: "Full path to the tenant token that will be injected into modified file.",

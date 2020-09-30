@@ -311,10 +311,16 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 		}
 	}
 
+	clearsArtifactProvides, err := makeClearsArtifactProvides(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	typeInfoV3 := &artifact.TypeInfoV3{
-		Type:             ctx.String("type"),
-		ArtifactDepends:  typeInfoDepends,
-		ArtifactProvides: typeInfoProvides,
+		Type:                   ctx.String("type"),
+		ArtifactDepends:        typeInfoDepends,
+		ArtifactProvides:       typeInfoProvides,
+		ClearsArtifactProvides: clearsArtifactProvides,
 	}
 
 	if ctx.String("augment-type") == "" {
@@ -409,6 +415,53 @@ func softwareVersionOverridesProvides(ctx *cli.Context, key string) bool {
 	} else {
 		return softwareIndexes[len(softwareIndexes)-1][0] > providesIndexes[len(providesIndexes)-1][0]
 	}
+}
+
+func makeClearsArtifactProvides(ctx *cli.Context) ([]string, error) {
+	list := ctx.StringSlice(clearsProvidesFlag)
+
+	if ctx.Bool(noDefaultClearsProvidesFlag) || ctx.Bool(noDefaultSoftwareVersionFlag) {
+		return list, nil
+	}
+
+	var softwareFilesystem string
+	if ctx.IsSet("software-filesystem") {
+		softwareFilesystem = ctx.String("software-filesystem")
+	} else {
+		softwareFilesystem = "rootfs-image"
+	}
+
+	var softwareName string
+	if len(ctx.String("software-name")) > 0 {
+		softwareName = ctx.String("software-name") + "."
+	} else if ctx.Command.Name == "rootfs-image" {
+		softwareName = ""
+		// This one is included for legacy reasons. Previously,
+		// "rootfs_image_checksum" was the name given to the checksum,
+		// but new artifacts follow the new dot separated scheme,
+		// "rootfs-image.checksum", which also has the correct dash
+		// instead of the incorrect underscore.
+		if softwareFilesystem == "rootfs-image" {
+			list = append(list, "rootfs_image_checksum")
+		}
+	} else if ctx.Command.Name == "module-image" {
+		softwareName = ctx.String("type") + "."
+	} else {
+		return nil, errors.New("Unknown write command in makeClearsArtifactProvides(), this is a bug.")
+	}
+
+	defaultCap := fmt.Sprintf("%s.%s*", softwareFilesystem, softwareName)
+	for _, cap := range list {
+		if defaultCap == cap {
+			// Avoid adding it twice if the default is the same as a
+			// specified provide.
+			goto dontAdd
+		}
+	}
+	list = append(list, defaultCap)
+
+dontAdd:
+	return list, nil
 }
 
 func makeMetaData(ctx *cli.Context) (map[string]interface{}, map[string]interface{}, error) {

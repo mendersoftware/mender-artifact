@@ -226,6 +226,16 @@ func printCmdline(ar *areader.Reader, args []string) {
 		}
 	}
 
+	// Always add this flag, since we will write custom flags.
+	fmt.Printf(" --%s", noDefaultClearsProvidesFlag)
+
+	caps := handler.GetUpdateOriginalClearsProvides()
+	if caps != nil {
+		for _, value := range caps {
+			fmt.Printf(" --%s '%s'", clearsProvidesFlag, value)
+		}
+	}
+
 	if len(args) > 0 {
 		fmt.Printf(" %s\n", strings.Join(args, " "))
 	}

@@ -251,9 +251,30 @@ func modifyArtifactAttributes(c *cli.Context, image VPImage) error {
 }
 
 func modifyPayloadAttributes(c *cli.Context, image VPImage) error {
-	art, isArt := image.(*ModImageArtifact)
+	err := modifyPayloadProvidesDepends(c, image)
+	if err != nil {
+		return err
+	}
 
+	err = modifyPayloadMetaData(c, image)
+	if err != nil {
+		return err
+	}
+
+	err = modifyPayloadClearsProvides(c, image)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func modifyPayloadProvidesDepends(c *cli.Context, image VPImage) error {
 	keyValues, err := extractKeyValuesIfArtifact(c, "depends", image)
+	// The unconditional cast usage here is safe due to the
+	// `extractKeyValuesIfArtifact` call above, which will return error if
+	// not.
+	art, _ := image.(*ModImageArtifact)
 	if err != nil {
 		return err
 	} else if keyValues != nil {
@@ -261,8 +282,6 @@ func modifyPayloadAttributes(c *cli.Context, image VPImage) error {
 		if err != nil {
 			return err
 		}
-		// The unconditional cast usage here is safe due to the
-		// `extractKeyValuesIfArtifact` call above.
 		art.writeArgs.TypeInfoV3.ArtifactDepends = typeInfoDepends
 	}
 
@@ -299,6 +318,12 @@ func modifyPayloadAttributes(c *cli.Context, image VPImage) error {
 		art.writeArgs.AugmentTypeInfoV3.ArtifactProvides = typeInfoProvides
 	}
 
+	return nil
+}
+
+func modifyPayloadMetaData(c *cli.Context, image VPImage) error {
+	art, isArt := image.(*ModImageArtifact)
+
 	metaData, augMetaData, err := makeMetaData(c)
 	if err != nil {
 		return err
@@ -314,6 +339,35 @@ func modifyPayloadAttributes(c *cli.Context, image VPImage) error {
 			return errors.New("`--augment-meta-data` argument must be used with an Artifact")
 		}
 		art.writeArgs.AugmentMetaData = augMetaData
+	}
+
+	return nil
+}
+
+func modifyPayloadClearsProvides(c *cli.Context, image VPImage) error {
+	art, isArt := image.(*ModImageArtifact)
+
+	if c.IsSet(clearsProvidesFlag) {
+		if !isArt {
+			return errors.Errorf("`%s` argument must be used with an Artifact", clearsProvidesFlag)
+		}
+		art.writeArgs.TypeInfoV3.ClearsArtifactProvides = append(art.writeArgs.TypeInfoV3.ClearsArtifactProvides,
+			c.StringSlice(clearsProvidesFlag)...)
+	}
+
+	if c.IsSet(deleteClearsProvidesFlag) {
+		if !isArt {
+			return errors.Errorf("`%s` argument must be used with an Artifact", deleteClearsProvidesFlag)
+		}
+		newClearsProvides := make([]string, 0, len(art.writeArgs.TypeInfoV3.ClearsArtifactProvides))
+		for _, entry := range art.writeArgs.TypeInfoV3.ClearsArtifactProvides {
+			for _, removeClearsProvides := range c.StringSlice(deleteClearsProvidesFlag) {
+				if entry != removeClearsProvides {
+					newClearsProvides = append(newClearsProvides, entry)
+				}
+			}
+		}
+		art.writeArgs.TypeInfoV3.ClearsArtifactProvides = newClearsProvides
 	}
 
 	return nil
