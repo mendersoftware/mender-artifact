@@ -128,6 +128,7 @@ func testDumpContent(t *testing.T, imageType string) {
 		" --device-type TestDevice"+
 		" --depends-groups dependsGroup"+
 		" --type %s"+
+		" --no-default-software-version"+
 		" --provides testProvides:someProv"+
 		" --depends testDepends:someDep"+
 		" --script %s/scripts/ArtifactInstall_Enter_45_test"+
@@ -193,7 +194,8 @@ func testDumpContent(t *testing.T, imageType string) {
 		" --device-type TestDevice2"+
 		" --depends-groups dependsGroup"+
 		" --depends-groups dependsGroup2"+
-		" --type %s",
+		" --type %s"+
+		" --no-default-software-version",
 		imageType),
 		printedStr[0:strings.Index(printedStr, " --provides ")])
 

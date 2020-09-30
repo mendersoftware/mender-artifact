@@ -630,6 +630,7 @@ func TestModifyExtraAttributes(t *testing.T) {
 		"-t", "testDevice",
 		"-T", "testType",
 		"-f", filepath.Join(tmpdir, "updateFile"),
+		"--no-default-software-version",
 		// This provide attribute is not used by most Update Module. We
 		// put it here to make sure that the modification logic
 		// *doesn't* modify it, since this belongs only to the
