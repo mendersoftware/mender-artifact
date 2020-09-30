@@ -181,7 +181,7 @@ Updates:
 	rootfs-image.checksum: ee7cd8c4f4613a5dd2bf585815a77209a13ea7410aa5dedcc8654993b30a4972
 	rootfs-image.version: testName
     Depends: Nothing
-    Clears Provides: \["rootfs_image_checksum", "rootfs-image\.\*"\]
+    Clears Provides: \["artifact_group", "rootfs_image_checksum", "rootfs-image\.\*"\]
     Metadata: Nothing
     Files:
       name:     updateFile

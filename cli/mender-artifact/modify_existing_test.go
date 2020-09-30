@@ -354,7 +354,7 @@ Updates:
     Provides:
 	rootfs-image.version: release-1
     Depends: Nothing
-    Clears Provides: ["rootfs_image_checksum", "rootfs-image.*"]
+    Clears Provides: ["artifact_group", "rootfs_image_checksum", "rootfs-image.*"]
     Metadata: Nothing
     Files:
       name:     mender_test.img
@@ -383,7 +383,7 @@ Updates:
     Provides:
 	rootfs-image.version: release-1
     Depends: Nothing
-    Clears Provides: ["rootfs_image_checksum", "rootfs-image.*"]
+    Clears Provides: ["artifact_group", "rootfs_image_checksum", "rootfs-image.*"]
     Metadata: Nothing
     Files:
       name:     mender_test.img
@@ -439,7 +439,7 @@ Updates:
     Provides:
 	rootfs-image.version: release-1
     Depends: Nothing
-    Clears Provides: ["rootfs_image_checksum", "rootfs-image.*"]
+    Clears Provides: ["artifact_group", "rootfs_image_checksum", "rootfs-image.*"]
     Metadata: Nothing
     Files:
       name:     mender_test.img
@@ -958,7 +958,7 @@ Updates:
     Provides:
 	rootfs-image.version: testName
     Depends: Nothing
-    Clears Provides: ["rootfs_image_checksum", "rootfs-image.*"]
+    Clears Provides: ["artifact_group", "rootfs_image_checksum", "rootfs-image.*"]
     Metadata: Nothing
     Files:
       name:     updateFile

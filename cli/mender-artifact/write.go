@@ -436,13 +436,17 @@ func makeClearsArtifactProvides(ctx *cli.Context) ([]string, error) {
 		softwareName = ctx.String("software-name") + "."
 	} else if ctx.Command.Name == "rootfs-image" {
 		softwareName = ""
-		// This one is included for legacy reasons. Previously,
-		// "rootfs_image_checksum" was the name given to the checksum,
-		// but new artifacts follow the new dot separated scheme,
-		// "rootfs-image.checksum", which also has the correct dash
-		// instead of the incorrect underscore.
+		// "rootfs_image_checksum" is included for legacy
+		// reasons. Previously, "rootfs_image_checksum" was the name
+		// given to the checksum, but new artifacts follow the new dot
+		// separated scheme, "rootfs-image.checksum", which also has the
+		// correct dash instead of the incorrect underscore.
+		//
+		// "artifact_group" is included as a sane default for
+		// rootfs-image updates. A standard rootfs-image update should
+		// clear the group if it does not have one.
 		if softwareFilesystem == "rootfs-image" {
-			list = append(list, "rootfs_image_checksum")
+			list = append(list, "artifact_group", "rootfs_image_checksum")
 		}
 	} else if ctx.Command.Name == "module-image" {
 		softwareName = ctx.String("type") + "."

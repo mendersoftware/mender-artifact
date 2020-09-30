@@ -732,6 +732,7 @@ func TestWriteClearsProvides(t *testing.T) {
 		"rootfs-image/default": {
 			extraArgs: []string{},
 			clearsProvides: []string{
+				"artifact_group",
 				"rootfs_image_checksum",
 				"rootfs-image.*",
 			},
@@ -762,6 +763,7 @@ func TestWriteClearsProvides(t *testing.T) {
 			},
 			clearsProvides: []string{
 				"my-fs.my-app.*",
+				"artifact_group",
 				"rootfs_image_checksum",
 				"rootfs-image.*",
 			},
@@ -836,6 +838,7 @@ func TestWriteClearsProvides(t *testing.T) {
 			},
 			clearsProvides: []string{
 				"rootfs-image.*",
+				"artifact_group",
 				"rootfs_image_checksum",
 			},
 			onlyFor: "rootfs-image",

@@ -262,8 +262,9 @@ It can also contain some additional parameters extending or modifying the global
         "rootfs-image.checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
     },
     "clears_artifact_provides": [
-        "rootfs-image.*",
-        "rootfs_image_checksum"
+        "artifact_group",
+        "rootfs_image_checksum",
+        "rootfs-image.*"
     ]
 }
 ```
