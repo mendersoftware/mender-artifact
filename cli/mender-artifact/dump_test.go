@@ -211,4 +211,46 @@ func testDumpContent(t *testing.T, imageType string) {
 	assert.True(t, strings.Index(printedStr, " --depends testDepends2:someDep2") >= 0)
 	assert.True(t, strings.Index(printedStr, fmt.Sprintf(" --script %s/scripts/ArtifactInstall_Enter_45_test", tmpdir)) >= 0)
 	assert.True(t, strings.Index(printedStr, fmt.Sprintf(" --script %s/scripts/ArtifactCommit_Leave_55", tmpdir)) >= 0)
+
+	// --------------------------------------------------------------------
+	// Flags
+	// --------------------------------------------------------------------
+
+	// Check that all flags which are documented on the command line are taken into
+	// account in the "dump" command. *DO NOT* add flags to this list without making
+	// sure that either:
+	//
+	// 1. It is tested somewhere in this file, by using the flag, dumping it, and
+	// checking that it is recreated correctly.
+	//
+	// -or-
+	//
+	// 2. It does not need to be tested (no effect on dumping or tested elsewhere).
+	flagChecker := newFlagChecker("write")
+	flagChecker.addFlags([]string{
+		"artifact-name",
+		"artifact-name-depends",
+		"compression", // Not tested in "dump".
+		"depends",
+		"depends-groups",
+		"device-type",
+		"file",
+		"key",                          // Not tested in "dump".
+		"legacy-rootfs-image-checksum", // Not relevant for "dump", which uses "module-image".
+		"meta-data",
+		"no-checksum-provide", // Not relevant for "dump", which uses "module-image".
+		"no-default-software-version",
+		"output-path", // Not relevant for "dump".
+		"provides",
+		"provides-group",
+		"script",
+		"software-filesystem", // These three indirectly handled by --provides.
+		"software-name",       // <
+		"software-version",    // <
+		"ssh-args",            // Not relevant for "dump".
+		"type",
+		"version", // Could be supported, but in practice we only support >= v3.
+	})
+
+	flagChecker.checkAllFlagsTested(t)
 }
