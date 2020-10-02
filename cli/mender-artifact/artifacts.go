@@ -264,9 +264,10 @@ func reconstructPayloadWriteData(info *artifact.Info, inst map[int]handlers.Inst
 			return
 		}
 		typeInfoV3 = &artifact.TypeInfoV3{
-			Type:             updateType,
-			ArtifactDepends:  uDepends,
-			ArtifactProvides: uProvides,
+			Type:                   updateType,
+			ArtifactDepends:        uDepends,
+			ArtifactProvides:       uProvides,
+			ClearsArtifactProvides: inst[0].GetUpdateOriginalClearsProvides(),
 		}
 
 		if metaData, err = inst[0].GetUpdateMetaData(); err != nil {

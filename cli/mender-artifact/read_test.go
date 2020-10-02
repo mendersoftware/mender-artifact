@@ -135,6 +135,7 @@ Updates:
 	overrideDependKey: augmentOverrideDependValue
 	testDependKey1: testDependValue1
 	testDependKey2: testDependValue2
+    Clears Provides: \["rootfs-image\.testType\.\*"\]
     Metadata:
 	\{
 	  "metadata": "augment"
@@ -180,6 +181,7 @@ Updates:
 	rootfs-image.checksum: ee7cd8c4f4613a5dd2bf585815a77209a13ea7410aa5dedcc8654993b30a4972
 	rootfs-image.version: testName
     Depends: Nothing
+    Clears Provides: \["artifact_group", "rootfs_image_checksum", "rootfs-image\.\*"\]
     Metadata: Nothing
     Files:
       name:     updateFile

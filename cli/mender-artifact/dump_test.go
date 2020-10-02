@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"testing"
 
@@ -128,8 +129,10 @@ func testDumpContent(t *testing.T, imageType string) {
 		" --device-type TestDevice"+
 		" --depends-groups dependsGroup"+
 		" --type %s"+
+		" --no-default-software-version"+
 		" --provides testProvides:someProv"+
 		" --depends testDepends:someDep"+
+		" --no-default-clears-provides"+
 		" --script %s/scripts/ArtifactInstall_Enter_45_test"+
 		" --meta-data %s/meta/0000.meta-data"+
 		" --file %s/files/file",
@@ -156,6 +159,7 @@ func testDumpContent(t *testing.T, imageType string) {
 		"-t", "TestDevice",
 		"-t", "TestDevice2",
 		"-T", imageType,
+		"--clears-provides", imageType + ".*",
 		"-N", "dependsOnArtifact",
 		"-N", "dependsOnArtifact2",
 		"-f", path.Join(tmpdir, "file"),
@@ -181,10 +185,11 @@ func testDumpContent(t *testing.T, imageType string) {
 
 	assert.NoError(t, err)
 	printedStr := string(printed)
+
 	// The provides, depends and scripts are stored in maps, where the order
-	// is unpredictable, so compare only the beginning and end directly, and
-	// use search to match those afterwards.
-	assert.Equal(t, fmt.Sprintf("write module-image"+
+	// is unpredictable, so split on the start of the flag, sort, and
+	// compare that.
+	expected := strings.Split("write module-image"+
 		" --artifact-name Name"+
 		" --provides-group providesGroup"+
 		" --artifact-name-depends dependsOnArtifact"+
@@ -193,20 +198,69 @@ func testDumpContent(t *testing.T, imageType string) {
 		" --device-type TestDevice2"+
 		" --depends-groups dependsGroup"+
 		" --depends-groups dependsGroup2"+
-		" --type %s",
-		imageType),
-		printedStr[0:strings.Index(printedStr, " --provides ")])
+		fmt.Sprintf(" --type %s", imageType)+
+		" --no-default-software-version"+
+		" --no-default-clears-provides"+
+		" --provides testProvides:someProv"+
+		" --provides testProvides2:someProv2"+
+		fmt.Sprintf(" --provides rootfs-image.%s.version:Name", imageType)+
+		" --depends testDepends:someDep"+
+		" --depends testDepends2:someDep2"+
+		fmt.Sprintf(" --script %s/scripts/ArtifactInstall_Enter_45_test", tmpdir)+
+		fmt.Sprintf(" --script %s/scripts/ArtifactCommit_Leave_55", tmpdir)+
+		fmt.Sprintf(" --clears-provides '%s.*'", imageType)+
+		fmt.Sprintf(" --clears-provides 'rootfs-image.%s.*'", imageType)+
+		fmt.Sprintf(" --meta-data %s/meta/0000.meta-data", tmpdir)+
+		fmt.Sprintf(" --file %s/files/file", tmpdir)+
+		fmt.Sprintf(" --file %s/files/file2", tmpdir),
+		" --")
+	actual := strings.Split(printedStr, " --")
+	sort.Strings(expected[1:])
+	sort.Strings(actual[1:])
 
-	assert.Equal(t, fmt.Sprintf(" --meta-data %s/meta/0000.meta-data"+
-		" --file %s/files/file"+
-		" --file %s/files/file2",
-		tmpdir, tmpdir, tmpdir),
-		printedStr[strings.Index(printedStr, " --meta-data "):])
+	assert.Equal(t, expected, actual)
 
-	assert.True(t, strings.Index(printedStr, " --provides testProvides:someProv") >= 0)
-	assert.True(t, strings.Index(printedStr, " --provides testProvides2:someProv2") >= 0)
-	assert.True(t, strings.Index(printedStr, " --depends testDepends:someDep") >= 0)
-	assert.True(t, strings.Index(printedStr, " --depends testDepends2:someDep2") >= 0)
-	assert.True(t, strings.Index(printedStr, fmt.Sprintf(" --script %s/scripts/ArtifactInstall_Enter_45_test", tmpdir)) >= 0)
-	assert.True(t, strings.Index(printedStr, fmt.Sprintf(" --script %s/scripts/ArtifactCommit_Leave_55", tmpdir)) >= 0)
+	// --------------------------------------------------------------------
+	// Flags
+	// --------------------------------------------------------------------
+
+	// Check that all flags which are documented on the command line are taken into
+	// account in the "dump" command. *DO NOT* add flags to this list without making
+	// sure that either:
+	//
+	// 1. It is tested somewhere in this file, by using the flag, dumping it, and
+	// checking that it is recreated correctly.
+	//
+	// -or-
+	//
+	// 2. It does not need to be tested (no effect on dumping or tested elsewhere).
+	flagChecker := newFlagChecker("write")
+	flagChecker.addFlags([]string{
+		"artifact-name",
+		"artifact-name-depends",
+		"clears-provides",
+		"compression", // Not tested in "dump".
+		"depends",
+		"depends-groups",
+		"device-type",
+		"file",
+		"key",                          // Not tested in "dump".
+		"legacy-rootfs-image-checksum", // Not relevant for "dump", which uses "module-image".
+		"meta-data",
+		"no-checksum-provide", // Not relevant for "dump", which uses "module-image".
+		"no-default-clears-provides",
+		"no-default-software-version",
+		"output-path", // Not relevant for "dump".
+		"provides",
+		"provides-group",
+		"script",
+		"software-filesystem", // These three indirectly handled by --provides.
+		"software-name",       // <
+		"software-version",    // <
+		"ssh-args",            // Not relevant for "dump".
+		"type",
+		"version", // Could be supported, but in practice we only support >= v3.
+	})
+
+	flagChecker.checkAllFlagsTested(t)
 }

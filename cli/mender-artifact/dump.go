@@ -209,6 +209,9 @@ func printCmdline(ar *areader.Reader, args []string) {
 
 	fmt.Printf(" --type %s", handler.GetUpdateType())
 
+	// Always add this flag, since we will write custom flags.
+	fmt.Printf(" --%s", noDefaultSoftwareVersionFlag)
+
 	provs := handler.GetUpdateOriginalProvides()
 	if provs != nil {
 		for key, value := range provs {
@@ -220,6 +223,16 @@ func printCmdline(ar *areader.Reader, args []string) {
 	if deps != nil {
 		for key, value := range deps {
 			fmt.Printf(" --depends %s:%s", key, value)
+		}
+	}
+
+	// Always add this flag, since we will write custom flags.
+	fmt.Printf(" --%s", noDefaultClearsProvidesFlag)
+
+	caps := handler.GetUpdateOriginalClearsProvides()
+	if caps != nil {
+		for _, value := range caps {
+			fmt.Printf(" --%s '%s'", clearsProvidesFlag, value)
 		}
 	}
 

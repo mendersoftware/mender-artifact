@@ -37,11 +37,6 @@ import (
 	"github.com/urfave/cli"
 )
 
-const (
-	rootfsImage = "rootfs"
-	moduleImage = "module"
-)
-
 func writeRootfsImageChecksum(rootfsFilename string,
 	typeInfo *artifact.TypeInfoV3, legacy bool) (err error) {
 	chk := artifact.NewWriterChecksum(ioutil.Discard)
@@ -175,7 +170,7 @@ func writeRootfs(c *cli.Context) error {
 		ArtifactGroup: c.String("provides-group"),
 	}
 
-	typeInfoV3, _, err := makeTypeInfo(c, rootfsImage)
+	typeInfoV3, _, err := makeTypeInfo(c)
 	if err != nil {
 		return err
 	}
@@ -270,7 +265,7 @@ func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
 
 // makeTypeInfo returns the type-info provides and depends and the augmented
 // type-info provides and depends, or nil.
-func makeTypeInfo(ctx *cli.Context, imageType string) (*artifact.TypeInfoV3, *artifact.TypeInfoV3, error) {
+func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3, error) {
 	// Make key value pairs from the type-info fields supplied on command
 	// line.
 	var keyValues *map[string]string
@@ -294,7 +289,7 @@ func makeTypeInfo(ctx *cli.Context, imageType string) (*artifact.TypeInfoV3, *ar
 			return nil, nil, err
 		}
 	}
-	typeInfoProvides = applySoftwareVersionToTypeInfoProvides(ctx, typeInfoProvides, imageType)
+	typeInfoProvides = applySoftwareVersionToTypeInfoProvides(ctx, typeInfoProvides)
 
 	var augmentTypeInfoDepends artifact.TypeInfoDepends
 	keyValues, err = extractKeyValues(ctx.StringSlice("augment-depends"))
@@ -316,10 +311,16 @@ func makeTypeInfo(ctx *cli.Context, imageType string) (*artifact.TypeInfoV3, *ar
 		}
 	}
 
+	clearsArtifactProvides, err := makeClearsArtifactProvides(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	typeInfoV3 := &artifact.TypeInfoV3{
-		Type:             ctx.String("type"),
-		ArtifactDepends:  typeInfoDepends,
-		ArtifactProvides: typeInfoProvides,
+		Type:                   ctx.String("type"),
+		ArtifactDepends:        typeInfoDepends,
+		ArtifactProvides:       typeInfoProvides,
+		ClearsArtifactProvides: clearsArtifactProvides,
 	}
 
 	if ctx.String("augment-type") == "" {
@@ -345,17 +346,22 @@ func makeTypeInfo(ctx *cli.Context, imageType string) (*artifact.TypeInfoV3, *ar
 	return typeInfoV3, augmentTypeInfoV3, nil
 }
 
-func getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareVersion string, noDefaultSoftwareVersion bool) map[string]string {
+func getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareNameDefault, softwareVersion string, noDefaultSoftwareVersion bool) map[string]string {
 	result := map[string]string{}
 	softwareVersionName := "rootfs-image"
 	if softwareFilesystem != "" {
 		softwareVersionName = softwareFilesystem
 	}
+	if noDefaultSoftwareVersion == false {
+		if softwareName == "" {
+			softwareName = softwareNameDefault
+		}
+		if softwareVersion == "" {
+			softwareVersion = artifactName
+		}
+	}
 	if softwareName != "" {
 		softwareVersionName += fmt.Sprintf(".%s", softwareName)
-	}
-	if noDefaultSoftwareVersion == false && softwareVersion == "" {
-		softwareVersion = artifactName
 	}
 	if softwareVersionName != "" && softwareVersion != "" {
 		result[softwareVersionName+".version"] = softwareVersion
@@ -365,7 +371,7 @@ func getSoftwareVersion(artifactName, softwareFilesystem, softwareName, software
 
 // applySoftwareVersionToTypeInfoProvides returns a new mapping, enriched with provides
 // for the software version; the mapping provided as argument is not modified
-func applySoftwareVersionToTypeInfoProvides(ctx *cli.Context, typeInfoProvides artifact.TypeInfoProvides, imageType string) artifact.TypeInfoProvides {
+func applySoftwareVersionToTypeInfoProvides(ctx *cli.Context, typeInfoProvides artifact.TypeInfoProvides) artifact.TypeInfoProvides {
 	result := make(map[string]string)
 	if typeInfoProvides != nil {
 		for key, value := range typeInfoProvides {
@@ -375,12 +381,13 @@ func applySoftwareVersionToTypeInfoProvides(ctx *cli.Context, typeInfoProvides a
 	artifactName := ctx.String("artifact-name")
 	softwareFilesystem := ctx.String(softwareFilesystemFlag)
 	softwareName := ctx.String(softwareNameFlag)
-	if softwareName == "" && imageType == moduleImage {
-		softwareName = ctx.String("type")
+	softwareNameDefault := ""
+	if ctx.Command.Name == "module-image" {
+		softwareNameDefault = ctx.String("type")
 	}
 	softwareVersion := ctx.String(softwareVersionFlag)
 	noDefaultSoftwareVersion := ctx.Bool(noDefaultSoftwareVersionFlag)
-	if softwareVersionMapping := getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareVersion, noDefaultSoftwareVersion); len(softwareVersionMapping) > 0 {
+	if softwareVersionMapping := getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareNameDefault, softwareVersion, noDefaultSoftwareVersion); len(softwareVersionMapping) > 0 {
 		for key, value := range softwareVersionMapping {
 			if result[key] == "" || softwareVersionOverridesProvides(ctx, key) {
 				result[key] = value
@@ -408,6 +415,57 @@ func softwareVersionOverridesProvides(ctx *cli.Context, key string) bool {
 	} else {
 		return softwareIndexes[len(softwareIndexes)-1][0] > providesIndexes[len(providesIndexes)-1][0]
 	}
+}
+
+func makeClearsArtifactProvides(ctx *cli.Context) ([]string, error) {
+	list := ctx.StringSlice(clearsProvidesFlag)
+
+	if ctx.Bool(noDefaultClearsProvidesFlag) || ctx.Bool(noDefaultSoftwareVersionFlag) {
+		return list, nil
+	}
+
+	var softwareFilesystem string
+	if ctx.IsSet("software-filesystem") {
+		softwareFilesystem = ctx.String("software-filesystem")
+	} else {
+		softwareFilesystem = "rootfs-image"
+	}
+
+	var softwareName string
+	if len(ctx.String("software-name")) > 0 {
+		softwareName = ctx.String("software-name") + "."
+	} else if ctx.Command.Name == "rootfs-image" {
+		softwareName = ""
+		// "rootfs_image_checksum" is included for legacy
+		// reasons. Previously, "rootfs_image_checksum" was the name
+		// given to the checksum, but new artifacts follow the new dot
+		// separated scheme, "rootfs-image.checksum", which also has the
+		// correct dash instead of the incorrect underscore.
+		//
+		// "artifact_group" is included as a sane default for
+		// rootfs-image updates. A standard rootfs-image update should
+		// clear the group if it does not have one.
+		if softwareFilesystem == "rootfs-image" {
+			list = append(list, "artifact_group", "rootfs_image_checksum")
+		}
+	} else if ctx.Command.Name == "module-image" {
+		softwareName = ctx.String("type") + "."
+	} else {
+		return nil, errors.New("Unknown write command in makeClearsArtifactProvides(), this is a bug.")
+	}
+
+	defaultCap := fmt.Sprintf("%s.%s*", softwareFilesystem, softwareName)
+	for _, cap := range list {
+		if defaultCap == cap {
+			// Avoid adding it twice if the default is the same as a
+			// specified provide.
+			goto dontAdd
+		}
+	}
+	list = append(list, defaultCap)
+
+dontAdd:
+	return list, nil
 }
 
 func makeMetaData(ctx *cli.Context) (map[string]interface{}, map[string]interface{}, error) {
@@ -505,7 +563,7 @@ func writeModuleImage(ctx *cli.Context) error {
 		ArtifactGroup: ctx.String("provides-group"),
 	}
 
-	typeInfoV3, augmentTypeInfoV3, err := makeTypeInfo(ctx, moduleImage)
+	typeInfoV3, augmentTypeInfoV3, err := makeTypeInfo(ctx)
 	if err != nil {
 		return err
 	}

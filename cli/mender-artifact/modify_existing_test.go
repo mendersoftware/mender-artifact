@@ -18,6 +18,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -25,6 +26,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// Check that flags that originally came from "write" are handled.
+var modifyWriteFlagsTested = newFlagChecker("write")
+
+// Check that flags in the "modify" command are handled.
+var modifyFlagsTested = newFlagChecker("modify")
 
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
@@ -347,6 +354,7 @@ Updates:
     Provides:
 	rootfs-image.version: release-1
     Depends: Nothing
+    Clears Provides: ["artifact_group", "rootfs_image_checksum", "rootfs-image.*"]
     Metadata: Nothing
     Files:
       name:     mender_test.img
@@ -375,6 +383,7 @@ Updates:
     Provides:
 	rootfs-image.version: release-1
     Depends: Nothing
+    Clears Provides: ["artifact_group", "rootfs_image_checksum", "rootfs-image.*"]
     Metadata: Nothing
     Files:
       name:     mender_test.img
@@ -430,6 +439,7 @@ Updates:
     Provides:
 	rootfs-image.version: release-1
     Depends: Nothing
+    Clears Provides: ["artifact_group", "rootfs_image_checksum", "rootfs-image.*"]
     Metadata: Nothing
     Files:
       name:     mender_test.img
@@ -437,6 +447,21 @@ Updates:
 
 `
 	assert.Equal(t, expected, removeVolatileEntries(data))
+
+	modifyWriteFlagsTested.addFlags([]string{
+		"artifact-name",
+		"compression",
+		"device-type",
+		"file",
+		"key",
+		"output-path",
+		"script",
+	})
+	modifyFlagsTested.addFlags([]string{
+		"artifact-name",
+		"key",
+		"name",
+	})
 }
 
 func TestModifyModuleArtifact(t *testing.T) {
@@ -484,6 +509,7 @@ Updates:
     Provides:
 	rootfs-image.testType.version: testName
     Depends: Nothing
+    Clears Provides: ["rootfs-image.testType.*"]
     Metadata: Nothing
     Files:
       name:     updateFile
@@ -581,6 +607,7 @@ Updates:
     Provides:
 	rootfs-image.testType.version: testName
     Depends: Nothing
+    Clears Provides: ["rootfs-image.testType.*"]
     Metadata:
 	{
 	  "a": "b"
@@ -593,6 +620,21 @@ Updates:
 
 `
 	assert.Equal(t, expected, removeVolatileEntries(data))
+
+	modifyWriteFlagsTested.addFlags([]string{
+		"artifact-name",
+		"device-type",
+		"file",
+		"meta-data",
+		"script",
+		"type",
+	})
+	modifyFlagsTested.addFlags([]string{
+		"server-cert",
+		"server-uri",
+		"tenant-token",
+		"verification-key",
+	})
 }
 
 func TestModifyBrokenArtifact(t *testing.T) {
@@ -630,6 +672,8 @@ func TestModifyExtraAttributes(t *testing.T) {
 		"-t", "testDevice",
 		"-T", "testType",
 		"-f", filepath.Join(tmpdir, "updateFile"),
+		"--no-default-clears-provides",
+		"--no-default-software-version",
 		// This provide attribute is not used by most Update Module. We
 		// put it here to make sure that the modification logic
 		// *doesn't* modify it, since this belongs only to the
@@ -685,6 +729,36 @@ Updates:
 	// Test that attributes are not disturbed by a no-op modification.
 	data = modifyAndRead(t, artfile)
 	assert.Equal(t, expected, removeVolatileEntries(data))
+
+	modifyWriteFlagsTested.addFlags([]string{
+		"artifact-name",
+		"artifact-name-depends",
+		"depends",
+		"depends-groups",
+		"device-type",
+		"file",
+		"legacy-rootfs-image-checksum", // Just a generic provide
+		"no-default-clears-provides",
+		"no-default-software-version",
+		"output-path",
+		"provides",
+		"provides-group",
+
+		// These are implicitly covered by provides flags.
+		"software-filesystem",
+		"software-name",
+		"software-version",
+
+		"type",
+	})
+	modifyFlagsTested.addFlags([]string{
+		"artifact-name-depends",
+		"depends",
+		"depends-groups",
+		"meta-data",
+		"provides",
+		"provides-group",
+	})
 }
 
 func TestModifyExtraAttributesOnNonArtifact(t *testing.T) {
@@ -706,6 +780,8 @@ func TestModifyExtraAttributesOnNonArtifact(t *testing.T) {
 		{"--depends", "depends:value"},
 		{"--provides", "provides:value"},
 		{"--meta-data", filepath.Join(tmpdir, "meta-data")},
+		{"--clears-provides", "rootfs-image.my-new-app.*"},
+		{"--delete-clears-provides", "rootfs-image.*"},
 	}
 
 	for _, p := range paramPairs {
@@ -721,4 +797,199 @@ func testModifyExtraAttributesOnNonArtifact(t *testing.T, art string, p []string
 	err := run()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be used with an Artifact")
+}
+
+func TestModifyClearsProvides(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+	artfile := filepath.Join(tmpdir, "artifact.mender")
+
+	os.Args = []string{
+		"mender-artifact", "write", "module-image",
+		"-o", artfile,
+		"-n", "testName",
+		"-t", "testDevice",
+		"-T", "testType",
+	}
+	err = run()
+	require.NoError(t, err)
+
+	// Test that we can manipulate "Clears Provides" values.
+	data := modifyAndRead(t, artfile, "--clears-provides", "my-fs.*",
+		"--delete-clears-provides", "rootfs-image.testType.*",
+	)
+	expected := `Mender artifact:
+  Name: testName
+  Format: mender
+  Version: 3
+  Signature: no signature
+  Compatible devices: '[testDevice]'
+  Provides group: 
+  Depends on one of artifact(s): []
+  Depends on one of group(s): []
+  State scripts:
+
+Updates:
+    0:
+    Type:   testType
+    Provides:
+	rootfs-image.testType.version: testName
+    Depends: Nothing
+    Clears Provides: ["my-fs.*"]
+    Metadata: Nothing
+    Files: None
+
+`
+	assert.Equal(t, expected, removeVolatileEntries(data))
+
+	// Test that attributes are not disturbed by a no-op modification.
+	data = modifyAndRead(t, artfile)
+	assert.Equal(t, expected, removeVolatileEntries(data))
+
+	modifyWriteFlagsTested.addFlags([]string{
+		"artifact-name",
+		"clears-provides",
+		"device-type",
+		"output-path",
+		"type",
+	})
+	modifyFlagsTested.addFlags([]string{
+		"clears-provides",
+		"delete-clears-provides",
+	})
+}
+
+func TestModifyNoProvides(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+	artfile := filepath.Join(tmpdir, "artifact.mender")
+
+	err = ioutil.WriteFile(filepath.Join(tmpdir, "updateFile"), []byte("updateContent"), 0644)
+	require.NoError(t, err)
+
+	os.Args = []string{
+		"mender-artifact", "write", "rootfs-image",
+		"-o", artfile,
+		"-n", "testName",
+		"-t", "testDevice",
+		"-f", filepath.Join(tmpdir, "updateFile"),
+		"--no-checksum-provide",
+		"--no-default-software-version",
+	}
+	err = run()
+	require.NoError(t, err)
+
+	data := modifyAndRead(t, artfile)
+	expected := `Mender artifact:
+  Name: testName
+  Format: mender
+  Version: 3
+  Signature: no signature
+  Compatible devices: '[testDevice]'
+  Provides group: 
+  Depends on one of artifact(s): []
+  Depends on one of group(s): []
+  State scripts:
+
+Updates:
+    0:
+    Type:   rootfs-image
+    Provides: Nothing
+    Depends: Nothing
+    Metadata: Nothing
+    Files:
+      name:     updateFile
+      size:     13
+
+`
+	assert.Equal(t, expected, removeVolatileEntries(data))
+
+	modifyWriteFlagsTested.addFlags([]string{
+		"artifact-name",
+		"clears-provides",
+		"device-type",
+		"no-checksum-provide",
+		"no-default-software-version",
+		"output-path",
+		"type",
+	})
+	modifyFlagsTested.addFlags([]string{
+		"clears-provides",
+		"delete-clears-provides",
+	})
+}
+
+func TestModifyCompression(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+	artfile := filepath.Join(tmpdir, "artifact.mender")
+
+	err = ioutil.WriteFile(filepath.Join(tmpdir, "updateFile"), []byte("updateContent"), 0644)
+	require.NoError(t, err)
+
+	os.Args = []string{
+		"mender-artifact", "write", "rootfs-image",
+		"-o", artfile,
+		"-n", "testName",
+		"-t", "testDevice",
+		"-f", filepath.Join(tmpdir, "updateFile"),
+	}
+	err = run()
+	require.NoError(t, err)
+
+	data := modifyAndRead(t, artfile, "--compression", "lzma")
+	expected := `Mender artifact:
+  Name: testName
+  Format: mender
+  Version: 3
+  Signature: no signature
+  Compatible devices: '[testDevice]'
+  Provides group: 
+  Depends on one of artifact(s): []
+  Depends on one of group(s): []
+  State scripts:
+
+Updates:
+    0:
+    Type:   rootfs-image
+    Provides:
+	rootfs-image.version: testName
+    Depends: Nothing
+    Clears Provides: ["artifact_group", "rootfs_image_checksum", "rootfs-image.*"]
+    Metadata: Nothing
+    Files:
+      name:     updateFile
+      size:     13
+
+`
+	assert.Equal(t, expected, removeVolatileEntries(data))
+
+	output, err := exec.Command("tar", "tf", artfile).Output()
+	require.NoError(t, err)
+	assert.Contains(t, string(output), ".xz")
+
+	modifyWriteFlagsTested.addFlags([]string{
+		"artifact-name",
+		"device-type",
+		"output-path",
+		"type",
+	})
+	modifyFlagsTested.addFlags([]string{
+		"compression",
+	})
+}
+
+// This test must be last in order for this to work.
+func TestModifyAllFlagsTested(t *testing.T) {
+	// Add a few irrelevant flags for "modify" tests.
+	modifyWriteFlagsTested.addFlags([]string{
+		"ssh-args",
+		"version", // Could be supported, but we don't care about this.
+	})
+
+	modifyWriteFlagsTested.checkAllFlagsTested(t)
+	modifyFlagsTested.checkAllFlagsTested(t)
 }

@@ -600,12 +600,13 @@ func TestWriteRootfsImageChecksum(t *testing.T) {
 	assert.True(t, ok)
 }
 
-func TestGetArtifactProvides(t *testing.T) {
+func TestGetSoftwareVersion(t *testing.T) {
 	testCases := map[string]struct {
 		artifactName             string
 		artifactGroup            string
 		softwareFilesystem       string
 		softwareName             string
+		softwareNameDefault      string
 		softwareVersion          string
 		noDefaultSoftwareVersion bool
 		out                      map[string]string
@@ -634,12 +635,22 @@ func TestGetArtifactProvides(t *testing.T) {
 				"rootfs-image.my-software.version": "v1",
 			},
 		},
+		"rootfs, default software name and version": {
+			artifactName:        "artifact-name",
+			artifactGroup:       "artifact-group",
+			softwareNameDefault: "my-software",
+			softwareVersion:     "v1",
+			out: map[string]string{
+				"rootfs-image.my-software.version": "v1",
+			},
+		},
 		"rootfs, software filesystem, name and version": {
-			artifactName:       "artifact-name",
-			artifactGroup:      "artifact-group",
-			softwareName:       "my-software",
-			softwareVersion:    "v1",
-			softwareFilesystem: "my-fs",
+			artifactName:        "artifact-name",
+			artifactGroup:       "artifact-group",
+			softwareName:        "my-software",
+			softwareVersion:     "v1",
+			softwareFilesystem:  "my-fs",
+			softwareNameDefault: "default-name",
 			out: map[string]string{
 				"my-fs.my-software.version": "v1",
 			},
@@ -650,6 +661,7 @@ func TestGetArtifactProvides(t *testing.T) {
 			softwareName:             "my-software",
 			softwareVersion:          "v1",
 			softwareFilesystem:       "my-fs",
+			softwareNameDefault:      "default-name",
 			noDefaultSoftwareVersion: true,
 			out: map[string]string{
 				"my-fs.my-software.version": "v1",
@@ -658,16 +670,221 @@ func TestGetArtifactProvides(t *testing.T) {
 		"rootfs, no default software version": {
 			artifactName:             "artifact-name",
 			artifactGroup:            "artifact-group",
+			softwareNameDefault:      "default-name",
 			noDefaultSoftwareVersion: true,
 			out:                      map[string]string{},
+		},
+		"rootfs, no default software version, not enough other arguments": {
+			artifactName:             "artifact-name",
+			artifactGroup:            "artifact-group",
+			softwareName:             "my-name",
+			softwareFilesystem:       "my-fs",
+			softwareNameDefault:      "default-name",
+			noDefaultSoftwareVersion: true,
+			out:                      map[string]string{},
+		},
+		"rootfs, no default software version, filesystem and version given": {
+			artifactName:             "artifact-name",
+			artifactGroup:            "artifact-group",
+			softwareFilesystem:       "my-fs",
+			softwareVersion:          "my-version",
+			softwareNameDefault:      "default-name",
+			noDefaultSoftwareVersion: true,
+			out: map[string]string{
+				"my-fs.version": "my-version",
+			},
 		},
 	}
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			result := getSoftwareVersion(tc.artifactName, tc.softwareFilesystem,
-				tc.softwareName, tc.softwareVersion, tc.noDefaultSoftwareVersion)
+				tc.softwareName, tc.softwareNameDefault, tc.softwareVersion, tc.noDefaultSoftwareVersion)
 			assert.Equal(t, tc.out, result)
 		})
+	}
+}
+
+func TestWriteClearsProvides(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+	artfile := filepath.Join(tmpdir, "artifact.mender")
+
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "update.ext4",
+				Content: []byte("my update"),
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	testCases := map[string]struct {
+		extraArgs      []string
+		clearsProvides []string
+		onlyFor        string
+	}{
+		"rootfs-image/default": {
+			extraArgs: []string{},
+			clearsProvides: []string{
+				"artifact_group",
+				"rootfs_image_checksum",
+				"rootfs-image.*",
+			},
+			onlyFor: "rootfs-image",
+		},
+		"module-image/default": {
+			extraArgs: []string{},
+			clearsProvides: []string{
+				"rootfs-image.testType.*",
+			},
+			onlyFor: "module-image",
+		},
+		"no-default-software-version": {
+			extraArgs: []string{
+				"--no-default-software-version",
+			},
+			clearsProvides: nil,
+		},
+		"no-default-clears-provides": {
+			extraArgs: []string{
+				"--no-default-clears-provides",
+			},
+			clearsProvides: nil,
+		},
+		"rootfs-image/clears-provides": {
+			extraArgs: []string{
+				"--clears-provides", "my-fs.my-app.*",
+			},
+			clearsProvides: []string{
+				"my-fs.my-app.*",
+				"artifact_group",
+				"rootfs_image_checksum",
+				"rootfs-image.*",
+			},
+			onlyFor: "rootfs-image",
+		},
+		"module-image/clears-provides": {
+			extraArgs: []string{
+				"--clears-provides", "my-fs.my-app.*",
+			},
+			clearsProvides: []string{
+				"my-fs.my-app.*",
+				"rootfs-image.testType.*",
+			},
+			onlyFor: "module-image",
+		},
+		"no-default-software-version and clears-provides": {
+			extraArgs: []string{
+				"--no-default-software-version",
+				"--clears-provides", "my-fs.my-app.*",
+			},
+			clearsProvides: []string{
+				"my-fs.my-app.*",
+			},
+		},
+		"no-default-clears-provides and clears-provides": {
+			extraArgs: []string{
+				"--no-default-clears-provides",
+				"--clears-provides", "my-fs.my-app.*",
+			},
+			clearsProvides: []string{
+				"my-fs.my-app.*",
+			},
+		},
+		"rootfs-image/software-filesystem": {
+			extraArgs: []string{
+				"--software-filesystem", "my-fs",
+			},
+			clearsProvides: []string{
+				"my-fs.*",
+			},
+			onlyFor: "rootfs-image",
+		},
+		"module-image/software-filesystem": {
+			extraArgs: []string{
+				"--software-filesystem", "my-fs",
+			},
+			clearsProvides: []string{
+				"my-fs.testType.*",
+			},
+			onlyFor: "module-image",
+		},
+		"software-name": {
+			extraArgs: []string{
+				"--software-name", "my-app",
+			},
+			clearsProvides: []string{
+				"rootfs-image.my-app.*",
+			},
+		},
+		"software-filesystem and software-name": {
+			extraArgs: []string{
+				"--software-filesystem", "my-fs",
+				"--software-name", "my-app",
+			},
+			clearsProvides: []string{
+				"my-fs.my-app.*",
+			},
+		},
+		"clears-provides same as default": {
+			extraArgs: []string{
+				"--clears-provides", "rootfs-image.*",
+			},
+			clearsProvides: []string{
+				"rootfs-image.*",
+				"artifact_group",
+				"rootfs_image_checksum",
+			},
+			onlyFor: "rootfs-image",
+		},
+	}
+	for name, tc := range testCases {
+		testfunc := func(t *testing.T, payloadType string) {
+			args := []string{
+				"mender-artifact", "write", payloadType,
+				"-t", "mydevice",
+				"-o", artfile,
+				"-f", filepath.Join(updateTestDir, "update.ext4"),
+				"-n", "testName",
+			}
+			if payloadType == "module-image" {
+				args = append(args, "-T", "testType")
+			}
+			args = append(args, tc.extraArgs...)
+
+			os.Args = args
+			err = run()
+			assert.NoError(t, err)
+
+			artFd, err := os.Open(artfile)
+			assert.NoError(t, err)
+			reader := areader.NewReader(artFd)
+			err = reader.ReadArtifact()
+			assert.NoError(t, err)
+
+			handlers := reader.GetHandlers()
+			assert.Equal(t, 1, len(handlers))
+			handler := handlers[0]
+
+			clearsProvides := handler.GetUpdateClearsProvides()
+
+			assert.Equal(t, tc.clearsProvides, clearsProvides)
+		}
+		if tc.onlyFor == "" || tc.onlyFor == "rootfs-image" {
+			t.Run(name+"/rootfs-image", func(t *testing.T) {
+				testfunc(t, "rootfs-image")
+			})
+		}
+		if tc.onlyFor == "" || tc.onlyFor == "module-image" {
+			t.Run(name+"/module-image", func(t *testing.T) {
+				testfunc(t, "module-image")
+			})
+		}
 	}
 }
