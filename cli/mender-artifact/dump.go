@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -91,7 +92,9 @@ func DumpCommand(c *cli.Context) error {
 	}
 
 	if c.Bool("print-cmdline") {
-		printCmdline(ar, dumpArgs)
+		printCmdline(ar, dumpArgs, false)
+	} else if c.Bool("print0-cmdline") {
+		printCmdline(ar, dumpArgs, true)
 	}
 
 	return nil
@@ -178,67 +181,100 @@ func dumpMetaData(metaDataDir string, dumpArgs *[]string, handlers map[int]handl
 	return nil
 }
 
-func printCmdline(ar *areader.Reader, args []string) {
+type NullSepWriter struct {
+	buf *bytes.Buffer
+}
+
+func New() *NullSepWriter {
+	return &NullSepWriter{bytes.NewBuffer(nil)}
+}
+
+func (n *NullSepWriter) Write(b []byte) (int, error) {
+	n.buf.Write([]byte{'\x00'})
+	return n.buf.Write(b)
+}
+
+func (n *NullSepWriter) Read(b []byte) (int, error) {
+	return n.buf.Read(b)
+}
+
+func (n *NullSepWriter) String() string {
+	return n.buf.String()
+}
+
+type WriteStringer interface {
+	io.Writer
+	fmt.Stringer
+}
+
+func printCmdline(ar *areader.Reader, args []string, zeroSeparator bool) {
+	var buf WriteStringer
+	if zeroSeparator {
+		buf = New()
+	} else {
+		buf = bytes.NewBuffer(nil)
+	}
 	// Even if it is a rootfs payload, we use the module-image writer, since
 	// this can recreate either type.
-	fmt.Printf("write module-image")
+	fmt.Fprintf(buf, "write module-image")
 
 	if ar.GetInfo().Version == 3 {
 		artProvs := ar.GetArtifactProvides()
-		fmt.Printf(" --artifact-name %s", artProvs.ArtifactName)
+		fmt.Fprintf(buf, " --artifact-name %s", artProvs.ArtifactName)
 		if len(artProvs.ArtifactGroup) > 0 {
-			fmt.Printf(" --provides-group %s", artProvs.ArtifactGroup)
+			fmt.Fprintf(buf, " --provides-group %s", artProvs.ArtifactGroup)
 		}
 
 		artDeps := ar.GetArtifactDepends()
 		if len(artDeps.ArtifactName) > 0 {
-			fmt.Printf(" --artifact-name-depends %s", strings.Join(artDeps.ArtifactName, " --artifact-name-depends "))
+			fmt.Fprintf(buf, " --artifact-name-depends %s", strings.Join(artDeps.ArtifactName, " --artifact-name-depends "))
 		}
-		fmt.Printf(" --device-type %s", strings.Join(artDeps.CompatibleDevices, " --device-type "))
+		fmt.Fprintf(buf, " --device-type %s", strings.Join(artDeps.CompatibleDevices, " --device-type "))
 		if len(artDeps.ArtifactGroup) > 0 {
-			fmt.Printf(" --depends-groups %s", strings.Join(artDeps.ArtifactGroup, " --depends-groups "))
+			fmt.Fprintf(buf, " --depends-groups %s", strings.Join(artDeps.ArtifactGroup, " --depends-groups "))
 		}
 
 	} else if ar.GetInfo().Version == 2 {
-		fmt.Printf(" --artifact-name %s", ar.GetArtifactName())
-		fmt.Printf(" --device-type %s", strings.Join(ar.GetCompatibleDevices(), " --device-type "))
+		fmt.Fprintf(buf, " --artifact-name %s", ar.GetArtifactName())
+		fmt.Fprintf(buf, " --device-type %s", strings.Join(ar.GetCompatibleDevices(), " --device-type "))
 	}
 
 	handlers := ar.GetHandlers()
 	handler := handlers[0]
 
-	fmt.Printf(" --type %s", handler.GetUpdateType())
+	fmt.Fprintf(buf, " --type %s", handler.GetUpdateType())
 
 	// Always add this flag, since we will write custom flags.
-	fmt.Printf(" --%s", noDefaultSoftwareVersionFlag)
+	fmt.Fprintf(buf, " --%s", noDefaultSoftwareVersionFlag)
 
 	provs := handler.GetUpdateOriginalProvides()
 	if provs != nil {
 		for key, value := range provs {
-			fmt.Printf(" --provides %s:%s", key, value)
+			fmt.Fprintf(buf, " --provides %s:%s", key, value)
 		}
 	}
 
 	deps := handler.GetUpdateOriginalDepends()
 	if deps != nil {
 		for key, value := range deps {
-			fmt.Printf(" --depends %s:%s", key, value)
+			fmt.Fprintf(buf, " --depends %s:%s", key, value)
 		}
 	}
 
 	// Always add this flag, since we will write custom flags.
-	fmt.Printf(" --%s", noDefaultClearsProvidesFlag)
+	fmt.Fprintf(buf, " --%s", noDefaultClearsProvidesFlag)
 
 	caps := handler.GetUpdateOriginalClearsProvides()
 	if caps != nil {
 		for _, value := range caps {
-			fmt.Printf(" --%s '%s'", clearsProvidesFlag, value)
+			fmt.Fprintf(buf, " --%s '%s'", clearsProvidesFlag, value)
 		}
 	}
 
 	if len(args) > 0 {
-		fmt.Printf(" %s\n", strings.Join(args, " "))
+		fmt.Fprintf(buf, " %s\n", strings.Join(args, " "))
 	}
+	fmt.Printf(buf.String())
 }
 
 func (d *dumpFileStore) NewUpdateStorer(updateType string, payloadNum int) (handlers.UpdateStorer, error) {
