@@ -1,7 +1,6 @@
 stages:
-  - test
   - build
-  - smoketests
+  - test
   - publish
 
 include:
@@ -23,8 +22,82 @@ variables:
    S3_BUCKET_NAME: "mender"
    S3_BUCKET_PATH: "mender-artifact"
 
+
+build:docker:
+  image: docker
+  needs: []
+  services:
+    - docker:19.03.5-dind
+  stage: build
+  script:
+    - docker build -t $DOCKER_REPOSITORY:pr .
+    - docker save $DOCKER_REPOSITORY:pr > image.tar
+  artifacts:
+    expire_in: 2w
+    paths:
+      - image.tar
+  tags:
+    - docker
+
+build:make:
+  image: docker
+  needs: []
+  services:
+    - docker:19.03.5-dind
+  before_script:
+    - apk add --no-cache make
+  stage: build
+  script:
+    - make build-natives-contained
+  artifacts:
+    expire_in: 2w
+    paths:
+      - mender-artifact-*
+  tags:
+    - docker
+
+test:smoketests:mac:
+  stage: test
+  needs:
+    - job: build:make
+      artifacts: true
+  script:
+    - touch test.txt
+    - ./mender-artifact-darwin
+    - ./mender-artifact-darwin --version
+    - ./mender-artifact-darwin write module-image -t test -o test.mender -T script -n test -f test.txt
+    - ./mender-artifact-darwin read test.mender
+    - ./mender-artifact-darwin validate test.mender
+    - ./mender-artifact-darwin write rootfs-image -t test -o test-rfs.mender -n test -f test.txt
+    - ./mender-artifact-darwin read test-rfs.mender
+    - ./mender-artifact-darwin validate test-rfs.mender
+    - make build
+  tags:
+    - mac-runner
+
+test:smoketests:linux:
+  stage: test
+  needs:
+    - job: build:make
+      artifacts: true
+  image: golang:1.15-buster
+  before_script:
+    - apt-get update && apt-get install -q -y make liblzma-dev
+  script:
+    - touch test.txt
+    - ./mender-artifact-linux
+    - ./mender-artifact-linux --version
+    - ./mender-artifact-linux write module-image -t test -o test.mender -T script -n test -f test.txt
+    - ./mender-artifact-linux read test.mender
+    - ./mender-artifact-linux validate test.mender
+    - ./mender-artifact-linux write rootfs-image -t test -o test-rfs.mender -n test -f test.txt
+    - ./mender-artifact-linux read test-rfs.mender
+    - ./mender-artifact-linux validate test-rfs.mender
+    - make build
+
 test:static:
   stage: test
+  needs: []
   before_script:
     - mkdir -p /go/src/github.com/mendersoftware /go/src/_/builds
     - cp -r $CI_PROJECT_DIR /go/src/github.com/mendersoftware/mender-artifact
@@ -55,86 +128,12 @@ test:static:
     paths:
       - coverage.txt
 
-build:docker:
-  image: docker
-  services:
-    - docker:19.03.5-dind
-  stage: build
-  script:
-    - docker build -t $DOCKER_REPOSITORY:pr .
-    - docker save $DOCKER_REPOSITORY:pr > image.tar
-  artifacts:
-    expire_in: 2w
-    paths:
-      - image.tar
-  tags:
-    - docker
-
-build:make:
-  image: docker
-  services:
-    - docker:19.03.5-dind
-  before_script:
-    - apk add --no-cache make
-  stage: build
-  script:
-    - make build-natives-contained
-  artifacts:
-    expire_in: 2w
-    paths:
-      - mender-artifact-*
-  tags:
-    - docker
-
-smoketests:mac:
-  stage: smoketests
-  dependencies:
-    - build:make
-  before_script:
-    - wget https://dgsbl4vditpls.cloudfront.net/mender-demo-artifact.mender
-    - touch test.txt
-  script:
-    - ./mender-artifact-darwin
-    - ./mender-artifact-darwin --version
-    - ./mender-artifact-darwin validate mender-demo-artifact.mender
-    - ./mender-artifact-darwin write module-image -t test -o test.mender -T script -n test -f test.txt
-    - ./mender-artifact-darwin read test.mender
-    - ./mender-artifact-darwin validate test.mender
-    - ./mender-artifact-darwin write rootfs-image -t test -o test-rfs.mender -n test -f test.txt
-    - ./mender-artifact-darwin read test-rfs.mender
-    - ./mender-artifact-darwin validate test-rfs.mender
-  after_script:
-    - rm test.txt test.mender mender-demo-artifact.mender
-  tags:
-    - mac-runner
-
-smoketests:linux:
-  image: debian:9
-  stage: smoketests
-  dependencies:
-    - build:make
-  before_script:
-    - apt-get update && apt-get install -yq wget
-    - wget -q https://dgsbl4vditpls.cloudfront.net/mender-demo-artifact.mender
-    - touch test.txt
-  script:
-    - ./mender-artifact-linux
-    - ./mender-artifact-linux --version
-    - ./mender-artifact-linux validate mender-demo-artifact.mender
-    - ./mender-artifact-linux write module-image -t test -o test.mender -T script -n test -f test.txt
-    - ./mender-artifact-linux read test.mender
-    - ./mender-artifact-linux validate test.mender
-    - ./mender-artifact-linux write rootfs-image -t test -o test-rfs.mender -n test -f test.txt
-    - ./mender-artifact-linux read test-rfs.mender
-    - ./mender-artifact-linux validate test-rfs.mender
-  after_script:
-    - rm test.txt test.mender mender-demo-artifact.mender
-
 publish:tests:
   stage: publish
   image: golang:1.14-alpine3.11
-  dependencies:
-    - test:static
+  needs:
+    - job: test:static
+      artifacts: true
   before_script:
     - apk add --no-cache git
     # Run go get out of the repo to not modify go.mod
@@ -160,8 +159,11 @@ publish:tests:
 publish:s3:
   stage: publish
   image: debian:buster
-  dependencies:
-    - build:make
+  needs:
+    - job: build:make
+      artifacts: true
+    - job: test:smoketests:linux
+    - job: test:smoketests:mac
   before_script:
     - apt update && apt install -yyq awscli
   script:
