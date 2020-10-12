@@ -543,6 +543,10 @@ func getCliContext() *cli.App {
 			Name:  "print-cmdline",
 			Usage: "Print the command line that can recreate the same Artifact with the components being dumped. If all the components are being dumped, a nearly identical Artifact can be created. Note that timestamps will cause the checksum of the Artifact to be different, and signatures can not be recreated this way. The command line will only use long option names.",
 		},
+		cli.BoolFlag{
+			Name:  "print0-cmdline",
+			Usage: "Same as 'print-cmdline', except that the arguments are separated by a null character (0x00).",
+		},
 	}
 
 	globalFlags := []cli.Flag{

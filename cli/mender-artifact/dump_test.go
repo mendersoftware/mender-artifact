@@ -68,21 +68,37 @@ func runAndCollectStdout(args []string) (string, error) {
 		return "", goRoutineErr
 	}
 
+	// Trim null byte (from --print0-cmdline).
+	if printed[len(printed)-1] == 0 {
+		printed = printed[:len(printed)-1]
+	}
 	return strings.TrimSpace(string(printed)), nil
 }
 
 func TestDumpContent(t *testing.T) {
-	for _, imageType := range []string{"rootfs-image", "my-own-type"} {
-		t.Run(imageType, func(t *testing.T) {
-			testDumpContent(t, imageType)
-		})
+	for _, printCmdline := range []string{"--print-cmdline", "--print0-cmdline"} {
+		for _, imageType := range []string{"rootfs-image", "my-own-type"} {
+			t.Run(fmt.Sprintf("%s/%s", imageType, printCmdline), func(t *testing.T) {
+				testDumpContent(t, imageType, printCmdline)
+			})
+		}
 	}
 }
 
-func testDumpContent(t *testing.T, imageType string) {
+func testDumpContent(t *testing.T, imageType, printCmdline string) {
 	tmpdir, err := ioutil.TempDir("", "")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
+
+	var sep string
+	switch printCmdline {
+	case "--print-cmdline":
+		sep = " "
+	case "--print0-cmdline":
+		sep = "\x00"
+	default:
+		t.Fatal("Unknown --print-cmdline mode")
+	}
 
 	makeFile(t, tmpdir, "file", "payload")
 	makeFile(t, tmpdir, "file2", "payload2")
@@ -118,11 +134,12 @@ func testDumpContent(t *testing.T, imageType string) {
 		"--scripts", path.Join(tmpdir, "scripts"),
 		"--meta-data", path.Join(tmpdir, "meta"),
 		"--files", path.Join(tmpdir, "files"),
-		"--print-cmdline",
+		printCmdline,
 		path.Join(tmpdir, "artifact.mender")})
 
 	assert.NoError(t, err)
-	assert.Equal(t, fmt.Sprintf("write module-image"+
+	assert.Equal(t, strings.ReplaceAll(fmt.Sprintf(
+		"write module-image"+
 		" --artifact-name Name"+
 		" --provides-group providesGroup"+
 		" --artifact-name-depends dependsOnArtifact"+
@@ -137,6 +154,10 @@ func testDumpContent(t *testing.T, imageType string) {
 		" --meta-data %s/meta/0000.meta-data"+
 		" --file %s/files/file",
 		imageType, tmpdir, tmpdir, tmpdir),
+		// Replacing all spaces with sep is not safe in general when
+		// using --print0-cmdline, but we know there are no
+		// literal spaces in our test arguments.
+		" ", sep),
 		string(printed))
 
 	// --------------------------------------------------------------------
@@ -180,7 +201,7 @@ func testDumpContent(t *testing.T, imageType string) {
 		"--scripts", path.Join(tmpdir, "scripts"),
 		"--meta-data", path.Join(tmpdir, "meta"),
 		"--files", path.Join(tmpdir, "files"),
-		"--print-cmdline",
+		printCmdline,
 		path.Join(tmpdir, "artifact.mender")})
 
 	assert.NoError(t, err)
@@ -189,7 +210,8 @@ func testDumpContent(t *testing.T, imageType string) {
 	// The provides, depends and scripts are stored in maps, where the order
 	// is unpredictable, so split on the start of the flag, sort, and
 	// compare that.
-	expected := strings.Split("write module-image"+
+	expected := strings.Split(strings.ReplaceAll(
+		"write module-image"+
 		" --artifact-name Name"+
 		" --provides-group providesGroup"+
 		" --artifact-name-depends dependsOnArtifact"+
@@ -208,13 +230,21 @@ func testDumpContent(t *testing.T, imageType string) {
 		" --depends testDepends2:someDep2"+
 		fmt.Sprintf(" --script %s/scripts/ArtifactInstall_Enter_45_test", tmpdir)+
 		fmt.Sprintf(" --script %s/scripts/ArtifactCommit_Leave_55", tmpdir)+
-		fmt.Sprintf(" --clears-provides '%s.*'", imageType)+
-		fmt.Sprintf(" --clears-provides 'rootfs-image.%s.*'", imageType)+
+		fmt.Sprintf(" --clears-provides %s.*", imageType)+
+		fmt.Sprintf(" --clears-provides rootfs-image.%s.*", imageType)+
 		fmt.Sprintf(" --meta-data %s/meta/0000.meta-data", tmpdir)+
 		fmt.Sprintf(" --file %s/files/file", tmpdir)+
 		fmt.Sprintf(" --file %s/files/file2", tmpdir),
-		" --")
-	actual := strings.Split(printedStr, " --")
+
+		// Replacing all spaces with sep is not safe in general when
+		// using --print0-cmdline, but we know there are no
+		// literal spaces in our test arguments.
+		" ", sep),
+
+		// Split separator.
+		fmt.Sprintf("%s--", sep))
+
+	actual := strings.Split(printedStr, fmt.Sprintf("%s--", sep))
 	sort.Strings(expected[1:])
 	sort.Strings(actual[1:])
 
