@@ -17,8 +17,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 	"sort"
+	"strings"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
 
@@ -97,8 +97,8 @@ func getCliContext() *cli.App {
 	// Common Artifact flags
 	//
 	artifactName := cli.StringFlag{
-		Name:  "artifact-name, n",
-		Usage: "Name of the artifact",
+		Name:     "artifact-name, n",
+		Usage:    "Name of the artifact",
 		Required: true,
 	}
 	artifactNameDepends := cli.StringSliceFlag{
@@ -240,8 +240,8 @@ func getCliContext() *cli.App {
 		artifactProvidesGroup,
 		artifactDependsGroups,
 		cli.StringFlag{
-			Name:  "type, T",
-			Usage: "Type of payload. This is the same as the name of the update module",
+			Name:     "type, T",
+			Usage:    "Type of payload. This is the same as the name of the update module",
 			Required: true,
 		},
 		payloadProvides,
@@ -276,8 +276,8 @@ func getCliContext() *cli.App {
 	writeModuleCommand.Before = applyCompressionInCommand
 
 	writeCommand := cli.Command{
-		Name:  "write",
-		Usage: "Writes artifact file.",
+		Name:     "write",
+		Usage:    "Writes artifact file.",
 		Category: "Artifact creation and validation",
 		Subcommands: []cli.Command{
 			writeRootfsCommand,
@@ -291,7 +291,7 @@ func getCliContext() *cli.App {
 	validate := cli.Command{
 		Name:        "validate",
 		Usage:       "Validates artifact file.",
-		Category: "Artifact creation and validation",
+		Category:    "Artifact creation and validation",
 		Action:      validateArtifact,
 		UsageText:   "mender-artifact validate [options] <pathspec>",
 		Description: "This command validates artifact file provided by pathspec.",
@@ -305,7 +305,7 @@ func getCliContext() *cli.App {
 		Name:        "read",
 		Usage:       "Reads artifact file.",
 		ArgsUsage:   "<artifact path>",
-		Category: "Artifact creation and validation",
+		Category:    "Artifact creation and validation",
 		Action:      readArtifact,
 		Description: "This command validates artifact file provided by pathspec.",
 		Flags:       []cli.Flag{publicKeyFlag},
@@ -318,7 +318,7 @@ func getCliContext() *cli.App {
 
 		Name:        "sign",
 		Usage:       "Signs existing artifact file.",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Action:      signExisting,
 		UsageText:   "mender-artifact sign [options] <pathspec>",
 		Description: "This command signs artifact file provided by pathspec.",
@@ -342,7 +342,7 @@ func getCliContext() *cli.App {
 	modify := cli.Command{
 		Name:        "modify",
 		Usage:       "Modifies image or artifact file.",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Action:      modifyArtifact,
 		UsageText:   "mender-artifact modify [options] <pathspec>",
 		Description: "This command modifies existing image or artifact file provided by pathspec. NOTE: Currently only ext4 payloads can be modified",
@@ -394,7 +394,7 @@ func getCliContext() *cli.App {
 	copy := cli.Command{
 		Name:        "cp",
 		Usage:       "cp <src> <dst>",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Description: "Copies a file into or out of a mender artifact, or sdimg",
 		UsageText: "Copy from or into an artifact, or sdimg where either the <src>" +
 			" or <dst> has to be of the form [artifact|sdimg]:<filepath>, <src> can" +
@@ -412,7 +412,7 @@ func getCliContext() *cli.App {
 		Name:        "cat",
 		Usage:       "cat [artifact|sdimg|uefiimg]:<filepath>",
 		Description: "Cat can output a file from a mender artifact or mender image to stdout.",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Action:      Cat,
 	}
 
@@ -420,7 +420,7 @@ func getCliContext() *cli.App {
 		Name:        "install",
 		Usage:       "install -m <permissions> <hostfile> [artifact|sdimg|uefiimg]:<filepath> or install -d [artifact|sdimg|uefiimg]:<directory>",
 		Description: "Installs a directory, or a file from the host filesystem, to the artifact or sdimg.",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Action:      Install,
 	}
 
@@ -438,7 +438,7 @@ func getCliContext() *cli.App {
 	remove := cli.Command{
 		Name:        "rm",
 		Usage:       "rm [artifact|sdimg|uefiimg]:<filepath>",
-		Category: "Artifact modification",
+		Category:    "Artifact modification",
 		Description: "Removes the given file or directory from an Artifact or sdimg.",
 		Action:      Remove,
 	}
