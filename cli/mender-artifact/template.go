@@ -14,7 +14,6 @@
 
 package main
 
-
 // SubcommandHelpTemplate is the text template for the subcommand help topic.
 // cli.go uses text/template to render templates.
 // This template is used for sub-commands with one or more required flags present.
@@ -32,4 +31,3 @@ OPTIONS:
    {{range .VisibleFlags}}{{if not .IsRequired}}{{.}}
    {{end}}{{end}}{{end}}
 `
-
