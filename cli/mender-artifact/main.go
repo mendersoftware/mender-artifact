@@ -70,6 +70,11 @@ func getCliContext() *cli.App {
 
 	app.EnableBashCompletion = true
 
+	debugFlag := cli.BoolFlag{
+		Name:  "debug, e",
+		Usage: "Enable debug output.",
+	}
+
 	compressors := artifact.GetRegisteredCompressorIds()
 
 	compressionFlag := cli.StringFlag{
@@ -142,6 +147,7 @@ func getCliContext() *cli.App {
 	writeRootfsCommand.CustomHelpTemplate = CustomSubcommandHelpTemplate
 
 	writeRootfsCommand.Flags = []cli.Flag{
+		debugFlag,
 		cli.StringFlag{
 			Name: "file, f",
 			Usage: "Payload `FILE` path or ssh-url to device for system " +

@@ -43,7 +43,7 @@ func TestCompressorGzip(t *testing.T) {
 	assert.Equal(t, i, len(testData))
 	// It is perfectly valid for a reader to return nil on an exhaustive
 	// write when n-bytes read > 0
-	assert.True(t, err == io.EOF  || err == nil)
+	assert.True(t, err == io.EOF || err == nil)
 	assert.Equal(t, []byte(testData), rbuf)
 
 	// Second read must return zero bytes, and EOF though

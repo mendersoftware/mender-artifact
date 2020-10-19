@@ -30,6 +30,7 @@ import (
 	"github.com/mendersoftware/mender-artifact/cli/mender-artifact/util"
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"io"
 	"io/ioutil"
@@ -85,6 +86,10 @@ func validateInput(c *cli.Context) error {
 }
 
 func writeRootfs(c *cli.Context) error {
+	if c.Bool("debug") {
+		Log.SetLevel(logrus.DebugLevel)
+	}
+
 	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
 	if err != nil {
 		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
@@ -366,6 +371,10 @@ func makeMetaData(ctx *cli.Context) (map[string]interface{}, map[string]interfac
 }
 
 func writeModuleImage(ctx *cli.Context) error {
+	if ctx.Bool("debug") {
+		Log.SetLevel(logrus.DebugLevel)
+	}
+
 	comp, err := artifact.NewCompressorFromId(ctx.GlobalString("compression"))
 	if err != nil {
 		return cli.NewExitError("compressor '"+ctx.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
