@@ -17,7 +17,7 @@ export CGO_ENABLED
 INSTALL_DIR=cli/mender-artifact
 
 TOOLS = \
-	github.com/fzipp/gocyclo \
+	github.com/fzipp/gocyclo/... \
 	github.com/opennota/check/cmd/varcheck \
 	github.com/mendersoftware/deadcode
 
