@@ -785,12 +785,12 @@ func TestRootfsCompose(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = writeData(tw, comp, &Updates{[]handlers.Composer{r}, nil})
+	err = writeData(tw, comp, &Updates{[]handlers.Composer{r}, nil}, nil)
 	require.NoError(t, err)
 
 	// error compose data with missing data file
 	r = handlers.NewRootfsV2("non-existing")
-	err = writeData(tw, comp, &Updates{[]handlers.Composer{r}, nil})
+	err = writeData(tw, comp, &Updates{[]handlers.Composer{r}, nil}, nil)
 	require.Error(t, err)
 	require.Contains(t, errors.Cause(err).Error(),
 		"no such file or directory")

@@ -36,6 +36,10 @@ type SignatureVerifyFn func(message, sig []byte) error
 type DevicesCompatibleFn func([]string) error
 type ScriptsReadFn func(io.Reader, os.FileInfo) error
 
+type ProgressReader interface {
+	Wrap(io.Reader, int64) io.Reader
+}
+
 type Reader struct {
 	CompatibleDevicesCallback DevicesCompatibleFn
 	ScriptsReadCallback       ScriptsReadFn
@@ -55,6 +59,7 @@ type Reader struct {
 	updateStorers   map[int]handlers.UpdateStorer
 	manifest        *artifact.ChecksumStore
 	menderTarReader *tar.Reader
+	ProgressReader  ProgressReader
 }
 
 func NewReader(r io.Reader) *Reader {
@@ -844,6 +849,7 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
 	if err != nil {
 		return errors.New("reader: can't get compressor")
 	}
+
 	updNo, err := getUpdateNoFromDataPath(comp, hdr.Name)
 	if err != nil {
 		return errors.Wrapf(err, "reader: error getting data Payload number")
@@ -853,7 +859,15 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
 		return errors.Wrapf(err,
 			"reader: can not find parser for parsing data file [%v]", hdr.Name)
 	}
-	return ar.readAndInstall(tr, inst, updNo, comp)
+
+	var r io.Reader
+	if ar.ProgressReader != nil {
+		r = ar.ProgressReader.Wrap(tr, hdr.Size)
+	} else {
+		r = tr
+	}
+
+	return ar.readAndInstall(r, inst, updNo, comp)
 }
 
 func (ar *Reader) readData(tr *tar.Reader) error {
