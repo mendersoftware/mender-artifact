@@ -44,9 +44,11 @@ func TestExternalBinaryDependency(t *testing.T) {
 	// Set the PATH variable to be empty for the test.
 	origPATH := os.Getenv("PATH")
 	// "/usr/sbin", "/sbin", "/usr/local/sbin" also needs to be unset
+	origExternalBinaryPaths := utils.ExternalBinaryPaths
 	utils.ExternalBinaryPaths = []string{}
 	defer func() {
 		os.Setenv("PATH", origPATH)
+		utils.ExternalBinaryPaths = origExternalBinaryPaths
 	}()
 	os.Setenv("PATH", "")
 	tmpdir, err := debugfsCopyFile("foo", "bar")
