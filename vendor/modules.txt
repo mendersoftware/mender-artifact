@@ -11,9 +11,14 @@ github.com/klauspost/compress/flate
 github.com/klauspost/pgzip
 # github.com/kr/pretty v0.1.0
 ## explicit
+# github.com/mattn/go-isatty v0.0.12
+github.com/mattn/go-isatty
 # github.com/mendersoftware/mendertesting v0.0.1
 ## explicit
 github.com/mendersoftware/mendertesting
+# github.com/mendersoftware/progressbar v0.0.2
+## explicit
+github.com/mendersoftware/progressbar
 # github.com/minio/sha256-simd v0.1.1
 ## explicit
 github.com/minio/sha256-simd
@@ -50,7 +55,7 @@ golang.org/x/crypto/ssh/terminal
 ## explicit
 # golang.org/x/sync v0.0.0-20190423024810-112230192c58
 ## explicit
-# golang.org/x/sys v0.0.0-20191120155948-bd437916bb0e
+# golang.org/x/sys v0.0.0-20200116001909-b77594299b42
 ## explicit
 golang.org/x/sys/unix
 golang.org/x/sys/windows

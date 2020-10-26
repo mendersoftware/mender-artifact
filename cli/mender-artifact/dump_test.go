@@ -290,6 +290,7 @@ func testDumpContent(t *testing.T, imageType, printCmdline string) {
 		"ssh-args",            // Not relevant for "dump".
 		"type",
 		"version", // Could be supported, but in practice we only support >= v3.
+		"no-progress",
 	})
 
 	flagChecker.checkAllFlagsTested(t)

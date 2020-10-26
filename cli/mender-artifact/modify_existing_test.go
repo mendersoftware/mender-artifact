@@ -998,6 +998,7 @@ func TestModifyAllFlagsTested(t *testing.T) {
 	modifyWriteFlagsTested.addFlags([]string{
 		"ssh-args",
 		"version", // Could be supported, but we don't care about this.
+		"no-progress", // Has no effect on the output
 	})
 
 	modifyWriteFlagsTested.checkAllFlagsTested(t)

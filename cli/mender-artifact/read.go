@@ -27,6 +27,7 @@ import (
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/handlers"
+	"github.com/mendersoftware/mender-artifact/utils"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )
@@ -77,6 +78,10 @@ func readArtifact(c *cli.Context) error {
 	}
 
 	ar := areader.NewReader(f)
+	if !c.Bool("no-progress") {
+		fmt.Fprintln(os.Stderr, "Reading Artifact...")
+		ar.ProgressReader = utils.NewProgressReader()
+	}
 	ar.ScriptsReadCallback = readScripts
 	ar.VerifySignatureCallback = ver
 	err = ar.ReadArtifact()
