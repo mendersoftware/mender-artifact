@@ -118,6 +118,8 @@ func verifySDImg(image, file, expected string) bool {
 }
 
 func TestModifyImage(t *testing.T) {
+	skipPartedTestsOnMac(t)
+
 	tmp, err := ioutil.TempDir("", "mender-modify")
 	assert.NoError(t, err)
 
@@ -163,6 +165,8 @@ func TestModifyImage(t *testing.T) {
 }
 
 func TestModifySdimage(t *testing.T) {
+	skipPartedTestsOnMac(t)
+
 	tmp, err := ioutil.TempDir("", "mender-modify")
 	assert.NoError(t, err)
 
@@ -236,6 +240,8 @@ func TestModifyRootfsArtifact(t *testing.T) {
 }
 
 func TestModifyRootfsServerCert(t *testing.T) {
+	skipPartedTestsOnMac(t)
+
 	tmp, err := ioutil.TempDir("", "mender-modify")
 	assert.NoError(t, err)
 	defer os.RemoveAll(tmp)
@@ -591,6 +597,8 @@ Updates:
 }
 
 func TestModifyBrokenArtifact(t *testing.T) {
+	skipPartedTestsOnMac(t)
+
 	tmpdir, err := ioutil.TempDir("", "")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
@@ -683,6 +691,8 @@ Updates:
 }
 
 func TestModifyExtraAttributesOnNonArtifact(t *testing.T) {
+	skipPartedTestsOnMac(t)
+
 	tmpdir, err := ioutil.TempDir("", "")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)

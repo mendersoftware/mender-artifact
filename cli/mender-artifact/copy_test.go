@@ -762,6 +762,10 @@ func TestCopyRootfsImage(t *testing.T) {
 
 			for _, targ := range targs {
 				t.Run(filepath.Base(targ.validImg), func(t *testing.T) {
+					if strings.HasSuffix(targ.validImg, ".sdimg") {
+						skipPartedTestsOnMac(t)
+					}
+
 					if test.initfunc != nil {
 						test.initfunc(targ.validImg)
 					}
@@ -870,6 +874,10 @@ func TestCopyFromStdin(t *testing.T) {
 		_, sdimg, fatsdimg, closer := testSetupTeardown(t)
 		defer closer()
 		for _, testimg := range []string{sdimg, fatsdimg} {
+			if strings.HasSuffix(testimg, ".sdimg") {
+				skipPartedTestsOnMac(t)
+			}
+
 			// Copy in from stdin
 			r, w, err := os.Pipe()
 			defer r.Close()
