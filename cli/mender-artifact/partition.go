@@ -885,7 +885,7 @@ func (fd *fatDir) Close() (err error) {
 func processSdimg(image string) (VPImage, error) {
 	bin, err := utils.GetBinaryPath("parted")
 	if err != nil {
-		return nil, fmt.Errorf("`parted` binary not found on the system")
+		return nil, errors.Wrap(err, "`parted` binary not found on the system")
 	}
 	out, err := exec.Command(bin, image, "unit s", "print").Output()
 	if err != nil {

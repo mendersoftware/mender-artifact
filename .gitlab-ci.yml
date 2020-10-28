@@ -95,18 +95,11 @@ test:smoketests:linux:
     - ./mender-artifact-linux validate test-rfs.mender
     - make build
 
-test:static:
+.test:static:
   stage: test
   needs: []
-  before_script:
-    - mkdir -p /go/src/github.com/mendersoftware /go/src/_/builds
-    - cp -r $CI_PROJECT_DIR /go/src/github.com/mendersoftware/mender-artifact
-    - ln -s /go/src/github.com/mendersoftware /go/src/_/builds/mendersoftware
-    - cd /go/src/github.com/mendersoftware/mender-artifact
-    - apk update && apk add git make
-    # Install code coverage tooling
-    - make get-tools
 
+  script:
     # Rename the branch we're on, so that it's not in the way for the
     # subsequent fetch. It's ok if this fails, it just means we're not on any
     # branch.
@@ -117,25 +110,48 @@ test:static:
     # Get last remaining tags, if any.
     - git fetch --tags origin
 
-  script:
-    - apk add bash dosfstools e2fsprogs e2fsprogs-extra gcc libc6-compat mtools musl-dev parted perl-utils xz-dev
+    # Install code coverage tooling
+    - make get-tools
+    - export PATH=$PATH:$HOME/go/bin
+
     - make extracheck
     - make coverage
-    - mv /go/src/github.com/mendersoftware/mender-artifact/coverage.txt $CI_PROJECT_DIR/coverage.txt
+    - mv coverage.txt $CI_PROJECT_DIR/$COVERAGE_FILE
   artifacts:
     expire_in: 2w
     untracked: true
     paths:
-      - coverage.txt
+      - $COVERAGE_FILE
+
+test:static:linux:
+  extends: .test:static
+  variables:
+    COVERAGE_FILE: coverage-linux.txt
+  before_script:
+    - apk update && apk add git make bash dosfstools e2fsprogs e2fsprogs-extra gcc libc6-compat mtools musl-dev parted perl-utils xz-dev
+
+test:static:mac:
+  extends: .test:static
+  variables:
+    COVERAGE_FILE: coverage-mac.txt
+    # This is needed because the host is reusing the workdir, it is not a Docker
+    # runner.
+    GIT_STRATEGY: clone
+  tags:
+    - mac-runner
 
 publish:tests:
   stage: publish
   image: golang:1.14-alpine3.11
   needs:
-    - job: test:static
+    - job: test:static:linux
       artifacts: true
+    - job: test:static:mac
+      artifacts: true
+  variables:
+    COVERALLS_WEBHOOK_URL: "https://coveralls.io/webhook"
   before_script:
-    - apk add --no-cache git
+    - apk add --no-cache git curl
     # Run go get out of the repo to not modify go.mod
     - cd / && go get github.com/mattn/goveralls && cd -
     # Coveralls env variables:
@@ -148,13 +164,19 @@ publish:tests:
     - export CI_BRANCH=${CI_COMMIT_BRANCH}
     - export CI_PR_NUMBER=${CI_COMMIT_BRANCH#pr_}
   script:
-    - goveralls
-      -repotoken ${COVERALLS_TOKEN}
-      -service gitlab-ci
-      -jobid $CI_PIPELINE_ID
-      -covermode set
-      -flagname unittests
-      -coverprofile coverage.txt
+    # Submit coverage from all platforms.
+    - for PLATFORM in linux mac; do
+    -   goveralls
+          -repotoken ${COVERALLS_TOKEN}
+          -service gitlab-ci
+          -jobid $CI_PIPELINE_ID
+          -parallel
+          -covermode set
+          -flagname unittests:$PLATFORM
+          -coverprofile coverage-$PLATFORM.txt
+    - done
+    # Mark coverage report as done.
+    - 'curl -k ${COVERALLS_WEBHOOK_URL}?repo_token=${COVERALLS_TOKEN} -d "payload[build_num]=$CI_PIPELINE_ID&payload[status]=done"'
 
 publish:s3:
   stage: publish

@@ -34,14 +34,14 @@ func TestGetBinaryPath(t *testing.T) {
 	assert.NotNil(t, err)
 	verifyContains(t, p, nonexist)
 
-	// Note: assume /bin/true is available on every build-system always.
+	// Note: assume /bin/ls is available on every build-system always.
 
-	alwaysFoundCommand := "true"
+	alwaysFoundCommand := "ls"
 	p, err = GetBinaryPath(alwaysFoundCommand)
 	assert.Nil(t, err)
 	verifyContains(t, p, alwaysFoundCommand)
 
-	alwaysFoundCommandFullPath := "/bin/true"
+	alwaysFoundCommandFullPath := "/bin/ls"
 	p, err = GetBinaryPath(alwaysFoundCommandFullPath)
 	assert.Nil(t, err)
 	verifyContains(t, p, alwaysFoundCommandFullPath)
