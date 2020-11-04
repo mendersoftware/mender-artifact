@@ -3,8 +3,6 @@ GOFMT ?= gofmt
 V ?=
 PKGS = $(shell go list ./... | grep -v vendor)
 SUBPKGS = $(shell go list ./... | sed '1d' | tr '\n' ',' | sed 's/,$$//1')
-BUILDFILES = $(shell find cli/mender-artifact -maxdepth 1 \( -path ./vendor -o -path ./Godeps \) -prune \
-	                     -o -type f -name '*.go' -print |  tr ' ' '\n' | grep -v _test.go)
 PKGNAME = mender-artifact
 PKGFILES = $(shell find . \( -path ./vendor -o -path ./Godeps \) -prune \
 		-o -type f -name '*.go' -print)
@@ -17,7 +15,7 @@ export CGO_ENABLED
 INSTALL_DIR=cli/mender-artifact
 
 TOOLS = \
-	github.com/fzipp/gocyclo \
+	github.com/fzipp/gocyclo/... \
 	github.com/opennota/check/cmd/varcheck \
 	github.com/mendersoftware/deadcode
 
@@ -40,7 +38,7 @@ BUILDTAGS = -tags '$(TAGS)'
 endif
 
 build:
-	$(GO) build $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME) $(BUILDFILES)
+	$(GO) build $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME) ./cli/mender-artifact
 
 PLATFORMS := darwin linux windows
 
@@ -50,13 +48,13 @@ build-natives:
 	@arch="amd64";
 	@echo "building mac";
 	@env GOOS=darwin GOARCH=$$arch CGO_ENABLED=0 \
-		$(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-darwin $(BUILDFILES) ;
+		$(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-darwin ./cli/mender-artifact ;
 	@echo "building linux";
 	@env GOOS=linux GOARCH=$$arch \
-		$(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-linux $(BUILDFILES) ;
+		$(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-linux ./cli/mender-artifact ;
 	@echo "building windows";
 	@env GOOS=windows GOARCH=$$arch CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ \
-		$(GO) build $(GO_LDFLAGS_WIN) $(BUILDV) -tags $(TAGS) nolzma -o $(PKGNAME)-windows.exe $(BUILDFILES) ;
+		$(GO) build $(GO_LDFLAGS_WIN) $(BUILDV) -tags $(TAGS) nolzma -o $(PKGNAME)-windows.exe ./cli/mender-artifact ;
 
 build-contained:
 	rm -f mender-artifact && \

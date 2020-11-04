@@ -651,8 +651,9 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	// First echo to stdout such that we know when ssh connection is
 	// established (password prompt is written to /dev/tty directly,
 	// and hence impossible to detect).
-	args = append(args, "sudo", "-S", "/bin/sh", "-c",
-		`'echo "`+sshInitMagic+`" && mender snapshot dump | cat'`)
+	// When user id is 0 do not bother with sudo.
+	args = append(args, "/bin/sh", "-c",
+		`'[ $(id -u) -eq 0 ] || sudo_cmd="sudo -S"; $sudo_cmd /bin/sh -c "echo `+sshInitMagic+`; mender snapshot dump" | cat'`)
 
 	cmd := exec.Command("ssh", args...)
 
