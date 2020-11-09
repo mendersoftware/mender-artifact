@@ -630,7 +630,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			},
 		},
 		{
-			name: "Make sure that rootfs_image_checksum is updated when repacking Artifact",
+			name: "Make sure that rootfs-image.checksum is updated when repacking Artifact",
 			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
@@ -656,7 +656,7 @@ func TestCopyRootfsImage(t *testing.T) {
 
 				provides, err := inst[0].GetUpdateProvides()
 				require.NoError(t, err)
-				assert.Equal(t, string(inst[0].GetUpdateFiles()[0].Checksum), provides["rootfs_image_checksum"])
+				assert.Equal(t, string(inst[0].GetUpdateFiles()[0].Checksum), provides["rootfs-image.checksum"])
 			},
 		},
 		{

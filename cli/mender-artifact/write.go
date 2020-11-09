@@ -21,9 +21,13 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
+
+	"io"
+	"io/ioutil"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/awriter"
@@ -31,12 +35,10 @@ import (
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
-	"io"
-	"io/ioutil"
 )
 
 func writeRootfsImageChecksum(rootfsFilename string,
-	typeInfo *artifact.TypeInfoV3) (err error) {
+	typeInfo *artifact.TypeInfoV3, legacy bool) (err error) {
 	chk := artifact.NewWriterChecksum(ioutil.Discard)
 	payload, err := os.Open(rootfsFilename)
 	if err != nil {
@@ -47,19 +49,23 @@ func writeRootfsImageChecksum(rootfsFilename string,
 	}
 	checksum := string(chk.Checksum())
 
-	Log.Debugf("Adding the `rootfs_image_checksum`: %q to Artifact provides", checksum)
+	checksumKey := "rootfs-image.checksum"
+	if legacy {
+		checksumKey = "rootfs_image_checksum"
+	}
+
+	Log.Debugf("Adding the `%s`: %q to Artifact provides", checksumKey, checksum)
 	if typeInfo == nil {
 		return errors.New("Type-info is unitialized")
 	}
 	if typeInfo.ArtifactProvides == nil {
-		t, err := artifact.NewTypeInfoProvides(map[string]string{"rootfs_image_checksum": checksum})
+		t, err := artifact.NewTypeInfoProvides(map[string]string{checksumKey: checksum})
 		if err != nil {
-			return errors.Wrapf(err, "Failed to write the "+
-				"`rootfs_image_checksum` provides")
+			return errors.Wrapf(err, "Failed to write the "+"`"+checksumKey+"` provides")
 		}
 		typeInfo.ArtifactProvides = t
 	} else {
-		typeInfo.ArtifactProvides["rootfs_image_checksum"] = checksum
+		typeInfo.ArtifactProvides[checksumKey] = checksum
 	}
 	return nil
 }
@@ -170,8 +176,9 @@ func writeRootfs(c *cli.Context) error {
 	}
 
 	if !c.Bool("no-checksum-provide") {
-		if err = writeRootfsImageChecksum(rootfsFilename, typeInfoV3); err != nil {
-			return cli.NewExitError(errors.Wrap(err, "Failed to write the `rootfs_image_checksum` to the artifact"), 1)
+		legacy := c.Bool("legacy-rootfs-image-checksum")
+		if err = writeRootfsImageChecksum(rootfsFilename, typeInfoV3, legacy); err != nil {
+			return cli.NewExitError(errors.Wrap(err, "Failed to write the `rootfs-image.checksum` to the artifact"), 1)
 		}
 	}
 
@@ -282,6 +289,7 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 			return nil, nil, err
 		}
 	}
+	typeInfoProvides = applySoftwareVersionToTypeInfoProvides(ctx, typeInfoProvides)
 
 	var augmentTypeInfoDepends artifact.TypeInfoDepends
 	keyValues, err = extractKeyValues(ctx.StringSlice("augment-depends"))
@@ -303,10 +311,16 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 		}
 	}
 
+	clearsArtifactProvides, err := makeClearsArtifactProvides(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	typeInfoV3 := &artifact.TypeInfoV3{
-		Type:             ctx.String("type"),
-		ArtifactDepends:  typeInfoDepends,
-		ArtifactProvides: typeInfoProvides,
+		Type:                   ctx.String("type"),
+		ArtifactDepends:        typeInfoDepends,
+		ArtifactProvides:       typeInfoProvides,
+		ClearsArtifactProvides: clearsArtifactProvides,
 	}
 
 	if ctx.String("augment-type") == "" {
@@ -330,6 +344,128 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 	}
 
 	return typeInfoV3, augmentTypeInfoV3, nil
+}
+
+func getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareNameDefault, softwareVersion string, noDefaultSoftwareVersion bool) map[string]string {
+	result := map[string]string{}
+	softwareVersionName := "rootfs-image"
+	if softwareFilesystem != "" {
+		softwareVersionName = softwareFilesystem
+	}
+	if noDefaultSoftwareVersion == false {
+		if softwareName == "" {
+			softwareName = softwareNameDefault
+		}
+		if softwareVersion == "" {
+			softwareVersion = artifactName
+		}
+	}
+	if softwareName != "" {
+		softwareVersionName += fmt.Sprintf(".%s", softwareName)
+	}
+	if softwareVersionName != "" && softwareVersion != "" {
+		result[softwareVersionName+".version"] = softwareVersion
+	}
+	return result
+}
+
+// applySoftwareVersionToTypeInfoProvides returns a new mapping, enriched with provides
+// for the software version; the mapping provided as argument is not modified
+func applySoftwareVersionToTypeInfoProvides(ctx *cli.Context, typeInfoProvides artifact.TypeInfoProvides) artifact.TypeInfoProvides {
+	result := make(map[string]string)
+	if typeInfoProvides != nil {
+		for key, value := range typeInfoProvides {
+			result[key] = value
+		}
+	}
+	artifactName := ctx.String("artifact-name")
+	softwareFilesystem := ctx.String(softwareFilesystemFlag)
+	softwareName := ctx.String(softwareNameFlag)
+	softwareNameDefault := ""
+	if ctx.Command.Name == "module-image" {
+		softwareNameDefault = ctx.String("type")
+	}
+	softwareVersion := ctx.String(softwareVersionFlag)
+	noDefaultSoftwareVersion := ctx.Bool(noDefaultSoftwareVersionFlag)
+	if softwareVersionMapping := getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareNameDefault, softwareVersion, noDefaultSoftwareVersion); len(softwareVersionMapping) > 0 {
+		for key, value := range softwareVersionMapping {
+			if result[key] == "" || softwareVersionOverridesProvides(ctx, key) {
+				result[key] = value
+			}
+		}
+	}
+	return result
+}
+
+func softwareVersionOverridesProvides(ctx *cli.Context, key string) bool {
+	cmdLine := strings.Join(os.Args, " ")
+
+	var providesVersion string = `(-p|--provides)(\s+|=)` + regexp.QuoteMeta(key) + ":"
+	reProvidesVersion := regexp.MustCompile(providesVersion)
+	providesIndexes := reProvidesVersion.FindAllStringIndex(cmdLine, -1)
+
+	var softareVersion string = "--software-(name|version|filesystem)"
+	reSoftwareVersion := regexp.MustCompile(softareVersion)
+	softwareIndexes := reSoftwareVersion.FindAllStringIndex(cmdLine, -1)
+
+	if len(providesIndexes) == 0 {
+		return true
+	} else if len(softwareIndexes) == 0 {
+		return false
+	} else {
+		return softwareIndexes[len(softwareIndexes)-1][0] > providesIndexes[len(providesIndexes)-1][0]
+	}
+}
+
+func makeClearsArtifactProvides(ctx *cli.Context) ([]string, error) {
+	list := ctx.StringSlice(clearsProvidesFlag)
+
+	if ctx.Bool(noDefaultClearsProvidesFlag) || ctx.Bool(noDefaultSoftwareVersionFlag) {
+		return list, nil
+	}
+
+	var softwareFilesystem string
+	if ctx.IsSet("software-filesystem") {
+		softwareFilesystem = ctx.String("software-filesystem")
+	} else {
+		softwareFilesystem = "rootfs-image"
+	}
+
+	var softwareName string
+	if len(ctx.String("software-name")) > 0 {
+		softwareName = ctx.String("software-name") + "."
+	} else if ctx.Command.Name == "rootfs-image" {
+		softwareName = ""
+		// "rootfs_image_checksum" is included for legacy
+		// reasons. Previously, "rootfs_image_checksum" was the name
+		// given to the checksum, but new artifacts follow the new dot
+		// separated scheme, "rootfs-image.checksum", which also has the
+		// correct dash instead of the incorrect underscore.
+		//
+		// "artifact_group" is included as a sane default for
+		// rootfs-image updates. A standard rootfs-image update should
+		// clear the group if it does not have one.
+		if softwareFilesystem == "rootfs-image" {
+			list = append(list, "artifact_group", "rootfs_image_checksum")
+		}
+	} else if ctx.Command.Name == "module-image" {
+		softwareName = ctx.String("type") + "."
+	} else {
+		return nil, errors.New("Unknown write command in makeClearsArtifactProvides(), this is a bug.")
+	}
+
+	defaultCap := fmt.Sprintf("%s.%s*", softwareFilesystem, softwareName)
+	for _, cap := range list {
+		if defaultCap == cap {
+			// Avoid adding it twice if the default is the same as a
+			// specified provide.
+			goto dontAdd
+		}
+	}
+	list = append(list, defaultCap)
+
+dontAdd:
+	return list, nil
 }
 
 func makeMetaData(ctx *cli.Context) (map[string]interface{}, map[string]interface{}, error) {
@@ -473,11 +609,6 @@ func extractKeyValues(params []string) (*map[string]string, error) {
 			if len(split) != 2 {
 				return nil, cli.NewExitError(
 					fmt.Sprintf("argument must have a delimiting colon: %s", arg),
-					errArtifactInvalidParameters)
-			}
-			if _, exists := (*keyValues)[split[0]]; exists {
-				return nil, cli.NewExitError(
-					fmt.Sprintf("argument specified more than once: %s", split[0]),
 					errArtifactInvalidParameters)
 			}
 			(*keyValues)[split[0]] = split[1]

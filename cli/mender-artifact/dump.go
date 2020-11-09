@@ -90,8 +90,12 @@ func DumpCommand(c *cli.Context) error {
 		return err
 	}
 
-	if c.Bool("print-cmdline") {
-		printCmdline(ar, dumpArgs)
+	if c.Bool("print-cmdline") && c.Bool("print0-cmdline") {
+		return errors.New("--print-cmdline and --print0-cmdline are conflicting options.")
+	} else if c.Bool("print-cmdline") {
+		printCmdline(ar, dumpArgs, ' ', '\n')
+	} else if c.Bool("print0-cmdline") {
+		printCmdline(ar, dumpArgs, 0, 0)
 	}
 
 	return nil
@@ -178,54 +182,71 @@ func dumpMetaData(metaDataDir string, dumpArgs *[]string, handlers map[int]handl
 	return nil
 }
 
-func printCmdline(ar *areader.Reader, args []string) {
+func printCmdline(ar *areader.Reader, args []string, sep, endChar rune) {
 	// Even if it is a rootfs payload, we use the module-image writer, since
 	// this can recreate either type.
-	fmt.Printf("write module-image")
+	fmt.Printf("write%cmodule-image", sep)
 
 	if ar.GetInfo().Version == 3 {
 		artProvs := ar.GetArtifactProvides()
-		fmt.Printf(" --artifact-name %s", artProvs.ArtifactName)
+		fmt.Printf("%c--artifact-name%c%s", sep, sep, artProvs.ArtifactName)
 		if len(artProvs.ArtifactGroup) > 0 {
-			fmt.Printf(" --provides-group %s", artProvs.ArtifactGroup)
+			fmt.Printf("%c--provides-group%c%s", sep, sep, artProvs.ArtifactGroup)
 		}
 
 		artDeps := ar.GetArtifactDepends()
 		if len(artDeps.ArtifactName) > 0 {
-			fmt.Printf(" --artifact-name-depends %s", strings.Join(artDeps.ArtifactName, " --artifact-name-depends "))
+			fmt.Printf("%c--artifact-name-depends%c%s", sep, sep,
+				strings.Join(artDeps.ArtifactName, fmt.Sprintf("%c--artifact-name-depends%c", sep, sep)))
 		}
-		fmt.Printf(" --device-type %s", strings.Join(artDeps.CompatibleDevices, " --device-type "))
+		fmt.Printf("%c--device-type%c%s", sep, sep,
+			strings.Join(artDeps.CompatibleDevices, fmt.Sprintf("%c--device-type%c", sep, sep)))
 		if len(artDeps.ArtifactGroup) > 0 {
-			fmt.Printf(" --depends-groups %s", strings.Join(artDeps.ArtifactGroup, " --depends-groups "))
+			fmt.Printf("%c--depends-groups%c%s", sep, sep,
+				strings.Join(artDeps.ArtifactGroup, fmt.Sprintf("%c--depends-groups%c", sep, sep)))
 		}
 
 	} else if ar.GetInfo().Version == 2 {
-		fmt.Printf(" --artifact-name %s", ar.GetArtifactName())
-		fmt.Printf(" --device-type %s", strings.Join(ar.GetCompatibleDevices(), " --device-type "))
+		fmt.Printf("%c--artifact-name%c%s", sep, sep, ar.GetArtifactName())
+		fmt.Printf("%c--device-type%c%s", sep, sep, strings.Join(ar.GetCompatibleDevices(), " --device-type "))
 	}
 
 	handlers := ar.GetHandlers()
 	handler := handlers[0]
 
-	fmt.Printf(" --type %s", handler.GetUpdateType())
+	fmt.Printf("%c--type%c%s", sep, sep, handler.GetUpdateType())
+
+	// Always add this flag, since we will write custom flags.
+	fmt.Printf("%c--%s", sep, noDefaultSoftwareVersionFlag)
 
 	provs := handler.GetUpdateOriginalProvides()
 	if provs != nil {
 		for key, value := range provs {
-			fmt.Printf(" --provides %s:%s", key, value)
+			fmt.Printf("%c--provides%c%s:%s", sep, sep, key, value)
 		}
 	}
 
 	deps := handler.GetUpdateOriginalDepends()
 	if deps != nil {
 		for key, value := range deps {
-			fmt.Printf(" --depends %s:%s", key, value)
+			fmt.Printf("%c--depends%c%s:%s", sep, sep, key, value)
+		}
+	}
+
+	// Always add this flag, since we will write custom flags.
+	fmt.Printf("%c--%s", sep, noDefaultClearsProvidesFlag)
+
+	caps := handler.GetUpdateOriginalClearsProvides()
+	if caps != nil {
+		for _, value := range caps {
+			fmt.Printf("%c--%s%c%s", sep, clearsProvidesFlag, sep, value)
 		}
 	}
 
 	if len(args) > 0 {
-		fmt.Printf(" %s\n", strings.Join(args, " "))
+		fmt.Printf("%c%s", sep, strings.Join(args, string(sep)))
 	}
+	fmt.Printf("%c", endChar)
 }
 
 func (d *dumpFileStore) NewUpdateStorer(updateType string, payloadNum int) (handlers.UpdateStorer, error) {

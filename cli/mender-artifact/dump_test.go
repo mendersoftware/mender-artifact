@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"testing"
 
@@ -67,21 +68,37 @@ func runAndCollectStdout(args []string) (string, error) {
 		return "", goRoutineErr
 	}
 
+	// Trim null byte (from --print0-cmdline).
+	if printed[len(printed)-1] == 0 {
+		printed = printed[:len(printed)-1]
+	}
 	return strings.TrimSpace(string(printed)), nil
 }
 
 func TestDumpContent(t *testing.T) {
-	for _, imageType := range []string{"rootfs-image", "my-own-type"} {
-		t.Run(imageType, func(t *testing.T) {
-			testDumpContent(t, imageType)
-		})
+	for _, printCmdline := range []string{"--print-cmdline", "--print0-cmdline"} {
+		for _, imageType := range []string{"rootfs-image", "my-own-type"} {
+			t.Run(fmt.Sprintf("%s/%s", imageType, printCmdline), func(t *testing.T) {
+				testDumpContent(t, imageType, printCmdline)
+			})
+		}
 	}
 }
 
-func testDumpContent(t *testing.T, imageType string) {
+func testDumpContent(t *testing.T, imageType, printCmdline string) {
 	tmpdir, err := ioutil.TempDir("", "")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
+
+	var sep string
+	switch printCmdline {
+	case "--print-cmdline":
+		sep = " "
+	case "--print0-cmdline":
+		sep = "\x00"
+	default:
+		t.Fatal("Unknown --print-cmdline mode")
+	}
 
 	makeFile(t, tmpdir, "file", "payload")
 	makeFile(t, tmpdir, "file2", "payload2")
@@ -109,30 +126,38 @@ func testDumpContent(t *testing.T, imageType string) {
 		"-d", "testDepends:someDep",
 		"-p", "testProvides:someProv",
 		"-g", "providesGroup",
-		"-G", "dependsGroup"})
+		"-G", "dependsGroup",
+		"--no-default-software-version"})
 	require.NoError(t, err)
 
 	printed, err := runAndCollectStdout([]string{"mender-artifact", "dump",
 		"--scripts", path.Join(tmpdir, "scripts"),
 		"--meta-data", path.Join(tmpdir, "meta"),
 		"--files", path.Join(tmpdir, "files"),
-		"--print-cmdline",
+		printCmdline,
 		path.Join(tmpdir, "artifact.mender")})
 
 	assert.NoError(t, err)
-	assert.Equal(t, fmt.Sprintf("write module-image"+
+	assert.Equal(t, strings.ReplaceAll(fmt.Sprintf(
+		"write module-image"+
 		" --artifact-name Name"+
 		" --provides-group providesGroup"+
 		" --artifact-name-depends dependsOnArtifact"+
 		" --device-type TestDevice"+
 		" --depends-groups dependsGroup"+
 		" --type %s"+
+		" --no-default-software-version"+
 		" --provides testProvides:someProv"+
 		" --depends testDepends:someDep"+
+		" --no-default-clears-provides"+
 		" --script %s/scripts/ArtifactInstall_Enter_45_test"+
 		" --meta-data %s/meta/0000.meta-data"+
 		" --file %s/files/file",
 		imageType, tmpdir, tmpdir, tmpdir),
+		// Replacing all spaces with sep is not safe in general when
+		// using --print0-cmdline, but we know there are no
+		// literal spaces in our test arguments.
+		" ", sep),
 		string(printed))
 
 	// --------------------------------------------------------------------
@@ -155,6 +180,7 @@ func testDumpContent(t *testing.T, imageType string) {
 		"-t", "TestDevice",
 		"-t", "TestDevice2",
 		"-T", imageType,
+		"--clears-provides", imageType + ".*",
 		"-N", "dependsOnArtifact",
 		"-N", "dependsOnArtifact2",
 		"-f", path.Join(tmpdir, "file"),
@@ -175,15 +201,17 @@ func testDumpContent(t *testing.T, imageType string) {
 		"--scripts", path.Join(tmpdir, "scripts"),
 		"--meta-data", path.Join(tmpdir, "meta"),
 		"--files", path.Join(tmpdir, "files"),
-		"--print-cmdline",
+		printCmdline,
 		path.Join(tmpdir, "artifact.mender")})
 
 	assert.NoError(t, err)
 	printedStr := string(printed)
+
 	// The provides, depends and scripts are stored in maps, where the order
-	// is unpredictable, so compare only the beginning and end directly, and
-	// use search to match those afterwards.
-	assert.Equal(t, fmt.Sprintf("write module-image"+
+	// is unpredictable, so split on the start of the flag, sort, and
+	// compare that.
+	expected := strings.Split(strings.ReplaceAll(
+		"write module-image"+
 		" --artifact-name Name"+
 		" --provides-group providesGroup"+
 		" --artifact-name-depends dependsOnArtifact"+
@@ -192,20 +220,77 @@ func testDumpContent(t *testing.T, imageType string) {
 		" --device-type TestDevice2"+
 		" --depends-groups dependsGroup"+
 		" --depends-groups dependsGroup2"+
-		" --type %s",
-		imageType),
-		printedStr[0:strings.Index(printedStr, " --provides ")])
+		fmt.Sprintf(" --type %s", imageType)+
+		" --no-default-software-version"+
+		" --no-default-clears-provides"+
+		" --provides testProvides:someProv"+
+		" --provides testProvides2:someProv2"+
+		fmt.Sprintf(" --provides rootfs-image.%s.version:Name", imageType)+
+		" --depends testDepends:someDep"+
+		" --depends testDepends2:someDep2"+
+		fmt.Sprintf(" --script %s/scripts/ArtifactInstall_Enter_45_test", tmpdir)+
+		fmt.Sprintf(" --script %s/scripts/ArtifactCommit_Leave_55", tmpdir)+
+		fmt.Sprintf(" --clears-provides %s.*", imageType)+
+		fmt.Sprintf(" --clears-provides rootfs-image.%s.*", imageType)+
+		fmt.Sprintf(" --meta-data %s/meta/0000.meta-data", tmpdir)+
+		fmt.Sprintf(" --file %s/files/file", tmpdir)+
+		fmt.Sprintf(" --file %s/files/file2", tmpdir),
 
-	assert.Equal(t, fmt.Sprintf(" --meta-data %s/meta/0000.meta-data"+
-		" --file %s/files/file"+
-		" --file %s/files/file2",
-		tmpdir, tmpdir, tmpdir),
-		printedStr[strings.Index(printedStr, " --meta-data "):])
+		// Replacing all spaces with sep is not safe in general when
+		// using --print0-cmdline, but we know there are no
+		// literal spaces in our test arguments.
+		" ", sep),
 
-	assert.True(t, strings.Index(printedStr, " --provides testProvides:someProv") >= 0)
-	assert.True(t, strings.Index(printedStr, " --provides testProvides2:someProv2") >= 0)
-	assert.True(t, strings.Index(printedStr, " --depends testDepends:someDep") >= 0)
-	assert.True(t, strings.Index(printedStr, " --depends testDepends2:someDep2") >= 0)
-	assert.True(t, strings.Index(printedStr, fmt.Sprintf(" --script %s/scripts/ArtifactInstall_Enter_45_test", tmpdir)) >= 0)
-	assert.True(t, strings.Index(printedStr, fmt.Sprintf(" --script %s/scripts/ArtifactCommit_Leave_55", tmpdir)) >= 0)
+		// Split separator.
+		fmt.Sprintf("%s--", sep))
+
+	actual := strings.Split(printedStr, fmt.Sprintf("%s--", sep))
+	sort.Strings(expected[1:])
+	sort.Strings(actual[1:])
+
+	assert.Equal(t, expected, actual)
+
+	// --------------------------------------------------------------------
+	// Flags
+	// --------------------------------------------------------------------
+
+	// Check that all flags which are documented on the command line are taken into
+	// account in the "dump" command. *DO NOT* add flags to this list without making
+	// sure that either:
+	//
+	// 1. It is tested somewhere in this file, by using the flag, dumping it, and
+	// checking that it is recreated correctly.
+	//
+	// -or-
+	//
+	// 2. It does not need to be tested (no effect on dumping or tested elsewhere).
+	flagChecker := newFlagChecker("write")
+	flagChecker.addFlags([]string{
+		"artifact-name",
+		"artifact-name-depends",
+		"clears-provides",
+		"compression", // Not tested in "dump".
+		"depends",
+		"depends-groups",
+		"device-type",
+		"file",
+		"key",                          // Not tested in "dump".
+		"legacy-rootfs-image-checksum", // Not relevant for "dump", which uses "module-image".
+		"meta-data",
+		"no-checksum-provide", // Not relevant for "dump", which uses "module-image".
+		"no-default-clears-provides",
+		"no-default-software-version",
+		"output-path", // Not relevant for "dump".
+		"provides",
+		"provides-group",
+		"script",
+		"software-filesystem", // These three indirectly handled by --provides.
+		"software-name",       // <
+		"software-version",    // <
+		"ssh-args",            // Not relevant for "dump".
+		"type",
+		"version", // Could be supported, but in practice we only support >= v3.
+	})
+
+	flagChecker.checkAllFlagsTested(t)
 }

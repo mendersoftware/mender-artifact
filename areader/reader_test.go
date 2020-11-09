@@ -432,6 +432,10 @@ func (i *installer) GetUpdateProvides() (artifact.TypeInfoProvides, error) {
 	return i.typeInfoV3.ArtifactProvides, nil
 }
 
+func (i *installer) GetUpdateClearsProvides() []string {
+	return []string{}
+}
+
 func (i *installer) GetUpdateMetaData() (map[string]interface{}, error) {
 	return nil, nil
 }
@@ -444,6 +448,10 @@ func (i *installer) GetUpdateOriginalProvides() artifact.TypeInfoProvides {
 	return artifact.TypeInfoProvides{}
 }
 
+func (i *installer) GetUpdateOriginalClearsProvides() []string {
+	return []string{}
+}
+
 func (i *installer) GetUpdateOriginalMetaData() map[string]interface{} {
 	return nil
 }
@@ -454,6 +462,10 @@ func (i *installer) GetUpdateAugmentDepends() artifact.TypeInfoDepends {
 
 func (i *installer) GetUpdateAugmentProvides() artifact.TypeInfoProvides {
 	return artifact.TypeInfoProvides{}
+}
+
+func (i *installer) GetUpdateAugmentClearsProvides() []string {
+	return []string{}
 }
 
 func (i *installer) GetUpdateAugmentMetaData() map[string]interface{} {

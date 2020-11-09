@@ -446,11 +446,10 @@ func (t *TypeInfoProvides) UnmarshalJSON(b []byte) error {
 type TypeInfoV3 struct {
 	// Rootfs/Delta (Required).
 	Type string `json:"type"`
-	// Checksum of the image that needs to be installed on the device in order to
-	// apply the current update.
-	ArtifactDepends TypeInfoDepends `json:"artifact_depends,omitempty"`
-	// Checksum of the image currently installed on the device.
-	ArtifactProvides TypeInfoProvides `json:"artifact_provides,omitempty"`
+
+	ArtifactDepends        TypeInfoDepends  `json:"artifact_depends,omitempty"`
+	ArtifactProvides       TypeInfoProvides `json:"artifact_provides,omitempty"`
+	ClearsArtifactProvides []string         `json:"clears_artifact_provides,omitempty"`
 }
 
 // Validate checks that the required `Type` field is set.

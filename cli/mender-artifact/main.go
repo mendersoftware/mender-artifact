@@ -36,6 +36,16 @@ const (
 	errSystemError
 )
 
+const (
+	clearsProvidesFlag           = "clears-provides"
+	deleteClearsProvidesFlag     = "delete-clears-provides"
+	noDefaultSoftwareVersionFlag = "no-default-software-version"
+	noDefaultClearsProvidesFlag  = "no-default-clears-provides"
+	softwareNameFlag             = "software-name"
+	softwareVersionFlag          = "software-version"
+	softwareFilesystemFlag       = "software-filesystem"
+)
+
 // Version of the mender-artifact CLI tool
 var Version = "unknown"
 
@@ -114,6 +124,20 @@ func getCliContext() *cli.App {
 		Usage: "The group(s) the artifact depends on",
 	}
 
+	// Common Software Version flags
+	softwareVersionNoDefault := cli.BoolFlag{
+		Name:  noDefaultSoftwareVersionFlag,
+		Usage: "Disable the software version field for compatibility with old clients",
+	}
+	softwareVersionValue := cli.StringFlag{
+		Name:  softwareVersionFlag,
+		Usage: "Value for the software version, defaults to the name of the artifact",
+	}
+	softwareFilesystem := cli.StringFlag{
+		Name:  softwareFilesystemFlag,
+		Usage: "If specified, is used instead of rootfs-image",
+	}
+
 	//
 	// Common Payload flags
 	//
@@ -128,6 +152,14 @@ func getCliContext() *cli.App {
 	payloadMetaData := cli.StringFlag{
 		Name:  "meta-data, m",
 		Usage: "The meta-data JSON `FILE` for this payload",
+	}
+	clearsArtifactProvides := cli.StringSliceFlag{
+		Name:  clearsProvidesFlag,
+		Usage: "Add a clears_artifact_provides field to Artifact payload",
+	}
+	noDefaultClearsArtifactProvides := cli.BoolFlag{
+		Name:  noDefaultClearsProvidesFlag,
+		Usage: "Do not add any default clears_artifact_provides fields to Artifact payload",
 	}
 
 	//
@@ -171,6 +203,11 @@ func getCliContext() *cli.App {
 				"scripts providing this parameter multiple times.",
 		},
 		cli.BoolFlag{
+			Name: "legacy-rootfs-image-checksum",
+			Usage: "Use the legacy key name rootfs_image_checksum to store the providese checksum " +
+				"to the Artifact provides parameters instead of rootfs-image.checksum.",
+		},
+		cli.BoolFlag{
 			Name: "no-checksum-provide",
 			Usage: "Disable writing the provides checksum to the Artifact provides " +
 				"parameters. This is needed in case the targeted devices do not support " +
@@ -190,7 +227,19 @@ func getCliContext() *cli.App {
 		artifactDependsGroups,
 		payloadDepends,
 		payloadProvides,
+		clearsArtifactProvides,
+		noDefaultClearsArtifactProvides,
 		compressionFlag,
+		//////////////////////
+		// Sotware versions //
+		//////////////////////
+		softwareVersionNoDefault,
+		cli.StringFlag{
+			Name:  softwareNameFlag,
+			Usage: "Name of the key to store the software version: rootfs-image.NAME.version, instead of rootfs-image.version",
+		},
+		softwareVersionValue,
+		softwareFilesystem,
 	}
 
 	writeRootfsCommand.Before = applyCompressionInCommand
@@ -271,7 +320,19 @@ func getCliContext() *cli.App {
 			Name:  "augment-file",
 			Usage: "Include `FILE` in payload in the augment section. Can be given more than once.",
 		},
+		clearsArtifactProvides,
+		noDefaultClearsArtifactProvides,
 		compressionFlag,
+		//////////////////////
+		// Sotware versions //
+		//////////////////////
+		softwareVersionNoDefault,
+		cli.StringFlag{
+			Name:  softwareNameFlag,
+			Usage: "Name of the key to store the software version: rootfs-image.NAME.version, instead of rootfs-image.PAYLOAD_TYPE.version",
+		},
+		softwareVersionValue,
+		softwareFilesystem,
 	}
 	writeModuleCommand.Before = applyCompressionInCommand
 
@@ -377,6 +438,11 @@ func getCliContext() *cli.App {
 		payloadProvides,
 		payloadDepends,
 		payloadMetaData,
+		clearsArtifactProvides,
+		cli.StringSliceFlag{
+			Name:  deleteClearsProvidesFlag,
+			Usage: "Erase one \"Clears Provides\" filter from the Artifact.",
+		},
 		cli.StringFlag{
 			Name:  "tenant-token, t",
 			Usage: "Full path to the tenant token that will be injected into modified file.",
@@ -476,6 +542,10 @@ func getCliContext() *cli.App {
 		cli.BoolFlag{
 			Name:  "print-cmdline",
 			Usage: "Print the command line that can recreate the same Artifact with the components being dumped. If all the components are being dumped, a nearly identical Artifact can be created. Note that timestamps will cause the checksum of the Artifact to be different, and signatures can not be recreated this way. The command line will only use long option names.",
+		},
+		cli.BoolFlag{
+			Name:  "print0-cmdline",
+			Usage: "Same as 'print-cmdline', except that the arguments are separated by a null character (0x00).",
 		},
 	}
 

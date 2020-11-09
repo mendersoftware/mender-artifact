@@ -163,14 +163,14 @@ func WriteArtifact(dir string, ver int, update string) error {
 		Type: "rootfs-image",
 		// Keeping these empty for now. We will likely introduce these
 		// later, when we add support for augmented artifacts.
-		// ArtifactDepends:  &artifact.TypeInfoDepends{"rootfs_image_checksum": c.String("depends-rootfs-image-checksum")},
-		// ArtifactProvides: &artifact.TypeInfoProvides{"rootfs_image_checksum": c.String("provides-rootfs-image-checksum")},
+		// ArtifactDepends:  &artifact.TypeInfoDepends{"rootfs-image.checksum": c.String("depends-rootfs-image-checksum")},
+		// ArtifactProvides: &artifact.TypeInfoProvides{"rootfs-image.checksum": c.String("provides-rootfs-image-checksum")},
 		ArtifactDepends:  artifact.TypeInfoDepends{},
 		ArtifactProvides: artifact.TypeInfoProvides{},
 	}
 
 	if ver >= 3 {
-		err = writeRootfsImageChecksum(update, &typeInfoV3)
+		err = writeRootfsImageChecksum(update, &typeInfoV3, false)
 		if err != nil {
 			return err
 		}
