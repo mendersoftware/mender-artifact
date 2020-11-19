@@ -16,6 +16,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -30,9 +31,11 @@ import (
 	"io/ioutil"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/mendersoftware/mender-artifact/artifact/stage"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/cli/mender-artifact/util"
 	"github.com/mendersoftware/mender-artifact/handlers"
+	"github.com/mendersoftware/mender-artifact/utils"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )
@@ -182,6 +185,13 @@ func writeRootfs(c *cli.Context) error {
 		}
 	}
 
+	if !c.Bool("no-progress") {
+		ctx, cancel := context.WithCancel(context.Background())
+		go reportProgress(ctx, aw.State)
+		defer cancel()
+		aw.ProgressWriter = utils.NewProgressWriter()
+	}
+
 	err = aw.WriteArtifact(
 		&awriter.WriteArtifactArgs{
 			Format:     "mender",
@@ -204,6 +214,27 @@ func writeRootfs(c *cli.Context) error {
 		return cli.NewExitError(err.Error(), 1)
 	}
 	return nil
+}
+
+func reportProgress(c context.Context, state chan string) {
+	fmt.Fprintln(os.Stderr, "Writing Artifact...")
+	str := fmt.Sprintf("%-20s\t", <-state)
+	fmt.Fprintf(os.Stderr, str)
+	for {
+		select {
+		case str = <-state:
+			if str == stage.Data {
+				fmt.Fprintf(os.Stderr, "\033[1;32m\u2713\033[0m\n")
+				fmt.Fprintln(os.Stderr, "Payload")
+			} else {
+				fmt.Fprintf(os.Stderr, "\033[1;32m\u2713\033[0m\n")
+				str = fmt.Sprintf("%-20s\t", str)
+				fmt.Fprintf(os.Stderr, str)
+			}
+		case <-c.Done():
+			return
+		}
+	}
 }
 
 func artifactWriter(comp artifact.Compressor, f *os.File, key string,

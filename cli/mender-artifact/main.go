@@ -219,6 +219,10 @@ func getCliContext() *cli.App {
 				"creating artifact from snapshot (i.e. FILE " +
 				"contains 'ssh://' schema)",
 		},
+		cli.BoolFlag{
+			Name:  "no-progress",
+			Usage: "Suppress the progressbar output",
+		},
 		/////////////////////////
 		// Version 3 specifics.//
 		/////////////////////////
@@ -369,7 +373,13 @@ func getCliContext() *cli.App {
 		Category:    "Artifact creation and validation",
 		Action:      readArtifact,
 		Description: "This command validates artifact file provided by pathspec.",
-		Flags:       []cli.Flag{publicKeyFlag},
+		Flags: []cli.Flag{
+			publicKeyFlag,
+			cli.BoolFlag{
+				Name:  "no-progress",
+				Usage: "Suppress the progressbar output",
+			},
+		},
 	}
 
 	//
