@@ -7,7 +7,6 @@ require (
 	github.com/klauspost/compress v1.10.5 // indirect
 	github.com/klauspost/pgzip v1.2.5
 	github.com/kr/pretty v0.1.0 // indirect
-	github.com/mendersoftware/mendertesting v0.0.1
 	github.com/mendersoftware/progressbar v0.0.2
 	github.com/minio/sha256-simd v0.1.1
 	github.com/onsi/ginkgo v1.12.0 // indirect

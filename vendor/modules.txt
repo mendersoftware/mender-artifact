@@ -13,9 +13,6 @@ github.com/klauspost/pgzip
 ## explicit
 # github.com/mattn/go-isatty v0.0.12
 github.com/mattn/go-isatty
-# github.com/mendersoftware/mendertesting v0.0.1
-## explicit
-github.com/mendersoftware/mendertesting
 # github.com/mendersoftware/progressbar v0.0.2
 ## explicit
 github.com/mendersoftware/progressbar
