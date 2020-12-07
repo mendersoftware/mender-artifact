@@ -13,10 +13,3 @@
 //    limitations under the License.
 
 package main
-
-import "testing"
-import mt "github.com/mendersoftware/mendertesting"
-
-func TestLicenses(t *testing.T) {
-	mt.CheckMenderCompliance(t)
-}
