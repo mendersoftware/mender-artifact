@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ func TestArtifactsWrite(t *testing.T) {
 	os.Args = []string{"mender-artifact", "write", "rootfs-image"}
 	err = run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Required flags \" n,  t,  f\" not set",
+	assert.Contains(t, err.Error(), "Required flags \"artifact-name, device-type, file\" not set",
 		"Required flags error missing")
 
 	updateTestDir, _ := ioutil.TempDir("", "update")
