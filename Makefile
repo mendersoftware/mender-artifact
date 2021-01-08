@@ -105,9 +105,9 @@ test: tooldep
 
 extracheck:
 	echo "-- checking if code is gofmt'ed"
-	if [ -n "$$($(GOFMT) -d $(PKGFILES))" ]; then \
+	@if [ -n "$$($(GOFMT) -d $(PKGFILES))" ]; then \
+		"$$($(GOFMT) -d $(PKGFILES))" \
 		echo "-- gofmt check failed"; \
-		echo $GOFMT -d $PKGFILES \
 		/bin/false; \
 	fi
 	echo "-- checking with govet"
