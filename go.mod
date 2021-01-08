@@ -15,7 +15,7 @@ require (
 	github.com/remyoudompheng/go-liblzma v0.0.0-20190301141425-da7c45f32144
 	github.com/sirupsen/logrus v0.0.0-20180315010703-90150a8ed11b
 	github.com/stretchr/testify v1.6.1
-	github.com/urfave/cli v1.22.4
+	github.com/urfave/cli v1.22.5
 	golang.org/x/crypto v0.0.0-20191117063200-497ca9f6d64f // indirect
 	golang.org/x/net v0.0.0-20191119073136-fc4aabc6c914 // indirect
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58 // indirect

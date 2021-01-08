@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@ import (
 
 func TestStringsMatchingWildcards(t *testing.T) {
 	testCases := []struct {
-		provides []string
+		provides       []string
 		clearsProvides []string
-		expected []string
+		expected       []string
 	}{
 		{
 			provides: []string{
@@ -68,7 +68,7 @@ func TestStringsMatchingWildcards(t *testing.T) {
 				"rootfs-image.single-file.version",
 			},
 			clearsProvides: []string{},
-			expected: []string{},
+			expected:       []string{},
 		},
 		{
 			provides: []string{
@@ -76,7 +76,7 @@ func TestStringsMatchingWildcards(t *testing.T) {
 				"rootfs-image.single-file.version",
 			},
 			clearsProvides: nil,
-			expected: []string{},
+			expected:       []string{},
 		},
 		{
 			provides: []string{
