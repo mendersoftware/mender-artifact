@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -997,7 +997,7 @@ func TestModifyAllFlagsTested(t *testing.T) {
 	// Add a few irrelevant flags for "modify" tests.
 	modifyWriteFlagsTested.addFlags([]string{
 		"ssh-args",
-		"version", // Could be supported, but we don't care about this.
+		"version",     // Could be supported, but we don't care about this.
 		"no-progress", // Has no effect on the output
 	})
 

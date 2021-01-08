@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -140,19 +140,19 @@ func testDumpContent(t *testing.T, imageType, printCmdline string) {
 	assert.NoError(t, err)
 	assert.Equal(t, strings.ReplaceAll(fmt.Sprintf(
 		"write module-image"+
-		" --artifact-name Name"+
-		" --provides-group providesGroup"+
-		" --artifact-name-depends dependsOnArtifact"+
-		" --device-type TestDevice"+
-		" --depends-groups dependsGroup"+
-		" --type %s"+
-		" --no-default-software-version"+
-		" --provides testProvides:someProv"+
-		" --depends testDepends:someDep"+
-		" --no-default-clears-provides"+
-		" --script %s/scripts/ArtifactInstall_Enter_45_test"+
-		" --meta-data %s/meta/0000.meta-data"+
-		" --file %s/files/file",
+			" --artifact-name Name"+
+			" --provides-group providesGroup"+
+			" --artifact-name-depends dependsOnArtifact"+
+			" --device-type TestDevice"+
+			" --depends-groups dependsGroup"+
+			" --type %s"+
+			" --no-default-software-version"+
+			" --provides testProvides:someProv"+
+			" --depends testDepends:someDep"+
+			" --no-default-clears-provides"+
+			" --script %s/scripts/ArtifactInstall_Enter_45_test"+
+			" --meta-data %s/meta/0000.meta-data"+
+			" --file %s/files/file",
 		imageType, tmpdir, tmpdir, tmpdir),
 		// Replacing all spaces with sep is not safe in general when
 		// using --print0-cmdline, but we know there are no
@@ -212,29 +212,29 @@ func testDumpContent(t *testing.T, imageType, printCmdline string) {
 	// compare that.
 	expected := strings.Split(strings.ReplaceAll(
 		"write module-image"+
-		" --artifact-name Name"+
-		" --provides-group providesGroup"+
-		" --artifact-name-depends dependsOnArtifact"+
-		" --artifact-name-depends dependsOnArtifact2"+
-		" --device-type TestDevice"+
-		" --device-type TestDevice2"+
-		" --depends-groups dependsGroup"+
-		" --depends-groups dependsGroup2"+
-		fmt.Sprintf(" --type %s", imageType)+
-		" --no-default-software-version"+
-		" --no-default-clears-provides"+
-		" --provides testProvides:someProv"+
-		" --provides testProvides2:someProv2"+
-		fmt.Sprintf(" --provides rootfs-image.%s.version:Name", imageType)+
-		" --depends testDepends:someDep"+
-		" --depends testDepends2:someDep2"+
-		fmt.Sprintf(" --script %s/scripts/ArtifactInstall_Enter_45_test", tmpdir)+
-		fmt.Sprintf(" --script %s/scripts/ArtifactCommit_Leave_55", tmpdir)+
-		fmt.Sprintf(" --clears-provides %s.*", imageType)+
-		fmt.Sprintf(" --clears-provides rootfs-image.%s.*", imageType)+
-		fmt.Sprintf(" --meta-data %s/meta/0000.meta-data", tmpdir)+
-		fmt.Sprintf(" --file %s/files/file", tmpdir)+
-		fmt.Sprintf(" --file %s/files/file2", tmpdir),
+			" --artifact-name Name"+
+			" --provides-group providesGroup"+
+			" --artifact-name-depends dependsOnArtifact"+
+			" --artifact-name-depends dependsOnArtifact2"+
+			" --device-type TestDevice"+
+			" --device-type TestDevice2"+
+			" --depends-groups dependsGroup"+
+			" --depends-groups dependsGroup2"+
+			fmt.Sprintf(" --type %s", imageType)+
+			" --no-default-software-version"+
+			" --no-default-clears-provides"+
+			" --provides testProvides:someProv"+
+			" --provides testProvides2:someProv2"+
+			fmt.Sprintf(" --provides rootfs-image.%s.version:Name", imageType)+
+			" --depends testDepends:someDep"+
+			" --depends testDepends2:someDep2"+
+			fmt.Sprintf(" --script %s/scripts/ArtifactInstall_Enter_45_test", tmpdir)+
+			fmt.Sprintf(" --script %s/scripts/ArtifactCommit_Leave_55", tmpdir)+
+			fmt.Sprintf(" --clears-provides %s.*", imageType)+
+			fmt.Sprintf(" --clears-provides rootfs-image.%s.*", imageType)+
+			fmt.Sprintf(" --meta-data %s/meta/0000.meta-data", tmpdir)+
+			fmt.Sprintf(" --file %s/files/file", tmpdir)+
+			fmt.Sprintf(" --file %s/files/file2", tmpdir),
 
 		// Replacing all spaces with sep is not safe in general when
 		// using --print0-cmdline, but we know there are no
