@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -93,6 +93,33 @@ func validateInput(c *cli.Context) error {
 	return nil
 }
 
+func createRootfsFromSSH(c *cli.Context) (string, error) {
+	rootfsFilename, err := getDeviceSnapshot(c)
+	if err != nil {
+		return rootfsFilename, cli.NewExitError("SSH error: "+err.Error(), 1)
+	}
+
+	// run fsck
+	fstype, err := imgFilesystemType(rootfsFilename)
+	if err != nil {
+		return rootfsFilename, cli.NewExitError("imgFilesystemType error: "+err.Error(), errArtifactCreate)
+	}
+	switch fstype {
+	case fat:
+		err = runFsck(rootfsFilename, "vfat")
+	case ext:
+		err = runFsck(rootfsFilename, "ext4")
+	case unsupported:
+		err = errors.New("createRootfsFromSSH: unsupported filesystem")
+
+	}
+	if err != nil {
+		return rootfsFilename, cli.NewExitError("runFsck error: "+err.Error(), errArtifactCreate)
+	}
+
+	return rootfsFilename, nil
+}
+
 func writeRootfs(c *cli.Context) error {
 	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
 	if err != nil {
@@ -114,11 +141,11 @@ func writeRootfs(c *cli.Context) error {
 	Log.Debugf("creating artifact [%s], version: %d", name, version)
 	rootfsFilename := c.String("file")
 	if strings.HasPrefix(rootfsFilename, "ssh://") {
-		rootfsFilename, err = getDeviceSnapshot(c)
-		if err != nil {
-			return cli.NewExitError("SSH error: "+err.Error(), 1)
-		}
+		rootfsFilename, err = createRootfsFromSSH(c)
 		defer os.Remove(rootfsFilename)
+		if err != nil {
+			return cli.NewExitError(err.Error(), errArtifactCreate)
+		}
 	}
 
 	var h handlers.Composer
