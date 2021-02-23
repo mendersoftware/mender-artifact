@@ -107,6 +107,7 @@ func (rp *Rootfs) GetVersion() int {
 	return rp.version
 }
 
+//nolint:gocyclo
 func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bool) error {
 	rp.version = version
 	switch {
@@ -133,6 +134,12 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bo
 		err := dec.Decode(&rp.typeInfoV3)
 		if err != nil {
 			return errors.Wrap(err, "error reading type-info")
+		}
+		if rp.typeInfoV3.Type == nil || *rp.typeInfoV3.Type != "rootfs-image" {
+			return errors.New("Type in type-info header does not match header-info: " +
+				"Corrupt Artifact. " +
+				"This is a known bug in some versions of mender-artifact prior to 4.3.1. " +
+				"Please recreate the artifact with version 4.3.1 or newer.")
 		}
 
 	case match("headers/*/meta-data", path):

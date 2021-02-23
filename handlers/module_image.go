@@ -469,6 +469,12 @@ func (img *ModuleImage) ReadHeader(r io.Reader, path string, version int, augmen
 		if err != nil {
 			return errors.Wrap(err, "error reading type-info")
 		}
+		if img.typeInfoV3 == nil || *img.typeInfoV3.Type != img.updateType {
+			return errors.New("Type in type-info header does not match header-info: " +
+				"Corrupt Artifact. " +
+				"This is a known bug in some versions of mender-artifact prior to 4.3.1. " +
+				"Please recreate the artifact with version 4.3.1 or newer.")
+		}
 	case match("headers/*/meta-data", path):
 		dec := json.NewDecoder(r)
 		var data interface{}
