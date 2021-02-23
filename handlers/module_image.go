@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -458,6 +458,12 @@ func (img *ModuleImage) ReadHeader(r io.Reader, path string, version int, augmen
 		err := dec.Decode(&img.typeInfoV3)
 		if err != nil {
 			return errors.Wrap(err, "error reading type-info")
+		}
+		if img.typeInfoV3 == nil || img.typeInfoV3.Type != img.updateType {
+			return errors.New("Type in type-info header does not match header-info: " +
+				"Corrupt Artifact. " +
+				"This was a known bug in some versions of mender-artifact prior to 3.5.1. " +
+				"Please recreate the artifact with version 3.5.1 or newer.")
 		}
 	case filepath.Base(path) == "meta-data":
 		dec := json.NewDecoder(r)

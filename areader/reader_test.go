@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -168,6 +168,13 @@ func MakeAnyImageArtifact(version int, signed bool,
 		}
 	}
 
+	var augmentTypeInfoV3 *artifact.TypeInfoV3
+	if len(updates.Augments) > 0 {
+		augmentTypeInfoV3 = &artifact.TypeInfoV3{
+			Type: updates.Augments[0].GetUpdateType(),
+		}
+	}
+
 	err := aw.WriteArtifact(&awriter.WriteArtifactArgs{
 		Format:  "mender",
 		Version: version,
@@ -184,6 +191,10 @@ func MakeAnyImageArtifact(version int, signed bool,
 			ArtifactName:      []string{"mender-1.0"},
 			CompatibleDevices: []string{"vexpress"},
 		},
+		TypeInfoV3: &artifact.TypeInfoV3{
+			Type: updates.Updates[0].GetUpdateType(),
+		},
+		AugmentTypeInfoV3: augmentTypeInfoV3,
 	})
 	if err != nil {
 		return nil, err
@@ -1270,6 +1281,97 @@ func TestReadBrokenArtifact(t *testing.T) {
 			},
 			successful: false,
 			errorStr:   "Top level object in meta-data must be a JSON object",
+		},
+		"Non-matching type in type-info, module-image": {
+			manipulateArtifact: func(tmpdir string) {
+				headertmp := filepath.Join(tmpdir, "headertmp")
+				require.NoError(t, os.Mkdir(headertmp, 0755))
+				cmd := exec.Command("tar", "xzf", "../header.tar.gz")
+				cmd.Dir = headertmp
+				require.NoError(t, cmd.Run())
+
+				fd, err := os.OpenFile(filepath.Join(headertmp, "headers/0000/type-info"),
+					os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+				require.NoError(t, err)
+				fd.Write([]byte(`{"type":""}`))
+				fd.Close()
+
+				cmd = exec.Command("tar", "czf", "../header.tar.gz", "header-info", "headers")
+				cmd.Dir = headertmp
+				require.NoError(t, cmd.Run())
+
+				fd, err = os.Open(filepath.Join(tmpdir, "header.tar.gz"))
+				require.NoError(t, err)
+				content, err := ioutil.ReadAll(fd)
+				require.NoError(t, err)
+				fd.Close()
+				checksumBytes := sha256.Sum256(content)
+				checksum := hex.EncodeToString(checksumBytes[:])
+
+				fd, err = os.OpenFile(filepath.Join(tmpdir, "manifest"),
+					os.O_RDWR, 0)
+				require.NoError(t, err)
+				manifestLines, err := ioutil.ReadAll(fd)
+				require.NoError(t, err)
+				fd.Seek(0, 0)
+				fd.Truncate(0)
+				for _, line := range bytes.Split(manifestLines, []byte("\n")) {
+					if strings.Contains(string(line), "header.tar.gz") {
+						copy(line[0:len(checksum)], checksum)
+					}
+					fd.Write(line)
+					fd.Write([]byte("\n"))
+				}
+				fd.Close()
+			},
+			successful: false,
+			errorStr:   "readHeaderV3: handleHeaderReads: reader: can not read header: Type in type-info header does not match header-info: Corrupt Artifact. This was a known bug in some versions of mender-artifact prior to 3.5.1. Please recreate the artifact with version 3.5.1 or newer.",
+		},
+		"Non-matching type in type-info, rootfs-image": {
+			manipulateArtifact: func(tmpdir string) {
+				headertmp := filepath.Join(tmpdir, "headertmp")
+				require.NoError(t, os.Mkdir(headertmp, 0755))
+				cmd := exec.Command("tar", "xzf", "../header.tar.gz")
+				cmd.Dir = headertmp
+				require.NoError(t, cmd.Run())
+
+				fd, err := os.OpenFile(filepath.Join(headertmp, "headers/0000/type-info"),
+					os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+				require.NoError(t, err)
+				fd.Write([]byte(`{"type":""}`))
+				fd.Close()
+
+				cmd = exec.Command("tar", "czf", "../header.tar.gz", "header-info", "headers")
+				cmd.Dir = headertmp
+				require.NoError(t, cmd.Run())
+
+				fd, err = os.Open(filepath.Join(tmpdir, "header.tar.gz"))
+				require.NoError(t, err)
+				content, err := ioutil.ReadAll(fd)
+				require.NoError(t, err)
+				fd.Close()
+				checksumBytes := sha256.Sum256(content)
+				checksum := hex.EncodeToString(checksumBytes[:])
+
+				fd, err = os.OpenFile(filepath.Join(tmpdir, "manifest"),
+					os.O_RDWR, 0)
+				require.NoError(t, err)
+				manifestLines, err := ioutil.ReadAll(fd)
+				require.NoError(t, err)
+				fd.Seek(0, 0)
+				fd.Truncate(0)
+				for _, line := range bytes.Split(manifestLines, []byte("\n")) {
+					if strings.Contains(string(line), "header.tar.gz") {
+						copy(line[0:len(checksum)], checksum)
+					}
+					fd.Write(line)
+					fd.Write([]byte("\n"))
+				}
+				fd.Close()
+			},
+			rootfsImage: true,
+			successful:  false,
+			errorStr:    "readHeaderV3: handleHeaderReads: reader: can not read header: Type in type-info header does not match header-info: Corrupt Artifact. This was a known bug in some versions of mender-artifact prior to 3.5.1. Please recreate the artifact with version 3.5.1 or newer.",
 		},
 	}
 

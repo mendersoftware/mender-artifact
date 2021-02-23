@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -127,6 +127,12 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bo
 		err := dec.Decode(&rp.typeInfoV3)
 		if err != nil {
 			return errors.Wrap(err, "error reading type-info")
+		}
+		if rp.typeInfoV3 == nil || rp.typeInfoV3.Type != "rootfs-image" {
+			return errors.New("Type in type-info header does not match header-info: " +
+				"Corrupt Artifact. " +
+				"This was a known bug in some versions of mender-artifact prior to 3.5.1. " +
+				"Please recreate the artifact with version 3.5.1 or newer.")
 		}
 
 	case filepath.Base(path) == "meta-data":
