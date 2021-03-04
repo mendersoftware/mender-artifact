@@ -109,7 +109,7 @@ func verify(image, file, expected string) bool {
 
 func verifySDImg(image, file, expected string) bool {
 
-	part, err := virtualImage.Open(nil, nil, image)
+	part, err := virtualImage.Open(nil, image)
 
 	if err != nil {
 		return false
