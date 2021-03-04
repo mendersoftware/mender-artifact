@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ type Reader struct {
 	updateStorers   map[int]handlers.UpdateStorer
 	manifest        *artifact.ChecksumStore
 	menderTarReader *tar.Reader
+	compressor      artifact.Compressor
 }
 
 func NewReader(r io.Reader) *Reader {
@@ -414,6 +415,7 @@ func (ar *Reader) handleHeaderReads(headerName string, version []byte) error {
 		if err != nil {
 			return errors.New("reader: can't get compressor")
 		}
+		ar.compressor = comp
 
 		if err := ar.readHeader(hc, comp); err != nil {
 			return errors.Wrap(err, "handleHeaderReads")
@@ -527,6 +529,7 @@ func (ar *Reader) readHeaderV2(version []byte) error {
 		if err != nil {
 			return errors.New("reader: can't get compressor")
 		}
+		ar.compressor = comp
 
 		if err := ar.readHeader(hc, comp); err != nil {
 			return err
@@ -1112,4 +1115,8 @@ func (ar *Reader) MergeArtifactProvides() (map[string]string, error) {
 	}
 
 	return retMap, nil
+}
+
+func (ar *Reader) Compressor() artifact.Compressor {
+	return ar.compressor
 }

@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ type VPImage interface {
 	io.Closer
 	Open(fpath string) (VPFile, error)
 	OpenDir(fpath string) (VPDir, error)
+	dirtyImage()
 }
 
 // V(irtual)P(artition)File mimicks a file in an Artifact or on an sdimg.
@@ -72,7 +73,8 @@ type partition struct {
 }
 
 type ModImageBase struct {
-	path string
+	path  string
+	dirty bool
 }
 
 type ModImageArtifact struct {
@@ -105,7 +107,7 @@ type vImageAndDir struct {
 
 // Open is a utility function that parses an input image and returns a
 // V(irtual)P(artition)Image.
-func (v vImage) Open(comp artifact.Compressor, key []byte, imgname string) (VPImage, error) {
+func (v vImage) Open(key []byte, imgname string, overrideCompressor ...artifact.Compressor) (VPImage, error) {
 	// first we need to check  if we are having artifact or image file
 	art, err := os.Open(imgname)
 	if err != nil {
@@ -130,6 +132,13 @@ func (v vImage) Open(comp artifact.Compressor, key []byte, imgname string) (VPIm
 			return nil, errors.Wrap(err, "can not process artifact")
 		}
 
+		var comp artifact.Compressor
+		if len(overrideCompressor) == 1 {
+			comp = overrideCompressor[0]
+		} else {
+			comp = unpackedArtifact.ar.Compressor()
+		}
+
 		return &ModImageArtifact{
 			ModImageBase: ModImageBase{
 				path: imgname,
@@ -146,13 +155,13 @@ func (v vImage) Open(comp artifact.Compressor, key []byte, imgname string) (VPIm
 // Shortcut to use an image with one file. This is inefficient if you are going
 // to write more than one file, since it writes out the entire image
 // afterwards. In that case use VPImage and VPFile instead.
-func (v vImage) OpenFile(comp artifact.Compressor, key []byte, imgAndPath string) (VPFile, error) {
+func (v vImage) OpenFile(key []byte, imgAndPath string) (VPFile, error) {
 	imagepath, filepath, err := parseImgPath(imgAndPath)
 	if err != nil {
 		return nil, err
 	}
 
-	image, err := v.Open(comp, key, imagepath)
+	image, err := v.Open(key, imagepath)
 	if err != nil {
 		return nil, err
 	}
@@ -170,13 +179,13 @@ func (v vImage) OpenFile(comp artifact.Compressor, key []byte, imgAndPath string
 }
 
 // Shortcut to use an image with one directory.
-func (v vImage) OpenDir(comp artifact.Compressor, key []byte, imgAndPath string) (VPDir, error) {
+func (v vImage) OpenDir(key []byte, imgAndPath string) (VPDir, error) {
 	imagepath, dirpath, err := parseImgPath(imgAndPath)
 	if err != nil {
 		return nil, err
 	}
 
-	image, err := v.Open(comp, key, imagepath)
+	image, err := v.Open(key, imagepath)
 	if err != nil {
 		return nil, err
 	}
@@ -228,14 +237,17 @@ func (v *vImageAndFile) Read(buf []byte) (int, error) {
 }
 
 func (v *vImageAndFile) Write(buf []byte) (int, error) {
+	v.image.dirtyImage()
 	return v.file.Write(buf)
 }
 
 func (v *vImageAndFile) Delete(recursive bool) error {
+	v.image.dirtyImage()
 	return v.file.Delete(recursive)
 }
 
 func (v *vImageAndFile) CopyTo(hostFile string) error {
+	v.image.dirtyImage()
 	return v.file.CopyTo(hostFile)
 }
 
@@ -255,6 +267,7 @@ func (v *vImageAndFile) Close() error {
 }
 
 func (v *vImageAndDir) Create() error {
+	v.image.dirtyImage()
 	return v.dir.Create()
 }
 
@@ -284,7 +297,14 @@ func (i *ModImageArtifact) Close() error {
 	if i.unpackDir != "" {
 		defer os.RemoveAll(i.unpackDir)
 	}
-	return repackArtifact(i.comp, i.key, i.unpackedArtifact)
+	if i.dirty {
+		return repackArtifact(i.comp, i.key, i.unpackedArtifact)
+	}
+	return nil
+}
+
+func (i *ModImageArtifact) dirtyImage() {
+	i.dirty = true
 }
 
 // Opens a file inside the image(s) represented by the ModImageSdimg
@@ -302,7 +322,14 @@ func (i *ModImageSdimg) Close() error {
 			defer os.RemoveAll(cand.path)
 		}
 	}
-	return repackSdimg(i.candidates, i.path)
+	if i.dirty {
+		return repackSdimg(i.candidates, i.path)
+	}
+	return nil
+}
+
+func (i *ModImageSdimg) dirtyImage() {
+	i.dirty = true
 }
 
 func (i *ModImageRaw) Open(fpath string) (VPFile, error) {
@@ -315,6 +342,10 @@ func (i *ModImageRaw) OpenDir(fpath string) (VPDir, error) {
 
 func (i *ModImageRaw) Close() error {
 	return nil
+}
+
+func (i *ModImageRaw) dirtyImage() {
+	i.dirty = true
 }
 
 // parseImgPath parses cli input of the form

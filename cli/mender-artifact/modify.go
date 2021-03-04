@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -46,7 +46,12 @@ func modifyArtifact(c *cli.Context) (err error) {
 		return cli.NewExitError("File ["+c.Args().First()+"] does not exist.", 1)
 	}
 
-	image, err := virtualImage.Open(comp, privateKey, c.Args().First())
+	var image VPImage
+	if c.String("compression") != "" {
+		image, err = virtualImage.Open(privateKey, c.Args().First(), comp)
+	} else {
+		image, err = virtualImage.Open(privateKey, c.Args().First())
+	}
 
 	if err != nil {
 		return cli.NewExitError("Error selecting images for modification: "+err.Error(), 1)
@@ -62,6 +67,7 @@ func modifyArtifact(c *cli.Context) (err error) {
 		}
 	}()
 
+	image.dirtyImage()
 	if err := modifyExisting(c, image); err != nil {
 		return cli.NewExitError("Error modifying artifact["+c.Args().First()+"]: "+
 			err.Error(), 1)

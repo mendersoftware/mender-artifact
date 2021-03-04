@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ func verify(image, file, expected string) bool {
 
 func verifySDImg(image, file, expected string) bool {
 
-	part, err := virtualImage.Open(nil, nil, image)
+	part, err := virtualImage.Open(nil, image)
 
 	if err != nil {
 		return false
