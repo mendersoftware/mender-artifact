@@ -13,7 +13,7 @@ github.com/klauspost/pgzip
 ## explicit
 # github.com/mattn/go-isatty v0.0.12
 github.com/mattn/go-isatty
-# github.com/mendersoftware/progressbar v0.0.2
+# github.com/mendersoftware/progressbar v0.0.3
 ## explicit
 github.com/mendersoftware/progressbar
 # github.com/minio/sha256-simd v0.1.1
