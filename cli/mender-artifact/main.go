@@ -59,6 +59,38 @@ func main() {
 	}
 }
 
+// Copied from urfave/cli/template.go
+// with the addition of the NOTE on the `global` `--compression flag`
+var menderAppHelpTemplate = `NAME:
+   {{.Name}}{{if .Usage}} - {{.Usage}}{{end}}
+
+USAGE:
+   {{if .UsageText}}{{.UsageText}}{{else}}{{.HelpName}} {{if .VisibleFlags}}[global options]{{end}}{{if .Commands}} command [command options]{{end}} {{if .ArgsUsage}}{{.ArgsUsage}}{{else}}[arguments...]{{end}}{{end}}{{if .Version}}{{if not .HideVersion}}
+
+VERSION:
+   {{.Version}}{{end}}{{end}}{{if .Description}}
+
+DESCRIPTION:
+   {{.Description}}{{end}}{{if len .Authors}}
+
+AUTHOR{{with $length := len .Authors}}{{if ne 1 $length}}S{{end}}{{end}}:
+   {{range $index, $author := .Authors}}{{if $index}}
+   {{end}}{{$author}}{{end}}{{end}}{{if .VisibleCommands}}
+
+COMMANDS:{{range .VisibleCategories}}{{if .Name}}
+
+   {{.Name}}:{{range .VisibleCommands}}
+     {{join .Names ", "}}{{"\t"}}{{.Usage}}{{end}}{{else}}{{range .VisibleCommands}}
+   {{join .Names ", "}}{{"\t"}}{{.Usage}}{{end}}{{end}}{{end}}{{end}}{{if .VisibleFlags}}
+
+GLOBAL OPTIONS:
+   {{range $index, $option := .VisibleFlags}}{{if $index}}
+   {{end}}{{$option}}{{end}}{{end}}
+   NOTE:
+       For the commands <write>, <modify>, the '--compression' flag functions as
+       a global option
+`
+
 func applyCompressionInCommand(c *cli.Context) error {
 	// Let --compression argument work after command as well. Latest one
 	// applies.
@@ -90,6 +122,7 @@ func getCliContext() *cli.App {
 	globalCompressionFlag := compressionFlag
 	// The global flag is the last fallback, so here we provide a default.
 	globalCompressionFlag.Value = "gzip"
+	globalCompressionFlag.Hidden = true
 
 	privateKeyFlag := cli.StringFlag{
 		Name: "key, k",
@@ -581,6 +614,7 @@ func getCliContext() *cli.App {
 		sortFlags(cmd)
 	}
 
+	app.CustomAppHelpTemplate = menderAppHelpTemplate
 	return app
 }
 
