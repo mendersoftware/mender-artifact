@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/mendersoftware/mender-artifact/areader"
-	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -289,7 +288,6 @@ func TestCopyRootfsImage(t *testing.T) {
 			},
 			argv: []string{"mender-artifact", "install", "-m", "0600", "testkey", "<artifact|sdimg|fat-sdimg>:/etc/mender/testkey.key"},
 			verifyTestFunc: func(imgpath string) {
-				comp := artifact.NewCompressorGzip()
 				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/etc/mender/testkey.key")
 				var out bytes.Buffer
 				cmd.Stdout = &out
@@ -299,7 +297,7 @@ func TestCopyRootfsImage(t *testing.T) {
 				// Cleanup the testkey
 				assert.Nil(t, os.Remove("testkey"))
 				// Check that the permission bits have been set correctly!
-				pf, err := virtualImage.OpenFile(comp, nil, imgpath+":/etc/mender/testkey.key")
+				pf, err := virtualImage.OpenFile(nil, imgpath+":/etc/mender/testkey.key")
 				defer pf.Close()
 				require.Nil(t, err)
 				// Type switch on the artifact, or sdimg underlying
@@ -330,7 +328,6 @@ func TestCopyRootfsImage(t *testing.T) {
 			},
 			argv: []string{"mender-artifact", "install", "-m", "0777", "testkey", "<artifact|sdimg|fat-sdimg>:/etc/mender/testkey.key"},
 			verifyTestFunc: func(imgpath string) {
-				comp := artifact.NewCompressorGzip()
 				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/etc/mender/testkey.key")
 				var out bytes.Buffer
 				cmd.Stdout = &out
@@ -340,7 +337,7 @@ func TestCopyRootfsImage(t *testing.T) {
 				// Cleanup the testkey
 				assert.Nil(t, os.Remove("testkey"))
 				// Check that the permission bits have been set correctly!
-				pf, err := virtualImage.OpenFile(comp, nil, imgpath+":/etc/mender/testkey.key")
+				pf, err := virtualImage.OpenFile(nil, imgpath+":/etc/mender/testkey.key")
 				defer pf.Close()
 				require.Nil(t, err)
 				// Type switch on the artifact, or sdimg underlying
@@ -371,7 +368,6 @@ func TestCopyRootfsImage(t *testing.T) {
 			},
 			argv: []string{"mender-artifact", "install", "-m", "0700", "testkey", "<artifact|sdimg|fat-sdimg>:/etc/mender/testkey.key"},
 			verifyTestFunc: func(imgpath string) {
-				comp := artifact.NewCompressorGzip()
 				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/etc/mender/testkey.key")
 				var out bytes.Buffer
 				cmd.Stdout = &out
@@ -381,7 +377,7 @@ func TestCopyRootfsImage(t *testing.T) {
 				// Cleanup the testkey
 				assert.Nil(t, os.Remove("testkey"))
 				// Check that the permission bits have been set correctly!
-				pf, err := virtualImage.OpenFile(comp, nil, imgpath+":/etc/mender/testkey.key")
+				pf, err := virtualImage.OpenFile(nil, imgpath+":/etc/mender/testkey.key")
 				defer pf.Close()
 				require.Nil(t, err)
 				// Type switch on the artifact, or sdimg underlying
@@ -606,8 +602,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			argv: []string{"mender-artifact", "cp", "foobar.txt", "<artifact|sdimg|fat-sdimg>:/etc/mender/foo.txt"},
 			verifyTestFunc: func(imgpath string) {
 				defer os.Remove("foobar.txt")
-				comp := artifact.NewCompressorGzip()
-				pf, err := virtualImage.OpenFile(comp, nil, imgpath+":/etc/mender/foo.txt")
+				pf, err := virtualImage.OpenFile(nil, imgpath+":/etc/mender/foo.txt")
 				defer pf.Close()
 				require.Nil(t, err)
 				// Type switch on the artifact, or sdimg underlying
