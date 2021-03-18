@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -22,17 +22,13 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/urfave/cli"
 )
 
 var isimg = regexp.MustCompile(`\.(mender|sdimg|uefiimg|img)`)
 
 func Cat(c *cli.Context) (err error) {
-	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
-	if err != nil {
-		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
-	}
+
 	if c.NArg() != 1 {
 		return cli.NewExitError(fmt.Sprintf("Got %d arguments, wants one", c.NArg()), 1)
 	}
@@ -45,7 +41,7 @@ func Cat(c *cli.Context) (err error) {
 		return cli.NewExitError("Unable to load key: "+err.Error(), 1)
 	}
 
-	r, err := virtualImage.OpenFile(comp, privateKey, c.Args().First())
+	r, err := virtualImage.OpenFile(privateKey, c.Args().First())
 	defer func() {
 		if r == nil {
 			return
@@ -66,9 +62,9 @@ func Cat(c *cli.Context) (err error) {
 }
 
 func Copy(c *cli.Context) (err error) {
-	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
-	if err != nil {
-		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
+	if c.String("compression") != "" {
+		fmt.Fprintf(os.Stderr, "Warning: The compression flag is not respected for the copy command.\n"+
+			"If you wish to change the compression type, use the <modify> command.")
 	}
 
 	privateKey, err := getKey(c.String("key"))
@@ -95,7 +91,7 @@ func Copy(c *cli.Context) (err error) {
 		if err != nil {
 			return cli.NewExitError(err, 1)
 		}
-		vfile, err = virtualImage.OpenFile(comp, privateKey, c.Args().Get(1))
+		vfile, err = virtualImage.OpenFile(privateKey, c.Args().Get(1))
 		defer wclose(vfile)
 		if err != nil {
 			return cli.NewExitError(err, 1)
@@ -106,14 +102,14 @@ func Copy(c *cli.Context) (err error) {
 		return nil
 	case copyinstdin:
 		r = os.Stdin
-		vfile, err = virtualImage.OpenFile(comp, privateKey, c.Args().Get(1))
+		vfile, err = virtualImage.OpenFile(privateKey, c.Args().Get(1))
 		defer wclose(vfile)
 		if err != nil {
 			return cli.NewExitError(err, 1)
 		}
 		w = vfile
 	case copyout:
-		vfile, err = virtualImage.OpenFile(comp, privateKey, c.Args().First())
+		vfile, err = virtualImage.OpenFile(privateKey, c.Args().First())
 		defer wclose(vfile)
 		if err != nil {
 			return cli.NewExitError(err, 1)
@@ -140,10 +136,6 @@ func Copy(c *cli.Context) (err error) {
 // Install installs a file from the host filesystem or directory onto either
 // a mender artifact, or an sdimg.
 func Install(c *cli.Context) (err error) {
-	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
-	if err != nil {
-		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
-	}
 
 	privateKey, err := getKey(c.String("key"))
 	if err != nil {
@@ -168,7 +160,7 @@ func Install(c *cli.Context) (err error) {
 		}
 		perm = os.FileMode(c.Int("mode"))
 		if directory {
-			vdir, err := virtualImage.OpenDir(comp, privateKey, c.Args().First())
+			vdir, err := virtualImage.OpenDir(privateKey, c.Args().First())
 			defer wclose(vdir)
 			if err != nil {
 				return cli.NewExitError(err, 1)
@@ -198,7 +190,7 @@ func Install(c *cli.Context) (err error) {
 			}
 		}()
 
-		vfile, err := virtualImage.OpenFile(comp, privateKey, c.Args().Get(1))
+		vfile, err := virtualImage.OpenFile(privateKey, c.Args().Get(1))
 		defer wclose(vfile)
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
@@ -233,17 +225,13 @@ func Remove(c *cli.Context) (err error) {
 		return cli.NewExitError("Unable to load key: "+err.Error(), 1)
 	}
 
-	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
-	if err != nil {
-		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
-	}
 	if c.NArg() != 1 {
 		return cli.NewExitError(fmt.Sprintf("Got %d arguments, wants one", c.NArg()), 1)
 	}
 	if !isimg.MatchString(c.Args().First()) {
 		return cli.NewExitError("The input image does not have a valid extension", 1)
 	}
-	f, err := virtualImage.OpenFile(comp, privateKey, c.Args().First())
+	f, err := virtualImage.OpenFile(privateKey, c.Args().First())
 	defer wclose(f)
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)
