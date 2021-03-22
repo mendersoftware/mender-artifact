@@ -791,20 +791,14 @@ func TestCopyRootfsImage(t *testing.T) {
 
 					if test.err != "" {
 						assert.Contains(t, err.Error(), test.err)
-						return
+					} else if err != nil {
+						t.Log(out)
+						t.Fatal(fmt.Sprintf("cmd: %s failed with err: %v", test.name, err))
 					}
 
-					if err != nil {
-						if test.err != "" {
-							assert.Contains(t, err.Error(), test.err, test.name)
-						} else {
-							t.Log(out)
-							t.Fatal(fmt.Sprintf("cmd: %s failed with err: %v", test.name, err))
-						}
-					}
 					if test.verifyTestFunc != nil {
 						test.verifyTestFunc(targ.validImg)
-					} else {
+					} else if test.err == "" {
 						assert.Equal(t, test.expected, out, test.name)
 					}
 				})
