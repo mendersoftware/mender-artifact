@@ -432,7 +432,7 @@ func getCliContext() *cli.App {
 		cli.StringFlag{
 			Name: "output-path, o",
 			Usage: "Full path to output signed artifact file; " +
-				"if none is provided existing artifact will be replaced with signed one",
+				"if none is provided existing artifact will be replaced with the signed one",
 		},
 		cli.BoolFlag{
 			Name:  "force, f",
