@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -41,23 +41,23 @@ func TestAdding(t *testing.T) {
 	// script already exists
 	err = s.Add(`ArtifactCommit_Enter_11`)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "script already exists")
+	assert.Contains(t, err.Error(), "Script already exists")
 	assert.Len(t, s.names, 3)
 
 	// non existing state
 	err = s.Add(`InvalidState_Enter_10`)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported script state")
+	assert.Contains(t, err.Error(), "Unsupported script state")
 	assert.Len(t, s.names, 3)
 
 	// bad formatting
 	err = s.Add(`ArtifactCommit_Bad_10`)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid script")
+	assert.Contains(t, err.Error(), "Invalid script")
 	assert.Len(t, s.names, 3)
 
 	err = s.Add(`ArtifactCommit_Enter`)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid script")
+	assert.Contains(t, err.Error(), "Invalid script")
 	assert.Len(t, s.names, 3)
 }
