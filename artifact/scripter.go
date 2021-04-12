@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ func (s *Scripts) Add(path string) error {
 	// the second one shold be the name of the state
 	matches := re.FindStringSubmatch(name)
 	if matches == nil || len(matches) < 3 {
-		return errors.Errorf("scripter: invalid script: %s", name)
+		return errors.Errorf("scripter: invalid script name: %q. Scripts must have a name on the form: <STATE_NAME>_<ACTION>_<ORDERING_NUMBER>_<OPTIONAL_DESCRIPTION>. For example: 'Download_Enter_05_wifi-driver' is a valid script name.", name)
 	}
 	if _, found := availableScriptType[matches[1]]; !found {
 		return errors.Errorf("scripter: unsupported script state: %s", matches[1])
