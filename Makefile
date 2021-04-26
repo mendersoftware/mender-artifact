@@ -12,8 +12,6 @@ GOCYCLO ?= 20
 CGO_ENABLED=1
 export CGO_ENABLED
 
-INSTALL_DIR=cli/mender-artifact
-
 TOOLS = \
 	github.com/fzipp/gocyclo/... \
 	github.com/opennota/check/cmd/varcheck \
@@ -22,7 +20,7 @@ TOOLS = \
 VERSION = $(shell git describe --tags --dirty --exact-match 2>/dev/null || git rev-parse --short HEAD)
 
 GO_LDFLAGS = \
-	-ldflags "-X main.Version=$(VERSION)"
+	-ldflags "-X github.com/mendersoftware/mender-artifact/cli.Version=$(VERSION)"
 
 ifeq ($(V),1)
 BUILDV = -v
@@ -38,23 +36,23 @@ BUILDTAGS = -tags '$(TAGS)'
 endif
 
 build:
-	$(GO) build $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME) ./cli/mender-artifact
+	$(GO) build $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
 
 PLATFORMS := darwin linux windows
 
-GO_LDFLAGS_WIN = -ldflags "-X main.Version=$(VERSION) -linkmode=internal -s -w -extldflags '-static' -extld=x86_64-w64-mingw32-gcc"
+GO_LDFLAGS_WIN = -ldflags "-X github.com/mendersoftware/mender-artifact/cli.Version=$(VERSION) -linkmode=internal -s -w -extldflags '-static' -extld=x86_64-w64-mingw32-gcc"
 
 build-natives:
 	@arch="amd64";
 	@echo "building mac";
 	@env GOOS=darwin GOARCH=$$arch CGO_ENABLED=0 \
-		$(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-darwin ./cli/mender-artifact ;
+		$(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-darwin ;
 	@echo "building linux";
 	@env GOOS=linux GOARCH=$$arch \
-		$(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-linux ./cli/mender-artifact ;
+		$(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-linux ;
 	@echo "building windows";
 	@env GOOS=windows GOARCH=$$arch CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ \
-		$(GO) build $(GO_LDFLAGS_WIN) $(BUILDV) -tags $(TAGS) nolzma -o $(PKGNAME)-windows.exe ./cli/mender-artifact ;
+		$(GO) build $(GO_LDFLAGS_WIN) $(BUILDV) -tags $(TAGS) nolzma -o $(PKGNAME)-windows.exe ;
 
 build-contained:
 	rm -f mender-artifact && \
@@ -69,7 +67,7 @@ build-natives-contained:
 	docker image rm $$image_id
 
 install:
-	cd $(INSTALL_DIR) && $(GO) install $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
+	@$(GO) install $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
 
 install-autocomplete-scripts:
 	@echo "Installing Bash auto-complete script into ${DESTDIR}${PREFIX}/etc/bash_completion.d/"
