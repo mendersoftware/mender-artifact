@@ -400,7 +400,7 @@ func getCliContext() *cli.App {
 		Name:        "read",
 		Usage:       "Reads artifact file.",
 		ArgsUsage:   "<artifact path>",
-		Category:    "Artifact creation and validation",
+		Category:    "Artifact inspection",
 		Action:      readArtifact,
 		Description: "This command validates artifact file provided by pathspec.",
 		Flags: []cli.Flag{
@@ -563,6 +563,7 @@ func getCliContext() *cli.App {
 		Usage:       "Dump contents from Artifacts",
 		ArgsUsage:   "<Artifact>",
 		Description: "Dump various raw files from the Artifact. These can be used to create a new Artifact with the same components.",
+		Category:    "Artifact inspection",
 		Action:      DumpCommand,
 	}
 	dumpCommand.Flags = []cli.Flag{
