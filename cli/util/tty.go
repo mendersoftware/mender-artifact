@@ -17,8 +17,8 @@
 package util
 
 import (
+	"context"
 	"os"
-	"os/signal"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
@@ -43,14 +43,23 @@ func DisableEcho(fd int) (*unix.Termios, error) {
 
 // Signal handler to re-enable tty echo on interrupt. The signal handler is
 // transparent with system default, and immedeately releases the channel and
-// calling the system sighandler after termios is set. To invoke it manually,
-// simply close the sigChan (make sure to call signal.Stop prior to closing).
+// calling the system sighandler after termios is set.
 func EchoSigHandler(
+	ctx context.Context,
 	sigChan chan os.Signal,
 	errChan chan error,
 	term *unix.Termios) {
 	for {
-		sig, sigRecved := <-sigChan
+		var (
+			sig       os.Signal
+			sigRecved bool
+		)
+		select {
+		case <-ctx.Done():
+			errChan <- nil
+			return
+		case sig, sigRecved = <-sigChan:
+		}
 		if sig == unix.SIGWINCH || sig == unix.SIGURG {
 			// Though SIGCHLD is ignored by default, in this context
 			// we want to restore echo state.
@@ -59,7 +68,6 @@ func EchoSigHandler(
 		// Restore Termios
 		unix.IoctlSetTermios(int(os.Stdin.Fd()), ioctlSetTermios, term)
 		if sigRecved {
-			signal.Stop(sigChan)
 			switch sig {
 			case unix.SIGCHLD:
 				// SIGCHLD is expected when ssh terminates.
@@ -72,7 +80,7 @@ func EchoSigHandler(
 			}
 		} else {
 			errChan <- nil
+			return
 		}
-		break
 	}
 }
