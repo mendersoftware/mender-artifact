@@ -682,6 +682,8 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	var userAtHost string
 	var sigChan chan os.Signal
 	var errChan chan error
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	port := "22"
 	host := strings.TrimPrefix(c.String("file"), "ssh://")
 
@@ -736,13 +738,12 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	// Disable tty echo before starting
 	term, err := util.DisableEcho(int(os.Stdin.Fd()))
 	if err == nil {
-		sigChan = make(chan os.Signal)
-		errChan = make(chan error)
-		defer closeSigChanIfOpen(sigChan)
+		sigChan = make(chan os.Signal, 1)
+		errChan = make(chan error, 1)
 		// Make sure that echo is enabled if the process gets
 		// interrupted
 		signal.Notify(sigChan)
-		go util.EchoSigHandler(sigChan, errChan, term)
+		go util.EchoSigHandler(ctx, sigChan, errChan, term)
 	} else if err != syscall.ENOTTY {
 		return "", err
 	}
@@ -777,7 +778,7 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	if sigChan != nil {
 		// Wait for signal handler to execute
 		signal.Stop(sigChan)
-		close(sigChan)
+		cancel()
 		err = <-errChan
 	}
 
@@ -876,22 +877,5 @@ func removeOnPanic(filename string) {
 			}
 		}
 		panic(r)
-	}
-}
-
-func closeSigChanIfOpen(sigChan chan os.Signal) {
-	// Close sigChan only if still open
-	if sigChan != nil {
-		select {
-		case _, open := <-sigChan:
-			if open {
-				signal.Stop(sigChan)
-				close(sigChan)
-			}
-		default:
-			// No data ready on sigChan
-			signal.Stop(sigChan)
-			close(sigChan)
-		}
 	}
 }
