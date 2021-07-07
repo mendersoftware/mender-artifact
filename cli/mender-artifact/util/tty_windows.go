@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package util
 
 import (
+	"context"
 	"os"
 	"os/signal"
 
@@ -48,16 +49,28 @@ func DisableEcho(fd int) (uint32, error) {
 // Signal handler to re-enable tty echo on interrupt. os/signal only
 // handles ^C or ^BREAK events to the terminal, thus the signal won't be
 // relayed to the OS handler for this case.
-func EchoSigHandler(sigChan chan os.Signal, errChan chan error,
+func EchoSigHandler(ctx context.Context, sigChan chan os.Signal, errChan chan error,
 	cmode uint32) {
-	sig, sigRecved := <-sigChan
-	// Enable console echo (restore cmode)
-	windows.SetConsoleMode(windows.Handle(int(os.Stdin.Fd())), cmode)
-	if sigRecved {
-		signal.Stop(sigChan)
-		errChan <- errors.Errorf("Received signal: %s",
-			sig.String())
-	} else {
-		errChan <- nil
+	for {
+		var (
+			sig       os.Signal
+			sigRecved bool
+		)
+		select {
+		case <-ctx.Done():
+			errChan <- nil
+			return
+		case sig, sigRecved = <-sigChan:
+		}
+		// Enable console echo (restore cmode)
+		windows.SetConsoleMode(windows.Handle(int(os.Stdin.Fd())), cmode)
+		if sigRecved {
+			signal.Stop(sigChan)
+			errChan <- errors.Errorf("Received signal: %s",
+				sig.String())
+		} else {
+			errChan <- nil
+			return
+		}
 	}
 }
