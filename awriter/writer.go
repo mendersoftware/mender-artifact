@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -431,7 +431,7 @@ func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs, augmented bool)
 		return errors.Wrap(err, "writeHeader")
 	}
 	if err := sa.Write(stream, "header-info"); err != nil {
-		return errors.New("writer: can not store header-info")
+		return errors.Wrap(err, "writer: can not store header-info")
 	}
 
 	// write scripts
