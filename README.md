@@ -70,6 +70,12 @@ And the `Bash` auto-complete script will be installed to
 corresponding auto-completion script is installed into
 `/usr/local/share/zsh/site-functions`.
 
+You can override both the `DESTDIR` (default: empty) and `PREFIX` (default: `/usr/local`) variables to alter the destination paths, i.e:
+
+```bash
+sudo make DESTDIR=/tmp PREFIX=/usr install-autocomplete-scripts
+```
+
 ### Manual installation
 
  auto-completion of `mender-artifact` sub-commands can be added to either ZSH or
