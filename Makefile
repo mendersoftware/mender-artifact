@@ -5,6 +5,8 @@ PREFIX ?= /usr/local
 PKGS = $(shell go list ./... | grep -v vendor)
 SUBPKGS = $(shell go list ./... | sed '1d' | tr '\n' ',' | sed 's/,$$//1')
 PKGNAME = mender-artifact
+GOEXE := $(shell $(GO) env GOEXE)
+FINALEXE = $(PKGNAME)$(GOEXE)
 PKGFILES = $(shell find . \( -path ./vendor -o -path ./Godeps \) -prune \
 		-o -type f -name '*.go' -print)
 PKGFILES_notest = $(shell echo $(PKGFILES) | tr ' ' '\n' | grep -v _test.go)
@@ -37,8 +39,8 @@ ifneq ($(TAGS),)
 BUILDTAGS = -tags '$(TAGS)'
 endif
 
-build:
-	$(GO) build $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
+build $(FINALEXE):
+	$(GO) build $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(FINALEXE)
 
 PLATFORMS := darwin linux windows
 
@@ -68,8 +70,13 @@ build-natives-contained:
 	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact* /binary" && \
 	docker image rm $$image_id
 
-install:
+goinstall:
 	@$(GO) install $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
+
+install-all: install install-autocomplete-scripts
+
+install: $(FINALEXE)
+	install -Dm0755 $(FINALEXE) $(DESTDIR)$(PREFIX)/bin/$(FINALEXE)
 
 install-autocomplete-scripts:
 	@echo "Installing Bash auto-complete script into $(DESTDIR)/etc/bash_completion.d/"
@@ -84,6 +91,7 @@ clean:
 	$(GO) clean
 	rm -f mender-artifact-darwin mender-artifact-linux mender-artifact-windows.exe
 	rm -f coverage.txt coverage-tmp.txt
+	rm -f $(FINALEXE)
 
 get-tools:
 	set -e ; for t in $(TOOLS); do \
@@ -141,4 +149,4 @@ coverage:
 
 .PHONY: build clean get-tools test check \
 	cover htmlcover coverage tooldep install-autocomplete-scripts \
-	instrument-binary
+	instrument-binary install-all install
