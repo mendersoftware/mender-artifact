@@ -1,6 +1,7 @@
 GO ?= go
 GOFMT ?= gofmt
 V ?=
+PREFIX ?= /usr/local
 PKGS = $(shell go list ./... | grep -v vendor)
 SUBPKGS = $(shell go list ./... | sed '1d' | tr '\n' ',' | sed 's/,$$//1')
 PKGNAME = mender-artifact
@@ -70,13 +71,11 @@ install:
 	@$(GO) install $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
 
 install-autocomplete-scripts:
-	@echo "Installing Bash auto-complete script into ${DESTDIR}${PREFIX}/etc/bash_completion.d/"
-	@install -d ${DESTDIR}$(PREFIX)/etc/bash_completion.d/
-	@install -m 644 ./autocomplete/bash_autocomplete $(DESTDIR)$(PREFIX)/etc/bash_completion.d/mender-artifact
+	@echo "Installing Bash auto-complete script into $(DESTDIR)/etc/bash_completion.d/"
+	@install -Dm0644 ./autocomplete/bash_autocomplete $(DESTDIR)/etc/bash_completion.d/mender-artifact
 	@if which zsh >/dev/null 2>&1 ; then \
-	echo "Installing zsh auto-complete script into ${DESTDIR}${PREFIX}/usr/local/share/zsh/site-functions/" \
-	install -d $(DESTDIR)$(PREFIX)/usr/local/share/zsh/site-functions/ && \
-	install -m 644 ./autocomplete/zsh_autocomplete $(DESTDIR)$(PREFIX)/usr/local/share/zsh/site-functions/_mender-artifact \
+		echo "Installing zsh auto-complete script into $(DESTDIR)$(PREFIX)/share/zsh/site-functions/" && \
+		install -Dm0644 ./autocomplete/zsh_autocomplete $(DESTDIR)$(PREFIX)/share/zsh/site-functions/_mender-artifact \
 	; fi
 
 
@@ -136,4 +135,4 @@ coverage:
 	rm -f coverage-tmp.txt
 
 .PHONY: build clean get-tools test check \
-	cover htmlcover coverage tooldep
+	cover htmlcover coverage tooldep install-autocomplete-scripts
