@@ -25,7 +25,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-var isimg = regexp.MustCompile(`\.(mender|sdimg|uefiimg|img)`)
+var isimg = regexp.MustCompile(`\.(mender|sdimg|uefiimg|img)(:|$)`)
 
 func Cat(c *cli.Context) (err error) {
 
