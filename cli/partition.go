@@ -354,7 +354,7 @@ func (i *ModImageRaw) dirtyImage() {
 func parseImgPath(imgpath string) (imgname, fpath string, err error) {
 	paths := strings.SplitN(imgpath, ":", 2)
 	if len(paths) != 2 {
-		return "", "", errors.New("failed to parse image path")
+		return "", "", fmt.Errorf("failed to parse image path %q", imgpath)
 	}
 	if len(paths[1]) == 0 {
 		return "", "", errors.New("please enter a path into the image")
