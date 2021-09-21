@@ -240,6 +240,16 @@ func TestCopyRootfsImage(t *testing.T) {
 			},
 		},
 		{
+			initfunc: func(imgpath string) {
+				assert.Nil(t, ioutil.WriteFile("input.mender.txt", []byte("dummy-text"), 0755))
+			},
+			name: "copy file with containing '.mender' in its filename",
+			argv: []string{"mender-artifact", "cp", "input.mender.txt", "<artifact|sdimg|fat-sdimg>:/etc/mender/"},
+			verifyTestFunc: func(string) {
+				os.Remove("input.txt")
+			},
+		},
+		{
 			name: "write and read from the data partition",
 			initfunc: func(imgpath string) {
 				assert.Nil(t, ioutil.WriteFile("artifact_info", []byte("artifact_name=foobar"), 0755))
