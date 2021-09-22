@@ -26,10 +26,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
+
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/mendersoftware/mender-artifact/utils"
-	"github.com/pkg/errors"
 )
 
 type SignatureVerifyFn func(message, sig []byte) error
