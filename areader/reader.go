@@ -26,10 +26,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
+
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/mendersoftware/mender-artifact/utils"
-	"github.com/pkg/errors"
 )
 
 type SignatureVerifyFn func(message, sig []byte) error
@@ -159,6 +160,10 @@ func (ar *Reader) readHeader(headerSum []byte, comp artifact.Compressor) error {
 		return err
 	}
 
+	// Empty the remaining reader
+	// See (MEN-5094)
+	io.Copy(ioutil.Discard, r)
+
 	// Check if header checksum is correct.
 	if cr, ok := r.(*artifact.Checksum); ok {
 		if err = cr.Verify(); err != nil {
@@ -219,6 +224,10 @@ func (ar *Reader) readAugmentedHeader(headerSum []byte, comp artifact.Compressor
 	if err = ar.readHeaderUpdate(tr, hdr, true); err != nil {
 		return errors.Wrap(err, "readAugmentedHeader")
 	}
+
+	// Empty the remaining reader
+	// See (MEN-5094)
+	io.Copy(ioutil.Discard, r)
 
 	// Check if header checksum is correct.
 	if cr, ok := r.(*artifact.Checksum); ok {
