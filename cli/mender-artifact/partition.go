@@ -44,6 +44,7 @@ const (
 )
 
 var errFsTypeUnsupported = errors.New("mender-artifact can only modify ext4 and vfat payloads")
+var errBlkidNotFound = errors.New("`blkid` binary not found on the system")
 
 type VPImage interface {
 	io.Closer
@@ -367,7 +368,7 @@ func parseImgPath(imgpath string) (imgname, fpath string, err error) {
 func imgFilesystemType(imgpath string) (int, error) {
 	bin, err := utils.GetBinaryPath("blkid")
 	if err != nil {
-		return unsupported, fmt.Errorf("`blkid` binary not found on the system")
+		return unsupported, errBlkidNotFound
 	}
 	cmd := exec.Command(bin, "-s", "TYPE", imgpath)
 	buf := bytes.NewBuffer(nil)
