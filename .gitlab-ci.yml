@@ -59,7 +59,13 @@ build:make:
     paths:
       - mender-artifact-*
   tags:
-    - docker
+    - mender-qa-slave
+  variables:
+    # Docker dind configuration for mender-qa-slave
+    DOCKER_HOST: "tcp://docker:2376"
+    DOCKER_CERT_PATH: "/certs/client"
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_TLS_CERTDIR: "/certs"
 
 test:smoketests:mac:
   stage: test
