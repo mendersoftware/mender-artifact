@@ -99,11 +99,17 @@ func createRootfsFromSSH(c *cli.Context) (string, error) {
 		return rootfsFilename, cli.NewExitError("SSH error: "+err.Error(), 1)
 	}
 
-	// run fsck
+	// check for blkid and get filesystem type
 	fstype, err := imgFilesystemType(rootfsFilename)
 	if err != nil {
+		if err == errBlkidNotFound {
+			Log.Warnf("Skipping running fsck on the Artifact: %v", err)
+			return rootfsFilename, nil
+		}
 		return rootfsFilename, cli.NewExitError("imgFilesystemType error: "+err.Error(), errArtifactCreate)
 	}
+
+	// run fsck
 	switch fstype {
 	case fat:
 		err = runFsck(rootfsFilename, "vfat")
