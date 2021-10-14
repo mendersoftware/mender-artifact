@@ -16,7 +16,8 @@ export CGO_ENABLED
 TOOLS = \
 	github.com/fzipp/gocyclo/... \
 	github.com/opennota/check/cmd/varcheck \
-	github.com/mendersoftware/deadcode
+	github.com/mendersoftware/deadcode \
+	github.com/mendersoftware/gobinarycoverage
 
 VERSION = $(shell git describe --tags --dirty --exact-match 2>/dev/null || git rev-parse --short HEAD)
 
@@ -122,6 +123,10 @@ cover: coverage
 htmlcover: coverage
 	$(GO) tool cover -html=coverage.txt
 
+instrument-binary:
+	git apply patches/0001-Instrument-with-coverage.patch
+	gobinarycoverage github.com/mendersoftware/mender-artifact
+
 coverage:
 	rm -f coverage.txt
 	echo 'mode: set' > coverage.txt
@@ -135,4 +140,5 @@ coverage:
 	rm -f coverage-tmp.txt
 
 .PHONY: build clean get-tools test check \
-	cover htmlcover coverage tooldep install-autocomplete-scripts
+	cover htmlcover coverage tooldep install-autocomplete-scripts \
+	instrument-binary
