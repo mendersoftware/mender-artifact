@@ -186,8 +186,6 @@ publish:tests:
           -flagname unittests:$PLATFORM
           -coverprofile coverage-$PLATFORM.txt
     - done
-    # Mark coverage report as done.
-    - 'curl -k ${COVERALLS_WEBHOOK_URL}?repo_token=${COVERALLS_TOKEN} -d "payload[build_num]=$CI_PIPELINE_ID&payload[status]=done"'
 
 publish:s3:
   stage: publish
