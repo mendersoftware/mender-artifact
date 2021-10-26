@@ -180,7 +180,7 @@ publish:tests:
     -   goveralls
           -repotoken ${COVERALLS_TOKEN}
           -service gitlab-ci
-          -jobid $CI_PIPELINE_ID
+          -jobid $(git rev-parse HEAD)
           -parallel
           -covermode set
           -flagname unittests:$PLATFORM
