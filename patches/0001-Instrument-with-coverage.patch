@@ -1,0 +1,39 @@
+From dae21fca898842e20161aaa631a309a27cb49b6f Mon Sep 17 00:00:00 2001
+From: Ole Petter <ole.orhagen@northern.tech>
+Date: Thu, 14 Oct 2021 17:21:38 +0200
+Subject: [PATCH] Instrument the binary
+
+Changelog: None
+Signed-off-by: Ole Petter <ole.orhagen@northern.tech>
+---
+ main.go | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/main.go b/main.go
+index cd5b9e8..0c1ba65 100644
+--- a/main.go
++++ b/main.go
+@@ -15,7 +15,6 @@
+ package main
+ 
+ import (
+-	"fmt"
+ 	"os"
+ 
+ 	"github.com/mendersoftware/mender-artifact/cli"
+@@ -26,10 +25,12 @@ func run() error {
+ 	if err != nil {
+ 		fmt.Println(err)
+ 	}
++	coverReport()
+ 	return err
+ }
+ 
+ func main() {
++	os.Setenv("COVERAGE_FILENAME", "-artifact")
+ 	if err := run(); err != nil {
+ 		os.Exit(1)
+ 	}
+-- 
+2.33.0
+
