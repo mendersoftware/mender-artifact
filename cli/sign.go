@@ -31,14 +31,13 @@ func signExisting(c *cli.Context) error {
 			" to say 'artifacts sign <pathspec>'?", 1)
 	}
 
-	if len(c.String("key")) == 0 {
-		return cli.NewExitError("Missing signing key; "+
-			"please use `-k` parameter for providing one", 1)
-	}
-
-	privateKey, err := getKey(c.String("key"))
+	privateKey, err := getKey(c)
 	if err != nil {
 		return cli.NewExitError("Can not use signing key provided: "+err.Error(), 1)
+	}
+	if privateKey == nil {
+		return cli.NewExitError("Missing signing key; "+
+			"please provide a signing key parameter", 1)
 	}
 
 	artFile := c.Args().First()

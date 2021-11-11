@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -112,49 +112,61 @@ BlUY/oCrAGUGN10F49+c
 -----END DSA PRIVATE KEY-----`
 )
 
+func mustCreateSigner(t *testing.T, key []byte) *PKISigner {
+	s, err := NewPKISigner(key)
+	assert.NoError(t, err)
+	return s
+}
+
+func mustCreateVerifier(t *testing.T, key []byte) *PKISigner {
+	v, err := NewPKIVerifier(key)
+	assert.NoError(t, err)
+	return v
+}
+
 func TestPublicKey(t *testing.T) {
-	m, err := getKeyAndVerifyMethod([]byte(PublicRSAKey))
+	m, err := GetKeyAndVerifyMethod([]byte(PublicRSAKey))
 	assert.NoError(t, err)
 	assert.NotNil(t, m)
-	assert.IsType(t, &RSA{}, m.method)
-	assert.IsType(t, &rsa.PublicKey{}, m.key)
+	assert.IsType(t, &RSA{}, m.Method)
+	assert.IsType(t, &rsa.PublicKey{}, m.Key)
 
-	m, err = getKeyAndVerifyMethod([]byte(PublicECDSAKey))
+	m, err = GetKeyAndVerifyMethod([]byte(PublicECDSAKey))
 	assert.NoError(t, err)
 	assert.NotNil(t, m)
-	assert.IsType(t, &ECDSA256{}, m.method)
-	assert.IsType(t, &ecdsa.PublicKey{}, m.key)
+	assert.IsType(t, &ECDSA256{}, m.Method)
+	assert.IsType(t, &ecdsa.PublicKey{}, m.Key)
 
-	m, err = getKeyAndVerifyMethod([]byte(PublicDSAKey))
+	m, err = GetKeyAndVerifyMethod([]byte(PublicDSAKey))
 	assert.Error(t, err)
 	assert.Nil(t, m)
 
-	m, err = getKeyAndVerifyMethod([]byte("some ivalid key"))
+	m, err = GetKeyAndVerifyMethod([]byte("some ivalid key"))
 	assert.Error(t, err)
 	assert.Nil(t, m)
-	m, err = getKeyAndVerifyMethod([]byte(PublicRSAKeyInvalid))
+	m, err = GetKeyAndVerifyMethod([]byte(PublicRSAKeyInvalid))
 	assert.Error(t, err)
 	assert.Nil(t, m)
 }
 
 func TestPrivateKey(t *testing.T) {
-	m, err := getKeyAndSignMethod([]byte(PrivateRSAKey))
+	m, err := GetKeyAndSignMethod([]byte(PrivateRSAKey))
 	assert.NoError(t, err)
 	assert.NotNil(t, m)
-	assert.IsType(t, &RSA{}, m.method)
-	assert.IsType(t, &rsa.PrivateKey{}, m.key)
+	assert.IsType(t, &RSA{}, m.Method)
+	assert.IsType(t, &rsa.PrivateKey{}, m.Key)
 
-	m, err = getKeyAndSignMethod([]byte(PrivateECDSAKey))
+	m, err = GetKeyAndSignMethod([]byte(PrivateECDSAKey))
 	assert.NoError(t, err)
 	assert.NotNil(t, m)
-	assert.IsType(t, &ECDSA256{}, m.method)
-	assert.IsType(t, &ecdsa.PrivateKey{}, m.key)
+	assert.IsType(t, &ECDSA256{}, m.Method)
+	assert.IsType(t, &ecdsa.PrivateKey{}, m.Key)
 
-	m, err = getKeyAndSignMethod([]byte(PrivateDSAKey))
+	m, err = GetKeyAndSignMethod([]byte(PrivateDSAKey))
 	assert.Error(t, err)
 	assert.Nil(t, m)
 
-	m, err = getKeyAndSignMethod([]byte("invalid key"))
+	m, err = GetKeyAndSignMethod([]byte("invalid key"))
 	assert.Error(t, err)
 	assert.Nil(t, m)
 }
@@ -162,17 +174,17 @@ func TestPrivateKey(t *testing.T) {
 func TestRSA(t *testing.T) {
 	msg := []byte("this is secret message")
 
-	s := NewSigner([]byte(PrivateRSAKey))
+	s := mustCreateSigner(t, []byte(PrivateRSAKey))
 	sig, err := s.Sign(msg)
 	assert.NoError(t, err)
 	assert.NotNil(t, sig)
 
-	v := NewVerifier([]byte(PublicRSAKey))
+	v := mustCreateVerifier(t, []byte(PublicRSAKey))
 	err = v.Verify(msg, sig)
 	assert.NoError(t, err)
 
 	// use invalid key
-	v = NewVerifier([]byte(PublicRSAKeyError))
+	v = mustCreateVerifier(t, []byte(PublicRSAKeyError))
 	err = v.Verify(msg, sig)
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(), "verification error")
@@ -191,23 +203,23 @@ func TestRSARaw(t *testing.T) {
 func TestECDSA(t *testing.T) {
 	msg := []byte("this is secret message")
 
-	s := NewSigner([]byte(PrivateECDSAKey))
+	s := mustCreateSigner(t, []byte(PrivateECDSAKey))
 	sig, err := s.Sign(msg)
 	assert.NoError(t, err)
 	assert.NotNil(t, sig)
 
-	v := NewVerifier([]byte(PublicECDSAKey))
+	v := mustCreateVerifier(t, []byte(PublicECDSAKey))
 	err = v.Verify(msg, sig)
 	assert.NoError(t, err)
 
 	// use invalid key
-	v = NewVerifier([]byte(PublicECDSAKeyError))
+	v = mustCreateVerifier(t, []byte(PublicECDSAKeyError))
 	err = v.Verify(msg, sig)
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(), "verification failed")
 
 	// use invalid signature
-	v = NewVerifier([]byte(PublicECDSAKey))
+	v = mustCreateVerifier(t, []byte(PublicECDSAKey))
 	// change the first byte of the signature
 	sig, err = s.Sign([]byte("this is a different message"))
 	assert.NoError(t, err)
@@ -217,8 +229,7 @@ func TestECDSA(t *testing.T) {
 	assert.Contains(t, errors.Cause(err).Error(), "verification failed")
 
 	// use broken key
-	v = NewVerifier([]byte("broken key"))
-	err = v.Verify(msg, sig)
+	_, err = NewPKIVerifier([]byte("broken key"))
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(), "failed to parse")
 }
@@ -231,9 +242,9 @@ func TestECDSARaw(t *testing.T) {
 	assert.Nil(t, sig)
 
 	// invalid key length
-	crypt, err := getKeyAndSignMethod([]byte(PrivateECDSA384))
+	crypt, err := GetKeyAndSignMethod([]byte(PrivateECDSA384))
 	assert.NoError(t, err)
-	sig, err = r.Sign([]byte("my message"), crypt.key)
+	sig, err = r.Sign([]byte("my message"), crypt.Key)
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(), "invalid ecdsa curve size")
 	assert.Nil(t, sig)
@@ -242,11 +253,11 @@ func TestECDSARaw(t *testing.T) {
 	err = r.Verify([]byte("my message"), []byte("signature"), PrivateECDSAKey)
 	assert.Error(t, err)
 
-	crypt, err = getKeyAndVerifyMethod([]byte(PublicECDSAKey))
+	crypt, err = GetKeyAndVerifyMethod([]byte(PublicECDSAKey))
 	assert.NoError(t, err)
 
 	// use wrong size key for verification
-	err = r.Verify([]byte("my message"), []byte("signature"), crypt.key)
+	err = r.Verify([]byte("my message"), []byte("signature"), crypt.Key)
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(), "invalid ecdsa key size")
 }

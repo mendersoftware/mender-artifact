@@ -274,6 +274,7 @@ func testDumpContent(t *testing.T, imageType, printCmdline string) {
 		"depends-groups",
 		"device-type",
 		"file",
+		"gcp-kms-key",                  // Not tested in "dump".
 		"key",                          // Not tested in "dump".
 		"legacy-rootfs-image-checksum", // Not relevant for "dump", which uses "module-image".
 		"meta-data",

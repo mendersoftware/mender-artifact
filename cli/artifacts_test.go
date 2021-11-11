@@ -65,7 +65,11 @@ func WriteTestArtifact(version int, update string, key []byte) (io.Reader, error
 
 	aw := new(awriter.Writer)
 	if key != nil {
-		aw = awriter.NewWriterSigned(buff, comp, artifact.NewSigner(key))
+		s, err := artifact.NewPKISigner(key)
+		if err != nil {
+			return nil, errors.Wrap(err, "artifact.NewPKISigner")
+		}
+		aw = awriter.NewWriterSigned(buff, comp, s)
 		fmt.Println("write signed artifact")
 	} else {
 		aw = awriter.NewWriter(buff, comp)
@@ -279,7 +283,7 @@ func TestArtifactsSigned(t *testing.T) {
 		"-k", filepath.Join(updateTestDir, "private.key"),
 		filepath.Join(updateTestDir, "artifact.mender")}
 	err = Run(args)
-	assert.NoError(t, err)
+	assert.Error(t, err)
 
 	// read non-existing key
 	args = []string{"mender-artifact", "read",

@@ -36,7 +36,7 @@ func modifyArtifact(c *cli.Context) (err error) {
 		)
 	}
 
-	privateKey, err := getKey(c.String("key"))
+	privateKey, err := getKey(c)
 	if err != nil {
 		return cli.NewExitError("Unable to load key: "+err.Error(), 1)
 	}

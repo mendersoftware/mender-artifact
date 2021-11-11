@@ -30,7 +30,7 @@ var ErrManifestNotFound = errors.New("`manifest` not found. Corrupt Artifact?")
 
 // Special fast-track to just sign, nothing else. This skips all the expensive
 // and complicated repacking, and simply adds the manifest.sig file.
-func SignExisting(src io.Reader, dst io.Writer, key []byte, overwrite bool) error {
+func SignExisting(src io.Reader, dst io.Writer, key artifact.Signer, overwrite bool) error {
 	var foundManifest bool
 	rTar := tar.NewReader(src)
 	wTar := tar.NewWriter(dst)
@@ -85,9 +85,8 @@ func signManifestAndOutputSignature(
 	header *tar.Header,
 	src *tar.Reader,
 	dst *tar.Writer,
-	key []byte,
+	key artifact.Signer,
 ) error {
-	signer := artifact.NewSigner(key)
 	buf := make([]byte, header.Size)
 	read, err := src.Read(buf)
 	if err != nil && err != io.EOF {
@@ -107,7 +106,7 @@ func signManifestAndOutputSignature(
 		return errors.New("Could not write entire manifest")
 	}
 
-	signedBuf, err := signer.Sign(buf)
+	signedBuf, err := key.Sign(buf)
 	if err != nil {
 		return errors.Wrap(err, "Could not sign manifest")
 	}

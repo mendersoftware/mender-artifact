@@ -457,12 +457,14 @@ Updates:
 		"compression",
 		"device-type",
 		"file",
+		"gcp-kms-key",
 		"key",
 		"output-path",
 		"script",
 	})
 	modifyFlagsTested.addFlags([]string{
 		"artifact-name",
+		"gcp-kms-key",
 		"key",
 		"name",
 	})
