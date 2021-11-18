@@ -12,6 +12,7 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
+//go:build linux || aix || darwin || dragonfly || freebsd || netbsd || opbenbsd
 // +build linux aix darwin dragonfly freebsd netbsd opbenbsd
 
 package util
@@ -66,7 +67,7 @@ func EchoSigHandler(
 			continue
 		}
 		// Restore Termios
-		unix.IoctlSetTermios(int(os.Stdin.Fd()), ioctlSetTermios, term)
+		_ = unix.IoctlSetTermios(int(os.Stdin.Fd()), ioctlSetTermios, term)
 		if sigRecved {
 			switch sig {
 			case unix.SIGCHLD:
@@ -76,7 +77,7 @@ func EchoSigHandler(
 				errChan <- errors.Errorf("Received signal: %s",
 					unix.SignalName(sig.(unix.Signal)))
 				// Relay signal to default handler
-				unix.Kill(os.Getpid(), sig.(unix.Signal))
+				_ = unix.Kill(os.Getpid(), sig.(unix.Signal))
 			}
 		} else {
 			errChan <- nil

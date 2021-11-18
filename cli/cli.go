@@ -25,8 +25,7 @@ import (
 )
 
 const (
-	artifactOK = iota
-	errArtifactInvalidParameters
+	errArtifactInvalidParameters = iota
 	errArtifactUnsupportedVersion
 	errArtifactCreate
 	errArtifactOpen
@@ -54,6 +53,7 @@ const LatestFormatVersion = 3
 
 // Copied from urfave/cli/template.go
 // with the addition of the NOTE on the `global` `--compression flag`
+//nolint:lll
 var menderAppHelpTemplate = `NAME:
    {{.Name}}{{if .Usage}} - {{.Usage}}{{end}}
 
@@ -88,7 +88,7 @@ func applyCompressionInCommand(c *cli.Context) error {
 	// Let --compression argument work after command as well. Latest one
 	// applies.
 	if c.String("compression") != "" {
-		c.GlobalSet("compression", c.String("compression"))
+		_ = c.GlobalSet("compression", c.String("compression"))
 	}
 	return nil
 }
@@ -172,12 +172,14 @@ func getCliContext() *cli.App {
 	// Common Payload flags
 	//
 	payloadProvides := cli.StringSliceFlag{
-		Name:  "provides, p",
-		Usage: "Generic `KEY:VALUE` which is added to the type-info -> artifact_provides section. Can be given multiple times",
+		Name: "provides, p",
+		Usage: "Generic `KEY:VALUE` which is added to the type-info -> artifact_provides section." +
+			" Can be given multiple times",
 	}
 	payloadDepends := cli.StringSliceFlag{
-		Name:  "depends, d",
-		Usage: "Generic `KEY:VALUE` which is added to the type-info -> artifact_depends section. Can be given multiple times",
+		Name: "depends, d",
+		Usage: "Generic `KEY:VALUE` which is added to the type-info -> artifact_depends section." +
+			" Can be given multiple times",
 	}
 	payloadMetaData := cli.StringFlag{
 		Name:  "meta-data, m",
@@ -234,8 +236,8 @@ func getCliContext() *cli.App {
 		},
 		cli.BoolFlag{
 			Name: "legacy-rootfs-image-checksum",
-			Usage: "Use the legacy key name rootfs_image_checksum to store the providese checksum " +
-				"to the Artifact provides parameters instead of rootfs-image.checksum.",
+			Usage: "Use the legacy key name rootfs_image_checksum to store the providese checksum" +
+				" to the Artifact provides parameters instead of rootfs-image.checksum.",
 		},
 		cli.BoolFlag{
 			Name: "no-checksum-provide",
@@ -269,8 +271,9 @@ func getCliContext() *cli.App {
 		//////////////////////
 		softwareVersionNoDefault,
 		cli.StringFlag{
-			Name:  softwareNameFlag,
-			Usage: "Name of the key to store the software version: rootfs-image.NAME.version, instead of rootfs-image.version",
+			Name: softwareNameFlag,
+			Usage: "Name of the key to store the software version: rootfs-image.NAME.version," +
+				" instead of rootfs-image.version",
 		},
 		softwareVersionValue,
 		softwareFilesystem,
@@ -339,12 +342,14 @@ func getCliContext() *cli.App {
 			Usage: "Type of augmented payload. This is the same as the name of the update module",
 		},
 		cli.StringSliceFlag{
-			Name:  "augment-provides",
-			Usage: "Generic `KEY:VALUE` which is added to the augmented type-info -> artifact_provides section. Can be given multiple times",
+			Name: "augment-provides",
+			Usage: "Generic `KEY:VALUE` which is added to the augmented type-info ->" +
+				" artifact_provides section. Can be given multiple times",
 		},
 		cli.StringSliceFlag{
-			Name:  "augment-depends",
-			Usage: "Generic `KEY:VALUE` which is added to the augmented type-info -> artifact_depends section. Can be given multiple times",
+			Name: "augment-depends",
+			Usage: "Generic `KEY:VALUE` which is added to the augmented type-info ->" +
+				" artifact_depends section. Can be given multiple times",
 		},
 		cli.StringFlag{
 			Name:  "augment-meta-data",
@@ -362,8 +367,9 @@ func getCliContext() *cli.App {
 		//////////////////////
 		softwareVersionNoDefault,
 		cli.StringFlag{
-			Name:  softwareNameFlag,
-			Usage: "Name of the key to store the software version: rootfs-image.NAME.version, instead of rootfs-image.PAYLOAD_TYPE.version",
+			Name: softwareNameFlag,
+			Usage: "Name of the key to store the software version: rootfs-image.NAME.version," +
+				" instead of rootfs-image.PAYLOAD_TYPE.version",
 		},
 		softwareVersionValue,
 		softwareFilesystem,
@@ -441,12 +447,13 @@ func getCliContext() *cli.App {
 	// modify existing
 	//
 	modify := cli.Command{
-		Name:        "modify",
-		Usage:       "Modifies image or artifact file.",
-		Category:    "Artifact modification",
-		Action:      modifyArtifact,
-		UsageText:   "mender-artifact modify [options] <pathspec>",
-		Description: "This command modifies existing image or artifact file provided by pathspec. NOTE: Currently only ext4 payloads can be modified",
+		Name:      "modify",
+		Usage:     "Modifies image or artifact file.",
+		Category:  "Artifact modification",
+		Action:    modifyArtifact,
+		UsageText: "mender-artifact modify [options] <pathspec>",
+		Description: "This command modifies existing image or artifact file provided by pathspec." +
+			" NOTE: Currently only ext4 payloads can be modified",
 	}
 
 	modify.Flags = []cli.Flag{
@@ -492,7 +499,7 @@ func getCliContext() *cli.App {
 	}
 	modify.Before = func(c *cli.Context) error {
 		if c.String("name") != "" {
-			c.Set("artifact-name", c.String("name"))
+			_ = c.Set("artifact-name", c.String("name"))
 		}
 		return applyCompressionInCommand(c)
 	}
@@ -522,11 +529,13 @@ func getCliContext() *cli.App {
 	}
 
 	install := cli.Command{
-		Name:        "install",
-		Usage:       "install -m <permissions> <hostfile> [artifact|sdimg|uefiimg]:<filepath> or install -d [artifact|sdimg|uefiimg]:<directory>",
-		Description: "Installs a directory, or a file from the host filesystem, to the artifact or sdimg.",
-		Category:    "Artifact modification",
-		Action:      Install,
+		Name: "install",
+		Usage: "install -m <permissions> <hostfile> [artifact|sdimg|uefiimg]:<filepath> or" +
+			" install -d [artifact|sdimg|uefiimg]:<directory>",
+		Description: "Installs a directory, or a file from the host filesystem, to the artifact" +
+			" or sdimg.",
+		Category: "Artifact modification",
+		Action:   Install,
 	}
 
 	install.Flags = []cli.Flag{
@@ -559,12 +568,13 @@ func getCliContext() *cli.App {
 	// dump
 	//
 	dumpCommand := cli.Command{
-		Name:        "dump",
-		Usage:       "Dump contents from Artifacts",
-		ArgsUsage:   "<Artifact>",
-		Description: "Dump various raw files from the Artifact. These can be used to create a new Artifact with the same components.",
-		Category:    "Artifact inspection",
-		Action:      DumpCommand,
+		Name:      "dump",
+		Usage:     "Dump contents from Artifacts",
+		ArgsUsage: "<Artifact>",
+		Description: "Dump various raw files from the Artifact. These can be used to create a new" +
+			" Artifact with the same components.",
+		Category: "Artifact inspection",
+		Action:   DumpCommand,
 	}
 	dumpCommand.Flags = []cli.Flag{
 		cli.StringFlag{
@@ -572,20 +582,26 @@ func getCliContext() *cli.App {
 			Usage: "Dump all included files in the first payload into given folder",
 		},
 		cli.StringFlag{
-			Name:  "meta-data",
-			Usage: "Dump the contents of the meta-data field in the first payload into given folder",
+			Name: "meta-data",
+			Usage: "Dump the contents of the meta-data field in the first payload into given" +
+				" folder",
 		},
 		cli.StringFlag{
 			Name:  "scripts",
 			Usage: "Dump all included state scripts into given folder",
 		},
 		cli.BoolFlag{
-			Name:  "print-cmdline",
-			Usage: "Print the command line that can recreate the same Artifact with the components being dumped. If all the components are being dumped, a nearly identical Artifact can be created. Note that timestamps will cause the checksum of the Artifact to be different, and signatures can not be recreated this way. The command line will only use long option names.",
+			Name: "print-cmdline",
+			Usage: "Print the command line that can recreate the same Artifact with the" +
+				" components being dumped. If all the components are being dumped, a nearly" +
+				" identical Artifact can be created. Note that timestamps will cause the checksum" +
+				" of the Artifact to be different, and signatures can not be recreated this way." +
+				" The command line will only use long option names.",
 		},
 		cli.BoolFlag{
-			Name:  "print0-cmdline",
-			Usage: "Same as 'print-cmdline', except that the arguments are separated by a null character (0x00).",
+			Name: "print0-cmdline",
+			Usage: "Same as 'print-cmdline', except that the arguments are separated by a null" +
+				" character (0x00).",
 		},
 	}
 
