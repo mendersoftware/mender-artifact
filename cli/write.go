@@ -30,14 +30,15 @@ import (
 	"io"
 	"io/ioutil"
 
+	"github.com/pkg/errors"
+	"github.com/urfave/cli"
+
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/artifact/stage"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/cli/util"
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/mendersoftware/mender-artifact/utils"
-	"github.com/pkg/errors"
-	"github.com/urfave/cli"
 )
 
 func writeRootfsImageChecksum(rootfsFilename string,
@@ -45,7 +46,10 @@ func writeRootfsImageChecksum(rootfsFilename string,
 	chk := artifact.NewWriterChecksum(ioutil.Discard)
 	payload, err := os.Open(rootfsFilename)
 	if err != nil {
-		return cli.NewExitError(fmt.Sprintf("Failed to open the payload file: %q", rootfsFilename), 1)
+		return cli.NewExitError(
+			fmt.Sprintf("Failed to open the payload file: %q", rootfsFilename),
+			1,
+		)
 	}
 	if _, err = io.Copy(chk, payload); err != nil {
 		return cli.NewExitError("Failed to generate the checksum for the payload", 1)
@@ -106,7 +110,10 @@ func createRootfsFromSSH(c *cli.Context) (string, error) {
 			Log.Warnf("Skipping running fsck on the Artifact: %v", err)
 			return rootfsFilename, nil
 		}
-		return rootfsFilename, cli.NewExitError("imgFilesystemType error: "+err.Error(), errArtifactCreate)
+		return rootfsFilename, cli.NewExitError(
+			"imgFilesystemType error: "+err.Error(),
+			errArtifactCreate,
+		)
 	}
 
 	// run fsck
@@ -129,7 +136,10 @@ func createRootfsFromSSH(c *cli.Context) (string, error) {
 func writeRootfs(c *cli.Context) error {
 	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
 	if err != nil {
-		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
+		return cli.NewExitError(
+			"compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(),
+			1,
+		)
 	}
 
 	if err := validateInput(c); err != nil {
@@ -214,7 +224,10 @@ func writeRootfs(c *cli.Context) error {
 	if !c.Bool("no-checksum-provide") {
 		legacy := c.Bool("legacy-rootfs-image-checksum")
 		if err = writeRootfsImageChecksum(rootfsFilename, typeInfoV3, legacy); err != nil {
-			return cli.NewExitError(errors.Wrap(err, "Failed to write the `rootfs-image.checksum` to the artifact"), 1)
+			return cli.NewExitError(
+				errors.Wrap(err, "Failed to write the `rootfs-image.checksum` to the artifact"),
+				1,
+			)
 		}
 	}
 
@@ -252,7 +265,7 @@ func writeRootfs(c *cli.Context) error {
 func reportProgress(c context.Context, state chan string) {
 	fmt.Fprintln(os.Stderr, "Writing Artifact...")
 	str := fmt.Sprintf("%-20s\t", <-state)
-	fmt.Fprintf(os.Stderr, str)
+	fmt.Fprint(os.Stderr, str)
 	for {
 		select {
 		case str = <-state:
@@ -262,7 +275,7 @@ func reportProgress(c context.Context, state chan string) {
 			} else {
 				fmt.Fprintf(os.Stderr, "\033[1;32m\u2713\033[0m\n")
 				str = fmt.Sprintf("%-20s\t", str)
-				fmt.Fprintf(os.Stderr, str)
+				fmt.Fprint(os.Stderr, str)
 			}
 		case <-c.Done():
 			return
@@ -308,7 +321,12 @@ func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
 	for _, file := range ctx.StringSlice("file") {
 		dataFiles = append(dataFiles, &handlers.DataFile{Name: file})
 	}
-	handler.SetUpdateFiles(dataFiles)
+	if err := handler.SetUpdateFiles(dataFiles); err != nil {
+		return nil, cli.NewExitError(
+			err,
+			1,
+		)
+	}
 
 	upd := &awriter.Updates{
 		Updates: []handlers.Composer{handler},
@@ -320,7 +338,12 @@ func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
 		for _, file := range ctx.StringSlice("augment-file") {
 			dataFiles = append(dataFiles, &handlers.DataFile{Name: file})
 		}
-		augmentHandler.SetUpdateAugmentFiles(dataFiles)
+		if err := augmentHandler.SetUpdateAugmentFiles(dataFiles); err != nil {
+			return nil, cli.NewExitError(
+				err,
+				1,
+			)
+		}
 		upd.Augments = []handlers.Composer{augmentHandler}
 	}
 
@@ -410,13 +433,20 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 	return typeInfoV3, augmentTypeInfoV3, nil
 }
 
-func getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareNameDefault, softwareVersion string, noDefaultSoftwareVersion bool) map[string]string {
+func getSoftwareVersion(
+	artifactName,
+	softwareFilesystem,
+	softwareName,
+	softwareNameDefault,
+	softwareVersion string,
+	noDefaultSoftwareVersion bool,
+) map[string]string {
 	result := map[string]string{}
 	softwareVersionName := "rootfs-image"
 	if softwareFilesystem != "" {
 		softwareVersionName = softwareFilesystem
 	}
-	if noDefaultSoftwareVersion == false {
+	if !noDefaultSoftwareVersion {
 		if softwareName == "" {
 			softwareName = softwareNameDefault
 		}
@@ -435,12 +465,13 @@ func getSoftwareVersion(artifactName, softwareFilesystem, softwareName, software
 
 // applySoftwareVersionToTypeInfoProvides returns a new mapping, enriched with provides
 // for the software version; the mapping provided as argument is not modified
-func applySoftwareVersionToTypeInfoProvides(ctx *cli.Context, typeInfoProvides artifact.TypeInfoProvides) artifact.TypeInfoProvides {
+func applySoftwareVersionToTypeInfoProvides(
+	ctx *cli.Context,
+	typeInfoProvides artifact.TypeInfoProvides,
+) artifact.TypeInfoProvides {
 	result := make(map[string]string)
-	if typeInfoProvides != nil {
-		for key, value := range typeInfoProvides {
-			result[key] = value
-		}
+	for key, value := range typeInfoProvides {
+		result[key] = value
 	}
 	artifactName := ctx.String("artifact-name")
 	softwareFilesystem := ctx.String(softwareFilesystemFlag)
@@ -451,7 +482,14 @@ func applySoftwareVersionToTypeInfoProvides(ctx *cli.Context, typeInfoProvides a
 	}
 	softwareVersion := ctx.String(softwareVersionFlag)
 	noDefaultSoftwareVersion := ctx.Bool(noDefaultSoftwareVersionFlag)
-	if softwareVersionMapping := getSoftwareVersion(artifactName, softwareFilesystem, softwareName, softwareNameDefault, softwareVersion, noDefaultSoftwareVersion); len(softwareVersionMapping) > 0 {
+	if softwareVersionMapping := getSoftwareVersion(
+		artifactName,
+		softwareFilesystem,
+		softwareName,
+		softwareNameDefault,
+		softwareVersion,
+		noDefaultSoftwareVersion,
+	); len(softwareVersionMapping) > 0 {
 		for key, value := range softwareVersionMapping {
 			if result[key] == "" || softwareVersionOverridesProvides(ctx, key) {
 				result[key] = value
@@ -478,7 +516,8 @@ func softwareVersionOverridesProvides(ctx *cli.Context, key string) bool {
 	} else if len(softwareIndexes) == 0 {
 		return false
 	} else {
-		return softwareIndexes[len(softwareIndexes)-1][0] > providesIndexes[len(providesIndexes)-1][0]
+		return softwareIndexes[len(softwareIndexes)-1][0] >
+			providesIndexes[len(providesIndexes)-1][0]
 	}
 }
 
@@ -516,7 +555,9 @@ func makeClearsArtifactProvides(ctx *cli.Context) ([]string, error) {
 	} else if ctx.Command.Name == "module-image" {
 		softwareName = ctx.String("type") + "."
 	} else {
-		return nil, errors.New("Unknown write command in makeClearsArtifactProvides(), this is a bug.")
+		return nil, errors.New(
+			"Unknown write command in makeClearsArtifactProvides(), this is a bug.",
+		)
 	}
 
 	defaultCap := fmt.Sprintf("%s.%s*", softwareFilesystem, softwareName)
@@ -569,7 +610,10 @@ func makeMetaData(ctx *cli.Context) (map[string]interface{}, map[string]interfac
 func writeModuleImage(ctx *cli.Context) error {
 	comp, err := artifact.NewCompressorFromId(ctx.GlobalString("compression"))
 	if err != nil {
-		return cli.NewExitError("compressor '"+ctx.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
+		return cli.NewExitError(
+			"compressor '"+ctx.GlobalString("compression")+"' is not supported: "+err.Error(),
+			1,
+		)
 	}
 
 	// set the default name
@@ -720,7 +764,8 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	// and hence impossible to detect).
 	// When user id is 0 do not bother with sudo.
 	args = append(args, "/bin/sh", "-c",
-		`'[ $(id -u) -eq 0 ] || sudo_cmd="sudo -S"; $sudo_cmd /bin/sh -c "echo `+sshInitMagic+`; mender snapshot dump" | cat'`)
+		`'[ $(id -u) -eq 0 ] || sudo_cmd="sudo -S"; $sudo_cmd /bin/sh -c "echo `+sshInitMagic+
+			`; mender snapshot dump" | cat'`)
 
 	cmd := exec.Command("ssh", args...)
 
@@ -762,14 +807,14 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	// Wait for 60 seconds for ssh to establish connection
 	err = waitForBufferSignal(stdout, os.Stdout, sshInitMagic, 2*time.Minute)
 	if err != nil {
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		return "", errors.Wrap(err,
 			"Error waiting for ssh session to be established.")
 	}
 
 	_, err = recvSnapshot(f, stdout)
 	if err != nil {
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		return "", err
 	}
 
@@ -855,30 +900,17 @@ func recvSnapshot(dst io.Writer, src io.Reader) (int64, error) {
 	return written, nil
 }
 
-func sizeStr(bytes int64) string {
-	tmp := bytes
-	var i int
-	var suffixes = [...]string{"B", "KiB", "MiB", "GiB", "TiB"}
-	for i = 0; i < len(suffixes); i++ {
-		if (tmp / 1024) == 0 {
-			break
-		}
-		tmp /= 1024
-	}
-	return fmt.Sprintf("%d %s", tmp, suffixes[i])
-}
-
 func removeOnPanic(filename string) {
 	if r := recover(); r != nil {
 		err := os.Remove(filename)
 		if err != nil {
-			switch r.(type) {
+			switch v := r.(type) {
 			case string:
-				err = errors.Wrap(errors.
-					New(r.(string)), err.Error())
+				err = errors.Wrap(errors.New(v), err.Error())
 				panic(err)
 			case error:
-				err = errors.Wrap(r.(error), err.Error())
+				err = errors.Wrap(v, err.Error())
+				panic(err)
 			default:
 				panic(r)
 			}

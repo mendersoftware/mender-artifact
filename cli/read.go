@@ -24,12 +24,13 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/pkg/errors"
+	"github.com/urfave/cli"
+
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/mendersoftware/mender-artifact/utils"
-	"github.com/pkg/errors"
-	"github.com/urfave/cli"
 )
 
 func readArtifact(c *cli.Context) error {
@@ -108,8 +109,14 @@ func readArtifact(c *cli.Context) error {
 
 	depends := ar.GetArtifactDepends()
 	if depends != nil {
-		fmt.Printf("  Depends on one of artifact(s): [%s]\n", strings.Join(depends.ArtifactName, ", "))
-		fmt.Printf("  Depends on one of group(s): [%s]\n", strings.Join(depends.ArtifactGroup, ", "))
+		fmt.Printf(
+			"  Depends on one of artifact(s): [%s]\n",
+			strings.Join(depends.ArtifactName, ", "),
+		)
+		fmt.Printf(
+			"  Depends on one of group(s): [%s]\n",
+			strings.Join(depends.ArtifactGroup, ", "),
+		)
 	}
 
 	if len(scripts) > -1 {

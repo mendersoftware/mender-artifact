@@ -20,10 +20,10 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
+	"github.com/urfave/cli"
 
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
-	"github.com/urfave/cli"
 )
 
 func validate(art io.Reader, key []byte) error {

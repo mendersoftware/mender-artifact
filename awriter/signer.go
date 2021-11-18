@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -18,11 +18,14 @@ import (
 	"archive/tar"
 	"io"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
+
+	"github.com/mendersoftware/mender-artifact/artifact"
 )
 
-var ErrAlreadyExistingSignature = errors.New("The Artifact is already signed, will not overwrite existing signature")
+var ErrAlreadyExistingSignature = errors.New(
+	"The Artifact is already signed, will not overwrite existing signature",
+)
 var ErrManifestNotFound = errors.New("`manifest` not found. Corrupt Artifact?")
 
 // Special fast-track to just sign, nothing else. This skips all the expensive
@@ -78,7 +81,12 @@ func SignExisting(src io.Reader, dst io.Writer, key []byte, overwrite bool) erro
 	return nil
 }
 
-func signManifestAndOutputSignature(header *tar.Header, src *tar.Reader, dst *tar.Writer, key []byte) error {
+func signManifestAndOutputSignature(
+	header *tar.Header,
+	src *tar.Reader,
+	dst *tar.Writer,
+	key []byte,
+) error {
 	signer := artifact.NewSigner(key)
 	buf := make([]byte, header.Size)
 	read, err := src.Read(buf)

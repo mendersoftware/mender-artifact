@@ -134,7 +134,11 @@ func dumpPayloads(c *cli.Context, ar *areader.Reader, dumpArgs *[]string) error 
 	return nil
 }
 
-func dumpMetaData(metaDataDir string, dumpArgs *[]string, handlers map[int]handlers.Installer) error {
+func dumpMetaData(
+	metaDataDir string,
+	dumpArgs *[]string,
+	handlers map[int]handlers.Installer,
+) error {
 	err := os.MkdirAll(metaDataDir, 0755)
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf(
@@ -197,7 +201,8 @@ func printCmdline(ar *areader.Reader, args []string, sep, endChar rune) {
 		artDeps := ar.GetArtifactDepends()
 		if len(artDeps.ArtifactName) > 0 {
 			fmt.Printf("%c--artifact-name-depends%c%s", sep, sep,
-				strings.Join(artDeps.ArtifactName, fmt.Sprintf("%c--artifact-name-depends%c", sep, sep)))
+				strings.Join(artDeps.ArtifactName,
+					fmt.Sprintf("%c--artifact-name-depends%c", sep, sep)))
 		}
 		fmt.Printf("%c--device-type%c%s", sep, sep,
 			strings.Join(artDeps.CompatibleDevices, fmt.Sprintf("%c--device-type%c", sep, sep)))
@@ -208,7 +213,8 @@ func printCmdline(ar *areader.Reader, args []string, sep, endChar rune) {
 
 	} else if ar.GetInfo().Version == 2 {
 		fmt.Printf("%c--artifact-name%c%s", sep, sep, ar.GetArtifactName())
-		fmt.Printf("%c--device-type%c%s", sep, sep, strings.Join(ar.GetCompatibleDevices(), " --device-type "))
+		fmt.Printf("%c--device-type%c%s", sep, sep,
+			strings.Join(ar.GetCompatibleDevices(), " --device-type "))
 	}
 
 	handlers := ar.GetHandlers()
@@ -220,27 +226,21 @@ func printCmdline(ar *areader.Reader, args []string, sep, endChar rune) {
 	fmt.Printf("%c--%s", sep, noDefaultSoftwareVersionFlag)
 
 	provs := handler.GetUpdateOriginalProvides()
-	if provs != nil {
-		for key, value := range provs {
-			fmt.Printf("%c--provides%c%s:%s", sep, sep, key, value)
-		}
+	for key, value := range provs {
+		fmt.Printf("%c--provides%c%s:%s", sep, sep, key, value)
 	}
 
 	deps := handler.GetUpdateOriginalDepends()
-	if deps != nil {
-		for key, value := range deps {
-			fmt.Printf("%c--depends%c%s:%s", sep, sep, key, value)
-		}
+	for key, value := range deps {
+		fmt.Printf("%c--depends%c%s:%s", sep, sep, key, value)
 	}
 
 	// Always add this flag, since we will write custom flags.
 	fmt.Printf("%c--%s", sep, noDefaultClearsProvidesFlag)
 
 	caps := handler.GetUpdateOriginalClearsProvides()
-	if caps != nil {
-		for _, value := range caps {
-			fmt.Printf("%c--%s%c%s", sep, clearsProvidesFlag, sep, value)
-		}
+	for _, value := range caps {
+		fmt.Printf("%c--%s%c%s", sep, clearsProvidesFlag, sep, value)
 	}
 
 	if len(args) > 0 {
@@ -249,7 +249,10 @@ func printCmdline(ar *areader.Reader, args []string, sep, endChar rune) {
 	fmt.Printf("%c", endChar)
 }
 
-func (d *dumpFileStore) NewUpdateStorer(updateType string, payloadNum int) (handlers.UpdateStorer, error) {
+func (d *dumpFileStore) NewUpdateStorer(
+	updateType string,
+	payloadNum int,
+) (handlers.UpdateStorer, error) {
 	return d, nil
 }
 

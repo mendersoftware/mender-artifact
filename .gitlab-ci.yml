@@ -6,6 +6,8 @@ stages:
 
 include:
   - project: 'Northern.tech/Mender/mendertesting'
+    file: '.gitlab-ci-check-golang-lint.yml'
+  - project: 'Northern.tech/Mender/mendertesting'
     file: '.gitlab-ci-github-status-updates.yml'
   - project: 'Northern.tech/Mender/mendertesting'
     file: '.gitlab-ci-check-commits.yml'
@@ -106,26 +108,11 @@ test:smoketests:linux:
     - ./mender-artifact-linux validate test-rfs.mender
     - make build
 
-.test:static:
+.test:unit:
   stage: test
   needs: []
 
   script:
-    # Rename the branch we're on, so that it's not in the way for the
-    # subsequent fetch. It's ok if this fails, it just means we're not on any
-    # branch.
-    - git branch -m temp-branch || true
-    # Git trick: Fetch directly into our local branches instead of remote
-    # branches.
-    - git fetch origin 'refs/heads/*:refs/heads/*'
-    # Get last remaining tags, if any.
-    - git fetch --tags origin
-
-    # Install code coverage tooling
-    - make get-tools
-    - export PATH=$PATH:$HOME/go/bin
-
-    - make extracheck
     - make coverage
     - mv coverage.txt $CI_PROJECT_DIR/$COVERAGE_FILE
   artifacts:
@@ -134,15 +121,15 @@ test:smoketests:linux:
     paths:
       - $COVERAGE_FILE
 
-test:static:linux:
-  extends: .test:static
+test:unit:linux:
+  extends: .test:unit
   variables:
     COVERAGE_FILE: coverage-linux.txt
   before_script:
     - apk update && apk add git make bash dosfstools e2fsprogs e2fsprogs-extra gcc libc6-compat mtools musl-dev parted perl-utils xz-dev
 
-test:static:mac:
-  extends: .test:static
+test:unit:mac:
+  extends: .test:unit
   variables:
     COVERAGE_FILE: coverage-mac.txt
     # This is needed because the host is reusing the workdir, it is not a Docker
@@ -155,9 +142,9 @@ publish:tests:
   stage: publish
   image: golang:1.14-alpine3.11
   needs:
-    - job: test:static:linux
+    - job: test:unit:linux
       artifacts: true
-    - job: test:static:mac
+    - job: test:unit:mac
       artifacts: true
   variables:
     COVERALLS_WEBHOOK_URL: "https://coveralls.io/webhook"

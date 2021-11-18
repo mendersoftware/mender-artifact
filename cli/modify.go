@@ -21,15 +21,19 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
+
+	"github.com/mendersoftware/mender-artifact/artifact"
 )
 
 func modifyArtifact(c *cli.Context) (err error) {
 	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
 	if err != nil {
-		return cli.NewExitError("compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(), 1)
+		return cli.NewExitError(
+			"compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(),
+			1,
+		)
 	}
 
 	privateKey, err := getKey(c.String("key"))
@@ -169,7 +173,11 @@ func modifyMenderConfVar(confKey, confValue string, image VPImage) error {
 	return CopyIntoImage(localFile, image, confFile)
 }
 
-func extractKeyValuesIfArtifact(ctx *cli.Context, key string, image VPImage) (*map[string]string, error) {
+func extractKeyValuesIfArtifact(
+	ctx *cli.Context,
+	key string,
+	image VPImage,
+) (*map[string]string, error) {
 	keyValues, err := extractKeyValues(ctx.StringSlice(key))
 	if keyValues == nil || err != nil {
 		return nil, err
@@ -357,13 +365,18 @@ func modifyPayloadClearsProvides(c *cli.Context, image VPImage) error {
 		if !isArt {
 			return errors.Errorf("`%s` argument must be used with an Artifact", clearsProvidesFlag)
 		}
-		art.writeArgs.TypeInfoV3.ClearsArtifactProvides = append(art.writeArgs.TypeInfoV3.ClearsArtifactProvides,
-			c.StringSlice(clearsProvidesFlag)...)
+		art.writeArgs.TypeInfoV3.ClearsArtifactProvides = append(
+			art.writeArgs.TypeInfoV3.ClearsArtifactProvides,
+			c.StringSlice(clearsProvidesFlag)...,
+		)
 	}
 
 	if c.IsSet(deleteClearsProvidesFlag) {
 		if !isArt {
-			return errors.Errorf("`%s` argument must be used with an Artifact", deleteClearsProvidesFlag)
+			return errors.Errorf(
+				"`%s` argument must be used with an Artifact",
+				deleteClearsProvidesFlag,
+			)
 		}
 		newClearsProvides := make([]string, 0, len(art.writeArgs.TypeInfoV3.ClearsArtifactProvides))
 		for _, entry := range art.writeArgs.TypeInfoV3.ClearsArtifactProvides {
