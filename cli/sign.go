@@ -19,9 +19,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
+
+	"github.com/mendersoftware/mender-artifact/awriter"
 )
 
 func signExisting(c *cli.Context) error {
@@ -49,7 +50,7 @@ func signExisting(c *cli.Context) error {
 	tFile, err := ioutil.TempFile(filepath.Dir(outputFile), "mender-artifact")
 	if err != nil {
 		err = errors.Wrap(err, "Can not create temporary file for storing artifact")
-		cli.NewExitError(err, 1)
+		return cli.NewExitError(err, 1)
 	}
 	defer os.Remove(tFile.Name())
 	defer tFile.Close()
@@ -63,7 +64,10 @@ func signExisting(c *cli.Context) error {
 
 	err = awriter.SignExisting(f, tFile, privateKey, c.Bool("force"))
 	if err == awriter.ErrAlreadyExistingSignature {
-		return cli.NewExitError("Artifact already signed, refusing to re-sign. Use force option to override", 1)
+		return cli.NewExitError(
+			"Artifact already signed, refusing to re-sign. Use force option to override",
+			1,
+		)
 	} else if err != nil {
 		return cli.NewExitError(err, 1)
 	}

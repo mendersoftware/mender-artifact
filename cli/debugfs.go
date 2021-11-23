@@ -24,13 +24,14 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/mendersoftware/mender-artifact/utils"
 	"github.com/pkg/errors"
+
+	"github.com/mendersoftware/mender-artifact/utils"
 )
 
 const (
-	debugfsMissingErr = "The `debugfs` binary is not found on the system. The binary can typically be installed through" +
-		" the `e2fsprogs` package."
+	debugfsMissingErr = "The `debugfs` binary is not found on the system. The binary can" +
+		" typically be installed through the `e2fsprogs` package."
 )
 
 func debugfsCopyFile(file, image string) (ret string, err error) {
@@ -84,7 +85,9 @@ func debugfsMakeDir(imageFile, image string) (err error) {
 	// Recursively create parent directories if they do not exist
 	dir, _ := filepath.Split(imageFile)
 	if dir != "" {
-		debugfsMakeDir(dir, image)
+		if err = debugfsMakeDir(dir, image); err != nil {
+			return errors.Wrap(err, "debugfsMakeDir")
+		}
 	}
 	cmd := fmt.Sprintf("mkdir %s", imageFile)
 	if _, err = debugfsExecuteCommand(cmd, image); err != nil {
@@ -102,9 +105,14 @@ func debugfsReplaceFile(imageFile, hostFile, image string) (err error) {
 	// remove command can fail, if the file does not already exist, but this is not critical
 	// so simply ignore the error.
 	cmd = fmt.Sprintf("rm %s\nclose", imageFile)
-	debugfsExecuteCommand(cmd, image)
+	_, _ = debugfsExecuteCommand(cmd, image)
 	// Write to the partition
-	cmd = fmt.Sprintf("cd %s\nwrite %s %s\nclose", filepath.Dir(imageFile), hostFile, filepath.Base(imageFile))
+	cmd = fmt.Sprintf(
+		"cd %s\nwrite %s %s\nclose",
+		filepath.Dir(imageFile),
+		hostFile,
+		filepath.Base(imageFile),
+	)
 	_, err = debugfsExecuteCommand(cmd, image)
 	return err
 }
@@ -138,7 +146,11 @@ func debugfsRemoveDir(imageFile, image string, recursive bool) (err error) {
 			}
 			regexp := regexp.MustCompile(`[0-9]+ +\([0-9]+\) +((.\w+.)+)`)
 			for _, filename := range regexp.FindAllStringSubmatch(buf.String(), -1) {
-				err = debugfsRemoveFileOrDir(filepath.Join(imageFile, string(filename[1])), image, recursive)
+				err = debugfsRemoveFileOrDir(
+					filepath.Join(imageFile, string(filename[1])),
+					image,
+					recursive,
+				)
 				if err != nil {
 					return errors.Wrap(err, "debugfsRemoveDir")
 				}
@@ -189,7 +201,7 @@ func debugfsExecuteCommand(cmdstr, image string) (stdout *bytes.Buffer, err erro
 	}
 
 	// Remove the debugfs standard message
-	reg := regexp.MustCompile("^debugfs.*\\n")
+	reg := regexp.MustCompile(`^debugfs.*\n`)
 	loc := reg.FindIndex(errbuf.Bytes())
 	if len(loc) == 0 {
 		return nil, fmt.Errorf("debugfs: prompt not found in: %s", errbuf.String())

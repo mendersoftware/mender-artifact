@@ -76,7 +76,10 @@ func (w *writeUpdateStorer) FinishStoreUpdate() error {
 	return nil
 }
 
-func (w *writeUpdateStorer) NewUpdateStorer(updateType string, payloadNum int) (handlers.UpdateStorer, error) {
+func (w *writeUpdateStorer) NewUpdateStorer(
+	updateType string,
+	payloadNum int,
+) (handlers.UpdateStorer, error) {
 	if payloadNum != 0 {
 		return nil, errors.New("More than one payload or update file is not supported")
 	}
@@ -210,7 +213,10 @@ func unpackArtifact(name string) (ua *unpackedArtifact, err error) {
 	return ua, err
 }
 
-func reconstructPayloadWriteData(info *artifact.Info, inst map[int]handlers.Installer) (upd *awriter.Updates,
+func reconstructPayloadWriteData(
+	info *artifact.Info,
+	inst map[int]handlers.Installer,
+) (upd *awriter.Updates,
 	typeInfoV3 *artifact.TypeInfoV3,
 	augTypeInfoV3 *artifact.TypeInfoV3,
 	metaData map[string]interface{},
@@ -282,7 +288,10 @@ func reconstructArtifactWriteData(ua *unpackedArtifact) (*awriter.WriteArtifactA
 	info := ua.ar.GetInfo()
 	inst := ua.ar.GetHandlers()
 
-	upd, typeInfoV3, augTypeInfoV3, metaData, augMetaData, err := reconstructPayloadWriteData(&info, inst)
+	upd, typeInfoV3, augTypeInfoV3, metaData, augMetaData, err := reconstructPayloadWriteData(
+		&info,
+		inst,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -335,11 +344,16 @@ func repack(comp artifact.Compressor, ua *unpackedArtifact, to io.Writer, key []
 	_, hasChecksumProvide := ua.writeArgs.TypeInfoV3.ArtifactProvides["rootfs-image.checksum"]
 	// for rootfs-images: Update legacy rootfs_image_checksum provide if there is one.
 	_, hasLegacyChecksumProvide := ua.writeArgs.TypeInfoV3.ArtifactProvides["rootfs_image_checksum"]
-	if ua.writeArgs.TypeInfoV3.Type == "rootfs-image" && (hasChecksumProvide || hasLegacyChecksumProvide) {
+	if ua.writeArgs.TypeInfoV3.Type == "rootfs-image" && (hasChecksumProvide ||
+		hasLegacyChecksumProvide) {
 		if len(ua.files) != 1 {
 			return errors.New("Only rootfs-image Artifacts with one file are supported")
 		}
-		err := writeRootfsImageChecksum(ua.files[0], ua.writeArgs.TypeInfoV3, hasLegacyChecksumProvide)
+		err := writeRootfsImageChecksum(
+			ua.files[0],
+			ua.writeArgs.TypeInfoV3,
+			hasLegacyChecksumProvide,
+		)
 		if err != nil {
 			return err
 		}

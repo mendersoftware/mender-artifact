@@ -27,10 +27,11 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/pkg/errors"
+
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/utils"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -108,7 +109,11 @@ type vImageAndDir struct {
 
 // Open is a utility function that parses an input image and returns a
 // V(irtual)P(artition)Image.
-func (v vImage) Open(key []byte, imgname string, overrideCompressor ...artifact.Compressor) (VPImage, error) {
+func (v vImage) Open(
+	key []byte,
+	imgname string,
+	overrideCompressor ...artifact.Compressor,
+) (VPImage, error) {
 	// first we need to check  if we are having artifact or image file
 	art, err := os.Open(imgname)
 	if err != nil {
@@ -125,7 +130,9 @@ func (v vImage) Open(key []byte, imgname string, overrideCompressor ...artifact.
 		inst := aReader.GetHandlers()
 
 		if len(inst) > 1 {
-			return nil, errors.New("Modifying artifacts with more than one payload is not supported")
+			return nil, errors.New(
+				"Modifying artifacts with more than one payload is not supported",
+			)
 		}
 
 		unpackedArtifact, err := unpackArtifact(imgname)
@@ -142,7 +149,8 @@ func (v vImage) Open(key []byte, imgname string, overrideCompressor ...artifact.
 
 		return &ModImageArtifact{
 			ModImageBase: ModImageBase{
-				path: imgname,
+				path:  imgname,
+				dirty: false,
 			},
 			unpackedArtifact: unpackedArtifact,
 			comp:             comp,
@@ -610,25 +618,45 @@ func (p sdimgDir) Close() (err error) {
 	return nil
 }
 
-func newArtifactExtFile(image *ModImageArtifact, comp artifact.Compressor, fpath, imgpath string) (VPFile, error) {
+func newArtifactExtFile(
+	image *ModImageArtifact,
+	comp artifact.Compressor,
+	fpath,
+	imgpath string,
+) (VPFile, error) {
 	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))")
 	if reg.MatchString(fpath) {
-		return nil, errors.New("newArtifactExtFile: A mender artifact does not contain a boot partition, only a rootfs")
+		return nil, errors.New(
+			"newArtifactExtFile: A mender artifact does not contain a boot partition," +
+				" only a rootfs",
+		)
 	}
 	if strings.HasPrefix(fpath, "/data") {
-		return nil, errors.New("newArtifactExtFile: A mender artifact does not contain a data partition, only a rootfs")
+		return nil, errors.New(
+			"newArtifactExtFile: A mender artifact does not contain a data partition," +
+				" only a rootfs",
+		)
 	}
 
 	return newExtFile(imgpath, fpath)
 }
 
-func newArtifactExtDir(image *ModImageArtifact, comp artifact.Compressor, fpath string, imgpath string) (VPDir, error) {
+func newArtifactExtDir(
+	image *ModImageArtifact,
+	comp artifact.Compressor,
+	fpath string,
+	imgpath string,
+) (VPDir, error) {
 	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))")
 	if reg.MatchString(fpath) {
-		return nil, errors.New("newArtifactExtDir: A mender artifact does not contain a boot partition, only a rootfs")
+		return nil, errors.New(
+			"newArtifactExtDir: A mender artifact does not contain a boot partition, only a rootfs",
+		)
 	}
 	if strings.HasPrefix(fpath, "/data") {
-		return nil, errors.New("newArtifactExtFile: A mender artifact does not contain a data partition, only a rootfs")
+		return nil, errors.New(
+			"newArtifactExtDir: A mender artifact does not contain a data partition, only a rootfs",
+		)
 	}
 
 	return newExtDir(imgpath, fpath)
@@ -656,7 +684,9 @@ func newExtFile(imagePath, imageFilePath string) (e *extFile, err error) {
 	// Check that the given directory exists.
 	_, err = debugfsExecuteCommand(fmt.Sprintf("cd %s", filepath.Dir(imageFilePath)), imagePath)
 	if err != nil {
-		return nil, fmt.Errorf("The directory: %s does not exist in the image", filepath.Dir(imageFilePath))
+		return nil, fmt.Errorf(
+			"The directory: %s does not exist in the image", filepath.Dir(imageFilePath),
+		)
 	}
 	tmpf, err := ioutil.TempFile("", "mendertmp-extfile")
 	// Cleanup resources in case of error.
@@ -697,7 +727,11 @@ func (ef *extFile) Read(b []byte) (int, error) {
 	}
 	data, err := ioutil.ReadFile(filepath.Join(str, filepath.Base(ef.imageFilePath)))
 	if err != nil {
-		return 0, errors.Wrapf(err, "extFile: ReadError: ioutil.Readfile failed to read file: %s", filepath.Join(str, filepath.Base(ef.imageFilePath)))
+		return 0, errors.Wrapf(
+			err,
+			"extFile: ReadError: ioutil.Readfile failed to read file: %s",
+			filepath.Join(str, filepath.Base(ef.imageFilePath)),
+		)
 	}
 	return copy(b, data), io.EOF
 }
@@ -722,13 +756,23 @@ func (ef *extFile) CopyFrom(hostFile string) error {
 	reg := regexp.MustCompile(`Mode: +(0[0-9]{3})`)
 	m := reg.FindStringSubmatch(d.String())
 	if m == nil || len(m) != 2 {
-		return fmt.Errorf("Could not extract the filemode information from the file: %s\n", ef.imageFilePath)
+		return fmt.Errorf(
+			"Could not extract the filemode information from the file: %s\n",
+			ef.imageFilePath,
+		)
 	}
 	mode, err := strconv.ParseInt(m[1], 8, 32)
 	if err != nil {
-		return fmt.Errorf("Failed to extract the file permissions for the file: %s\nerr: %s", ef.imageFilePath, err)
+		return fmt.Errorf(
+			"Failed to extract the file permissions for the file: %s\nerr: %s",
+			ef.imageFilePath,
+			err,
+		)
 	}
-	_, err = debugfsExecuteCommand(fmt.Sprintf("dump %s %s\nclose", ef.imageFilePath, hostFile), ef.imagePath)
+	_, err = debugfsExecuteCommand(
+		fmt.Sprintf("dump %s %s\nclose", ef.imageFilePath, hostFile),
+		ef.imagePath,
+	)
 	if err != nil {
 		if strings.Contains(err.Error(), "File not found by ext2_lookup") {
 			return fmt.Errorf("The file: %s does not exist in the image", ef.imageFilePath)
@@ -836,8 +880,11 @@ func (f *fatFile) Read(b []byte) (n int, err error) {
 // Write Writes to the underlying fat image, using MTools' mcopy
 func (f *fatFile) Write(b []byte) (n int, err error) {
 	n, err = f.tmpf.Write(b)
+	if err != nil {
+		return n, err
+	}
 	f.flush = true
-	return len(b), nil
+	return n, nil
 }
 
 func (f *fatFile) CopyTo(hostFile string) error {
@@ -885,7 +932,14 @@ func (f *fatFile) Close() (err error) {
 			os.Remove(f.tmpf.Name())
 		}()
 		if f.flush {
-			cmd := exec.Command("mcopy", "-n", "-i", f.imagePath, f.tmpf.Name(), "::"+f.imageFilePath)
+			cmd := exec.Command(
+				"mcopy",
+				"-n",
+				"-i",
+				f.imagePath,
+				f.tmpf.Name(),
+				"::"+f.imageFilePath,
+			)
 			data := bytes.NewBuffer(nil)
 			cmd.Stdout = data
 			if err = cmd.Run(); err != nil {
@@ -925,7 +979,9 @@ func processSdimg(image string) (VPImage, error) {
 			"make sure parted is available in your system and is in the $PATH")
 	}
 
-	reg := regexp.MustCompile(`(?m)^[[:blank:]][0-9]+[[:blank:]]+([0-9]+)s[[:blank:]]+[0-9]+s[[:blank:]]+([0-9]+)s`)
+	reg := regexp.MustCompile(
+		`(?m)^[[:blank:]][0-9]+[[:blank:]]+([0-9]+)s[[:blank:]]+[0-9]+s[[:blank:]]+([0-9]+)s`,
+	)
 	partitionMatch := reg.FindAllStringSubmatch(string(out), -1)
 
 	if len(partitionMatch) == 4 {
@@ -940,7 +996,8 @@ func processSdimg(image string) (VPImage, error) {
 		}
 		return &ModImageSdimg{
 			ModImageBase: ModImageBase{
-				path: image,
+				path:  image,
+				dirty: false,
 			},
 			candidates: partitions,
 		}, nil
@@ -951,7 +1008,8 @@ func processSdimg(image string) (VPImage, error) {
 		// assume it is a raw filesystem image.
 		return &ModImageRaw{
 			ModImageBase: ModImageBase{
-				path: image,
+				path:  image,
+				dirty: false,
 			},
 		}, nil
 	}

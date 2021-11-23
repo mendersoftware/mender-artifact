@@ -56,15 +56,18 @@ func Cat(c *cli.Context) (err error) {
 	}
 	var w io.WriteCloser = os.Stdout
 	if _, err = io.Copy(w, r); err != nil {
-		return cli.NewExitError(fmt.Sprintf("failed to copy from: %s to stdout: err: %v", c.Args().First(), err), 1)
+		return cli.NewExitError(
+			fmt.Sprintf("failed to copy from: %s to stdout: err: %v", c.Args().First(), err),
+			1,
+		)
 	}
 	return nil
 }
 
 func Copy(c *cli.Context) (err error) {
 	if c.String("compression") != "" {
-		fmt.Fprintf(os.Stderr, "Warning: The compression flag is not respected for the copy command.\n"+
-			"If you wish to change the compression type, use the <modify> command.")
+		fmt.Fprintf(os.Stderr, "Warning: The compression flag is not respected for the copy"+
+			" command.\nIf you wish to change the compression type, use the <modify> command.")
 	}
 
 	privateKey, err := getKey(c.String("key"))
@@ -156,7 +159,8 @@ func Install(c *cli.Context) (err error) {
 		directory := c.Bool("directory")
 		var perm os.FileMode
 		if c.Int("mode") == 0 && !directory {
-			return cli.NewExitError("File permissions needs to be set, if you are simply copying, the cp command should fit your needs", 1)
+			return cli.NewExitError("File permissions needs to be set, if you are simply copying,"+
+				" the cp command should fit your needs", 1)
 		}
 		perm = os.FileMode(c.Int("mode"))
 		if directory {
@@ -246,7 +250,6 @@ const (
 	copyout
 	parseError
 	argerror
-	criterror
 )
 
 func parseCLIOptions(c *cli.Context) int {
