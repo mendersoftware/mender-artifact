@@ -6,6 +6,8 @@ github.com/davecgh/go-spew/spew
 # github.com/klauspost/compress v1.10.5
 ## explicit
 github.com/klauspost/compress/flate
+# github.com/klauspost/cpuid/v2 v2.0.4
+github.com/klauspost/cpuid/v2
 # github.com/klauspost/pgzip v1.2.5
 ## explicit
 github.com/klauspost/pgzip
@@ -16,7 +18,7 @@ github.com/mattn/go-isatty
 # github.com/mendersoftware/progressbar v0.0.3
 ## explicit
 github.com/mendersoftware/progressbar
-# github.com/minio/sha256-simd v0.1.1
+# github.com/minio/sha256-simd v1.0.0
 ## explicit
 github.com/minio/sha256-simd
 # github.com/onsi/ginkgo v1.12.0

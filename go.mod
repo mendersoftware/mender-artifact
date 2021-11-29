@@ -8,7 +8,7 @@ require (
 	github.com/klauspost/pgzip v1.2.5
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/mendersoftware/progressbar v0.0.3
-	github.com/minio/sha256-simd v0.1.1
+	github.com/minio/sha256-simd v1.0.0
 	github.com/onsi/ginkgo v1.12.0 // indirect
 	github.com/onsi/gomega v1.9.0 // indirect
 	github.com/pkg/errors v0.9.1
