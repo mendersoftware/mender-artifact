@@ -27,9 +27,9 @@ import (
 	"github.com/mendersoftware/mender-artifact/artifact/gcp"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
-	"github.com/urfave/cli"
 
 	"github.com/pkg/errors"
+	"github.com/urfave/cli"
 )
 
 type unpackedArtifact struct {
@@ -163,7 +163,8 @@ func getKey(c *cli.Context) (SigningKey, error) {
 		if privateKeyCommands[c.Command.Name] {
 			return artifact.NewPKISigner(key)
 		}
-		return nil, fmt.Errorf("unsupported command %q with %q flag, please add command to allowlist", c.Command.Name, "key")
+		return nil, fmt.Errorf("unsupported command %q with %q flag, "+
+			"please add command to allowlist", c.Command.Name, "key")
 	case "gcp-kms-key":
 		return gcp.NewKMSSigner(context.TODO(), c.String("gcp-kms-key"))
 	default:

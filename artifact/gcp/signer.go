@@ -22,9 +22,10 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/mendersoftware/mender-artifact/artifact"
+
 	kms "cloud.google.com/go/kms/apiv1"
 	gax "github.com/googleapis/gax-go/v2"
-	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/minio/sha256-simd"
 	"github.com/pkg/errors"
 	kmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
@@ -153,7 +154,9 @@ func checksum(data []byte) int64 {
 }
 
 type googleKMSClient interface {
-	AsymmetricSign(context.Context, *kmspb.AsymmetricSignRequest, ...gax.CallOption) (*kmspb.AsymmetricSignResponse, error)
-	GetPublicKey(context.Context, *kmspb.GetPublicKeyRequest, ...gax.CallOption) (*kmspb.PublicKey, error)
+	AsymmetricSign(context.Context, *kmspb.AsymmetricSignRequest,
+		...gax.CallOption) (*kmspb.AsymmetricSignResponse, error)
+	GetPublicKey(context.Context, *kmspb.GetPublicKeyRequest,
+		...gax.CallOption) (*kmspb.PublicKey, error)
 	Close() error
 }
