@@ -26,20 +26,19 @@ import (
 	"github.com/mendersoftware/mender-artifact/artifact"
 )
 
-func validate(art io.Reader, key []byte) error {
+func validate(art io.Reader, key artifact.Verifier) error {
 	// do not return error immediately if we can not validate signature;
 	// just continue checking consistency and return info if
 	// signature verification failed
 	var validationError error
 
-	// Some callers pass nil, others pass "", to indicate a missing public key.
-	keyIsSpecified := (key != nil) && (len(key) > 0)
-
 	ar := areader.NewReader(art)
 	ar.VerifySignatureCallback = func(message, sig []byte) error {
-		if keyIsSpecified {
-			s := artifact.NewVerifier(key)
-			if err := s.Verify(message, sig); err != nil {
+		if key == nil {
+			return nil
+		}
+		if key != nil {
+			if err := key.Verify(message, sig); err != nil {
 				validationError = err
 			}
 		}
@@ -52,11 +51,11 @@ func validate(art io.Reader, key []byte) error {
 	if validationError != nil {
 		return validationError
 	}
-	if keyIsSpecified && !ar.IsSigned {
+	if key != nil && !ar.IsSigned {
 		return errors.New("missing signature")
 	}
-	if !keyIsSpecified && ar.IsSigned {
-		return errors.New("missing key")
+	if key == nil && ar.IsSigned {
+		return errors.New("missing verifier")
 	}
 	return nil
 }
@@ -67,7 +66,7 @@ func validateArtifact(c *cli.Context) error {
 			" to say 'artifacts validate <pathspec>'?", errArtifactInvalidParameters)
 	}
 
-	key, err := getKey(c.String("key"))
+	key, err := getKey(c)
 	if err != nil {
 		return cli.NewExitError(err.Error(), errArtifactInvalidParameters)
 	}

@@ -15,12 +15,12 @@
 package cli
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
@@ -60,35 +60,73 @@ r3rtT0ysHWd7l+Kx/SUCQGlitd5RDfdHl+gKrCwhNnRG7FzRLv5YOQV81+kh7SkU
 -----END RSA PRIVATE KEY-----`
 )
 
-var validateTests = []struct {
-	version       int
-	writeKey      []byte
-	validateKey   []byte
-	expectedError string
+var validateTests = map[string]struct {
+	version               int
+	writeKey              []byte
+	validateKey           []byte
+	useNilValidater       bool
+	expectedCreateError   string
+	expectedValidateError string
 }{
-	{2, nil, nil, ""},
-	{2, []byte(PrivateValidateRSAKey), []byte(PublicValidateRSAKey), ""},
-	{2, []byte(PrivateValidateRSAKey), []byte(PublicValidateRSAKeyError),
-		"verification error"},
-	{2, []byte(PrivateValidateRSAKey), []byte(PublicValidateRSAKeyInvalid),
-		"failed to parse public key"},
-	{2, []byte(PrivateValidateRSAKey), nil, "missing key"},      // MEN-2802
-	{2, nil, []byte(PublicValidateRSAKey), "missing signature"}, // MEN-2155
+	"nominal": {
+		version:     2,
+		writeKey:    []byte(PrivateValidateRSAKey),
+		validateKey: []byte(PublicValidateRSAKey),
+	},
+	"bad public key": {
+		version:               2,
+		writeKey:              []byte(PrivateValidateRSAKey),
+		validateKey:           []byte(PublicValidateRSAKeyError),
+		expectedValidateError: "verification error",
+	},
+	"invalid public key": {
+		version:             2,
+		writeKey:            []byte(PrivateValidateRSAKey),
+		validateKey:         []byte(PublicValidateRSAKeyInvalid),
+		expectedCreateError: "failed to parse public key",
+	},
+	"missing public key": {
+		version:             2,
+		writeKey:            []byte(PrivateValidateRSAKey),
+		expectedCreateError: "missing key",
+	}, // MEN-2802
+	"nil validater": {
+		version:               2,
+		writeKey:              []byte(PrivateValidateRSAKey),
+		useNilValidater:       true,
+		expectedValidateError: "missing verifier",
+	},
+	"missing signature": {
+		version:               2,
+		validateKey:           []byte(PublicValidateRSAKey),
+		expectedValidateError: "missing signature",
+	}, // MEN-2155
 }
 
 func TestValidate(t *testing.T) {
-	for i, test := range validateTests {
-		fmt.Printf("---- Running test validate-%d ----\n", i)
-		art, err := WriteTestArtifact(test.version, "", test.writeKey)
-		assert.NoError(t, err)
-		err = validate(art, test.validateKey)
-		if test.expectedError == "" {
+	for name, test := range validateTests {
+		t.Run(name, func(t *testing.T) {
+			art, err := WriteTestArtifact(test.version, "", test.writeKey)
 			assert.NoError(t, err)
-		} else {
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), test.expectedError)
-		}
-		fmt.Println("---------------------------------")
+			var validater artifact.Verifier
+			if !test.useNilValidater {
+				validater, err = artifact.NewPKIVerifier(test.validateKey)
+				if test.expectedCreateError == "" {
+					assert.NoError(t, err)
+				} else {
+					assert.Error(t, err)
+					assert.Contains(t, err.Error(), test.expectedCreateError)
+					return
+				}
+			}
+			err = validate(art, validater)
+			if test.expectedValidateError == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), test.expectedValidateError)
+			}
+		})
 	}
 }
 

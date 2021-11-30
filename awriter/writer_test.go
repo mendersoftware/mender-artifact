@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2021 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -66,6 +66,12 @@ func checkTarElementsByName(r io.Reader, expected []string) error {
 		}
 	}
 	return nil
+}
+
+func mustCreateSigner(t *testing.T, key []byte) artifact.Signer {
+	s, err := artifact.NewPKISigner(key)
+	assert.NoError(t, err)
+	return s
 }
 
 func TestWriteArtifactWrongVersion(t *testing.T) {
@@ -210,7 +216,7 @@ func TestWriteArtifactV2(t *testing.T) {
 
 	buf := bytes.NewBuffer(nil)
 
-	s := artifact.NewSigner([]byte(PrivateKey))
+	s := mustCreateSigner(t, []byte(PrivateKey))
 	w := NewWriterSigned(buf, comp, s)
 
 	upd, err := MakeFakeUpdate("my test update")
@@ -267,7 +273,7 @@ func TestWriteArtifactV3(t *testing.T) {
 
 	buf := bytes.NewBuffer(nil)
 
-	s := artifact.NewSigner([]byte(PrivateKey))
+	s := mustCreateSigner(t, []byte(PrivateKey))
 	w := NewWriterSigned(buf, comp, s)
 
 	upd, err := MakeFakeUpdate("my test update")
@@ -359,7 +365,7 @@ func TestWriteArtifactV3(t *testing.T) {
 
 	// Signed artifact V3
 	buf.Reset()
-	s = artifact.NewSigner([]byte(PrivateKey))
+	s = mustCreateSigner(t, []byte(PrivateKey))
 	w = NewWriterSigned(buf, comp, s)
 	upd, err = MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
@@ -545,7 +551,7 @@ func TestWriteArtifactV3(t *testing.T) {
 
 	// Signed artifact V3 with augments section.
 	buf.Reset()
-	s = artifact.NewSigner([]byte(PrivateKey))
+	s = mustCreateSigner(t, []byte(PrivateKey))
 	w = NewWriterSigned(buf, comp, s)
 	upd, err = MakeFakeUpdate("my test update")
 	assert.NoError(t, err)
@@ -673,7 +679,7 @@ func TestWriteManifestVersion(t *testing.T) {
 			version: 2,
 			mchk:    artifact.NewChecksumStore(),
 			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteData: []byte("manifest.sig")}),
-			signer:  artifact.NewSigner([]byte(PrivateKey)),
+			signer:  mustCreateSigner(t, []byte(PrivateKey)),
 			err:     "writer: can not tar signature",
 		},
 		"version 3, fail on write to manifest checksum store": {
@@ -686,7 +692,7 @@ func TestWriteManifestVersion(t *testing.T) {
 			version: 3,
 			mchk:    artifact.NewChecksumStore(),
 			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteData: []byte("manifest.sig")}),
-			signer:  artifact.NewSigner([]byte(PrivateKey)),
+			signer:  mustCreateSigner(t, []byte(PrivateKey)),
 			err:     "writer: can not tar signature",
 		},
 		"version 3, fail write augmented-manifest": {
@@ -694,7 +700,7 @@ func TestWriteManifestVersion(t *testing.T) {
 			mchk:    artifact.NewChecksumStore(),
 			augmchk: augmentedChecksumStore,
 			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteData: []byte("manifest-augment")}),
-			signer:  artifact.NewSigner([]byte(PrivateKey)),
+			signer:  mustCreateSigner(t, []byte(PrivateKey)),
 			err:     "writer: can not write manifest stream",
 		},
 	}

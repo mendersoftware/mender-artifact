@@ -195,7 +195,7 @@ func writeRootfs(c *cli.Context) error {
 		os.Remove(name + ".tmp")
 	}()
 
-	aw, err := artifactWriter(comp, f, c.String("key"), version)
+	aw, err := artifactWriter(c, comp, f, version)
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
@@ -283,18 +283,18 @@ func reportProgress(c context.Context, state chan string) {
 	}
 }
 
-func artifactWriter(comp artifact.Compressor, f *os.File, key string,
+func artifactWriter(c *cli.Context, comp artifact.Compressor, f *os.File,
 	ver int) (*awriter.Writer, error) {
-	if key != "" {
+	privateKey, err := getKey(c)
+	if err != nil {
+		return nil, err
+	}
+	if privateKey != nil {
 		if ver == 0 {
 			// check if we are having correct version
 			return nil, errors.New("can not use signed artifact with version 0")
 		}
-		privateKey, err := getKey(key)
-		if err != nil {
-			return nil, err
-		}
-		return awriter.NewWriterSigned(f, comp, artifact.NewSigner(privateKey)), nil
+		return awriter.NewWriterSigned(f, comp, privateKey), nil
 	}
 	return awriter.NewWriter(f, comp), nil
 }
@@ -651,7 +651,7 @@ func writeModuleImage(ctx *cli.Context) error {
 		os.Remove(name + ".tmp")
 	}()
 
-	aw, err := artifactWriter(comp, f, ctx.String("key"), version)
+	aw, err := artifactWriter(ctx, comp, f, version)
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
