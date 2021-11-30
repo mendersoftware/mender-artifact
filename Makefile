@@ -75,7 +75,7 @@ goinstall:
 
 install-all: install install-autocomplete-scripts
 
-install: $(FINALEXE)
+install: build
 	install -Dm0755 $(FINALEXE) $(DESTDIR)$(PREFIX)/bin/$(FINALEXE)
 
 install-autocomplete-scripts:
