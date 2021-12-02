@@ -48,12 +48,13 @@ func readArtifact(c *cli.Context) error {
 
 	var verifyCallback areader.SignatureVerifyFn
 
-	key, err := getKey(c.String("key"))
+	key, err := getKey(c)
 	if err != nil {
 		return cli.NewExitError(err.Error(), errArtifactInvalidParameters)
 	}
-	s := artifact.NewVerifier(key)
-	verifyCallback = s.Verify
+	if key != nil {
+		verifyCallback = key.Verify
+	}
 
 	// if key is not provided just continue reading artifact returning
 	// info that signature can not be verified
@@ -61,7 +62,7 @@ func readArtifact(c *cli.Context) error {
 	ver := func(message, sig []byte) error {
 		sigInfo = "signed but no key for verification provided; " +
 			"please use `-k` option for providing verification key"
-		if c.String("key") != "" {
+		if key != nil {
 			err = verifyCallback(message, sig)
 			if err != nil {
 				sigInfo = "signed; verification using provided key failed"

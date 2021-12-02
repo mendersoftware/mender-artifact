@@ -15,6 +15,8 @@
 package cli
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -22,10 +24,12 @@ import (
 
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/mendersoftware/mender-artifact/artifact/gcp"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
 
 	"github.com/pkg/errors"
+	"github.com/urfave/cli"
 )
 
 type unpackedArtifact struct {
@@ -114,16 +118,58 @@ func scripts(scripts []string) (*artifact.Scripts, error) {
 	return &scr, nil
 }
 
-func getKey(keyPath string) ([]byte, error) {
-	if keyPath == "" {
-		return nil, nil
-	}
+type SigningKey interface {
+	artifact.Signer
+	artifact.Verifier
+}
 
-	key, err := ioutil.ReadFile(keyPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error reading key file")
+func getKey(c *cli.Context) (SigningKey, error) {
+	var chosenOptions []string
+	possibleOptions := []string{"key", "gcp-kms-key"}
+	for _, optName := range possibleOptions {
+		if c.String(optName) == "" {
+			continue
+		}
+		chosenOptions = append(chosenOptions, optName)
 	}
-	return key, nil
+	if len(chosenOptions) == 0 {
+		return nil, nil
+	} else if len(chosenOptions) > 1 {
+		return nil, fmt.Errorf("too many signing keys given: %v", chosenOptions)
+	}
+	switch chosenOption := chosenOptions[0]; chosenOption {
+	case "key":
+		key, err := ioutil.ReadFile(c.String("key"))
+		if err != nil {
+			return nil, errors.Wrap(err, "Error reading key file")
+		}
+
+		// The "key" flag can either be public or private depending on the
+		// command name. Explicitly map each command's name to which one it
+		// should be, so we return the correct key type.
+		publicKeyCommands := map[string]bool{
+			"validate": true,
+			"read":     true,
+		}
+		privateKeyCommands := map[string]bool{
+			"rootfs-image": true,
+			"sign":         true,
+			"modify":       true,
+			"copy":         true,
+		}
+		if publicKeyCommands[c.Command.Name] {
+			return artifact.NewPKIVerifier(key)
+		}
+		if privateKeyCommands[c.Command.Name] {
+			return artifact.NewPKISigner(key)
+		}
+		return nil, fmt.Errorf("unsupported command %q with %q flag, "+
+			"please add command to allowlist", c.Command.Name, "key")
+	case "gcp-kms-key":
+		return gcp.NewKMSSigner(context.TODO(), c.String("gcp-kms-key"))
+	default:
+		return nil, fmt.Errorf("unsupported signing key type %q", chosenOption)
+	}
 }
 
 func unpackArtifact(name string) (ua *unpackedArtifact, err error) {
@@ -334,10 +380,10 @@ func reconstructArtifactWriteData(ua *unpackedArtifact) (*awriter.WriteArtifactA
 	return args, nil
 }
 
-func repack(comp artifact.Compressor, ua *unpackedArtifact, to io.Writer, key []byte) error {
+func repack(comp artifact.Compressor, ua *unpackedArtifact, to io.Writer, key SigningKey) error {
 	aWriter := awriter.NewWriter(to, comp)
 	if key != nil {
-		aWriter = awriter.NewWriterSigned(to, comp, artifact.NewSigner(key))
+		aWriter = awriter.NewWriterSigned(to, comp, key)
 	}
 
 	// for rootfs-images: Update rootfs-image.checksum provide if there is one.
@@ -362,7 +408,7 @@ func repack(comp artifact.Compressor, ua *unpackedArtifact, to io.Writer, key []
 	return aWriter.WriteArtifact(ua.writeArgs)
 }
 
-func repackArtifact(comp artifact.Compressor, key []byte, ua *unpackedArtifact) error {
+func repackArtifact(comp artifact.Compressor, key SigningKey, ua *unpackedArtifact) error {
 	tmp, err := ioutil.TempFile(filepath.Dir(ua.origPath), "mender-artifact")
 	if err != nil {
 		return err

@@ -36,7 +36,7 @@ func Cat(c *cli.Context) (err error) {
 		return cli.NewExitError("The input image does not seem to be a valid image", 1)
 	}
 
-	privateKey, err := getKey(c.String("key"))
+	privateKey, err := getKey(c)
 	if err != nil {
 		return cli.NewExitError("Unable to load key: "+err.Error(), 1)
 	}
@@ -70,7 +70,7 @@ func Copy(c *cli.Context) (err error) {
 			" command.\nIf you wish to change the compression type, use the <modify> command.")
 	}
 
-	privateKey, err := getKey(c.String("key"))
+	privateKey, err := getKey(c)
 	if err != nil {
 		return cli.NewExitError("Unable to load key: "+err.Error(), 1)
 	}
@@ -140,7 +140,7 @@ func Copy(c *cli.Context) (err error) {
 // a mender artifact, or an sdimg.
 func Install(c *cli.Context) (err error) {
 
-	privateKey, err := getKey(c.String("key"))
+	privateKey, err := getKey(c)
 	if err != nil {
 		return cli.NewExitError("Unable to load key: "+err.Error(), 1)
 	}
@@ -224,7 +224,7 @@ func Remove(c *cli.Context) (err error) {
 		}
 	}
 
-	privateKey, err := getKey(c.String("key"))
+	privateKey, err := getKey(c)
 	if err != nil {
 		return cli.NewExitError("Unable to load key: "+err.Error(), 1)
 	}
