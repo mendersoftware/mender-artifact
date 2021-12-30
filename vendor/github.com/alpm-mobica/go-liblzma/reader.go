@@ -5,7 +5,7 @@
 package xz
 
 /*
-#cgo LDFLAGS: -llzma
+#cgo LDFLAGS: -llzma 
 #include <lzma.h>
 #include <stdlib.h>
 

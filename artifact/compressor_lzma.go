@@ -19,7 +19,7 @@ package artifact
 import (
 	"io"
 
-	xz "github.com/remyoudompheng/go-liblzma"
+	xz "github.com/alpm-mobica/go-liblzma"
 )
 
 type CompressorLzma struct {
