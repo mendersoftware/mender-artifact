@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -133,6 +133,15 @@ func getCliContext() *cli.App {
 			"the Artifact.",
 	}
 
+	vaultTransitKeyFlag := cli.StringFlag{
+		Name: "vault-transit-key",
+		Usage: "Key name of the Hashicorp Vault transit key that will be used to sign " +
+			"the Artifact. VAULT_TOKEN and VAULT_MOUNT_PATH environment variables " +
+			"needs to be provided. The default Hashicorp Vault URL can be overridden with " +
+			"VAULT_ADDR environment variable. If key rotation is used, the key version" +
+			"to sign can be specified with VAULT_KEY_VERSION environment variable.",
+	}
+
 	publicKeyFlag := cli.StringFlag{
 		Name: "key, k",
 		Usage: "Full path to the public key that will be used to verify " +
@@ -236,6 +245,7 @@ func getCliContext() *cli.App {
 		},
 		privateKeyFlag,
 		gcpKMSKeyFlag,
+		vaultTransitKeyFlag,
 		cli.StringSliceFlag{
 			Name: "script, s",
 			Usage: "Full path to the state script(s). You can specify multiple " +
@@ -406,6 +416,7 @@ func getCliContext() *cli.App {
 		Flags: []cli.Flag{
 			publicKeyFlag,
 			gcpKMSKeyFlag,
+			vaultTransitKeyFlag,
 		},
 	}
 
@@ -422,6 +433,7 @@ func getCliContext() *cli.App {
 		Flags: []cli.Flag{
 			publicKeyFlag,
 			gcpKMSKeyFlag,
+			vaultTransitKeyFlag,
 			cli.BoolFlag{
 				Name:  "no-progress",
 				Usage: "Suppress the progressbar output",
@@ -444,6 +456,7 @@ func getCliContext() *cli.App {
 	sign.Flags = []cli.Flag{
 		privateKeyFlag,
 		gcpKMSKeyFlag,
+		vaultTransitKeyFlag,
 		cli.StringFlag{
 			Name: "output-path, o",
 			Usage: "Full path to output signed artifact file; " +
@@ -508,6 +521,7 @@ func getCliContext() *cli.App {
 		},
 		privateKeyFlag,
 		gcpKMSKeyFlag,
+		vaultTransitKeyFlag,
 		compressionFlag,
 	}
 	modify.Before = func(c *cli.Context) error {
@@ -532,6 +546,7 @@ func getCliContext() *cli.App {
 		compressionFlag,
 		privateKeyFlag,
 		gcpKMSKeyFlag,
+		vaultTransitKeyFlag,
 	}
 
 	cat := cli.Command{

@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -458,6 +458,7 @@ Updates:
 		"device-type",
 		"file",
 		"gcp-kms-key",
+		"vault-transit-key",
 		"key",
 		"output-path",
 		"script",
@@ -465,6 +466,7 @@ Updates:
 	modifyFlagsTested.addFlags([]string{
 		"artifact-name",
 		"gcp-kms-key",
+		"vault-transit-key",
 		"key",
 		"name",
 	})

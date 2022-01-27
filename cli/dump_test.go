@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -275,6 +275,7 @@ func testDumpContent(t *testing.T, imageType, printCmdline string) {
 		"device-type",
 		"file",
 		"gcp-kms-key",                  // Not tested in "dump".
+		"vault-transit-key",            // Not tested in "dump".
 		"key",                          // Not tested in "dump".
 		"legacy-rootfs-image-checksum", // Not relevant for "dump", which uses "module-image".
 		"meta-data",
