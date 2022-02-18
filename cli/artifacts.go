@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import (
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/artifact/gcp"
+	"github.com/mendersoftware/mender-artifact/artifact/vault"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
 
@@ -125,7 +126,7 @@ type SigningKey interface {
 
 func getKey(c *cli.Context) (SigningKey, error) {
 	var chosenOptions []string
-	possibleOptions := []string{"key", "gcp-kms-key"}
+	possibleOptions := []string{"key", "gcp-kms-key", "vault-transit-key"}
 	for _, optName := range possibleOptions {
 		if c.String(optName) == "" {
 			continue
@@ -167,6 +168,8 @@ func getKey(c *cli.Context) (SigningKey, error) {
 			"please add command to allowlist", c.Command.Name, "key")
 	case "gcp-kms-key":
 		return gcp.NewKMSSigner(context.TODO(), c.String("gcp-kms-key"))
+	case "vault-transit-key":
+		return vault.NewVaultSigner(c.String("vault-transit-key"))
 	default:
 		return nil, fmt.Errorf("unsupported signing key type %q", chosenOption)
 	}
