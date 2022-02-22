@@ -3,7 +3,7 @@ module github.com/mendersoftware/mender-artifact
 go 1.14
 
 require (
-	cloud.google.com/go/kms v1.1.0
+	cloud.google.com/go/kms v1.3.0
 	github.com/googleapis/gax-go/v2 v2.1.1
 	github.com/hashicorp/vault/api v1.2.0
 	github.com/klauspost/compress v1.13.6 // indirect
@@ -15,7 +15,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli v1.22.5
-	golang.org/x/sys v0.0.0-20211124211545-fe61309f8881
-	google.golang.org/genproto v0.0.0-20211018162055-cf77aa76bad2
+	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27
+	google.golang.org/genproto v0.0.0-20220207164111-0872dc986b00
 	google.golang.org/protobuf v1.27.1
 )
