@@ -1,12 +1,13 @@
 # cloud.google.com/go v0.100.2
 cloud.google.com/go
-# cloud.google.com/go/compute v0.1.0
+# cloud.google.com/go/compute v1.3.0
 cloud.google.com/go/compute/metadata
 # cloud.google.com/go/iam v0.1.0
 cloud.google.com/go/iam
-# cloud.google.com/go/kms v1.3.0
+# cloud.google.com/go/kms v1.4.0
 ## explicit
 cloud.google.com/go/kms/apiv1
+cloud.google.com/go/kms/internal
 # github.com/armon/go-metrics v0.3.3
 github.com/armon/go-metrics
 # github.com/armon/go-radix v1.0.0
@@ -187,7 +188,7 @@ golang.org/x/crypto/cryptobyte/asn1
 golang.org/x/crypto/ed25519
 golang.org/x/crypto/ed25519/internal/edwards25519
 golang.org/x/crypto/pbkdf2
-# golang.org/x/net v0.0.0-20210503060351-7fd8e65b6420
+# golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
 golang.org/x/net/http/httpguts
@@ -204,20 +205,20 @@ golang.org/x/oauth2/google/internal/externalaccount
 golang.org/x/oauth2/internal
 golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
-# golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27
+# golang.org/x/sys v0.0.0-20220209214540-3681064d5158
 ## explicit
 golang.org/x/sys/cpu
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/text v0.3.6
+# golang.org/x/text v0.3.7
 golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
 # golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1
 golang.org/x/time/rate
-# google.golang.org/api v0.67.0
+# google.golang.org/api v0.70.0
 google.golang.org/api/googleapi
 google.golang.org/api/internal
 google.golang.org/api/internal/impersonate
@@ -241,7 +242,7 @@ google.golang.org/appengine/internal/socket
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/socket
 google.golang.org/appengine/urlfetch
-# google.golang.org/genproto v0.0.0-20220207164111-0872dc986b00
+# google.golang.org/genproto v0.0.0-20220222213610-43724f9ea8cf
 ## explicit
 google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/cloud/kms/v1
