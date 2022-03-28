@@ -13,7 +13,7 @@ CGO_ENABLED=1
 export CGO_ENABLED
 
 TOOLS = \
-	github.com/fzipp/gocyclo/... \
+	github.com/fzipp/gocyclo/...@v0.3.1 \
 	github.com/opennota/check/cmd/varcheck \
 	github.com/mendersoftware/deadcode
 
