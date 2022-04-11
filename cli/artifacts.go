@@ -154,6 +154,7 @@ func getKey(c *cli.Context) (SigningKey, error) {
 		}
 		privateKeyCommands := map[string]bool{
 			"rootfs-image": true,
+			"module-image": true,
 			"sign":         true,
 			"modify":       true,
 			"copy":         true,
