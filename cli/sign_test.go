@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -252,4 +252,75 @@ func TestSignExistingBrokenFiles(t *testing.T) {
 		filepath.Join(updateTestDir, "garbled-artifact")})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Could not read tar header")
+}
+
+func TestSignWithWriteCommand(t *testing.T) {
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	priv, pub, err := generateKeys()
+	assert.NoError(t, err)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "private.key",
+				Content: priv,
+				IsDir:   false,
+			},
+			{
+				Path:    "public.key",
+				Content: pub,
+				IsDir:   false,
+			},
+			{
+				Path:    "payload-file",
+				Content: []byte("PayloadContent"),
+				IsDir:   false,
+			},
+		})
+
+	t.Run("module-image", func(t *testing.T) {
+		err = Run([]string{"mender-artifact", "write", "module-image", "-t", "my-device",
+			"-n", "mender-1.1", "-T", "custom-update-type",
+			"-f", filepath.Join(updateTestDir, "payload-file"),
+			"-k", filepath.Join(updateTestDir, "private.key"),
+			"-o", filepath.Join(updateTestDir, "artifact.mender")})
+		assert.NoError(t, err)
+
+		err = Run([]string{"mender-artifact", "validate",
+			"-k", filepath.Join(updateTestDir, "public.key"),
+			filepath.Join(updateTestDir, "artifact.mender")})
+		assert.NoError(t, err)
+
+		cmd := exec.Command("tar", "tf", filepath.Join(updateTestDir, "artifact.mender"))
+		artifactTar, err := cmd.Output()
+		assert.NoError(t, err)
+
+		// We should now have a manifest.sig file
+		artifactTarLines := strings.Split(string(artifactTar), "\n")
+		assert.Contains(t, artifactTarLines, "manifest.sig")
+	})
+
+	t.Run("rootfs-image", func(t *testing.T) {
+		err = Run([]string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+			"-n", "mender-1.1",
+			"-f", filepath.Join(updateTestDir, "payload-file"),
+			"-k", filepath.Join(updateTestDir, "private.key"),
+			"-o", filepath.Join(updateTestDir, "artifact.mender")})
+		assert.NoError(t, err)
+
+		err = Run([]string{"mender-artifact", "validate",
+			"-k", filepath.Join(updateTestDir, "public.key"),
+			filepath.Join(updateTestDir, "artifact.mender")})
+		assert.NoError(t, err)
+
+		cmd := exec.Command("tar", "tf", filepath.Join(updateTestDir, "artifact.mender"))
+		artifactTar, err := cmd.Output()
+		assert.NoError(t, err)
+
+		// We should now have a manifest.sig file
+		artifactTarLines := strings.Split(string(artifactTar), "\n")
+		assert.Contains(t, artifactTarLines, "manifest.sig")
+	})
 }

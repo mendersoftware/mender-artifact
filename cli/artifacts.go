@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -153,6 +153,7 @@ func getKey(c *cli.Context) (SigningKey, error) {
 		}
 		privateKeyCommands := map[string]bool{
 			"rootfs-image": true,
+			"module-image": true,
 			"sign":         true,
 			"modify":       true,
 			"copy":         true,
