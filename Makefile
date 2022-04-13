@@ -50,7 +50,7 @@ build-natives:
 	@env GOOS=darwin GOARCH=$$arch CGO_ENABLED=0 \
 		$(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-darwin ;
 	@echo "building linux";
-	@env GOOS=linux GOARCH=$$arch \
+	@env GOOS=linux GOARCH=$$arch CGO_ENABLED=0 \
 		$(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-linux ;
 	@echo "building windows";
 	@env GOOS=windows GOARCH=$$arch CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ \
@@ -58,9 +58,10 @@ build-natives:
 
 build-natives-contained:
 	rm -f mender-artifact && \
-	image_id=$$(docker build -f Dockerfile.binaries . | awk '/Successfully built/{print $$NF;}') && \
-	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact* /binary" && \
-	docker image rm $$image_id
+	docker build -f Dockerfile.binaries -t binary-image . | awk '/Successfully built/{print $$NF;}' && \
+	container_id=$$(docker create binary-image) && \
+	docker cp "$$container_id:/go/bin/." $(shell pwd) && \
+	docker stop $$container_id && docker rm $$container_id && docker image rm binary-image
 
 install:
 	@$(GO) install $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
