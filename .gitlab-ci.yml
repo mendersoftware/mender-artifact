@@ -29,23 +29,6 @@ variables:
    S3_BUCKET_NAME: "mender"
    S3_BUCKET_PATH: "mender-artifact"
 
-
-build:docker:
-  image: docker
-  needs: []
-  services:
-    - docker:19.03.5-dind
-  stage: build
-  script:
-    - docker build -t $DOCKER_REPOSITORY:pr .
-    - docker save $DOCKER_REPOSITORY:pr > image.tar
-  artifacts:
-    expire_in: 2w
-    paths:
-      - image.tar
-  tags:
-    - docker
-
 build:make:
   image: docker
   needs: []

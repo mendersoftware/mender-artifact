@@ -56,12 +56,6 @@ build-natives:
 	@env GOOS=windows GOARCH=$$arch CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ \
 		$(GO) build $(GO_LDFLAGS_WIN) $(BUILDV) -tags $(TAGS) nolzma -o $(PKGNAME)-windows.exe ;
 
-build-contained:
-	rm -f mender-artifact && \
-	image_id=$$(docker build -f Dockerfile . | awk '/Successfully built/{print $$NF;}') && \
-	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact /binary" && \
-	docker image rm $$image_id
-
 build-natives-contained:
 	rm -f mender-artifact && \
 	image_id=$$(docker build -f Dockerfile.binaries . | awk '/Successfully built/{print $$NF;}') && \
