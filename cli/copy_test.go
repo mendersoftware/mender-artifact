@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -27,13 +27,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mendersoftware/mender-artifact/areader"
-	"github.com/mendersoftware/mender-artifact/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/mendersoftware/mender-artifact/areader"
+	"github.com/mendersoftware/mender-artifact/utils"
 )
 
-func testSetupTeardown(t *testing.T) (artifact, sdimg, fatsdimg string, f func()) {
+func testSetupTeardown(t *testing.T) (artifact, sdimg, fatsdimg, sparsesdimg string, f func()) {
 
 	tmp, err := ioutil.TempDir("", "mender-modify")
 	assert.NoError(t, err)
@@ -53,7 +54,11 @@ func testSetupTeardown(t *testing.T) (artifact, sdimg, fatsdimg string, f func()
 	require.Nil(t, err)
 	fatsdimg = filepath.Join(tmp, "mender_test_fat.sdimg")
 
-	return artifact, sdimg, fatsdimg, func() {
+	err = copyFile("mender_test.sparse.sdimg", filepath.Join(tmp, "mender_test.sparse.sdimg"))
+	require.Nil(t, err)
+	sparsesdimg = filepath.Join(tmp, "mender_test.sparse.sdimg")
+
+	return artifact, sdimg, fatsdimg, sparsesdimg, func() {
 		os.RemoveAll(tmp)
 	}
 }
@@ -164,7 +169,7 @@ func TestCopyRootfsImage(t *testing.T) {
 	}{
 		{
 			name:     "write artifact_info file to stdout",
-			argv:     []string{"mender-artifact", "cat", "<artifact|sdimg|fat-sdimg>:/etc/mender/artifact_info"},
+			argv:     []string{"mender-artifact", "cat", "<artifact|sdimg|fat-sdimg|sparse-sdimg>:/etc/mender/artifact_info"},
 			expected: "artifact_name=release-1\n",
 		},
 		{
@@ -199,7 +204,7 @@ func TestCopyRootfsImage(t *testing.T) {
 				assert.Nil(t, ioutil.WriteFile("output.txt", []byte{}, 0755))
 			},
 			name: "write artifact_info file to output.txt",
-			argv: []string{"mender-artifact", "cp", "<artifact|sdimg|fat-sdimg>:/etc/mender/artifact_info", "output.txt"},
+			argv: []string{"mender-artifact", "cp", "<artifact|sdimg|fat-sdimg|sparse-sdimg>:/etc/mender/artifact_info", "output.txt"},
 			verifyTestFunc: func(imgpath string) {
 				data, err := ioutil.ReadFile("output.txt")
 				assert.Nil(t, err)
@@ -214,7 +219,7 @@ func TestCopyRootfsImage(t *testing.T) {
 				// so that it does not shadow the previous test
 				assert.Nil(t, ioutil.WriteFile("output.txt", []byte("artifact_name=foobar"), 0644))
 			},
-			argv: []string{"mender-artifact", "cp", "output.txt", "<artifact|sdimg|fat-sdimg>:test.txt"},
+			argv: []string{"mender-artifact", "cp", "output.txt", "<artifact|sdimg|sparse-sdimg|fat-sdimg>:test.txt"},
 			verifyTestFunc: func(imgpath string) {
 				// as copy out of image is already verified to function, we
 				// will now use this functionality to confirm that the write
@@ -233,7 +238,7 @@ func TestCopyRootfsImage(t *testing.T) {
 				assert.Nil(t, ioutil.WriteFile("input.txt", []byte("dummy-text"), 0755))
 			},
 			name: "copy file into a non-existing directory",
-			argv: []string{"mender-artifact", "cp", "input.txt", "<artifact|sdimg|fat-sdimg>:/non/existing/path"},
+			argv: []string{"mender-artifact", "cp", "input.txt", "<artifact|sdimg|sparse-sdimg|fat-sdimg>:/non/existing/path"},
 			err:  "The directory: /non/existing does not exist in the image",
 			verifyTestFunc: func(string) {
 				os.Remove("input.txt")
@@ -244,7 +249,7 @@ func TestCopyRootfsImage(t *testing.T) {
 				assert.Nil(t, ioutil.WriteFile("input.mender.txt", []byte("dummy-text"), 0755))
 			},
 			name: "copy file with containing '.mender' in its filename",
-			argv: []string{"mender-artifact", "cp", "input.mender.txt", "<artifact|sdimg|fat-sdimg>:/etc/mender/"},
+			argv: []string{"mender-artifact", "cp", "input.mender.txt", "<artifact|sdimg|sparse-sdimg|fat-sdimg>:/etc/mender/"},
 			verifyTestFunc: func(string) {
 				os.Remove("input.txt")
 			},
@@ -256,7 +261,7 @@ func TestCopyRootfsImage(t *testing.T) {
 				_, err := os.Open("artifact_info")
 				require.Nil(t, err)
 			},
-			argv: []string{"mender-artifact", "cp", "artifact_info", "<sdimg|fat-sdimg>:/data/test.txt"},
+			argv: []string{"mender-artifact", "cp", "artifact_info", "<sdimg|sparse-sdimg|fat-sdimg>:/data/test.txt"},
 			verifyTestFunc: func(imgpath string) {
 				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/data/test.txt")
 				var out bytes.Buffer
@@ -296,7 +301,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("testkey", []byte("foobar"), 0644))
 			},
-			argv: []string{"mender-artifact", "install", "-m", "0600", "testkey", "<artifact|sdimg|fat-sdimg>:/etc/mender/testkey.key"},
+			argv: []string{"mender-artifact", "install", "-m", "0600", "testkey", "<artifact|sdimg|sparse-sdimg|fat-sdimg>:/etc/mender/testkey.key"},
 			verifyTestFunc: func(imgpath string) {
 				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/etc/mender/testkey.key")
 				var out bytes.Buffer
@@ -336,7 +341,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("testkey", []byte("foobar"), 0644))
 			},
-			argv: []string{"mender-artifact", "install", "-m", "0777", "testkey", "<artifact|sdimg|fat-sdimg>:/etc/mender/testkey.key"},
+			argv: []string{"mender-artifact", "install", "-m", "0777", "testkey", "<artifact|sdimg|sparse-sdimg|fat-sdimg>:/etc/mender/testkey.key"},
 			verifyTestFunc: func(imgpath string) {
 				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/etc/mender/testkey.key")
 				var out bytes.Buffer
@@ -376,7 +381,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("testkey", []byte("foobar"), 0644))
 			},
-			argv: []string{"mender-artifact", "install", "-m", "0700", "testkey", "<artifact|sdimg|fat-sdimg>:/etc/mender/testkey.key"},
+			argv: []string{"mender-artifact", "install", "-m", "0700", "testkey", "<artifact|sdimg|sparse-sdimg|fat-sdimg>:/etc/mender/testkey.key"},
 			verifyTestFunc: func(imgpath string) {
 				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/etc/mender/testkey.key")
 				var out bytes.Buffer
@@ -416,7 +421,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
-			argv: []string{"mender-artifact", "cp", "foo.txt", "<sdimg|fat-sdimg>:/uboot/test.txt"},
+			argv: []string{"mender-artifact", "cp", "foo.txt", "<sdimg|fat-sdimg|sparse-sdimg>:/uboot/test.txt"},
 			verifyTestFunc: func(imgpath string) {
 				err := Run([]string{
 					"mender-artifact", "cp",
@@ -435,7 +440,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
-			argv: []string{"mender-artifact", "cp", "foo.txt", "<sdimg|fat-sdimg>:/boot/efi/test.txt"},
+			argv: []string{"mender-artifact", "cp", "foo.txt", "<sdimg|fat-sdimg|sparse-sdimg>:/boot/efi/test.txt"},
 			verifyTestFunc: func(imgpath string) {
 				err := Run([]string{
 					"mender-artifact", "cp",
@@ -460,7 +465,7 @@ func TestCopyRootfsImage(t *testing.T) {
 				})
 				assert.NoError(t, err)
 			},
-			argv:     []string{"mender-artifact", "cat", "<sdimg|fat-sdimg>:/boot/efi/test.txt"},
+			argv:     []string{"mender-artifact", "cat", "<sdimg|fat-sdimg|sparse-sdimg>:/boot/efi/test.txt"},
 			expected: "foobar",
 			verifyTestFunc: func(string) {
 				os.Remove("foo.txt")
@@ -471,7 +476,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
-			argv: []string{"mender-artifact", "cp", "foo.txt", "<sdimg|fat-sdimg>:/boot/grub/test.txt"},
+			argv: []string{"mender-artifact", "cp", "foo.txt", "<sdimg|fat-sdimg|sparse-sdimg>:/boot/grub/test.txt"},
 			verifyTestFunc: func(imgpath string) {
 				err := Run([]string{
 					"mender-artifact", "cp",
@@ -487,7 +492,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		},
 		{
 			name: "error: read non-existing file from sdimg boot partition (ext)",
-			argv: []string{"mender-artifact", "cp", "<sdimg>:/boot/grub/test.txt", "foo.txt"},
+			argv: []string{"mender-artifact", "cp", "<sdimg|sparse-sdimg>:/boot/grub/test.txt", "foo.txt"},
 			err:  "The file: test.txt does not exist in the image",
 		},
 		{
@@ -558,7 +563,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		},
 		{
 			name: "Delete a file from an image or Artifact",
-			argv: []string{"mender-artifact", "rm", "<artifact|sdimg|fat-sdimg>:/etc/mender/artifact_info"},
+			argv: []string{"mender-artifact", "rm", "<artifact|sdimg|sparse-sdimg|fat-sdimg>:/etc/mender/artifact_info"},
 			verifyTestFunc: func(imgpath string) {
 				err := Run([]string{
 					"mender-artifact", "cat",
@@ -573,7 +578,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		},
 		{
 			name: "Delete a directory from an image or Artifact recursively",
-			argv: []string{"mender-artifact", "rm", "-r", "<artifact|sdimg|fat-sdimg>:/etc/mender/"},
+			argv: []string{"mender-artifact", "rm", "-r", "<artifact|sdimg|fat-sdimg|sparse-sdimg>:/etc/mender/"},
 			verifyTestFunc: func(imgpath string) {
 				err := Run([]string{
 					"mender-artifact", "cat",
@@ -611,7 +616,7 @@ func TestCopyRootfsImage(t *testing.T) {
 				defer f.Close()
 				err = f.Chmod(0666)
 			},
-			argv: []string{"mender-artifact", "cp", "foobar.txt", "<artifact|sdimg|fat-sdimg>:/etc/mender/foo.txt"},
+			argv: []string{"mender-artifact", "cp", "foobar.txt", "<artifact|sdimg|fat-sdimg|sparse-sdimg>:/etc/mender/foo.txt"},
 			verifyTestFunc: func(imgpath string) {
 				defer os.Remove("foobar.txt")
 				pf, err := virtualImage.OpenFile(nil, imgpath+":/etc/mender/foo.txt")
@@ -671,7 +676,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("test.txt", []byte("foobar"), 0644))
 			},
-			argv: []string{"mender-artifact", "install", "-d", "<artifact|sdimg|fat-sdimg>:/foo"},
+			argv: []string{"mender-artifact", "install", "-d", "<artifact|sdimg|fat-sdimg|sparse-sdimg>:/foo"},
 			verifyTestFunc: func(imgpath string) {
 				err := Run([]string{
 					"mender-artifact",
@@ -695,7 +700,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			initfunc: func(imgpath string) {
 				require.Nil(t, ioutil.WriteFile("test.txt", []byte("foobar"), 0644))
 			},
-			argv: []string{"mender-artifact", "install", "-d", "<artifact|sdimg|fat-sdimg>:/foo/bar"},
+			argv: []string{"mender-artifact", "install", "-d", "<artifact|sdimg|fat-sdimg|sparse-sdimg>:/foo/bar"},
 			verifyTestFunc: func(imgpath string) {
 				err := Run([]string{
 					"mender-artifact",
@@ -716,7 +721,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		},
 		{
 			name: "Create a directory that already exists",
-			argv: []string{"mender-artifact", "install", "-d", "<artifact|sdimg|fat-sdimg>:/"},
+			argv: []string{"mender-artifact", "install", "-d", "<artifact|sdimg|fat-sdimg|sparse-sdimg>:/"},
 		},
 	}
 
@@ -724,7 +729,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 
 			// create a copy of the working images
-			artifact, sdimg, fatsdimg, closer := testSetupTeardown(t)
+			artifact, sdimg, fatsdimg, sparsesdimg, closer := testSetupTeardown(t)
 			defer closer()
 			type testArgs struct {
 				validImg    string
@@ -732,13 +737,15 @@ func TestCopyRootfsImage(t *testing.T) {
 			}
 			targs := []testArgs{}
 			// Add the images the test is valid for.
-			targv := make([][]string, 3)
+			targv := make([][]string, 4)
 			targv[0] = make([]string, len(test.argv))
 			targv[1] = make([]string, len(test.argv))
 			targv[2] = make([]string, len(test.argv))
+			targv[3] = make([]string, len(test.argv))
 			copy(targv[0], test.argv)
 			copy(targv[1], test.argv)
 			copy(targv[2], test.argv)
+			copy(targv[3], test.argv)
 			for i, arg := range test.argv {
 				sarr := strings.Split(arg, ":")
 				if len(sarr) == 2 {
@@ -763,6 +770,13 @@ func TestCopyRootfsImage(t *testing.T) {
 								validImg:    fatsdimg,
 								testArgVect: targv[2],
 							})
+						case "sparse-sdimg":
+							targv[3][i] = sparsesdimg + ":" + sarr[1]
+							targs = append(targs, testArgs{
+								validImg:    sparsesdimg,
+								testArgVect: targv[3],
+							})
+
 						default:
 							t.Fatalf("Unrecognized image type: %s\n", str)
 						}
@@ -811,6 +825,7 @@ func TestCopyRootfsImage(t *testing.T) {
 						assert.Contains(t, err.Error(), test.err)
 					} else if err != nil {
 						t.Log(out)
+						t.Logf("Test argument vector: %v", targ)
 						t.Fatal(fmt.Sprintf("cmd: %s failed with err: %v", test.name, err))
 					}
 
@@ -884,9 +899,9 @@ func TestCopyFromStdin(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		_, sdimg, fatsdimg, closer := testSetupTeardown(t)
+		_, sdimg, fatsdimg, sparsesdimg, closer := testSetupTeardown(t)
 		defer closer()
-		for _, testimg := range []string{sdimg, fatsdimg} {
+		for _, testimg := range []string{sdimg, fatsdimg, sparsesdimg} {
 			if strings.HasSuffix(testimg, ".sdimg") {
 				skipPartedTestsOnMac(t)
 			}

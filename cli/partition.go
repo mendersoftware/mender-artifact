@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -435,10 +435,29 @@ type sdimgFile []VPFile
 // sdimgDir is a virtual directory for files on an sdimg.
 type sdimgDir []VPDir
 
-func newSDImgFile(image *ModImageSdimg, fpath string, modcands []partition) (sdimgFile, error) {
-	if len(modcands) < 4 {
-		return nil, fmt.Errorf("newSDImgFile: %d partitions found, 4 needed", len(modcands))
+func isSparsePartition(part partition) bool {
+	// NOTE: Basically just checking for a filesystem
+	_, err := debugfsExecuteCommand("stat /", part.path)
+	return err != nil
+}
+
+// filterSparsePartitions returns partitions with data from an array of partitions
+func filterSparsePartitions(parts []partition) []partition {
+	ps := []partition{}
+	for _, part := range parts {
+		if isSparsePartition(part) {
+			continue
+		}
+		ps = append(ps, part)
 	}
+	return ps
+}
+
+// getFilesystems extracts only the partitions we want to modify.
+// for {data,/[u]boot} this is one partition.
+// for rootfs{a,b}, this is the two partitions (unless one of them is unpopulated,
+// then only the one with data is returned)
+func getFilesystems(fpath string, modcands []partition) ([]partition, string) {
 
 	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))[/]")
 
@@ -452,8 +471,18 @@ func newSDImgFile(image *ModImageSdimg, fpath string, modcands []partition) (sdi
 		fpath = reg.ReplaceAllString(fpath, "")
 		filesystems = append(filesystems, modcands[0])
 	} else {
-		filesystems = append(filesystems, modcands[1:3]...)
+		filesystems = append(filesystems, filterSparsePartitions(modcands[1:3])...)
 	}
+
+	return filesystems, fpath
+}
+
+func newSDImgFile(image *ModImageSdimg, fpath string, modcands []partition) (sdimgFile, error) {
+	if len(modcands) < 4 {
+		return nil, fmt.Errorf("newSDImgFile: %d partitions found, 4 needed", len(modcands))
+	}
+
+	filesystems, pfpath := getFilesystems(fpath, modcands)
 
 	// Since boot partitions can be either fat or ext, return a
 	// readWriteCloser dependent upon the underlying filesystem type.
@@ -466,9 +495,9 @@ func newSDImgFile(image *ModImageSdimg, fpath string, modcands []partition) (sdi
 		var f VPFile
 		switch fstype {
 		case fat:
-			f, err = newFatFile(fs.path, fpath)
+			f, err = newFatFile(fs.path, pfpath)
 		case ext:
-			f, err = newExtFile(fs.path, fpath)
+			f, err = newExtFile(fs.path, pfpath)
 		case unsupported:
 			err = errors.New("partition: unsupported filesystem")
 
@@ -487,20 +516,7 @@ func newSDImgDir(image *ModImageSdimg, fpath string, modcands []partition) (sdim
 		return nil, fmt.Errorf("newSDImgDir: %d partitions found, 4 needed", len(modcands))
 	}
 
-	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))[/]")
-
-	var filesystems []partition
-	if strings.HasPrefix(fpath, "/data") {
-		// The data dir is not a directory in the data partition
-		fpath = strings.TrimPrefix(fpath, "/data/")
-		filesystems = append(filesystems, modcands[3])
-	} else if reg.MatchString(fpath) {
-		// /uboot, /boot/efi, /boot/grub are not directories on the boot partition.
-		fpath = reg.ReplaceAllString(fpath, "")
-		filesystems = append(filesystems, modcands[0])
-	} else {
-		filesystems = append(filesystems, modcands[1:3]...)
-	}
+	filesystems, pfpath := getFilesystems(fpath, modcands)
 
 	// Since boot partitions can be either fat or ext, return a
 	// Closer dependent upon the underlying filesystem type.
@@ -513,9 +529,9 @@ func newSDImgDir(image *ModImageSdimg, fpath string, modcands []partition) (sdim
 		var d VPDir
 		switch fstype {
 		case fat:
-			d, err = newFatDir(fs.path, fpath)
+			d, err = newFatDir(fs.path, pfpath)
 		case ext:
-			d, err = newExtDir(fs.path, fpath)
+			d, err = newExtDir(fs.path, pfpath)
 		case unsupported:
 			err = errors.New("partition: unsupported filesystem")
 
