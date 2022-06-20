@@ -13,7 +13,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/remyoudompheng/go-liblzma v0.0.0-20190506200333-81bf2d431b96
 	github.com/sirupsen/logrus v1.8.1
-	github.com/stretchr/testify v1.7.2
+	github.com/stretchr/testify v1.7.3
 	github.com/urfave/cli v1.22.9
 	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27
 	google.golang.org/genproto v0.0.0-20220207164111-0872dc986b00
