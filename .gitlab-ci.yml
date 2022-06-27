@@ -32,7 +32,7 @@ build:docker:
   image: docker
   needs: []
   services:
-    - docker:19.03.5-dind
+    - docker:dind
   stage: build
   script:
     - docker build -t $DOCKER_REPOSITORY:pr .
@@ -48,7 +48,7 @@ build:make:
   image: docker
   needs: []
   services:
-    - docker:19.03.5-dind
+    - docker:dind
   before_script:
     - apk add --no-cache make
   stage: build
