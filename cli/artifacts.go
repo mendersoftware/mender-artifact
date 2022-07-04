@@ -252,8 +252,12 @@ func unpackArtifact(name string) (ua *unpackedArtifact, err error) {
 
 	ua.files = updateStore.names
 
+	updType := inst[0].GetUpdateType()
+	if updType == nil {
+		return nil, errors.New("nil update type is not allowed")
+	}
 	if len(inst) > 0 &&
-		inst[0].GetUpdateType() == "rootfs-image" &&
+		*inst[0].GetUpdateType() == "rootfs-image" &&
 		len(ua.files) != 1 {
 
 		return nil, errors.New("rootfs-image artifacts with more than one file not supported")
@@ -277,7 +281,7 @@ func reconstructPayloadWriteData(
 		err = errors.New("More than one payload not supported")
 		return
 	} else if len(inst) == 1 {
-		var updateType string
+		var updateType *string
 		upd = &awriter.Updates{}
 
 		switch info.Version {
@@ -286,16 +290,21 @@ func reconstructPayloadWriteData(
 			return
 		case 2:
 			updateType = inst[0].GetUpdateType()
-			upd.Updates = []handlers.Composer{handlers.NewRootfsV2(updateType)}
+			if updateType == nil {
+				err = errors.New("nil update type is not allowed")
+				return
+			}
+			upd.Updates = []handlers.Composer{handlers.NewRootfsV2(*updateType)}
 		case 3:
 			// Even rootfs images will be written using ModuleImage, which
 			// is a superset
-			updateType = inst[0].GetUpdateOriginalType()
-			if updateType != "" {
+			var updType string
+			updType = inst[0].GetUpdateOriginalType()
+			if updType != "" {
 				// If augmented artifact.
-				upd.Augments = []handlers.Composer{handlers.NewModuleImage(updateType)}
+				upd.Augments = []handlers.Composer{handlers.NewModuleImage(updType)}
 				augTypeInfoV3 = &artifact.TypeInfoV3{
-					Type:             updateType,
+					Type:             &updType,
 					ArtifactDepends:  inst[0].GetUpdateOriginalDepends(),
 					ArtifactProvides: inst[0].GetUpdateOriginalProvides(),
 				}
@@ -303,7 +312,11 @@ func reconstructPayloadWriteData(
 			}
 
 			updateType = inst[0].GetUpdateType()
-			upd.Updates = []handlers.Composer{handlers.NewModuleImage(updateType)}
+			if updateType == nil {
+				err = errors.New("nil update type is not allowed")
+				return
+			}
+			upd.Updates = []handlers.Composer{handlers.NewModuleImage(*updateType)}
 
 		default:
 			err = errors.Errorf("unsupported artifact version: %d", info.Version)
@@ -394,7 +407,7 @@ func repack(comp artifact.Compressor, ua *unpackedArtifact, to io.Writer, key Si
 	_, hasChecksumProvide := ua.writeArgs.TypeInfoV3.ArtifactProvides["rootfs-image.checksum"]
 	// for rootfs-images: Update legacy rootfs_image_checksum provide if there is one.
 	_, hasLegacyChecksumProvide := ua.writeArgs.TypeInfoV3.ArtifactProvides["rootfs_image_checksum"]
-	if ua.writeArgs.TypeInfoV3.Type == "rootfs-image" && (hasChecksumProvide ||
+	if *ua.writeArgs.TypeInfoV3.Type == "rootfs-image" && (hasChecksumProvide ||
 		hasLegacyChecksumProvide) {
 		if len(ua.files) != 1 {
 			return errors.New("Only rootfs-image Artifacts with one file are supported")

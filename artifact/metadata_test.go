@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -24,6 +24,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func UpdateTypePtr(s string) *string {
+	return &s
+}
 
 func TestValidateInfo(t *testing.T) {
 	var validateTests = []struct {
@@ -55,21 +59,21 @@ func TestValidateHeaderInfo(t *testing.T) {
 			"Artifact validation failed with missing arguments: No Payloads added, No compatible devices listed, No artifact name"},
 		{HeaderInfo{Updates: []UpdateType{}},
 			"Artifact validation failed with missing arguments: No Payloads added, No compatible devices listed, No artifact name"},
-		{HeaderInfo{Updates: []UpdateType{{Type: ""}}},
+		{HeaderInfo{Updates: []UpdateType{{Type: nil}}},
 			"Artifact validation failed with missing arguments: No compatible devices listed, No artifact name, Empty Payload"},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {}}},
+		{HeaderInfo{Updates: []UpdateType{{Type: UpdateTypePtr("update")}, {}}},
 			"Artifact validation failed with missing arguments: No compatible devices listed, No artifact name, Empty Payload"},
-		{HeaderInfo{Updates: []UpdateType{{}, {Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
+		{HeaderInfo{Updates: []UpdateType{{Type: nil}, {Type: UpdateTypePtr("update")}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
 			"Artifact validation failed with missing argument: Empty Payload"},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: ""}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
+		{HeaderInfo{Updates: []UpdateType{{Type: UpdateTypePtr("update")}, {Type: nil}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
 			"Artifact validation failed with missing argument: Empty Payload"},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
+		{HeaderInfo{Updates: []UpdateType{{Type: UpdateTypePtr("update")}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
 			""},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, ArtifactName: "id"},
+		{HeaderInfo{Updates: []UpdateType{{Type: UpdateTypePtr("update")}}, ArtifactName: "id"},
 			"Artifact validation failed with missing argument: No compatible devices listed"},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: ""},
+		{HeaderInfo{Updates: []UpdateType{{Type: UpdateTypePtr("update")}}, CompatibleDevices: []string{""}, ArtifactName: ""},
 			"Artifact validation failed with missing argument: No artifact name"},
-		{HeaderInfo{Updates: []UpdateType{{Type: "update"}, {Type: "update"}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
+		{HeaderInfo{Updates: []UpdateType{{Type: UpdateTypePtr("update")}, {Type: UpdateTypePtr("update")}}, CompatibleDevices: []string{""}, ArtifactName: "id"},
 			""},
 	}
 	for idx, tt := range validateTests {
@@ -89,8 +93,8 @@ func TestValidateHeaderInfoV3(t *testing.T) {
 		"correct headerinfo:": {
 			in: HeaderInfoV3{
 				Updates: []UpdateType{
-					{Type: "rootfs-image"},
-					{Type: "delta"}},
+					{Type: UpdateTypePtr("rootfs-image")},
+					{Type: UpdateTypePtr("delta")}},
 				ArtifactProvides: &ArtifactProvides{
 					ArtifactName:  "release-2",
 					ArtifactGroup: "group-1",
@@ -103,12 +107,8 @@ func TestValidateHeaderInfoV3(t *testing.T) {
 			err: ""},
 		"wrong headerinfo": {
 			err: "Artifact validation failed with missing arguments: No Payloads added, Empty Artifact provides"},
-
-		"Empty Payloads": {
-			in:  HeaderInfoV3{Updates: []UpdateType{UpdateType{}}},
-			err: "Empty Payload"},
 		"Empty Artifact name": {
-			in:  HeaderInfoV3{Updates: []UpdateType{UpdateType{}}, ArtifactProvides: &ArtifactProvides{}},
+			in:  HeaderInfoV3{Updates: []UpdateType{{}}, ArtifactProvides: &ArtifactProvides{}},
 			err: "Artifact name"},
 	}
 	for name, tt := range tests {
@@ -121,7 +121,7 @@ func TestValidateHeaderInfoV3(t *testing.T) {
 }
 
 func TestHeaderInfoV3(t *testing.T) {
-	ut := []UpdateType{UpdateType{Type: "rootfs-image"}}
+	ut := []UpdateType{UpdateType{Type: UpdateTypePtr("rootfs-image")}}
 	provides := &ArtifactProvides{ArtifactName: "release-1"}
 	depends := &ArtifactDepends{CompatibleDevices: []string{"vexpress-qemu"}}
 	hi := NewHeaderInfoV3(ut, provides, depends)
@@ -140,7 +140,7 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 	}{
 		"one update": {
 			hi: HeaderInfoV3{
-				Updates: []UpdateType{UpdateType{"rootfs-image"}},
+				Updates: []UpdateType{UpdateType{func() *string { i := "rootfs-image"; return &i }()}},
 				ArtifactProvides: &ArtifactProvides{
 					ArtifactName:  "release-2",
 					ArtifactGroup: "fix",
@@ -173,8 +173,8 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 		"two updates": {
 			hi: HeaderInfoV3{
 				Updates: []UpdateType{
-					UpdateType{"rootfs-image"},
-					UpdateType{"delta-image"},
+					UpdateType{UpdateTypePtr("rootfs-image")},
+					UpdateType{UpdateTypePtr("delta-image")},
 				},
 				ArtifactProvides: &ArtifactProvides{
 					ArtifactName:  "release-2",
@@ -211,8 +211,8 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 		"two updates, multiple device types": {
 			hi: HeaderInfoV3{
 				Updates: []UpdateType{
-					UpdateType{"rootfs-image"},
-					UpdateType{"delta-image"},
+					UpdateType{UpdateTypePtr("rootfs-image")},
+					UpdateType{UpdateTypePtr("delta-image")},
 				},
 				ArtifactProvides: &ArtifactProvides{
 					ArtifactName:  "release-2",
@@ -250,8 +250,8 @@ func TestMarshalJSONHeaderInfoV3(t *testing.T) {
 		"No artifact depends": {
 			hi: HeaderInfoV3{
 				Updates: []UpdateType{
-					UpdateType{"rootfs-image"},
-					UpdateType{"delta-image"},
+					UpdateType{UpdateTypePtr("rootfs-image")},
+					UpdateType{UpdateTypePtr("delta-image")},
 				},
 				ArtifactProvides: &ArtifactProvides{
 					ArtifactName:  "release-2",
@@ -299,12 +299,13 @@ func TestValidateTypeInfo(t *testing.T) {
 }
 
 func TestValidateTypeInfoV3(t *testing.T) {
+	typeInfo := "delta"
 	var validateTests = map[string]struct {
 		in  TypeInfoV3
 		err error
 	}{
-		"Fail validation, update-type missing": {TypeInfoV3{}, ErrValidatingData},
-		"Update-type present":                  {TypeInfoV3{Type: "delta"}, nil},
+		"Fail validation, update-type missing": {TypeInfoV3{Type: new(string)}, ErrValidatingData},
+		"Update-type present":                  {TypeInfoV3{Type: &typeInfo}, nil},
 	}
 
 	for _, tt := range validateTests {
@@ -314,11 +315,12 @@ func TestValidateTypeInfoV3(t *testing.T) {
 }
 
 func TestWriteTypeInfoV3(t *testing.T) {
+	typeInfo := "delta"
 	var validateTests = map[string]struct {
 		in  TypeInfoV3
 		err error
 	}{
-		"Update-type present": {TypeInfoV3{Type: "delta"}, nil},
+		"Update-type present": {TypeInfoV3{Type: &typeInfo}, nil},
 	}
 
 	for _, tt := range validateTests {
@@ -328,13 +330,14 @@ func TestWriteTypeInfoV3(t *testing.T) {
 }
 
 func TestMarshalJSONTypeInfoV3(t *testing.T) {
+	typeInfo := "delta"
 	tests := map[string]struct {
 		ti       TypeInfoV3
 		expected string
 	}{
 		"delta": {
 			ti: TypeInfoV3{
-				Type: "delta",
+				Type: &typeInfo,
 				ArtifactDepends: TypeInfoDepends{
 					"rootfs-image.checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619",
 				},
@@ -354,7 +357,7 @@ func TestMarshalJSONTypeInfoV3(t *testing.T) {
 		},
 		"empty fields": {
 			ti: TypeInfoV3{
-				Type: "delta",
+				Type: &typeInfo,
 			},
 			expected: `{
                                  "type": "delta"
@@ -413,9 +416,9 @@ func TestValidateFiles(t *testing.T) {
 }
 
 func TestHeaderInfo(t *testing.T) {
-	hi := NewHeaderInfo("release-1", []UpdateType{UpdateType{Type: "rootfs-image"}}, []string{"vexpress-qemu"})
+	hi := NewHeaderInfo("release-1", []UpdateType{{Type: UpdateTypePtr("rootfs-image")}}, []string{"vexpress-qemu"})
 	assert.Equal(t, hi.GetArtifactName(), "release-1")
-	assert.Equal(t, hi.Updates[0].Type, "rootfs-image")
+	assert.Equal(t, *hi.Updates[0].Type, "rootfs-image")
 	assert.Equal(t, hi.GetCompatibleDevices()[0], "vexpress-qemu")
 }
 

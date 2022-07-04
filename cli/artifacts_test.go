@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -163,8 +163,9 @@ func WriteArtifact(dir string, ver int, update string) error {
 		ArtifactGroup: "",
 	}
 
+	typeInfo := "rootfs-image"
 	typeInfoV3 := artifact.TypeInfoV3{
-		Type: "rootfs-image",
+		Type: &typeInfo,
 		// Keeping these empty for now. We will likely introduce these
 		// later, when we add support for augmented artifacts.
 		// ArtifactDepends:  &artifact.TypeInfoDepends{"rootfs-image.checksum": c.String("depends-rootfs-image-checksum")},

@@ -113,7 +113,7 @@ func getCliContext() *cli.App {
 
 	compressionFlag := cli.StringFlag{
 		Name: "compression",
-		Usage: fmt.Sprintf("Compression to use for data and header inside the artifact, "+
+		Usage: fmt.Sprintf("Compression to use for the artifact, "+
 			"currently supports: %v.", strings.Join(compressors, ", ")),
 	}
 	globalCompressionFlag := compressionFlag
@@ -393,6 +393,51 @@ func getCliContext() *cli.App {
 	}
 	writeModuleCommand.Before = applyCompressionInCommand
 
+	//
+	// Write Bootstrap artifact
+	//
+	writeBootstrapArtifactCommand := cli.Command{
+		Name:   "bootstrap-artifact",
+		Action: writeBootstrapArtifact,
+		Usage:  "Writes Mender bootstrap artifact containing no payload",
+	}
+
+	writeBootstrapArtifactCommand.CustomHelpTemplate = CustomSubcommandHelpTemplate
+
+	writeBootstrapArtifactCommand.Flags = []cli.Flag{
+		cli.StringSliceFlag{
+			Name: "device-type, t",
+			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
+				"compatible devices providing this parameter multiple times.",
+			Required: true,
+		},
+		artifactName,
+		cli.StringFlag{
+			Name:  "output-path, o",
+			Usage: "Full path to output artifact file.",
+		},
+		cli.IntFlag{
+			Name:  "version, v",
+			Usage: "Version of the artifact.",
+			Value: LatestFormatVersion,
+		},
+		cli.BoolFlag{
+			Name:  "no-progress",
+			Usage: "Suppress the progressbar output",
+		},
+		compressionFlag,
+		clearsArtifactProvides,
+		noDefaultClearsArtifactProvides,
+		/////////////////////////
+		// Version 3 specifics.//
+		/////////////////////////
+		artifactNameDepends,
+		artifactProvidesGroup,
+		artifactDependsGroups,
+	}
+
+	writeBootstrapArtifactCommand.Before = applyCompressionInCommand
+
 	writeCommand := cli.Command{
 		Name:     "write",
 		Usage:    "Writes artifact file.",
@@ -400,6 +445,7 @@ func getCliContext() *cli.App {
 		Subcommands: []cli.Command{
 			writeRootfsCommand,
 			writeModuleCommand,
+			writeBootstrapArtifactCommand,
 		},
 	}
 

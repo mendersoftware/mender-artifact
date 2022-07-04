@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -26,9 +26,10 @@ import (
 func TestWriteTypeInfoV3(t *testing.T) {
 	// Write type info - success.
 	buf := bytes.NewBuffer(nil)
+	typeInfo := "foobar"
 	err := writeTypeInfoV3(&WriteInfoArgs{
 		tarWriter:  tar.NewWriter(buf),
-		typeinfov3: &artifact.TypeInfoV3{Type: "foobar"},
+		typeinfov3: &artifact.TypeInfoV3{Type: &typeInfo},
 	})
 	assert.NoError(t, err)
 	assert.Contains(t, buf.String(), `"type":"foobar"`)

@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ type ArtifactUpdateHeaders interface {
 	GetVersion() int
 
 	// Return type of this update, which could be augmented.
-	GetUpdateType() string
+	GetUpdateType() *string
 
 	// Return type of original (non-augmented) update, if any.
 	GetUpdateOriginalType() string

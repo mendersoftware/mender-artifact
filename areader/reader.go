@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -257,10 +257,15 @@ func (ar *Reader) RegisterHandler(handler handlers.Installer) error {
 	if handler == nil {
 		return errors.New("reader: invalid handler")
 	}
-	if _, ok := ar.handlers[handler.GetUpdateType()]; ok {
-		return os.ErrExist
+	updType := handler.GetUpdateType()
+	if updType != nil {
+		if _, ok := ar.handlers[*updType]; ok {
+			return os.ErrExist
+		}
+		ar.handlers[*updType] = handler
+	} else {
+		return errors.New("nil update type is not allowed")
 	}
-	ar.handlers[handler.GetUpdateType()] = handler
 	return nil
 }
 
@@ -679,8 +684,11 @@ func (ar *Reader) GetArtifactDepends() *artifact.ArtifactDepends {
 
 func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error {
 	for i, update := range upd {
+		if update.Type == nil {
+			return errors.New("nil update type is not allowed")
+		}
 		// set installer for given update type
-		if update.Type == "" {
+		if *update.Type == "" {
 			if augmented {
 				// Just skip empty augmented entries, which
 				// means there is no augment override.
@@ -688,7 +696,7 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error
 			} else {
 				return errors.New("Unexpected empty Payload type")
 			}
-		} else if w, ok := ar.handlers[update.Type]; ok {
+		} else if w, ok := ar.handlers[*update.Type]; ok {
 			if augmented {
 				var err error
 				ar.installers[i], err = w.NewAugmentedInstance(ar.installers[i])
@@ -701,9 +709,9 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error
 		} else if ar.ForbidUnknownHandlers {
 			errstr := fmt.Sprintf(
 				"Artifact Payload type '%s' is not supported by this Mender Client",
-				update.Type,
+				*update.Type,
 			)
-			if update.Type == "rootfs-image" {
+			if *update.Type == "rootfs-image" {
 				return errors.New(
 					errstr + ". Ensure that the Mender Client is fully integrated and that the" +
 						" RootfsPartA/B configuration variables are set correctly in 'mender.conf'",
@@ -714,7 +722,7 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error
 				)
 			}
 		} else {
-			err := ar.makeInstallersForUnknownTypes(update.Type, i, augmented)
+			err := ar.makeInstallersForUnknownTypes(*update.Type, i, augmented)
 			if err != nil {
 				return err
 			}
@@ -731,8 +739,10 @@ func (ar *Reader) initializeUpdateStorers() error {
 
 	for i, update := range ar.installers {
 		var err error
-
-		ar.updateStorers[i], err = ar.installers[i].NewUpdateStorer(update.GetUpdateType(), i)
+		if update.GetUpdateType() == nil {
+			return errors.New("nil update type is not allowed")
+		}
+		ar.updateStorers[i], err = ar.installers[i].NewUpdateStorer(*update.GetUpdateType(), i)
 		if err != nil {
 			return err
 		}

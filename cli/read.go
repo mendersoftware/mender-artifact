@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -151,7 +151,7 @@ func sortedKeys(mapWithKeys interface{}) sort.StringSlice {
 
 func printPayload(index int, p handlers.Installer) {
 	fmt.Printf("  %3d:\n", index)
-	fmt.Printf("    Type:   %s\n", p.GetUpdateType())
+	fmt.Printf("    Type:   %s\n", *p.GetUpdateType())
 
 	provides, err := p.GetUpdateProvides()
 	fmt.Printf("    Provides:")

@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -342,7 +342,7 @@ func TestReadNoHandler(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Len(t, aReader.GetHandlers(), 1)
-	assert.Equal(t, "rootfs-image", aReader.GetHandlers()[0].GetUpdateType())
+	assert.Equal(t, "rootfs-image", *aReader.GetHandlers()[0].GetUpdateType())
 }
 
 func TestReadBroken(t *testing.T) {
@@ -485,8 +485,8 @@ func (i *installer) GetVersion() int {
 	return 3
 }
 
-func (i *installer) GetUpdateType() string {
-	return i.updateType
+func (i *installer) GetUpdateType() *string {
+	return &i.updateType
 }
 
 func (i *installer) GetUpdateOriginalType() string {
