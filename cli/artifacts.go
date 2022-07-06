@@ -82,7 +82,7 @@ func (w *writeUpdateStorer) FinishStoreUpdate() error {
 }
 
 func (w *writeUpdateStorer) NewUpdateStorer(
-	updateType string,
+	updateType *string,
 	payloadNum int,
 ) (handlers.UpdateStorer, error) {
 	if payloadNum != 0 {

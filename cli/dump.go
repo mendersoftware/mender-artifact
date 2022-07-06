@@ -250,7 +250,7 @@ func printCmdline(ar *areader.Reader, args []string, sep, endChar rune) {
 }
 
 func (d *dumpFileStore) NewUpdateStorer(
-	updateType string,
+	updateType *string,
 	payloadNum int,
 ) (handlers.UpdateStorer, error) {
 	return d, nil

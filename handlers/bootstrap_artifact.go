@@ -52,26 +52,38 @@ func (b *BootstrapArtifact) GetUpdateOriginalType() string {
 func (b *BootstrapArtifact) GetUpdateDepends() (artifact.TypeInfoDepends, error) {
 	return nil, nil
 }
+
 func (b *BootstrapArtifact) GetUpdateProvides() (artifact.TypeInfoProvides, error) {
-	return nil, nil
+	if b.typeInfoV3 == nil {
+		return nil, nil
+	}
+	return b.typeInfoV3.ArtifactProvides, nil
 }
+
 func (b *BootstrapArtifact) GetUpdateMetaData() (map[string]interface{}, error) {
 	return nil, nil
 }
+
 func (b *BootstrapArtifact) GetUpdateClearsProvides() []string {
-	return nil
+	if b.typeInfoV3 == nil {
+		return nil
+	}
+	return b.typeInfoV3.ClearsArtifactProvides
 }
 
 // Returns non-augmented (original) data.
 func (b *BootstrapArtifact) GetUpdateOriginalDepends() artifact.TypeInfoDepends {
 	return nil
 }
+
 func (b *BootstrapArtifact) GetUpdateOriginalProvides() artifact.TypeInfoProvides {
 	return nil
 }
+
 func (b *BootstrapArtifact) GetUpdateOriginalMetaData() map[string]interface{} {
 	return nil
 }
+
 func (b *BootstrapArtifact) GetUpdateOriginalClearsProvides() []string {
 	return nil
 }
@@ -80,12 +92,15 @@ func (b *BootstrapArtifact) GetUpdateOriginalClearsProvides() []string {
 func (b *BootstrapArtifact) GetUpdateAugmentDepends() artifact.TypeInfoDepends {
 	return nil
 }
+
 func (b *BootstrapArtifact) GetUpdateAugmentProvides() artifact.TypeInfoProvides {
 	return nil
 }
+
 func (b *BootstrapArtifact) GetUpdateAugmentMetaData() map[string]interface{} {
 	return nil
 }
+
 func (b *BootstrapArtifact) GetUpdateAugmentClearsProvides() []string {
 	return nil
 }
@@ -130,6 +145,76 @@ func (b *BootstrapArtifact) ComposeHeader(args *ComposeHeaderArgs) error {
 	}
 	return nil
 }
+
+func (b *BootstrapArtifact) ReadHeader(r io.Reader, path string, version int, augmented bool) error {
+	b.version = version
+	switch {
+	case filepath.Base(path) == "type-info":
+		dec := json.NewDecoder(r)
+		err := dec.Decode(&b.typeInfoV3)
+		if err != nil {
+			return errors.Wrap(err, "error reading type-info")
+		}
+	case filepath.Base(path) == "meta-data":
+		dec := json.NewDecoder(r)
+		var data interface{}
+		err := dec.Decode(&data)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return errors.Wrap(err, "error reading meta-data")
+		}
+		jsonObj, ok := data.(map[string]interface{})
+		if !ok {
+			return errors.New("Top level object in meta-data must be a JSON object")
+		}
+		if augmented {
+			err = b.setUpdateAugmentMetaData(jsonObj)
+		} else {
+			err = b.setUpdateOriginalMetaData(jsonObj)
+		}
+		if err != nil {
+			return err
+		}
+	default:
+		return errors.Errorf("Payload: unsupported file: %v", path)
+	}
+	return nil
+}
+
+func (b *BootstrapArtifact) setUpdateOriginalMetaData(metaData map[string]interface{}) error {
+	return nil
+}
+
+func (b *BootstrapArtifact) setUpdateAugmentMetaData(metaData map[string]interface{}) error {
+	// Check that we can merge original and augmented meta data.
+	_, err := mergeJsonStructures(
+		b.GetUpdateOriginalMetaData(),
+		b.GetUpdateAugmentMetaData(),
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *BootstrapArtifact) NewInstance() Installer {
+	newBootstrap := BootstrapArtifact{
+		version: b.version,
+	}
+
+	return &newBootstrap
+}
+
+func (b *BootstrapArtifact) NewAugmentedInstance(orig ArtifactUpdate) (Installer, error) {
+	return nil, nil
+}
+
+func (b *BootstrapArtifact) NewUpdateStorer(updateType *string, payloadNum int) (UpdateStorer, error) {
+	return &devNullUpdateStorer{}, nil
+}
+
+func (b *BootstrapArtifact) SetUpdateStorerProducer(producer UpdateStorerProducer) {}
 
 func (b *BootstrapArtifact) GetUpdateAllFiles() [](*DataFile) {
 	return nil

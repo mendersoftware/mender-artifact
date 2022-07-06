@@ -151,7 +151,12 @@ func sortedKeys(mapWithKeys interface{}) sort.StringSlice {
 
 func printPayload(index int, p handlers.Installer) {
 	fmt.Printf("  %3d:\n", index)
-	fmt.Printf("    Type:   %s\n", *p.GetUpdateType())
+	updateType := p.GetUpdateType()
+	if updateType == nil {
+		emptyType := "Empty type"
+		updateType = &emptyType
+	}
+	fmt.Printf("    Type:   %v\n", *updateType)
 
 	provides, err := p.GetUpdateProvides()
 	fmt.Printf("    Provides:")

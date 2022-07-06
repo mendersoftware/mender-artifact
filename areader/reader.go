@@ -684,8 +684,12 @@ func (ar *Reader) GetArtifactDepends() *artifact.ArtifactDepends {
 
 func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error {
 	for i, update := range upd {
-		if update.Type == nil {
-			return errors.New("nil update type is not allowed")
+		if update.Type == nil { // zero-payload artifact
+			err := ar.makeInstallersForUnknownTypes(update.Type, i, augmented)
+			if err != nil {
+				return err
+			}
+			continue
 		}
 		// set installer for given update type
 		if *update.Type == "" {
@@ -722,7 +726,7 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType, augmented bool) error
 				)
 			}
 		} else {
-			err := ar.makeInstallersForUnknownTypes(*update.Type, i, augmented)
+			err := ar.makeInstallersForUnknownTypes(update.Type, i, augmented)
 			if err != nil {
 				return err
 			}
@@ -739,10 +743,7 @@ func (ar *Reader) initializeUpdateStorers() error {
 
 	for i, update := range ar.installers {
 		var err error
-		if update.GetUpdateType() == nil {
-			return errors.New("nil update type is not allowed")
-		}
-		ar.updateStorers[i], err = ar.installers[i].NewUpdateStorer(*update.GetUpdateType(), i)
+		ar.updateStorers[i], err = ar.installers[i].NewUpdateStorer(update.GetUpdateType(), i)
 		if err != nil {
 			return err
 		}
@@ -761,13 +762,15 @@ func (ar *Reader) initializeUpdateStorers() error {
 	return nil
 }
 
-func (ar *Reader) makeInstallersForUnknownTypes(updateType string, i int, augmented bool) error {
+func (ar *Reader) makeInstallersForUnknownTypes(updateType *string, i int, augmented bool) error {
 	if ar.info.Version < 3 && augmented {
 		return errors.New(
 			"augmented set when constructing installer version < 3. Should not happen",
 		)
 	}
-	if updateType == "rootfs-image" {
+	if updateType == nil {
+		ar.installers[i] = handlers.NewBootstrapArtifact()
+	} else if *updateType == "rootfs-image" {
 		if augmented {
 			ar.installers[i] = handlers.NewAugmentedRootfs(ar.installers[i], "")
 		} else {
@@ -779,9 +782,9 @@ func (ar *Reader) makeInstallersForUnknownTypes(updateType string, i int, augmen
 		// display information. The Mender client will use
 		// ForbidUnknownHandlers, and hence will never get here.
 		if augmented {
-			ar.installers[i] = handlers.NewAugmentedModuleImage(ar.installers[i], updateType)
+			ar.installers[i] = handlers.NewAugmentedModuleImage(ar.installers[i], *updateType)
 		} else {
-			ar.installers[i] = handlers.NewModuleImage(updateType)
+			ar.installers[i] = handlers.NewModuleImage(*updateType)
 		}
 	}
 
@@ -873,17 +876,20 @@ func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header, augmented bo
 		// but they may exist if another tool was used to create the
 		// artifact.
 		if hdr.Typeflag != tar.TypeDir {
-			updNo, err := getUpdateNoFromHeaderPath(hdr.Name)
-			if err != nil {
-				return errors.Wrapf(err, "reader: error getting header Payload number")
-			}
+			// MEN-2586 - empty tar files are allowed in zero-payload artifacts
+			if hdr.Name != "" {
+				updNo, err := getUpdateNoFromHeaderPath(hdr.Name)
+				if err != nil {
+					return errors.Wrapf(err, "reader: error getting header Payload number")
+				}
 
-			inst, ok := ar.installers[updNo]
-			if !ok {
-				return errors.Errorf("reader: can not find parser for Payload: %v", hdr.Name)
-			}
-			if hErr := inst.ReadHeader(tr, hdr.Name, ar.info.Version, augmented); hErr != nil {
-				return errors.Wrap(hErr, "reader: can not read header")
+				inst, ok := ar.installers[updNo]
+				if !ok {
+					return errors.Errorf("reader: can not find parser for Payload: %v", hdr.Name)
+				}
+				if hErr := inst.ReadHeader(tr, hdr.Name, ar.info.Version, augmented); hErr != nil {
+					return errors.Wrap(hErr, "reader: can not read header")
+				}
 			}
 		}
 
@@ -929,7 +935,6 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
 	} else {
 		r = tr
 	}
-
 	return ar.readAndInstall(r, inst, updNo, comp)
 }
 
