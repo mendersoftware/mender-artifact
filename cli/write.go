@@ -604,6 +604,9 @@ func applySoftwareVersionToTypeInfoProvides(
 		softwareNameDefault = ctx.String("type")
 	}
 	if ctx.Command.Name == "bootstrap-artifact" {
+		if len(result) > 0 {
+			return result
+		}
 		softwareNameDefault = "null"
 	}
 	softwareVersion := ctx.String(softwareVersionFlag)

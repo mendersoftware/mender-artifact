@@ -428,6 +428,8 @@ func getCliContext() *cli.App {
 		compressionFlag,
 		clearsArtifactProvides,
 		noDefaultClearsArtifactProvides,
+		payloadProvides,
+		payloadDepends,
 		/////////////////////////
 		// Version 3 specifics.//
 		/////////////////////////

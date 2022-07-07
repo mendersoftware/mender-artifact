@@ -47,10 +47,8 @@ func (b *BootstrapArtifact) GetUpdateOriginalType() string {
 	return ""
 }
 
-// Returns merged data of non-augmented and augmented data, where the
-// latter overrides the former. Returns error if they cannot be merged.
 func (b *BootstrapArtifact) GetUpdateDepends() (artifact.TypeInfoDepends, error) {
-	return nil, nil
+	return b.typeInfoV3.ArtifactDepends, nil
 }
 
 func (b *BootstrapArtifact) GetUpdateProvides() (artifact.TypeInfoProvides, error) {
@@ -146,7 +144,12 @@ func (b *BootstrapArtifact) ComposeHeader(args *ComposeHeaderArgs) error {
 	return nil
 }
 
-func (b *BootstrapArtifact) ReadHeader(r io.Reader, path string, version int, augmented bool) error {
+func (b *BootstrapArtifact) ReadHeader(
+	r io.Reader,
+	path string,
+	version int,
+	augmented bool,
+) error {
 	b.version = version
 	switch {
 	case filepath.Base(path) == "type-info":
@@ -210,7 +213,10 @@ func (b *BootstrapArtifact) NewAugmentedInstance(orig ArtifactUpdate) (Installer
 	return nil, nil
 }
 
-func (b *BootstrapArtifact) NewUpdateStorer(updateType *string, payloadNum int) (UpdateStorer, error) {
+func (b *BootstrapArtifact) NewUpdateStorer(
+	updateType *string,
+	payloadNum int,
+) (UpdateStorer, error) {
 	return &devNullUpdateStorer{}, nil
 }
 
