@@ -16,11 +16,13 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"path/filepath"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
+
+	"github.com/mendersoftware/mender-artifact/artifact"
 )
 
 type BootstrapArtifact struct {
@@ -30,7 +32,9 @@ type BootstrapArtifact struct {
 }
 
 func NewBootstrapArtifact() *BootstrapArtifact {
-	return &BootstrapArtifact{}
+	return &BootstrapArtifact{
+		version: 3,
+	}
 }
 
 func (b *BootstrapArtifact) GetVersion() int {
@@ -48,6 +52,9 @@ func (b *BootstrapArtifact) GetUpdateOriginalType() string {
 }
 
 func (b *BootstrapArtifact) GetUpdateDepends() (artifact.TypeInfoDepends, error) {
+	if b.typeInfoV3 == nil {
+		return nil, nil
+	}
 	return b.typeInfoV3.ArtifactDepends, nil
 }
 
@@ -106,6 +113,7 @@ func (b *BootstrapArtifact) GetUpdateAugmentClearsProvides() []string {
 func (b *BootstrapArtifact) GetUpdateOriginalTypeInfoWriter() io.Writer {
 	return nil
 }
+
 func (b *BootstrapArtifact) GetUpdateAugmentTypeInfoWriter() io.Writer {
 	return nil
 }
@@ -125,7 +133,7 @@ func (b *BootstrapArtifact) ComposeHeader(args *ComposeHeaderArgs) error {
 		dir:        path,
 		typeinfov3: args.TypeInfoV3,
 	}); err != nil {
-		return errors.Wrap(err, "ComposeHeader: ")
+		return errors.Wrap(err, "ComposeHeader")
 	}
 
 	if len(args.MetaData) > 0 {
@@ -150,6 +158,9 @@ func (b *BootstrapArtifact) ReadHeader(
 	version int,
 	augmented bool,
 ) error {
+	if version != 3 {
+		return errors.New(fmt.Sprintf("version %d not supported", version))
+	}
 	b.version = version
 	switch {
 	case filepath.Base(path) == "type-info":
@@ -158,45 +169,8 @@ func (b *BootstrapArtifact) ReadHeader(
 		if err != nil {
 			return errors.Wrap(err, "error reading type-info")
 		}
-	case filepath.Base(path) == "meta-data":
-		dec := json.NewDecoder(r)
-		var data interface{}
-		err := dec.Decode(&data)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return errors.Wrap(err, "error reading meta-data")
-		}
-		jsonObj, ok := data.(map[string]interface{})
-		if !ok {
-			return errors.New("Top level object in meta-data must be a JSON object")
-		}
-		if augmented {
-			err = b.setUpdateAugmentMetaData(jsonObj)
-		} else {
-			err = b.setUpdateOriginalMetaData(jsonObj)
-		}
-		if err != nil {
-			return err
-		}
 	default:
 		return errors.Errorf("Payload: unsupported file: %v", path)
-	}
-	return nil
-}
-
-func (b *BootstrapArtifact) setUpdateOriginalMetaData(metaData map[string]interface{}) error {
-	return nil
-}
-
-func (b *BootstrapArtifact) setUpdateAugmentMetaData(metaData map[string]interface{}) error {
-	// Check that we can merge original and augmented meta data.
-	_, err := mergeJsonStructures(
-		b.GetUpdateOriginalMetaData(),
-		b.GetUpdateAugmentMetaData(),
-	)
-	if err != nil {
-		return err
 	}
 	return nil
 }

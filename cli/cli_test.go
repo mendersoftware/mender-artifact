@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -156,4 +156,33 @@ func TestModuleImageWithoutPayload(t *testing.T) {
 	outputBytes, err := exec.Command("bash", "-c", fmt.Sprintf("tar xOf %s data/0000.tar.gz | tar tz", menderName)).Output()
 	assert.NoError(t, err)
 	assert.Empty(t, string(outputBytes))
+}
+
+func TestWriteBootstrapArtifact(t *testing.T) {
+	app := getCliContext()
+
+	menderFile, err := ioutil.TempFile("", "")
+	require.NoError(t, err)
+	menderFile.Close()
+	menderName := menderFile.Name()
+	defer os.Remove(menderName)
+
+	// Default
+	err = app.Run([]string{"mender-artifact",
+		"write",
+		"bootstrap-artifact",
+		"-t", "dummy",
+		"-n", "dummy",
+		"-G", "dep_gr",
+		"-g", "pr_gr",
+		"--clears-provides", "cl_pr",
+		"-d", "dep:val",
+		"-p", "pr:val",
+		"-o", menderName,
+	})
+	assert.NoError(t, err)
+	outputBytes, err := exec.Command("tar", "tf", menderName).Output()
+	assert.Contains(t, string(outputBytes), "header.tar.gz")
+	assert.NotContains(t, string(outputBytes), "header.tar.xz")
+	assert.NoError(t, err)
 }

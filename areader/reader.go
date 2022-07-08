@@ -258,14 +258,13 @@ func (ar *Reader) RegisterHandler(handler handlers.Installer) error {
 		return errors.New("reader: invalid handler")
 	}
 	updType := handler.GetUpdateType()
-	if updType != nil {
-		if _, ok := ar.handlers[*updType]; ok {
-			return os.ErrExist
-		}
-		ar.handlers[*updType] = handler
-	} else {
+	if updType == nil {
 		return errors.New("nil update type is not allowed")
 	}
+	if _, ok := ar.handlers[*updType]; ok {
+		return os.ErrExist
+	}
+	ar.handlers[*updType] = handler
 	return nil
 }
 
