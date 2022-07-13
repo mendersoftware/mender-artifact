@@ -102,6 +102,43 @@ func MakeRootfsImageArtifact(version int, signed, hasScripts, augmented bool) (i
 	return MakeAnyImageArtifact(version, signed, hasScripts, &updates)
 }
 
+func MakeBootstrapArtifact() (io.Reader, error) {
+	composer := handlers.NewBootstrapArtifact()
+
+	updates := awriter.Updates{
+		Updates: []handlers.Composer{composer},
+	}
+	art := bytes.NewBuffer(nil)
+	typeInfoV3 := artifact.TypeInfoV3{}
+
+	comp := artifact.NewCompressorGzip()
+	aw := awriter.NewWriter(art, comp)
+
+	err := aw.WriteArtifact(&awriter.WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress"},
+		Name:    "mender-1.1",
+		Updates: &updates,
+		Scripts: nil,
+		// Version 3 specifics:
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:  "mender-1.1",
+			ArtifactGroup: "group-1",
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      []string{"mender-1.0"},
+			CompatibleDevices: []string{"vexpress"},
+		},
+		TypeInfoV3: &typeInfoV3,
+		Bootstrap:  true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return art, nil
+}
+
 func MakeModuleImageArtifact(signed, hasScripts bool, updateType string,
 	numFiles, numAugmentFiles int) (io.Reader, error) {
 
@@ -198,6 +235,27 @@ func mustCreateVerifier(t *testing.T, key []byte) *artifact.PKISigner {
 	v, err := artifact.NewPKIVerifier(key)
 	assert.NoError(t, err)
 	return v
+}
+
+func TestReadBootstrapArtifact(t *testing.T) {
+	art, err := MakeBootstrapArtifact()
+	assert.NoError(t, err)
+	aReader := NewReader(art)
+
+	err = aReader.ReadArtifact()
+	assert.NoError(t, err)
+
+	devComp := aReader.GetCompatibleDevices()
+	require.Len(t, devComp, 1)
+	assert.Equal(t, "vexpress", devComp[0])
+
+	assert.Len(t, aReader.GetHandlers(), 1)
+	bootstrapHandler := aReader.GetHandlers()[0]
+	assert.Equal(t, bootstrapHandler.GetUpdateType(), aReader.GetHandlers()[0].GetUpdateType())
+	assert.Equal(t, "mender-1.1", aReader.GetArtifactName())
+
+	err = aReader.ReadArtifactData()
+	assert.NoError(t, err)
 }
 
 func TestReadArtifact(t *testing.T) {
@@ -489,8 +547,8 @@ func (i *installer) GetUpdateType() *string {
 	return &i.updateType
 }
 
-func (i *installer) GetUpdateOriginalType() string {
-	return ""
+func (i *installer) GetUpdateOriginalType() *string {
+	return nil
 }
 
 func (i *installer) NewInstance() handlers.Installer {

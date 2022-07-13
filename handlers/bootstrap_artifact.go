@@ -47,21 +47,15 @@ func (b *BootstrapArtifact) GetUpdateType() *string {
 }
 
 // Return type of original (non-augmented) update, if any.
-func (b *BootstrapArtifact) GetUpdateOriginalType() string {
-	return ""
+func (b *BootstrapArtifact) GetUpdateOriginalType() *string {
+	return nil
 }
 
 func (b *BootstrapArtifact) GetUpdateDepends() (artifact.TypeInfoDepends, error) {
-	if b.typeInfoV3 == nil {
-		return nil, nil
-	}
 	return b.typeInfoV3.ArtifactDepends, nil
 }
 
 func (b *BootstrapArtifact) GetUpdateProvides() (artifact.TypeInfoProvides, error) {
-	if b.typeInfoV3 == nil {
-		return nil, nil
-	}
 	return b.typeInfoV3.ArtifactProvides, nil
 }
 
@@ -70,9 +64,6 @@ func (b *BootstrapArtifact) GetUpdateMetaData() (map[string]interface{}, error) 
 }
 
 func (b *BootstrapArtifact) GetUpdateClearsProvides() []string {
-	if b.typeInfoV3 == nil {
-		return nil
-	}
 	return b.typeInfoV3.ClearsArtifactProvides
 }
 
@@ -135,20 +126,6 @@ func (b *BootstrapArtifact) ComposeHeader(args *ComposeHeaderArgs) error {
 	}); err != nil {
 		return errors.Wrap(err, "ComposeHeader")
 	}
-
-	if len(args.MetaData) > 0 {
-		sw := artifact.NewTarWriterStream(args.TarWriter)
-		data, err := json.Marshal(args.MetaData)
-		if err != nil {
-			return errors.Wrap(
-				err,
-				"MetaData field unmarshalable. This is a bug in the application",
-			)
-		}
-		if err = sw.Write(data, filepath.Join(path, "meta-data")); err != nil {
-			return errors.Wrap(err, "Payload: can not store meta-data")
-		}
-	}
 	return nil
 }
 
@@ -159,7 +136,7 @@ func (b *BootstrapArtifact) ReadHeader(
 	augmented bool,
 ) error {
 	if version != 3 {
-		return errors.New(fmt.Sprintf("version %d not supported", version))
+		return errors.New(fmt.Sprintf("version %d not supported for bootstrap artifacts", version))
 	}
 	b.version = version
 	switch {

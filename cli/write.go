@@ -88,7 +88,7 @@ func validateInput(c *cli.Context) error {
 	if len(c.StringSlice("device-type")) == 0 ||
 		len(c.String("artifact-name")) == 0 || fileMissing {
 		return cli.NewExitError(
-			"must provide `device-type`, `artifact-name` and `update`",
+			"must provide `device-type`, `artifact-name` and `file`",
 			errArtifactInvalidParameters,
 		)
 	}
@@ -141,7 +141,7 @@ func createRootfsFromSSH(c *cli.Context) (string, error) {
 func makeEmptyUpdates(ctx *cli.Context) (*awriter.Updates, error) {
 	handler := handlers.NewBootstrapArtifact()
 
-	dataFiles := make([](*handlers.DataFile), 0, len(ctx.StringSlice("file")))
+	dataFiles := make([](*handlers.DataFile), 0)
 	if err := handler.SetUpdateFiles(dataFiles); err != nil {
 		return nil, cli.NewExitError(
 			err,
@@ -170,7 +170,7 @@ func writeBootstrapArtifact(c *cli.Context) error {
 	}
 
 	// set the default name
-	name := "bootstrap.mender"
+	name := "artifact.mender"
 	if len(c.String("output-path")) > 0 {
 		name = c.String("output-path")
 	}
@@ -604,10 +604,7 @@ func applySoftwareVersionToTypeInfoProvides(
 		softwareNameDefault = ctx.String("type")
 	}
 	if ctx.Command.Name == "bootstrap-artifact" {
-		if len(result) > 0 {
-			return result
-		}
-		softwareNameDefault = "null"
+		return result
 	}
 	softwareVersion := ctx.String(softwareVersionFlag)
 	noDefaultSoftwareVersion := ctx.Bool(noDefaultSoftwareVersionFlag)
@@ -653,7 +650,9 @@ func softwareVersionOverridesProvides(ctx *cli.Context, key string) bool {
 func makeClearsArtifactProvides(ctx *cli.Context) ([]string, error) {
 	list := ctx.StringSlice(clearsProvidesFlag)
 
-	if ctx.Bool(noDefaultClearsProvidesFlag) || ctx.Bool(noDefaultSoftwareVersionFlag) {
+	if ctx.Bool(noDefaultClearsProvidesFlag) ||
+		ctx.Bool(noDefaultSoftwareVersionFlag) ||
+		ctx.Command.Name == "bootstrap-artifact" {
 		return list, nil
 	}
 
@@ -683,8 +682,6 @@ func makeClearsArtifactProvides(ctx *cli.Context) ([]string, error) {
 		}
 	} else if ctx.Command.Name == "module-image" {
 		softwareName = ctx.String("type") + "."
-	} else if ctx.Command.Name == "bootstrap-artifact" {
-		softwareName = "null" + "."
 	} else {
 		return nil, errors.New(
 			"Unknown write command in makeClearsArtifactProvides(), this is a bug.",

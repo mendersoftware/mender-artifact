@@ -58,7 +58,7 @@ type ArtifactUpdateHeaders interface {
 	GetUpdateType() *string
 
 	// Return type of original (non-augmented) update, if any.
-	GetUpdateOriginalType() string
+	GetUpdateOriginalType() *string
 
 	// Returns merged data of non-augmented and augmented data, where the
 	// latter overrides the former. Returns error if they cannot be merged.

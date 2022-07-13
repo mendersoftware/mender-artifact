@@ -78,11 +78,12 @@ func (img *ModuleImage) GetUpdateType() *string {
 	return &updateType
 }
 
-func (img *ModuleImage) GetUpdateOriginalType() string {
+func (img *ModuleImage) GetUpdateOriginalType() *string {
 	if img.original != nil {
-		return *img.original.GetUpdateType()
+		return img.original.GetUpdateType()
 	} else {
-		return ""
+		noType := ""
+		return &noType
 	}
 }
 

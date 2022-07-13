@@ -452,10 +452,8 @@ type TypeInfoV3 struct {
 
 // Validate checks that the required `Type` field is set.
 func (ti *TypeInfoV3) Validate() error {
-	if ti.Type != nil {
-		if *ti.Type == "" {
-			return errors.Wrap(ErrValidatingData, "TypeInfoV3: ")
-		}
+	if ti.Type != nil && *ti.Type == "" {
+		return errors.Wrap(ErrValidatingData, "TypeInfoV3: ")
 	}
 	return nil
 }

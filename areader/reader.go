@@ -768,6 +768,9 @@ func (ar *Reader) makeInstallersForUnknownTypes(updateType *string, i int, augme
 		)
 	}
 	if updateType == nil {
+		if augmented {
+			return errors.New("Empty payload can not have augmented header")
+		}
 		ar.installers[i] = handlers.NewBootstrapArtifact()
 	} else if *updateType == "rootfs-image" {
 		if augmented {
@@ -875,20 +878,17 @@ func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header, augmented bo
 		// but they may exist if another tool was used to create the
 		// artifact.
 		if hdr.Typeflag != tar.TypeDir {
-			// MEN-2586 - empty tar files are allowed in zero-payload artifacts
-			if hdr.Name != "" {
-				updNo, err := getUpdateNoFromHeaderPath(hdr.Name)
-				if err != nil {
-					return errors.Wrapf(err, "reader: error getting header Payload number")
-				}
+			updNo, err := getUpdateNoFromHeaderPath(hdr.Name)
+			if err != nil {
+				return errors.Wrapf(err, "reader: error getting header Payload number")
+			}
 
-				inst, ok := ar.installers[updNo]
-				if !ok {
-					return errors.Errorf("reader: can not find parser for Payload: %v", hdr.Name)
-				}
-				if hErr := inst.ReadHeader(tr, hdr.Name, ar.info.Version, augmented); hErr != nil {
-					return errors.Wrap(hErr, "reader: can not read header")
-				}
+			inst, ok := ar.installers[updNo]
+			if !ok {
+				return errors.Errorf("reader: can not find parser for Payload: %v", hdr.Name)
+			}
+			if hErr := inst.ReadHeader(tr, hdr.Name, ar.info.Version, augmented); hErr != nil {
+				return errors.Wrap(hErr, "reader: can not read header")
 			}
 		}
 

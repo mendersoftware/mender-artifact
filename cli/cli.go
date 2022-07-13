@@ -399,7 +399,7 @@ func getCliContext() *cli.App {
 	writeBootstrapArtifactCommand := cli.Command{
 		Name:   "bootstrap-artifact",
 		Action: writeBootstrapArtifact,
-		Usage:  "Writes Mender bootstrap artifact containing no payload",
+		Usage:  "Writes Mender bootstrap artifact containing empty payload",
 	}
 
 	writeBootstrapArtifactCommand.CustomHelpTemplate = CustomSubcommandHelpTemplate
@@ -427,9 +427,11 @@ func getCliContext() *cli.App {
 		},
 		compressionFlag,
 		clearsArtifactProvides,
-		noDefaultClearsArtifactProvides,
 		payloadProvides,
 		payloadDepends,
+		privateKeyFlag,
+		gcpKMSKeyFlag,
+		vaultTransitKeyFlag,
 		/////////////////////////
 		// Version 3 specifics.//
 		/////////////////////////

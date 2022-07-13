@@ -241,7 +241,8 @@ func TestWriteModuleImage(t *testing.T) {
 	assert.Equal(t, 1, len(handlers))
 	handler := handlers[0]
 	assert.Equal(t, "augmentType", *handler.GetUpdateType())
-	assert.Equal(t, "testType", handler.GetUpdateOriginalType())
+	expectedUpdateType := "testType"
+	assert.Equal(t, &expectedUpdateType, handler.GetUpdateOriginalType())
 
 	updDepends := handler.GetUpdateOriginalDepends()
 	assert.Equal(t, artifact.TypeInfoDepends{

@@ -48,7 +48,7 @@ func TestGetUpdateType(t *testing.T) {
 }
 
 func TestGetUpdateOriginalType(t *testing.T) {
-	var expected string
+	var expected *string
 	bootstrapArtifact := NewBootstrapArtifact()
 	result := bootstrapArtifact.GetUpdateOriginalType()
 	assert.Equal(t, expected, result)
@@ -61,11 +61,6 @@ func TestGetUpdateDepends(t *testing.T) {
 		expectedError error
 	}
 	testCases := []testCase{
-		{
-			typeInfo:      nil,
-			expected:      nil,
-			expectedError: nil,
-		},
 		{
 			typeInfo: &artifact.TypeInfoV3{
 				ArtifactDepends: artifact.TypeInfoDepends{
@@ -97,11 +92,6 @@ func TestGetUpdateProvides(t *testing.T) {
 		expectedError error
 	}
 	testCases := []testCase{
-		{
-			typeInfo:      nil,
-			expected:      nil,
-			expectedError: nil,
-		},
 		{
 			typeInfo: &artifact.TypeInfoV3{
 				ArtifactProvides: artifact.TypeInfoProvides{
@@ -140,10 +130,6 @@ func TestGetUpdateClearsProvides(t *testing.T) {
 		expected []string
 	}
 	testCases := []testCase{
-		{
-			typeInfo: nil,
-			expected: nil,
-		},
 		{
 			typeInfo: &artifact.TypeInfoV3{
 				ClearsArtifactProvides: []string{
@@ -352,21 +338,6 @@ func TestBootstrapReadHeader(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-
-			if test.version < 3 {
-				// Done for 2
-				return
-			}
-
-			// err = r.ReadHeader(bytes.NewReader([]byte(test.data)), test.name, test.version, true)
-			// if test.shouldErrAugmented {
-			// 	require.Error(t, err)
-			// 	if test.errMsgAugmented != "" {
-			// 		require.Contains(t, errors.Cause(err).Error(), test.errMsgAugmented)
-			// 	}
-			// } else {
-			// 	require.NoError(t, err)
-			// }
 		})
 	}
 }

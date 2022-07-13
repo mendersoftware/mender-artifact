@@ -153,11 +153,12 @@ func getKey(c *cli.Context) (SigningKey, error) {
 			"read":     true,
 		}
 		privateKeyCommands := map[string]bool{
-			"rootfs-image": true,
-			"module-image": true,
-			"sign":         true,
-			"modify":       true,
-			"copy":         true,
+			"rootfs-image":       true,
+			"module-image":       true,
+			"bootstrap-artifact": true,
+			"sign":               true,
+			"modify":             true,
+			"copy":               true,
 		}
 		if publicKeyCommands[c.Command.Name] {
 			return artifact.NewPKIVerifier(key)
@@ -298,13 +299,13 @@ func reconstructPayloadWriteData(
 		case 3:
 			// Even rootfs images will be written using ModuleImage, which
 			// is a superset
-			var updType string
+			var updType *string
 			updType = inst[0].GetUpdateOriginalType()
-			if updType != "" {
+			if *updType != "" {
 				// If augmented artifact.
-				upd.Augments = []handlers.Composer{handlers.NewModuleImage(updType)}
+				upd.Augments = []handlers.Composer{handlers.NewModuleImage(*updType)}
 				augTypeInfoV3 = &artifact.TypeInfoV3{
-					Type:             &updType,
+					Type:             updType,
 					ArtifactDepends:  inst[0].GetUpdateOriginalDepends(),
 					ArtifactProvides: inst[0].GetUpdateOriginalProvides(),
 				}

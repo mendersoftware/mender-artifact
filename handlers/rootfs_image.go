@@ -247,8 +247,9 @@ func (rfs *Rootfs) GetUpdateType() *string {
 	return &updateType
 }
 
-func (rfs *Rootfs) GetUpdateOriginalType() string {
-	return ""
+func (rfs *Rootfs) GetUpdateOriginalType() *string {
+	originalType := ""
+	return &originalType
 }
 
 func (rfs *Rootfs) GetUpdateDepends() (artifact.TypeInfoDepends, error) {
