@@ -329,10 +329,6 @@ func getCliContext() *cli.App {
 			Usage: "Version of the artifact.",
 			Value: LatestFormatVersion,
 		},
-		cli.StringFlag{
-			Name:  "key, k",
-			Usage: "Full path to the private key that will be used to sign the artifact.",
-		},
 		cli.StringSliceFlag{
 			Name: "script, s",
 			Usage: "Full path to the state script(s). You can specify multiple " +
@@ -379,6 +375,9 @@ func getCliContext() *cli.App {
 		clearsArtifactProvides,
 		noDefaultClearsArtifactProvides,
 		compressionFlag,
+		privateKeyFlag,
+		gcpKMSKeyFlag,
+		vaultTransitKeyFlag,
 		//////////////////////
 		// Sotware versions //
 		//////////////////////
