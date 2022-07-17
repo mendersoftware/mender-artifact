@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -220,7 +220,7 @@ func printCmdline(ar *areader.Reader, args []string, sep, endChar rune) {
 	handlers := ar.GetHandlers()
 	handler := handlers[0]
 
-	fmt.Printf("%c--type%c%s", sep, sep, handler.GetUpdateType())
+	fmt.Printf("%c--type%c%s", sep, sep, *handler.GetUpdateType())
 
 	// Always add this flag, since we will write custom flags.
 	fmt.Printf("%c--%s", sep, noDefaultSoftwareVersionFlag)
@@ -250,7 +250,7 @@ func printCmdline(ar *areader.Reader, args []string, sep, endChar rune) {
 }
 
 func (d *dumpFileStore) NewUpdateStorer(
-	updateType string,
+	updateType *string,
 	payloadNum int,
 ) (handlers.UpdateStorer, error) {
 	return d, nil

@@ -1,4 +1,4 @@
-// Copyright 2020 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import (
 func TestHandlerRootfs(t *testing.T) {
 	// test if update type is reported correctly
 	r := NewRootfsV2("")
-	require.Equal(t, "rootfs-image", r.GetUpdateType())
+	require.Equal(t, "rootfs-image", *r.GetUpdateType())
 
 	// test get update files
 	r.update = &DataFile{Name: "update_next.ext4"}

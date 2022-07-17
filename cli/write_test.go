@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -25,6 +25,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func UpdateTypePtr(s string) *string {
+	return &s
+}
 
 func TestArtifactsWrite(t *testing.T) {
 	err := Run([]string{"mender-artifact", "write"})
@@ -217,7 +221,7 @@ func TestWriteModuleImage(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "testName", reader.GetArtifactName())
-	assert.Equal(t, []artifact.UpdateType{artifact.UpdateType{Type: "testType"}}, reader.GetUpdates())
+	assert.Equal(t, []artifact.UpdateType{{Type: UpdateTypePtr("testType")}}, reader.GetUpdates())
 
 	provides := reader.GetArtifactProvides()
 	assert.NotNil(t, provides)
@@ -231,13 +235,14 @@ func TestWriteModuleImage(t *testing.T) {
 
 	updates := reader.GetUpdates()
 	assert.Equal(t, 1, len(updates))
-	assert.Equal(t, "testType", updates[0].Type)
+	assert.Equal(t, "testType", *updates[0].Type)
 
 	handlers := reader.GetHandlers()
 	assert.Equal(t, 1, len(handlers))
 	handler := handlers[0]
-	assert.Equal(t, "augmentType", handler.GetUpdateType())
-	assert.Equal(t, "testType", handler.GetUpdateOriginalType())
+	assert.Equal(t, "augmentType", *handler.GetUpdateType())
+	expectedUpdateType := "testType"
+	assert.Equal(t, &expectedUpdateType, handler.GetUpdateOriginalType())
 
 	updDepends := handler.GetUpdateOriginalDepends()
 	assert.Equal(t, artifact.TypeInfoDepends{
@@ -348,7 +353,7 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 
 	// Verify name
 	assert.Equal(t, "testName", reader.GetArtifactName())
-	assert.Equal(t, []artifact.UpdateType{artifact.UpdateType{Type: "rootfs-image"}}, reader.GetUpdates())
+	assert.Equal(t, []artifact.UpdateType{{Type: UpdateTypePtr("rootfs-image")}}, reader.GetUpdates())
 
 	// Verify Provides
 	provides := reader.GetArtifactProvides()
@@ -365,11 +370,11 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 	// Verify update
 	updates := reader.GetUpdates()
 	assert.Equal(t, 1, len(updates))
-	assert.Equal(t, "rootfs-image", updates[0].Type)
+	assert.Equal(t, "rootfs-image", *updates[0].Type)
 	handlers := reader.GetHandlers()
 	assert.Equal(t, 1, len(handlers))
 	handler := handlers[0]
-	assert.Equal(t, "rootfs-image", handler.GetUpdateType())
+	assert.Equal(t, "rootfs-image", *handler.GetUpdateType())
 
 	// Type-Info Depends
 	updDepends, err := handler.GetUpdateDepends()
@@ -410,12 +415,12 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "noprovides", reader.GetArtifactName())
-	assert.Equal(t, []artifact.UpdateType{artifact.UpdateType{Type: "rootfs-image"}}, reader.GetUpdates())
+	assert.Equal(t, []artifact.UpdateType{{Type: UpdateTypePtr("rootfs-image")}}, reader.GetUpdates())
 
 	handlers = reader.GetHandlers()
 	assert.Equal(t, 1, len(handlers))
 	handler = handlers[0]
-	assert.Equal(t, "rootfs-image", handler.GetUpdateType())
+	assert.Equal(t, "rootfs-image", *handler.GetUpdateType())
 
 	updProvides, err = handler.GetUpdateProvides()
 	require.NoError(t, err)
@@ -543,7 +548,7 @@ func TestWriteRootfsArtifactDependsAndProvidesOverrides(t *testing.T) {
 			handlers := reader.GetHandlers()
 			assert.Equal(t, 1, len(handlers))
 			handler := handlers[0]
-			assert.Equal(t, "rootfs-image", handler.GetUpdateType())
+			assert.Equal(t, "rootfs-image", *handler.GetUpdateType())
 
 			updProvides, err := handler.GetUpdateProvides()
 			require.NoError(t, err)

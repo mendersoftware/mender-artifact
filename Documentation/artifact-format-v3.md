@@ -198,8 +198,11 @@ to several distinct components to be contained in one Artifact. For example,
 there may be an update to a file, and a package install contained in the same
 Artifact. For full rootfs updates, there will usually be only one payload.
 
-`type` is the type of payload contained within the image. At the moment there is
-one built-in type, `rootfs-image`, and all other strings will trigger use of
+`type` is the type of payload contained within the image. At the moment there are
+two built-in types:
+1. `"rootfs-image"`, 
+2. `null` (used in [empty payload artifacts](#Empty-payload-artifacts)),
+and all other strings will trigger use of
 external update modules.
 
 The remaining entries in `header.tar.gz` are then organized in buckets under
@@ -486,3 +489,13 @@ Compression
 
 All file tree components ending in `.gz` in the tree displayed above should be
 compressed, and the suffix corresponds to the compression method.
+
+
+Empty payload artifacts
+===========
+
+Artifacts that contain so-called empty payloads which have some unique properties:
+* its payload type is `null`
+* `data/xxxx.tar.gz` archive must be missing or empty
+* do not contain any `meta-data` 
+* do not contain augmented artifacts nor their headers.

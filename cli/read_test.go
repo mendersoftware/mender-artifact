@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -190,6 +190,77 @@ Updates:
 	checkMenderArtifactRead(t, tmpdir, artfile, expectedRegex, cliContext)
 }
 
+func TestReadBootstrapArtifactOutput(t *testing.T) {
+	cliContext := getCliContext()
+
+	tmpdir, err := ioutil.TempDir("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+	artfile := filepath.Join(tmpdir, "bootstrap.mender")
+	args := []string{
+		"mender-artifact", "write", "bootstrap-artifact",
+		"-o", artfile,
+		"-n", "testName",
+		"-t", "testDevice",
+		"-g", "testGroupProvide",
+		"-G", "testGroupDepends1",
+		"-G", "testGroupDepends2",
+		"-p", "testProvideKey1:testProvideValue1",
+		"-p", "testProvideKey2:testProvideValue2",
+		"-p", "overrideProvideKey:originalOverrideProvideValue",
+		"-d", "testDependKey1:testDependValue1",
+		"-d", "testDependKey2:testDependValue2",
+		"-d", "overrideDependKey:originalOverrideDependValue",
+	}
+	err = cliContext.Run(args)
+	require.NoError(t, err)
+
+	oldStdout := os.Stdout
+	defer func() {
+		os.Stdout = oldStdout
+	}()
+
+	outputFile, err := os.OpenFile(filepath.Join(tmpdir, "output.log"),
+		os.O_RDWR|os.O_TRUNC|os.O_CREATE, 0644)
+	require.NoError(t, err)
+	os.Stdout = outputFile
+
+	args = []string{"mender-artifact", "read", artfile}
+	err = cliContext.Run(args)
+	assert.NoError(t, err)
+
+	outputFile.Seek(0, 0)
+	output, err := ioutil.ReadAll(outputFile)
+	outputFile.Close()
+	require.NoError(t, err)
+
+	assert.Contains(t, string(output), "Mender artifact:\n")
+	assert.Contains(t, string(output), "Name: testName\n")
+	assert.Contains(t, string(output), "Format: mender\n")
+	assert.Contains(t, string(output), "Version: 3\n")
+	assert.Contains(t, string(output), "Signature: no signature\n")
+	assert.Contains(t, string(output), "Compatible devices: '[testDevice]'\n")
+	assert.Contains(t, string(output), "Provides group: testGroupProvide\n")
+	assert.Contains(t, string(output), "Depends on one of artifact(s): []\n")
+	assert.Contains(t, string(output), "Provides group: testGroupProvide\n")
+	assert.Contains(t, string(output), "Depends on one of group(s): [testGroupDepends1, testGroupDepends2]\n")
+	assert.Contains(t, string(output), "State scripts:\n")
+
+	assert.Contains(t, string(output), "Updates:\n")
+	assert.Contains(t, string(output), "0:\n")
+	assert.Contains(t, string(output), "Type:   Empty type\n")
+	assert.Contains(t, string(output), "Provides:\n")
+	assert.Contains(t, string(output), "overrideProvideKey: originalOverrideProvideValue\n")
+	assert.Contains(t, string(output), "testProvideKey1: testProvideValue1\n")
+	assert.Contains(t, string(output), "testProvideKey2: testProvideValue2\n")
+	assert.Contains(t, string(output), "Depends:\n")
+	assert.Contains(t, string(output), "overrideDependKey: originalOverrideDependValue\n")
+	assert.Contains(t, string(output), "testDependKey1: testDependValue1\n")
+	assert.Contains(t, string(output), "testDependKey2: testDependValue2\n")
+	assert.Contains(t, string(output), "Metadata: Nothing\n")
+	assert.Contains(t, string(output), "Files: None\n")
+}
+
 func checkMenderArtifactRead(t *testing.T, tmpdir, artfile, expectedRegex string,
 	cliContext *cli.App) {
 
@@ -214,5 +285,5 @@ func checkMenderArtifactRead(t *testing.T, tmpdir, artfile, expectedRegex string
 
 	match, err := regexp.Match(expectedRegex, output)
 	require.NoError(t, err)
-	assert.True(t, match, fmt.Sprintf("%s\n--- DOESN'T MATCH ---\n%s", string(output), expectedRegex))
+	assert.True(t, match, fmt.Sprintf("\n%s\n--- DOESN'T MATCH ---\n%s", string(output), expectedRegex))
 }

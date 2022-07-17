@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2022 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -79,11 +79,16 @@ func writeRootfsImageChecksum(rootfsFilename string,
 
 func validateInput(c *cli.Context) error {
 	// Version 2 and 3 validation.
+	fileMissing := false
+	if c.Command.Name != "bootstrap-artifact" {
+		if len(c.String("file")) == 0 {
+			fileMissing = true
+		}
+	}
 	if len(c.StringSlice("device-type")) == 0 ||
-		len(c.String("artifact-name")) == 0 ||
-		len(c.String("file")) == 0 {
+		len(c.String("artifact-name")) == 0 || fileMissing {
 		return cli.NewExitError(
-			"must provide `device-type`, `artifact-name` and `update`",
+			"must provide `device-type`, `artifact-name` and `file`",
 			errArtifactInvalidParameters,
 		)
 	}
@@ -131,6 +136,118 @@ func createRootfsFromSSH(c *cli.Context) (string, error) {
 	}
 
 	return rootfsFilename, nil
+}
+
+func makeEmptyUpdates(ctx *cli.Context) (*awriter.Updates, error) {
+	handler := handlers.NewBootstrapArtifact()
+
+	dataFiles := make([](*handlers.DataFile), 0)
+	if err := handler.SetUpdateFiles(dataFiles); err != nil {
+		return nil, cli.NewExitError(
+			err,
+			1,
+		)
+	}
+
+	upd := &awriter.Updates{
+		Updates: []handlers.Composer{handler},
+	}
+	return upd, nil
+}
+
+func writeBootstrapArtifact(c *cli.Context) error {
+	comp, err := artifact.NewCompressorFromId(c.GlobalString("compression"))
+	if err != nil {
+		return cli.NewExitError(
+			"compressor '"+c.GlobalString("compression")+"' is not supported: "+err.Error(),
+			1,
+		)
+	}
+
+	if err := validateInput(c); err != nil {
+		Log.Error(err.Error())
+		return err
+	}
+
+	// set the default name
+	name := "artifact.mender"
+	if len(c.String("output-path")) > 0 {
+		name = c.String("output-path")
+	}
+	version := c.Int("version")
+
+	Log.Debugf("creating bootstrap artifact [%s], version: %d", name, version)
+
+	f, err := os.Create(name + ".tmp")
+	if err != nil {
+		return cli.NewExitError(
+			"can not create bootstrap artifact file: "+err.Error(),
+			errArtifactCreate,
+		)
+	}
+	defer func() {
+		f.Close()
+		// in case of success `.tmp` suffix will be removed and below
+		// will not remove valid artifact
+		os.Remove(name + ".tmp")
+	}()
+
+	aw, err := artifactWriter(c, comp, f, version)
+	if err != nil {
+		return cli.NewExitError(err.Error(), 1)
+	}
+
+	depends := artifact.ArtifactDepends{
+		ArtifactName:      c.StringSlice("artifact-name-depends"),
+		CompatibleDevices: c.StringSlice("device-type"),
+		ArtifactGroup:     c.StringSlice("depends-groups"),
+	}
+
+	provides := artifact.ArtifactProvides{
+		ArtifactName:  c.String("artifact-name"),
+		ArtifactGroup: c.String("provides-group"),
+	}
+
+	upd, err := makeEmptyUpdates(c)
+	if err != nil {
+		return err
+	}
+
+	typeInfoV3, _, err := makeTypeInfo(c)
+	if err != nil {
+		return err
+	}
+
+	if !c.Bool("no-progress") {
+		ctx, cancel := context.WithCancel(context.Background())
+		go reportProgress(ctx, aw.State)
+		defer cancel()
+		aw.ProgressWriter = utils.NewProgressWriter()
+	}
+
+	err = aw.WriteArtifact(
+		&awriter.WriteArtifactArgs{
+			Format:     "mender",
+			Version:    version,
+			Devices:    c.StringSlice("device-type"),
+			Name:       c.String("artifact-name"),
+			Updates:    upd,
+			Scripts:    nil,
+			Depends:    &depends,
+			Provides:   &provides,
+			TypeInfoV3: typeInfoV3,
+			Bootstrap:  true,
+		})
+	if err != nil {
+		return cli.NewExitError(err.Error(), 1)
+	}
+
+	f.Close()
+	err = os.Rename(name+".tmp", name)
+	if err != nil {
+		return cli.NewExitError(err.Error(), 1)
+	}
+	return nil
 }
 
 func writeRootfs(c *cli.Context) error {
@@ -403,8 +520,13 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 		return nil, nil, err
 	}
 
+	var typeInfo *string
+	if ctx.Command.Name != "bootstrap-artifact" {
+		typeFlag := ctx.String("type")
+		typeInfo = &typeFlag
+	}
 	typeInfoV3 := &artifact.TypeInfoV3{
-		Type:                   ctx.String("type"),
+		Type:                   typeInfo,
 		ArtifactDepends:        typeInfoDepends,
 		ArtifactProvides:       typeInfoProvides,
 		ClearsArtifactProvides: clearsArtifactProvides,
@@ -424,8 +546,9 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 		return typeInfoV3, nil, nil
 	}
 
+	augmentType := ctx.String("augment-type")
 	augmentTypeInfoV3 := &artifact.TypeInfoV3{
-		Type:             ctx.String("augment-type"),
+		Type:             &augmentType,
 		ArtifactDepends:  augmentTypeInfoDepends,
 		ArtifactProvides: augmentTypeInfoProvides,
 	}
@@ -480,6 +603,9 @@ func applySoftwareVersionToTypeInfoProvides(
 	if ctx.Command.Name == "module-image" {
 		softwareNameDefault = ctx.String("type")
 	}
+	if ctx.Command.Name == "bootstrap-artifact" {
+		return result
+	}
 	softwareVersion := ctx.String(softwareVersionFlag)
 	noDefaultSoftwareVersion := ctx.Bool(noDefaultSoftwareVersionFlag)
 	if softwareVersionMapping := getSoftwareVersion(
@@ -524,7 +650,9 @@ func softwareVersionOverridesProvides(ctx *cli.Context, key string) bool {
 func makeClearsArtifactProvides(ctx *cli.Context) ([]string, error) {
 	list := ctx.StringSlice(clearsProvidesFlag)
 
-	if ctx.Bool(noDefaultClearsProvidesFlag) || ctx.Bool(noDefaultSoftwareVersionFlag) {
+	if ctx.Bool(noDefaultClearsProvidesFlag) ||
+		ctx.Bool(noDefaultSoftwareVersionFlag) ||
+		ctx.Command.Name == "bootstrap-artifact" {
 		return list, nil
 	}
 
