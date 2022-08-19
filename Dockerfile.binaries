@@ -6,10 +6,10 @@ RUN apt-get update && \
         musl-dev liblzma-dev
 RUN mkdir -p /go/src/github.com/mendersoftware/mender-artifact
 WORKDIR /go/src/github.com/mendersoftware/mender-artifact
-ADD ./ .
+COPY ./ .
 RUN make build-natives
 
 FROM alpine:3.14.0
-RUN apk add xz-dev
+RUN apk add --no-cache libc6-compat xz-dev
 COPY --from=builder /go/src/github.com/mendersoftware/mender-artifact/mender-artifact* /go/bin/
 ENTRYPOINT [ "/go/bin/mender-artifact-linux" ]
