@@ -58,13 +58,13 @@ build-natives:
 
 build-contained:
 	rm -f mender-artifact && \
-	image_id=$$(docker build -f Dockerfile . | awk '/Successfully built/{print $$NF;}') && \
+	image_id=$$(docker build -f Dockerfile -q .) && \
 	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact /binary" && \
 	docker image rm $$image_id
 
 build-natives-contained:
-	rm -f mender-artifact && \
-	image_id=$$(docker build -f Dockerfile.binaries . | awk '/Successfully built/{print $$NF;}') && \
+	rm -f mender-artifact-darwin mender-artifact-linux mender-artifact-windows.exe && \
+	image_id=$$(docker build -f Dockerfile.binaries -q .) && \
 	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact* /binary" && \
 	docker image rm $$image_id
 
