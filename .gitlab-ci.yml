@@ -28,7 +28,7 @@ variables:
    DOCKER_REPOSITORY: mendersoftware/mender-artifact
    S3_BUCKET_NAME: "mender"
    S3_BUCKET_PATH: "mender-artifact"
-
+   DOCKER_BUILDKIT: 1
 
 build:docker:
   image: docker
