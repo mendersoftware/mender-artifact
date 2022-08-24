@@ -95,7 +95,7 @@ test:smoketests:linux:
       artifacts: true
   image: golang:1.15-buster
   before_script:
-    - apt-get update && apt-get install -q -y make liblzma-dev
+    - apt-get update && apt-get install -q -y make liblzma-dev libssl-dev
   script:
     - touch test.txt
     - ./mender-artifact-linux
@@ -126,7 +126,7 @@ test:unit:linux:
   variables:
     COVERAGE_FILE: coverage-linux.txt
   before_script:
-    - apk update && apk add git make bash dosfstools e2fsprogs e2fsprogs-extra gcc libc6-compat mtools musl-dev parted perl-utils xz-dev
+    - apk update && apk add git make bash dosfstools e2fsprogs e2fsprogs-extra gcc libc6-compat mtools musl-dev parted perl-utils xz-dev libressl-dev openssl-dev
 
 test:unit:mac:
   extends: .test:unit
