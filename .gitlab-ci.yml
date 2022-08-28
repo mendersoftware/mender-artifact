@@ -12,7 +12,7 @@ include:
   - project: 'Northern.tech/Mender/mendertesting'
     file: '.gitlab-ci-check-license.yml'
 
-image: golang:1.14-alpine3.11
+image: golang:1.18-alpine3.16
 
 cache:
   paths:
@@ -91,7 +91,7 @@ test:smoketests:linux:
   needs:
     - job: build:make
       artifacts: true
-  image: golang:1.15-buster
+  image: golang:1.18-buster
   before_script:
     - apt-get update && apt-get install -q -y make liblzma-dev
   script:
