@@ -126,7 +126,7 @@ type SigningKey interface {
 
 func getKey(c *cli.Context) (SigningKey, error) {
 	var chosenOptions []string
-	possibleOptions := []string{"key", "gcp-kms-key", "vault-transit-key"}
+	possibleOptions := []string{"key", "gcp-kms-key", "vault-transit-key", "key-pkcs11"}
 	for _, optName := range possibleOptions {
 		if c.String(optName) == "" {
 			continue
@@ -172,6 +172,8 @@ func getKey(c *cli.Context) (SigningKey, error) {
 		return gcp.NewKMSSigner(context.TODO(), c.String("gcp-kms-key"))
 	case "vault-transit-key":
 		return vault.NewVaultSigner(c.String("vault-transit-key"))
+	case "key-pkcs11":
+		return artifact.NewPKCS11Signer(c.String("key-pkcs11"))
 	default:
 		return nil, fmt.Errorf("unsupported signing key type %q", chosenOption)
 	}

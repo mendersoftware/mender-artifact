@@ -142,6 +142,11 @@ func getCliContext() *cli.App {
 			"to sign can be specified with VAULT_KEY_VERSION environment variable.",
 	}
 
+	pkcs11Flag := cli.StringFlag{
+		Name:  "key-pkcs11, p",
+		Usage: "Use PKCS#11 interface to sign and verify artifacts",
+	}
+
 	publicKeyFlag := cli.StringFlag{
 		Name: "key, k",
 		Usage: "Full path to the public key that will be used to verify " +
@@ -466,6 +471,7 @@ func getCliContext() *cli.App {
 			publicKeyFlag,
 			gcpKMSKeyFlag,
 			vaultTransitKeyFlag,
+			pkcs11Flag,
 		},
 	}
 
@@ -515,6 +521,7 @@ func getCliContext() *cli.App {
 			Name:  "force, f",
 			Usage: "Force creating new signature if the artifact is already signed",
 		},
+		pkcs11Flag,
 	}
 
 	//

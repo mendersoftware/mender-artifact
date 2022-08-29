@@ -1,1 +1,2 @@
 liblzma-dev
+libssl-dev
