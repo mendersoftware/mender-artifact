@@ -1,8 +1,10 @@
-FROM golang:1.18 as builder
+# This should be switched back to golang-x.xx at some point, but make sure it
+# has libssl.so.3 before doing so.
+FROM ubuntu:22.04 as builder
 RUN apt-get update && \
     apt-get install -y \
     gcc gcc-mingw-w64 gcc-multilib \
-    git make \
+    git make golang-1.18 golang \
     musl-dev liblzma-dev libssl-dev
 RUN mkdir -p /go/src/github.com/mendersoftware/mender-artifact
 WORKDIR /go/src/github.com/mendersoftware/mender-artifact
