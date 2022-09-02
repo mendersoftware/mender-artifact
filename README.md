@@ -37,12 +37,12 @@ section in [the Mender documentation](https://docs.mender.io/).
 
 ## Using the library
 
-You can use the parser and reader in go in the standard way:
+You can use the reader and the writer in go in the standard way:
 
 ```
 import (
-        "github.com/mendersoftware/mender-artifact/parser"
-        "github.com/mendersoftware/mender-artifact/reader"
+        "github.com/mendersoftware/mender-artifact/areader"
+        "github.com/mendersoftware/mender-artifact/awriter"
 ...
 )
 ```
