@@ -13,10 +13,10 @@ require (
 	github.com/minio/sha256-simd v1.0.0
 	github.com/pkg/errors v0.9.1
 	github.com/remyoudompheng/go-liblzma v0.0.0-20190506200333-81bf2d431b96
-	github.com/sirupsen/logrus v1.8.1
+	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.0
 	github.com/urfave/cli v1.22.10
-	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27
+	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8
 	google.golang.org/genproto v0.0.0-20220207164111-0872dc986b00
 	google.golang.org/protobuf v1.27.1
 )
