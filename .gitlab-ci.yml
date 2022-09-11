@@ -98,6 +98,9 @@ test:smoketests:linux:
     - apt-get update && apt-get install -q -y make liblzma-dev libssl-dev
   script:
     - touch test.txt
+    - export TEST_MENDER_ARTIFACT_PATH=./mender-artifact-linux
+    - curl https://raw.githubusercontent.com/mendersoftware/mendertesting/master/ci_tests/mender-artifact/test_sign_with_hsm/get-and-run.sh -o run.sh
+    - bash run.sh
     - ./mender-artifact-linux
     - ./mender-artifact-linux --version
     - ./mender-artifact-linux write module-image -t test -o test.mender -T script -n test -f test.txt
