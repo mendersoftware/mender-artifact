@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	cloud.google.com/go/kms v1.3.0
-	github.com/googleapis/gax-go/v2 v2.1.1
+	github.com/googleapis/gax-go/v2 v2.5.1
 	github.com/hashicorp/vault/api v1.2.0
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/klauspost/pgzip v1.2.5
@@ -17,6 +17,6 @@ require (
 	github.com/stretchr/testify v1.8.0
 	github.com/urfave/cli v1.22.10
 	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8
-	google.golang.org/genproto v0.0.0-20220207164111-0872dc986b00
+	google.golang.org/genproto v0.0.0-20220722212130-b98a9ff5e252
 	google.golang.org/protobuf v1.28.1
 )
