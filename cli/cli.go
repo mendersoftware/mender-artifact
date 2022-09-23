@@ -143,7 +143,7 @@ func getCliContext() *cli.App {
 	}
 
 	pkcs11Flag := cli.StringFlag{
-		Name:  "key-pkcs11, p",
+		Name:  "key-pkcs11",
 		Usage: "Use PKCS#11 interface to sign and verify artifacts",
 	}
 
