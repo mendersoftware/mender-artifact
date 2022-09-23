@@ -138,12 +138,12 @@ func getCliContext() *cli.App {
 		Usage: "Key name of the Hashicorp Vault transit key that will be used to sign " +
 			"the Artifact. VAULT_TOKEN and VAULT_MOUNT_PATH environment variables " +
 			"needs to be provided. The default Hashicorp Vault URL can be overridden with " +
-			"VAULT_ADDR environment variable. If key rotation is used, the key version" +
+			"VAULT_ADDR environment variable. If key rotation is used, the key version " +
 			"to sign can be specified with VAULT_KEY_VERSION environment variable.",
 	}
 
 	pkcs11Flag := cli.StringFlag{
-		Name:  "key-pkcs11, p",
+		Name:  "key-pkcs11",
 		Usage: "Use PKCS#11 interface to sign and verify artifacts",
 	}
 
@@ -489,6 +489,7 @@ func getCliContext() *cli.App {
 			publicKeyFlag,
 			gcpKMSKeyFlag,
 			vaultTransitKeyFlag,
+			pkcs11Flag,
 			cli.BoolFlag{
 				Name:  "no-progress",
 				Usage: "Suppress the progressbar output",
