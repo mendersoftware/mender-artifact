@@ -489,6 +489,7 @@ func getCliContext() *cli.App {
 			publicKeyFlag,
 			gcpKMSKeyFlag,
 			vaultTransitKeyFlag,
+			pkcs11Flag,
 			cli.BoolFlag{
 				Name:  "no-progress",
 				Usage: "Suppress the progressbar output",
