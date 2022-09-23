@@ -79,7 +79,22 @@ EOF
         -v menderartifact="${mender_artifact}" \
         -v artifact="$artifact" \
         '/URL/{ rc=system(menderartifact" sign --key-pkcs11 \""$NF";pin-value="pin"\" "artifact); exit(rc); }' && log PASSED
-    "${mender_artifact}" \
-    read \
-    "$artifact" | awk '/Signature: /{ if ($2=="signed") { exit(0); } else { exit(1); } }'
+    p11tool \
+        --login \
+        --provider=/usr/lib/softhsm/libsofthsm2.so \
+        --set-pin="$pin" \
+        --list-all-privkeys | awk \
+        -v pin="$pin" \
+        -v menderartifact="${mender_artifact}" \
+        -v artifact="$artifact" \
+        '/URL/{ rc=system(menderartifact" validate --key-pkcs11 \""$NF";pin-value="pin"\" "artifact); exit(rc); }' && log PASSED
+    p11tool \
+        --login \
+        --provider=/usr/lib/softhsm/libsofthsm2.so \
+        --set-pin="$pin" \
+        --list-all-privkeys | awk \
+        -v pin="$pin" \
+        -v menderartifact="${mender_artifact}" \
+        -v artifact="$artifact" \
+        '/URL/{ rc=system(menderartifact" read --key-pkcs11 \""$NF";pin-value="pin"\" "artifact); exit(rc); }' | grep -q "Signature: signed and verified correctly"
 }
