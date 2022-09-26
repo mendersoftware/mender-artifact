@@ -35,6 +35,7 @@ function debian_setup() {
     export SOFTHSM2_CONF=/softhsm/softhsm2.conf
     softhsm2-util --init-token --free --label unittoken1 --pin "$pin" --so-pin "$sopin"
     openssl genrsa -out "${TEST_CONFIG[privatekey_path]}" "${TEST_CONFIG[keylen]}"
+    openssl rsa -in "${TEST_CONFIG[privatekey_path]}" -pubout > "${TEST_CONFIG[publickey_path]}"
     pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so --login --pin "$pin" --write-object "${TEST_CONFIG[privatekey_path]}" --type privkey --id 0909 --label privatekey
     p11tool --login --provider=/usr/lib/softhsm/libsofthsm2.so --set-pin="$pin" --list-all-privkeys
 }
@@ -79,6 +80,7 @@ EOF
         -v menderartifact="${mender_artifact}" \
         -v artifact="$artifact" \
         '/URL/{ rc=system(menderartifact" sign --key-pkcs11 \""$NF";pin-value="pin"\" "artifact); exit(rc); }' && log PASSED
+    # read and validate the artifact using PKCS#11
     p11tool \
         --login \
         --provider=/usr/lib/softhsm/libsofthsm2.so \
@@ -96,5 +98,8 @@ EOF
         -v pin="$pin" \
         -v menderartifact="${mender_artifact}" \
         -v artifact="$artifact" \
-        '/URL/{ rc=system(menderartifact" read --key-pkcs11 \""$NF";pin-value="pin"\" "artifact); exit(rc); }' | grep -q "Signature: signed and verified correctly"
+        '/URL/{ rc=system(menderartifact" read --key-pkcs11 \""$NF";pin-value="pin"\" "artifact); exit(rc); }' | grep -q "Signature: signed and verified correctly" && log PASSED
+    # read and validate the artifact using the public key from a file
+    "${mender_artifact}" validate --key "${TEST_CONFIG[publickey_path]}" "$artifact" && log PASSED
+    "${mender_artifact}" read --key "${TEST_CONFIG[publickey_path]}" "$artifact" | grep -q "Signature: signed and verified correctly" && log PASSED
 }

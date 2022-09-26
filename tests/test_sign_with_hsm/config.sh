@@ -18,6 +18,7 @@ declare -A TEST_CONFIG=(
     [pin]="0001"
     [keylen]="2048"
     [privatekey_path]="/tmp/private.key"
+    [publickey_path]="/tmp/public.key"
     [artifact]="/tmp/ci-artifact.mender"
     [mender_artifact]="${TEST_MENDER_ARTIFACT_PATH}"
 )
