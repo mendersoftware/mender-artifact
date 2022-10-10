@@ -28,3 +28,4 @@ _testmain.go
 /mender-artifact
 /mender-artifact-darwin
 /mender-artifact-linux
+/mender-artifact-linux-coverage

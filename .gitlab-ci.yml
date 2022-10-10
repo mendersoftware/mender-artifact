@@ -70,6 +70,21 @@ build:make:
     DOCKER_TLS_VERIFY: "1"
     DOCKER_TLS_CERTDIR: "/certs"
 
+build:coverage:
+  stage: build
+  image: docker
+  needs: []
+  services:
+    - docker:dind
+  before_script:
+    - apk add --no-cache make
+  script:
+    - make build-natives-coverage-contained
+  artifacts:
+    expire_in: 2w
+    paths:
+      - mender-artifact-linux-coverage
+
 test:smoketests:mac:
   stage: test
   needs:
@@ -97,10 +112,11 @@ test:smoketests:linux:
   image: golang:1.18-buster
   before_script:
     - apt-get update && apt-get install -q -y make liblzma-dev libssl-dev
-    - bash tests/test_sign_with_hsm/test_sign_with_hsm.sh --setup
+    - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh --setup
+    - export TEST_MENDER_ARTIFACT_PATH=./mender-artifact-linux
   script:
     - touch test.txt
-    - TEST_MENDER_ARTIFACT_PATH=./mender-artifact-linux bash tests/test_sign_with_hsm/test_sign_with_hsm.sh
+    - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh
     - ./mender-artifact-linux
     - ./mender-artifact-linux --version
     - ./mender-artifact-linux write module-image -t test -o test.mender -T script -n test -f test.txt
@@ -111,10 +127,36 @@ test:smoketests:linux:
     - ./mender-artifact-linux validate test-rfs.mender
     - make build
 
+test:pkcs:linux:
+  stage: test
+  image: golang:1.18-buster
+  rules:
+    - if: '$CI_COMMIT_BRANCH =~ /^*$/'
+  needs:
+    - job: build:coverage
+      artifacts: true
+  variables:
+    COVERAGE_FILE: coverage-linux-pkcs.txt
+  before_script:
+    - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh --setup
+    - export TEST_MENDER_ARTIFACT_PATH=./mender-artifact-linux-coverage
+  script:
+    - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh
+  after_script:
+    - set -- coverage@*.txt
+    - |
+      for cover in $@; do
+        tail -n +2 $cover >> ${COVERAGE_FILE}
+      done
+  artifacts:
+    expire_in: 2w
+    untracked: true
+    paths:
+      - ${COVERAGE_FILE}
+
 .test:unit:
   stage: test
   needs: []
-
   script:
     - make coverage
     - mv coverage.txt $CI_PROJECT_DIR/$COVERAGE_FILE
@@ -149,6 +191,8 @@ publish:tests:
       artifacts: true
     - job: test:unit:mac
       artifacts: true
+    - job: test:pkcs:linux
+      artifacts: true
   variables:
     COVERALLS_WEBHOOK_URL: "https://coveralls.io/webhook"
   before_script:
@@ -165,6 +209,7 @@ publish:tests:
     - export CI_BRANCH=${CI_COMMIT_BRANCH}
     - export CI_PR_NUMBER=${CI_COMMIT_BRANCH#pr_}
   script:
+    - if [[ -f coverage-linux.txt && -f coverage-linux-pkcs.txt ]]; then cat coverage-linux-pkcs.txt >> coverage-linux.txt; fi
     # Submit coverage from all platforms.
     - for PLATFORM in linux mac; do
     - goveralls

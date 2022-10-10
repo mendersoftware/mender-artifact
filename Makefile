@@ -32,6 +32,9 @@ TAGS =
 ifeq ($(LOCAL),1)
 TAGS += local
 endif
+ifeq ($(MAIN),1)
+TAGS += main
+endif
 
 ifneq ($(TAGS),)
 BUILDTAGS = -tags '$(TAGS)'
@@ -43,6 +46,11 @@ build:
 PLATFORMS := darwin linux windows
 
 GO_LDFLAGS_WIN = -ldflags "-X github.com/mendersoftware/mender-artifact/cli.Version=$(VERSION) -linkmode=internal -s -w -extldflags '-static' -extld=x86_64-w64-mingw32-gcc"
+
+build-natives-coverage:
+	@arch="amd64";
+	@env GOOS=linux GOARCH=$$arch $(GO) test $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) \
+		-c -o $(PKGNAME)-linux-coverage -cover -covermode=set -coverpkg=$(SUBPKGS);
 
 build-natives:
 	@arch="amd64";
@@ -65,6 +73,12 @@ build-contained:
 build-natives-contained:
 	rm -f mender-artifact-darwin mender-artifact-linux mender-artifact-windows.exe && \
 	image_id=$$(docker build -f Dockerfile.binaries -q .) && \
+	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact* /binary" && \
+	docker image rm $$image_id
+
+build-natives-coverage-contained:
+	rm -f mender-artifact-linux-coverage && \
+	image_id=$$(docker build -f Dockerfile.binaries.coverage -q .) && \
 	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact* /binary" && \
 	docker image rm $$image_id
 
