@@ -70,6 +70,23 @@ build:make:
     DOCKER_TLS_VERIFY: "1"
     DOCKER_TLS_CERTDIR: "/certs"
 
+build:coverage:
+  stage: build
+  image: docker
+  needs: []
+  services:
+    - docker:dind
+  before_script:
+    - apk add --no-cache make
+    - make instrument-binary-contained
+  script:
+    - make build-contained
+    - mv mender-artifact mender-artifact-linux-coverage
+  artifacts:
+    expire_in: 2w
+    paths:
+      - mender-artifact-linux-coverage
+
 test:smoketests:mac:
   stage: test
   needs:
@@ -111,6 +128,32 @@ test:smoketests:linux:
     - ./mender-artifact-linux validate test-rfs.mender
     - make build
 
+test:coverage:linux:
+  stage: test
+  image: golang:1.18-buster
+  needs:
+    - job: build:coverage
+      artifacts: true
+  variables:
+    COVERAGE_FILE: coverage-linux-pkcs.txt
+  before_script:
+    - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh --setup
+    - export TEST_MENDER_ARTIFACT_PATH=./mender-artifact-linux-coverage
+  script:
+    - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh
+  after_script:
+    - set -- /tmp/coverage-artifact*.out
+    - head -n 1 $1 > ${COVERAGE_FILE}
+    - |
+      for cover in $@; do
+        tail -n +2 $cover >> ${COVERAGE_FILE}
+      done
+  artifacts:
+    expire_in: 2w
+    untracked: true
+    paths:
+      - ${COVERAGE_FILE}
+
 .test:unit:
   stage: test
   needs: []
@@ -149,6 +192,8 @@ publish:tests:
       artifacts: true
     - job: test:unit:mac
       artifacts: true
+    - job: test:coverage:linux
+      artifacts: true
   variables:
     COVERALLS_WEBHOOK_URL: "https://coveralls.io/webhook"
   before_script:
@@ -165,6 +210,7 @@ publish:tests:
     - export CI_BRANCH=${CI_COMMIT_BRANCH}
     - export CI_PR_NUMBER=${CI_COMMIT_BRANCH#pr_}
   script:
+    - if [[ -f coverage-linux.txt && -f coverage-linux-pkcs.txt ]]; then tail -n +2 coverage-linux-pkcs.txt >> coverage-linux.txt; fi
     # Submit coverage from all platforms.
     - for PLATFORM in linux mac; do
     - goveralls
