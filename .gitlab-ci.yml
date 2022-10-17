@@ -114,10 +114,11 @@ test:smoketests:linux:
   image: golang:1.18-buster
   before_script:
     - apt-get update && apt-get install -q -y make liblzma-dev libssl-dev
-    - bash tests/test_sign_with_hsm/test_sign_with_hsm.sh --setup
+    - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh --setup
+    - export TEST_MENDER_ARTIFACT_PATH=./mender-artifact-linux
   script:
     - touch test.txt
-    - TEST_MENDER_ARTIFACT_PATH=./mender-artifact-linux bash tests/test_sign_with_hsm/test_sign_with_hsm.sh
+    - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh
     - ./mender-artifact-linux
     - ./mender-artifact-linux --version
     - ./mender-artifact-linux write module-image -t test -o test.mender -T script -n test -f test.txt
