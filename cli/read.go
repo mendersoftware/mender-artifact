@@ -157,7 +157,7 @@ func printPayload(index int, p handlers.Installer) {
 	fmt.Printf("    Provides:")
 	if err != nil {
 		fmt.Printf(" Invalid provides section: %s\n", err.Error())
-	} else if provides == nil || len(provides) == 0 {
+	} else if len(provides) == 0 {
 		fmt.Printf(" Nothing\n")
 	} else {
 		providesKeys := sortedKeys(provides)
@@ -172,7 +172,7 @@ func printPayload(index int, p handlers.Installer) {
 	fmt.Printf("    Depends:")
 	if err != nil {
 		fmt.Printf(" Invalid depends section: %s\n", err.Error())
-	} else if depends == nil || len(depends) == 0 {
+	} else if len(depends) == 0 {
 		fmt.Printf(" Nothing\n")
 	} else {
 		dependsKeys := sortedKeys(depends)
