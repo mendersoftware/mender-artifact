@@ -123,16 +123,19 @@ cover: coverage
 htmlcover: coverage
 	$(GO) tool cover -html=coverage.txt
 
+instrument-binary-contained:
+	docker run --rm --name instrument-binary --entrypoint "/bin/sh" -v $(shell pwd):/go/src/github.com/mendersoftware/mender-artifact golang:1.18 -c "cd /go/src/github.com/mendersoftware/mender-artifact && go install github.com/mendersoftware/gobinarycoverage@latest && make instrument-binary"
+
 instrument-binary:
 	git apply patches/0001-Instrument-with-coverage.patch
 	gobinarycoverage github.com/mendersoftware/mender-artifact
 
 coverage:
 	rm -f coverage.txt
-	echo 'mode: set' > coverage.txt
+	echo 'mode: count' > coverage.txt
 	set -e ; for p in $(PKGS); do \
 		rm -f coverage-tmp.txt;  \
-		$(GO) test -coverprofile=coverage-tmp.txt -coverpkg=$(SUBPKGS) $$p ; \
+		$(GO) test -covermode=count -coverprofile=coverage-tmp.txt -coverpkg=$(SUBPKGS) $$p ; \
 		if [ -f coverage-tmp.txt ]; then \
 			cat coverage-tmp.txt |grep -v 'mode:' | cat >> coverage.txt; \
 		fi; \
