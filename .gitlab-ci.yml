@@ -160,6 +160,13 @@ test:coverage:linux:
   needs: []
 
   script:
+    - echo $PATH
+    - echo $SHELL
+    - whoami
+    - go version
+    - ls /usr/local/sbin
+    - which fsck.ext4
+    - go tool list dist list
     - make coverage
     - mv coverage.txt $CI_PROJECT_DIR/$COVERAGE_FILE
   artifacts:
