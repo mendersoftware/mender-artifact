@@ -100,6 +100,10 @@ get-tools:
 	done
 	go mod vendor
 
+get-build-deps:
+	apt-get update -qq
+	apt-get install -yyq $(shell cat deb-requirements.txt)
+
 check: test extracheck
 
 tooldep:
