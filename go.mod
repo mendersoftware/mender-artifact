@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	cloud.google.com/go/kms v1.5.0
-	github.com/googleapis/gax-go/v2 v2.6.0
+	github.com/googleapis/gax-go/v2 v2.7.0
 	github.com/hashicorp/vault/api v1.8.2
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/klauspost/pgzip v1.2.5
