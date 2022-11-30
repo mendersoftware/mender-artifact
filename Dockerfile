@@ -1,4 +1,4 @@
-FROM golang:1.18 as builder
+FROM golang:1.19 as builder
 RUN mkdir -p /go/src/github.com/mendersoftware/mender-artifact
 WORKDIR /go/src/github.com/mendersoftware/mender-artifact
 ADD ./ .
