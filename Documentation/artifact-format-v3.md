@@ -23,7 +23,7 @@ in the "Ordering" section.
   |
   +---manifest-augment
   |
-  +---header.tar.gz (tar format)
+  +---header.tar[.gz|.xz] (Optionally compressed)
   |    |
   |    +---header-info
   |    |
@@ -48,7 +48,7 @@ in the "Ordering" section.
   |         |
   |         `---000n ...
   |
-  +---header-augment.tar.gz (tar format)
+  +---header-augment.tar[.gz|.xz] (Optionally compressed)
   |    |
   |    +---header-info
   |    |
@@ -68,17 +68,17 @@ in the "Ordering" section.
   |
   `---data
        |
-       +---0000.tar.gz
+       +---0000.tar.[.gz|.xz] (Optionally compressed)
        |    +--<image-file (ext4)>
        |    +--<binary delta, etc>
        |    `--...
        |
-       +---0001.tar.gz
+       +---0001.tar[.gz|.xz] (Optionally compressed)
        |    +--<image-file (ext4)>
        |    +--<binary delta, etc>
        |    `--...
        |
-       +---000n.tar.gz ...
+       +---000n.tar[.gz|.xz] (Optionally compressed) ...
             `--...
 ```
 
@@ -114,10 +114,9 @@ Contains file checksums, formatted exactly like below:
 52c76ab66947278a897c2a6df8b4d77badfa343fec7ba3b2983c2ecbbb041a35  version
 ```
 
-The manifest file contains checksums of compressed header, version and the
-data files being a part of the Artifact. The format matches the output of
-`sha256sum` tool which is the sum and the name of the file separated by
-the two spaces.
+The manifest file contains checksums of the header, version and the data files
+that are part of the Artifact. The format matches the output of `sha256sum` tool
+which is the sum and the name of the file separated by the two spaces.
 
 
 manifest.sig
@@ -151,7 +150,7 @@ payload of the file being a part of the Artifact) and the header-augment.tar.gz
 file checksum.
 
 
-header.tar.gz
+header.tar[.gz|.xz] (Optionally compressed)
 -------------
 
 Format: tar
@@ -164,7 +163,8 @@ Why is there a tar file inside a tar file? See the "Ordering" section.
 
 Format: JSON
 
-`header-info` must be the first file within `header.tar.gz`. Its content is:
+`header-info` must be the first file within `header.tar[.gz|.xz] (Optionally
+compressed)`. Its content is:
 
 ```
 {
@@ -200,12 +200,12 @@ Artifact. For full rootfs updates, there will usually be only one payload.
 
 `type` is the type of payload contained within the image. At the moment there are
 two built-in types:
-1. `"rootfs-image"`, 
+1. `"rootfs-image"`,
 2. `null` (used in [empty payload artifacts](#Empty-payload-artifacts)),
 and all other strings will trigger use of
 external update modules.
 
-The remaining entries in `header.tar.gz` are then organized in buckets under
+The remaining entries in `header.tar[.gz|.xz]` are then organized in buckets under
 `headers/xxxx` folders, where `xxxx` are four digits, starting from zero, and
 corresponding to each element `payloads` inside `header-info`, in order. The
 following sub sections define each field under each such bucket.
@@ -373,12 +373,12 @@ For more information about the script and state API, see the official Mender
 documentation.
 
 
-header-augment.tar.gz
+header-augment.tar[.gz|.xz] (Optionally compressed)
 -------------
 
 Format: tar
 
-This file is complementing the information contained in the header.tar.gz.
+This file is complementing the information contained in the header.tar[.gz|.xz].
 It can have the same structure as header.tar.gz, but for security reasons
 (this file is not signed) only certain files and parameters are allowed.
 
@@ -398,7 +398,7 @@ These files and attributes are allowed:
   }
   ```
   The `payloads` attribute is expected to be in the same order as the original
-  in `header.tar.gz`, and will override it. An empty string can be used to
+  in `header.tar[.gz|.xz]`, and will override it. An empty string can be used to
   disable overriding for that entry, which may be necessary in order to get
   indexing right if some entries are overriden, but not all.
 
@@ -431,7 +431,7 @@ cases it is expected that the payload type in question will receive the update
 data by using alternative means, such as providing a download link in
 `type-info` or `meta-data`.
 
-Each file in the `data` folder should be a file of the format `xxxx.tar.gz`,
+Each file in the `data` folder should be a file of the format `xxxx.tar[.gz|.xz]`,
 where `xxxx` are four digits corresponding to each entry in the `payloads` list
 in `header-info`, in order. If any file appears in the data directory that
 doesn't have a corresponding header number (e.g. "0000"), or if any file inside
@@ -451,33 +451,33 @@ file:
 | `manifest`                | After `version`                |
 | `manifest.sig`            | Optional after `manifest`      |
 | `manifest-augment`        | Optional after `manifest.sig`  |
-| `header.tar.gz`           | After all manifest files       |
-| `header-augment.tar.gz`   | Optional after `header.tar.gz` |
-| `data`                    | After `header.tar.gz`          |
+| `header.tar[.gz|.xz]`           | After all manifest files       |
+| `header-augment.tar[.gz|.xz]`   | Optional after `header.tar[.gz|.xz]` |
+| `data`                    | After `header.tar[.gz|.xz]`          |
 
-For the embedded `header.tar.gz` file:
+For the embedded `header.tar[.gz|.xz]` file:
 
 | File/Directory  | Ordering rule                 |
 |-----------------|-------------------------------|
-| `header-info`   | First in `header.tar.gz` file |
+| `header-info`   | First in `header.tar[.gz|.xz]` file |
 | `scripts`       | Optional after `header-info`  |
 | `headers`       | After `scripts`               |
 | `type-info`     | First in every `xxxx` bucket  |
 | `meta-data`     | After `type-info`             |
 
-The fact that many files/directories inside `header.tar.gz` have ambiguous rules
+The fact that many files/directories inside `header.tar[.gz|.xz]` have ambiguous rules
 (`checksums` can be before or after `signatures`) implies that the order is not
 strictly enforced for these entries. The client is expected to cache what it
 needs during reading of `header.tar.gz` even if reading out-of-order, and then
-assembling the pieces when `header.tar.gz` has been completely read.
+assembling the pieces when `header.tar[.gz|.xz]` has been completely read.
 
-So why do we have the `header.tar.gz` tar file inside another tar file? The reason
+So why do we have the `header.tar[.gz|.xz]` tar file inside another tar file? The reason
 is that order is important, and the files in the `data` directory need to come
 last in order for the download to be efficient (by the time the main image
 arrives, the client must already know everything in the header). Since the
 number of files in the header can vary depending on what scripts are used and
 whether signatures are enabled for example, it is better to group these together
-in one indivisible unit which is the `header.tar.gz` file, rather than being
+in one indivisible unit which is the `header.tar[.gz|.xz]` file, rather than being
 "surprised" by a signature file that arrives after the data file. All this is
 not a problem as long as the mender tool is used to manipulate the
 `artifact.mender` file, but if anyone does a custom modification using regular
@@ -487,7 +487,13 @@ tar, this is important.
 Compression
 ===========
 
-All file tree components ending in `.gz` in the tree displayed above should be
+Compression of the Artifact is optional, in which case the sub-files in the tar
+file has no suffix. For example `header.tar`.
+
+The default during Artifact creation is `.gz`(gzip) compression, but `.xz`(lzma)
+is also supported.
+
+All file tree components ending in `.gz|.xz` in the tree displayed above can be
 compressed, and the suffix corresponds to the compression method.
 
 
@@ -496,6 +502,6 @@ Empty payload artifacts
 
 Artifacts that contain so-called empty payloads which have some unique properties:
 * its payload type is `null`
-* `data/xxxx.tar.gz` archive must be missing or empty
-* do not contain any `meta-data` 
+* `data/xxxx.tar[.gz|.xz]` archive must be missing or empty
+* do not contain any `meta-data`
 * do not contain augmented artifacts nor their headers.
