@@ -127,6 +127,8 @@ test:smoketests:linux:
     - ./mender-artifact-linux write rootfs-image -t test -o test-rfs.mender -n test -f test.txt
     - ./mender-artifact-linux read test-rfs.mender
     - ./mender-artifact-linux validate test-rfs.mender
+    # QA-507: lock mender-artifact to OpenSSL 1.1
+    - ldd ./mender-artifact-linux | grep libssl.so.1.1
     - make build
 
 test:coverage:linux:
