@@ -169,7 +169,7 @@ github.com/sirupsen/logrus
 ## explicit
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
-# github.com/urfave/cli v1.22.10
+# github.com/urfave/cli v1.22.11
 ## explicit
 github.com/urfave/cli
 # go.opencensus.io v0.23.0
