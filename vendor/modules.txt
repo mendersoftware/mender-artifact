@@ -87,10 +87,10 @@ github.com/hashicorp/hcl/hcl/token
 github.com/hashicorp/hcl/json/parser
 github.com/hashicorp/hcl/json/scanner
 github.com/hashicorp/hcl/json/token
-# github.com/hashicorp/vault/api v1.8.2
+# github.com/hashicorp/vault/api v1.8.3
 ## explicit
 github.com/hashicorp/vault/api
-# github.com/hashicorp/vault/sdk v0.6.0
+# github.com/hashicorp/vault/sdk v0.7.0
 github.com/hashicorp/vault/sdk/helper/certutil
 github.com/hashicorp/vault/sdk/helper/compressutil
 github.com/hashicorp/vault/sdk/helper/consts
@@ -108,7 +108,6 @@ github.com/hashicorp/vault/sdk/helper/wrapping
 github.com/hashicorp/vault/sdk/logical
 github.com/hashicorp/vault/sdk/physical
 github.com/hashicorp/vault/sdk/physical/inmem
-github.com/hashicorp/vault/sdk/version
 # github.com/hashicorp/yamux v0.0.0-20180604194846-3520598351bb
 github.com/hashicorp/yamux
 # github.com/klauspost/compress v1.15.9
