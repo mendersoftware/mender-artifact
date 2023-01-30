@@ -110,7 +110,7 @@ github.com/hashicorp/vault/sdk/physical
 github.com/hashicorp/vault/sdk/physical/inmem
 # github.com/hashicorp/yamux v0.0.0-20180604194846-3520598351bb
 github.com/hashicorp/yamux
-# github.com/klauspost/compress v1.15.9
+# github.com/klauspost/compress v1.15.15
 ## explicit
 github.com/klauspost/compress
 github.com/klauspost/compress/flate
