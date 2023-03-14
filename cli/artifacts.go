@@ -22,12 +22,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mendersoftware/mender-artifact/areader"
-	"github.com/mendersoftware/mender-artifact/artifact"
-	"github.com/mendersoftware/mender-artifact/artifact/gcp"
-	"github.com/mendersoftware/mender-artifact/artifact/vault"
-	"github.com/mendersoftware/mender-artifact/awriter"
-	"github.com/mendersoftware/mender-artifact/handlers"
+	"github.com/EcoG-io/mender-artifact/areader"
+	"github.com/EcoG-io/mender-artifact/artifact"
+	"github.com/EcoG-io/mender-artifact/artifact/gcp"
+	"github.com/EcoG-io/mender-artifact/artifact/vault"
+	"github.com/EcoG-io/mender-artifact/awriter"
+	"github.com/EcoG-io/mender-artifact/handlers"
 
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"

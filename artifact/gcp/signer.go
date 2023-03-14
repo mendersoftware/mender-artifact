@@ -22,7 +22,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/EcoG-io/mender-artifact/artifact"
 
 	kms "cloud.google.com/go/kms/apiv1"
 	gax "github.com/googleapis/gax-go/v2"

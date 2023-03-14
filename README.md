@@ -1,9 +1,8 @@
 [![Build Status](https://gitlab.com/Northern.tech/Mender/mender-artifact/badges/master/pipeline.svg)](https://gitlab.com/Northern.tech/Mender/mender-artifact/pipelines)
 [![Coverage Status](https://coveralls.io/repos/github/mendersoftware/mender-artifact/badge.svg?branch=master)](https://coveralls.io/github/mendersoftware/mender-artifact?branch=master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/mendersoftware/mender-artifact)](https://goreportcard.com/report/github.com/mendersoftware/mender-artifact)
+[![Go Report Card](https://goreportcard.com/badge/github.com/EcoG-io/mender-artifact)](https://goreportcard.com/report/github.com/EcoG-io/mender-artifact)
 
-Mender Artifacts Library
-==============================================
+# Mender Artifacts Library
 
 Mender is an open source over-the-air (OTA) software updater for embedded Linux
 devices. Mender comprises a client running at the embedded device, as well as
@@ -21,19 +20,15 @@ uses the `tar` format to bundle several files into one.
 In its simplest form, an artifact contains just a rootfs image,
 along with its checksum, id and device type compatibility.
 
-
 The artifacts library might also be useful for other updaters or
 purposes. We are always happy to see other uses of it!
 
-
 ![Mender logo](https://mender.io/user/pages/04.resources/logos/logoS.png)
-
 
 ## Getting started
 
 To start using Mender, we recommend that you begin with the Getting started
 section in [the Mender documentation](https://docs.mender.io/).
-
 
 ## Using the library
 
@@ -41,14 +36,13 @@ You can use the reader and the writer in go in the standard way:
 
 ```
 import (
-        "github.com/mendersoftware/mender-artifact/areader"
-        "github.com/mendersoftware/mender-artifact/awriter"
+        "github.com/EcoG-io/mender-artifact/areader"
+        "github.com/EcoG-io/mender-artifact/awriter"
 ...
 )
 ```
 
 For sample usage, please see the [Mender client source code](https://github.com/mendersoftware/mender).
-
 
 ## Downloading the binaries
 
@@ -78,27 +72,27 @@ sudo make DESTDIR=/tmp PREFIX=/usr install-autocomplete-scripts
 
 ### Manual installation
 
- auto-completion of `mender-artifact` sub-commands can be added to either ZSH or
- Bash through:
+auto-completion of `mender-artifact` sub-commands can be added to either ZSH or
+Bash through:
 
 #### Bash
 
- The simplest way of enabling auto-completion in Bash is to copy the
- `./autocomplete/bash_autocomplete` file into `/etc/bash_completion.d/` like so:
+The simplest way of enabling auto-completion in Bash is to copy the
+`./autocomplete/bash_autocomplete` file into `/etc/bash_completion.d/` like so:
 
- ```bash
+```bash
 sudo cp path/to/mender-aritfact/autocomplete/bash_autocomplete /etc/bash_completion.d/mender-artifact
 source /etc/bash_completion.d/mender-artifact
- ```
+```
 
- Alternatively the following can be added to `.bashrc`:
+Alternatively the following can be added to `.bashrc`:
 
- ```bash
+```bash
 PROG=mender-artifact
 source path/to/mender-artifact/autocomplete/bash_autocomplete
- ```
+```
 
- #### ZSH
+#### ZSH
 
 Auto-completion for ZSH is supported through the `zsh_autocompletion` script
 found in the `./autocomplete` directory. In order to enable it consistently, add
@@ -107,7 +101,6 @@ these lines to your `.zshrc` file:
 ```bash
 source  path/to/mender-artifact/autocomplete/zsh_autocomplete
 ```
-
 
 ## Contributing
 
@@ -129,10 +122,10 @@ issue. We thank you in advance for your cooperation.
 
 ## Connect with us
 
-* Join the [Mender Hub discussion forum](https://hub.mender.io)
-* Follow us on [Twitter](https://twitter.com/mender_io). Please
+- Join the [Mender Hub discussion forum](https://hub.mender.io)
+- Follow us on [Twitter](https://twitter.com/mender_io). Please
   feel free to tweet us questions.
-* Fork us on [Github](https://github.com/mendersoftware)
-* Create an issue in the [bugtracker](https://tracker.mender.io/projects/MEN)
-* Email us at [contact@mender.io](mailto:contact@mender.io)
-* Connect to the [#mender IRC channel on Libera](https://web.libera.chat/?#mender)
+- Fork us on [Github](https://github.com/mendersoftware)
+- Create an issue in the [bugtracker](https://tracker.mender.io/projects/MEN)
+- Email us at [contact@mender.io](mailto:contact@mender.io)
+- Connect to the [#mender IRC channel on Libera](https://web.libera.chat/?#mender)

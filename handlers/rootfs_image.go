@@ -23,7 +23,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/EcoG-io/mender-artifact/artifact"
 )
 
 // Rootfs handles updates of type 'rootfs-image'.

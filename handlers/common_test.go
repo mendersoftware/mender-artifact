@@ -19,7 +19,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/EcoG-io/mender-artifact/artifact"
 	"github.com/stretchr/testify/assert"
 )
 

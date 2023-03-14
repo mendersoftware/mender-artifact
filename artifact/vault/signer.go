@@ -20,7 +20,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/EcoG-io/mender-artifact/artifact"
 
 	vault "github.com/hashicorp/vault/api"
 	"github.com/minio/sha256-simd"

@@ -20,7 +20,7 @@ index cd5b9e8..0c1ba65 100644
 -	"fmt"
  	"os"
  
- 	"github.com/mendersoftware/mender-artifact/cli"
+ 	"github.com/EcoG-io/mender-artifact/cli"
 @@ -26,10 +25,12 @@ func run() error {
  	if err != nil {
  		fmt.Println(err)

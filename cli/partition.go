@@ -29,9 +29,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/mendersoftware/mender-artifact/areader"
-	"github.com/mendersoftware/mender-artifact/artifact"
-	"github.com/mendersoftware/mender-artifact/utils"
+	"github.com/EcoG-io/mender-artifact/areader"
+	"github.com/EcoG-io/mender-artifact/artifact"
+	"github.com/EcoG-io/mender-artifact/utils"
 )
 
 const (
@@ -395,14 +395,14 @@ func imgFilesystemType(imgpath string) (int, error) {
 // From the fsck man page:
 // The exit code returned by fsck is the sum of the following conditions:
 //
-//              0      No errors
-//              1      Filesystem errors corrected
-//              2      System should be rebooted
-//              4      Filesystem errors left uncorrected
-//              8      Operational error
-//              16     Usage or syntax error
-//              32     Checking canceled by user request
-//              128    Shared-library error
+//	0      No errors
+//	1      Filesystem errors corrected
+//	2      System should be rebooted
+//	4      Filesystem errors left uncorrected
+//	8      Operational error
+//	16     Usage or syntax error
+//	32     Checking canceled by user request
+//	128    Shared-library error
 func runFsck(image, fstype string) error {
 	bin, err := utils.GetBinaryPath("fsck." + fstype)
 	if err != nil {

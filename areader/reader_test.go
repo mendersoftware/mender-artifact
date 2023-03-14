@@ -28,9 +28,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
-	"github.com/mendersoftware/mender-artifact/awriter"
-	"github.com/mendersoftware/mender-artifact/handlers"
+	"github.com/EcoG-io/mender-artifact/artifact"
+	"github.com/EcoG-io/mender-artifact/awriter"
+	"github.com/EcoG-io/mender-artifact/handlers"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

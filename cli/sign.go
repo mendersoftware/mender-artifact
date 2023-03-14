@@ -22,7 +22,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 
-	"github.com/mendersoftware/mender-artifact/awriter"
+	"github.com/EcoG-io/mender-artifact/awriter"
 )
 
 func signExisting(c *cli.Context) error {

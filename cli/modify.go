@@ -24,7 +24,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/EcoG-io/mender-artifact/artifact"
 )
 
 func modifyArtifact(c *cli.Context) (err error) {

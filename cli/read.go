@@ -27,10 +27,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 
-	"github.com/mendersoftware/mender-artifact/areader"
-	"github.com/mendersoftware/mender-artifact/artifact"
-	"github.com/mendersoftware/mender-artifact/handlers"
-	"github.com/mendersoftware/mender-artifact/utils"
+	"github.com/EcoG-io/mender-artifact/areader"
+	"github.com/EcoG-io/mender-artifact/artifact"
+	"github.com/EcoG-io/mender-artifact/handlers"
+	"github.com/EcoG-io/mender-artifact/utils"
 )
 
 func readArtifact(c *cli.Context) error {

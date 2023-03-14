@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/EcoG-io/mender-artifact/artifact"
 	gax "github.com/googleapis/gax-go/v2"
-	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/pkg/errors"
 	kmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
 	"google.golang.org/protobuf/types/known/wrapperspb"

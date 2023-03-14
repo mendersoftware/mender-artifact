@@ -18,7 +18,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mendersoftware/mender-artifact/utils"
+	"github.com/EcoG-io/mender-artifact/utils"
 	"github.com/stretchr/testify/assert"
 )
 

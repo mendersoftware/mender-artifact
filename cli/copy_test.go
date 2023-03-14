@@ -30,8 +30,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/mendersoftware/mender-artifact/areader"
-	"github.com/mendersoftware/mender-artifact/utils"
+	"github.com/EcoG-io/mender-artifact/areader"
+	"github.com/EcoG-io/mender-artifact/utils"
 )
 
 func testSetupTeardown(t *testing.T) (artifact, sdimg, fatsdimg, sparsesdimg string, f func()) {

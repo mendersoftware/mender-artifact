@@ -4,12 +4,12 @@ RUN apt-get update && \
     gcc gcc-mingw-w64 gcc-multilib \
     git make \
     musl-dev liblzma-dev libssl-dev
-RUN mkdir -p /go/src/github.com/mendersoftware/mender-artifact
-WORKDIR /go/src/github.com/mendersoftware/mender-artifact
+RUN mkdir -p /go/src/github.com/EcoG-io/mender-artifact
+WORKDIR /go/src/github.com/EcoG-io/mender-artifact
 COPY ./ .
 RUN make build-natives
 
 FROM alpine:3.17.2
 RUN apk add --no-cache libc6-compat xz-dev libressl-dev
-COPY --from=builder /go/src/github.com/mendersoftware/mender-artifact/mender-artifact* /go/bin/
+COPY --from=builder /go/src/github.com/EcoG-io/mender-artifact/mender-artifact* /go/bin/
 ENTRYPOINT [ "/go/bin/mender-artifact-linux" ]

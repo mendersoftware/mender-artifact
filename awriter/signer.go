@@ -20,7 +20,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/EcoG-io/mender-artifact/artifact"
 )
 
 var ErrAlreadyExistingSignature = errors.New(

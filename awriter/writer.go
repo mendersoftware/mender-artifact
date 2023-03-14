@@ -25,9 +25,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
-	"github.com/mendersoftware/mender-artifact/artifact/stage"
-	"github.com/mendersoftware/mender-artifact/handlers"
+	"github.com/EcoG-io/mender-artifact/artifact"
+	"github.com/EcoG-io/mender-artifact/artifact/stage"
+	"github.com/EcoG-io/mender-artifact/handlers"
 )
 
 type ProgressWriter interface {

@@ -32,9 +32,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli"
 
-	"github.com/mendersoftware/mender-artifact/artifact"
-	"github.com/mendersoftware/mender-artifact/awriter"
-	"github.com/mendersoftware/mender-artifact/handlers"
+	"github.com/EcoG-io/mender-artifact/artifact"
+	"github.com/EcoG-io/mender-artifact/awriter"
+	"github.com/EcoG-io/mender-artifact/handlers"
 )
 
 var (
