@@ -1,4 +1,4 @@
-module github.com/mendersoftware/mender-artifact
+module github.com/EcoG-io/mender-artifact
 
 go 1.17
 
