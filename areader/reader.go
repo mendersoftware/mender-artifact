@@ -1,4 +1,4 @@
-// Copyright 2022 Northern.tech AS
+// Copyright 2023 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -841,7 +841,7 @@ func (ar *Reader) assignUpdateFiles() error {
 
 // should be `headers/0000/file` format
 func getUpdateNoFromHeaderPath(path string) (int, error) {
-	split := strings.Split(path, string(os.PathSeparator))
+	split := strings.Split(path, "/")
 	if len(split) < 3 {
 		return 0, errors.New("can not get Payload order from tar path")
 	}
