@@ -15,7 +15,7 @@
 set -e
 
 # A simple shell script to verify that an Artifact is capeable of reading and writing
-# an artifact on macOS (see https://tracker.mender.io/browse/MEN-2505).
+# an artifact on macOS (see https://northerntech.atlassian.net/browse/MEN-2505).
 
 touch rootfs.ext4
 
