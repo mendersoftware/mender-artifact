@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright 2022 Northern.tech AS
+# Copyright 2023 Northern.tech AS
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 set -e
 
 # A simple shell script to verify that an Artifact is capeable of reading and writing
-# an artifact on macOS (see https://tracker.mender.io/browse/MEN-2505).
+# an artifact on macOS (see https://northerntech.atlassian.net/browse/MEN-2505).
 
 touch rootfs.ext4
 
