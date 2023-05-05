@@ -164,14 +164,14 @@ publish:tests:
   script:
     # Submit coverage from all platforms.
     - for PLATFORM in linux mac; do
-    -   goveralls
-          -repotoken ${COVERALLS_TOKEN}
-          -service gitlab-ci
-          -jobid $(git rev-parse HEAD)
-          -parallel
-          -covermode set
-          -flagname unittests:$PLATFORM
-          -coverprofile coverage-$PLATFORM.txt
+    - goveralls
+      -repotoken ${COVERALLS_TOKEN}
+      -service gitlab-ci
+      -jobid $CI_PIPELINE_ID
+      -parallel
+      -covermode set
+      -flagname unittests:$PLATFORM
+      -coverprofile coverage-$PLATFORM.txt
     - done
 
 publish:s3:
