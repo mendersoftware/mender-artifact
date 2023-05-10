@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2023 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -157,7 +157,7 @@ func printPayload(index int, p handlers.Installer) {
 	fmt.Printf("    Provides:")
 	if err != nil {
 		fmt.Printf(" Invalid provides section: %s\n", err.Error())
-	} else if provides == nil || len(provides) == 0 {
+	} else if len(provides) == 0 {
 		fmt.Printf(" Nothing\n")
 	} else {
 		providesKeys := sortedKeys(provides)
@@ -172,7 +172,7 @@ func printPayload(index int, p handlers.Installer) {
 	fmt.Printf("    Depends:")
 	if err != nil {
 		fmt.Printf(" Invalid depends section: %s\n", err.Error())
-	} else if depends == nil || len(depends) == 0 {
+	} else if len(depends) == 0 {
 		fmt.Printf(" Nothing\n")
 	} else {
 		dependsKeys := sortedKeys(depends)
