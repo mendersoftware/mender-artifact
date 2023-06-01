@@ -1,4 +1,4 @@
-// Copyright 2022 Northern.tech AS
+// Copyright 2023 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -395,14 +395,14 @@ func imgFilesystemType(imgpath string) (int, error) {
 // From the fsck man page:
 // The exit code returned by fsck is the sum of the following conditions:
 //
-//              0      No errors
-//              1      Filesystem errors corrected
-//              2      System should be rebooted
-//              4      Filesystem errors left uncorrected
-//              8      Operational error
-//              16     Usage or syntax error
-//              32     Checking canceled by user request
-//              128    Shared-library error
+//	0      No errors
+//	1      Filesystem errors corrected
+//	2      System should be rebooted
+//	4      Filesystem errors left uncorrected
+//	8      Operational error
+//	16     Usage or syntax error
+//	32     Checking canceled by user request
+//	128    Shared-library error
 func runFsck(image, fstype string) error {
 	bin, err := utils.GetBinaryPath("fsck." + fstype)
 	if err != nil {
