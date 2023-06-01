@@ -53,6 +53,7 @@ const LatestFormatVersion = 3
 
 // Copied from urfave/cli/template.go
 // with the addition of the NOTE on the `global` `--compression flag`
+//
 //nolint:lll
 var menderAppHelpTemplate = `NAME:
    {{.Name}}{{if .Usage}} - {{.Usage}}{{end}}
