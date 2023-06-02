@@ -1,4 +1,4 @@
-// Copyright 2022 Northern.tech AS
+// Copyright 2023 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ const LatestFormatVersion = 3
 
 // Copied from urfave/cli/template.go
 // with the addition of the NOTE on the `global` `--compression flag`
+//
 //nolint:lll
 var menderAppHelpTemplate = `NAME:
    {{.Name}}{{if .Usage}} - {{.Usage}}{{end}}
