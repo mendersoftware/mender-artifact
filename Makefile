@@ -144,15 +144,14 @@ instrument-binary:
 
 coverage:
 	rm -f coverage.txt
-	echo 'mode: count' > coverage.txt
-	set -e ; for p in $(PKGS); do \
-		rm -f coverage-tmp.txt;  \
-		$(GO) test -covermode=count -coverprofile=coverage-tmp.txt -coverpkg=$(SUBPKGS) $$p ; \
-		if [ -f coverage-tmp.txt ]; then \
-			cat coverage-tmp.txt |grep -v 'mode:' | cat >> coverage.txt; \
-		fi; \
-	done
-	rm -f coverage-tmp.txt
+	$(GO) list ./... | \
+		grep -v vendor | \
+		xargs -n1 -I {} go test -v -covermode=atomic -coverprofile=../../../{}/coverage.txt {} 2>&1 | \
+		tee /dev/stderr | \
+		go-junit-report > \
+		test-results.xml || exit $?
+	mkdir -p tests/unit-coverage && find . -name 'coverage.txt' -exec cp --parents {} ./tests/unit-coverage \;
+	tar -cvf unit-coverage.tar tests/unit-coverage
 
 .PHONY: build clean get-tools test check \
 	cover htmlcover coverage tooldep install-autocomplete-scripts \

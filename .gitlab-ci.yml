@@ -138,7 +138,7 @@ test:coverage:linux:
     - job: build:coverage
       artifacts: true
   variables:
-    COVERAGE_FILE: coverage-linux-pkcs.txt
+    COVERAGE_FILE: coverage-linux-pkcs.tar
   before_script:
     - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh --setup
     - export TEST_MENDER_ARTIFACT_PATH=./mender-artifact-linux-coverage
@@ -163,29 +163,38 @@ test:coverage:linux:
 
   script:
     - make coverage
-    - mv coverage.txt $CI_PROJECT_DIR/$COVERAGE_FILE
+    - mv unit-coverage.tar $CI_PROJECT_DIR/$COVERAGE_FILE
   artifacts:
     expire_in: 2w
     untracked: true
     paths:
       - $COVERAGE_FILE
+    reports:
+      junit: test-results.xml
 
 test:unit:linux:
   extends: .test:unit
   variables:
-    COVERAGE_FILE: coverage-linux.txt
+    COVERAGE_FILE: coverage-linux.tar
   before_script:
     - apk update && apk add git make bash dosfstools e2fsprogs e2fsprogs-extra gcc libc6-compat mtools musl-dev parted perl-utils xz-dev libressl-dev openssl-dev
+    - go install github.com/jstemmer/go-junit-report@v1.0.0
 
 test:unit:mac:
   extends: .test:unit
   variables:
-    COVERAGE_FILE: coverage-mac.txt
+    COVERAGE_FILE: coverage-mac.tar
     # This is needed because the host is reusing the workdir, it is not a Docker
     # runner.
     GIT_STRATEGY: clone
   tags:
     - mac-runner
+  before_script:
+    - cd /tmp
+    - mv ${CI_PROJECT_DIR} /tmp/${CI_PROJECT_NAME}
+    - mkdir -p ${CI_PROJECT_DIR}/github.com/mendersoftware
+    - mv /tmp/${CI_PROJECT_NAME} ${CI_PROJECT_DIR}/github.com/mendersoftware/${CI_PROJECT_NAME}
+    - cd ${CI_PROJECT_DIR}/github.com/mendersoftware/${CI_PROJECT_NAME}
 
 publish:tests:
   stage: publish
@@ -213,9 +222,9 @@ publish:tests:
     - export CI_BRANCH=${CI_COMMIT_BRANCH}
     - export CI_PR_NUMBER=${CI_COMMIT_BRANCH#pr_}
   script:
-    - if [[ -f coverage-linux.txt && -f coverage-linux-pkcs.txt ]]; then tail -n +2 coverage-linux-pkcs.txt >> coverage-linux.txt; fi
     # Submit coverage from all platforms.
-    - for PLATFORM in linux mac; do
+    - for PLATFORM in linux mac linux-pkcs; do
+    - tar -xvf coverage-${$PLATFORM}.tar
     - goveralls
       -repotoken ${COVERALLS_TOKEN}
       -service gitlab-ci
@@ -223,7 +232,8 @@ publish:tests:
       -parallel
       -covermode set
       -flagname unittests:$PLATFORM
-      -coverprofile coverage-$PLATFORM.txt
+      -coverprofile $(find tests/unit-coverage -name 'coverage.txt' | tr '\n' ',' | sed 's/,$//')
+    - rm -rf tests/unit-coverage
     - done
 
 publish:s3:
