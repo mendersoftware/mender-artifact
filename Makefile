@@ -150,7 +150,7 @@ coverage:
 		tee /dev/stderr | \
 		go-junit-report > \
 		test-results.xml || exit $?
-	mkdir -p tests/unit-coverage && find . -name 'coverage.txt' -exec cp --parents {} ./tests/unit-coverage \;
+	mkdir -p tests/unit-coverage && find . -name 'coverage.txt' -exec rsync -R {} ./tests/unit-coverage \;
 	tar -cvf unit-coverage.tar tests/unit-coverage
 
 .PHONY: build clean get-tools test check \
