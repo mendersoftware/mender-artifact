@@ -214,8 +214,8 @@ following sub sections define each field under each such bucket.
 #### artifact_depends
 
 The `artifact_depends` contains a set of parameters that the current Artifact
-depends on. It can contain zero or more key/value pairs (in most cases at least
-`device_type` should be present though).
+depends on. It can contain one or more key/value pairs (at least
+`device_type` is present).
 
 The given Artifact will be installed, only if the device itself
 and the Artifact currently installed on the device are providing a full set
@@ -252,7 +252,7 @@ Format: JSON
 A file that provides information about the type of package contained within the
 tar file. The first and the only required entry is the type of the payload
 corresponding to the type in `header-info` file.
-It can also contain some additional parameters extending or modifying the global
+It can also contain some additional parameters extending the global
 `artifact_provides` set of parameters specific for a given payload type.
 
 ```
