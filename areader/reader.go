@@ -342,6 +342,15 @@ var artifactV3ParseGrammar = [][]string{
 	{"manifest", "manifest-augment", "header.tar.xz", "header-augment.tar.xz"},
 	// Signed, lzma-zipped, with augment header
 	{"manifest", "manifest.sig", "manifest-augment", "header.tar.xz", "header-augment.tar.xz"},
+	// Unsigned, zstd-zipped
+	{"manifest", "header.tar.zst"},
+	// Signed, zstd-zipped
+	{"manifest", "manifest.sig", "header.tar.zst"},
+	// Unsigned, zstd-zipped, with augment header
+	{"manifest", "manifest-augment", "header.tar.zst", "header-augment.tar.zst"},
+	// Signed, zstd-zipped, with augment header
+	{"manifest", "manifest.sig", "manifest-augment",
+		"header.tar.zst", "header-augment.tar.zst"},
 	// Data is processed in ReadArtifact()
 }
 
@@ -439,7 +448,7 @@ func (ar *Reader) handleHeaderReads(headerName string, version []byte) error {
 		// Get the data from the augmented manifest.
 		ar.augmentFiles, err = readManifestHeader(ar, ar.menderTarReader)
 		return err
-	case "header.tar", "header.tar.gz", "header.tar.xz":
+	case "header.tar", "header.tar.gz", "header.tar.xz", "header.tar.zst":
 		// Get and verify checksums of header.
 		hc, err := ar.manifest.GetAndMark(headerName)
 		if err != nil {
@@ -455,7 +464,8 @@ func (ar *Reader) handleHeaderReads(headerName string, version []byte) error {
 		if err := ar.readHeader(hc, comp); err != nil {
 			return errors.Wrap(err, "handleHeaderReads")
 		}
-	case "header-augment.tar", "header-augment.tar.gz", "header-augment.tar.xz":
+	case "header-augment.tar", "header-augment.tar.gz",
+		"header-augment.tar.xz", "header-augment.tar.zst":
 		// Get and verify checksums of the augmented header.
 		hc, err := ar.manifest.GetAndMark(headerName)
 		if err != nil {
