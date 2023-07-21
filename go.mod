@@ -17,6 +17,5 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/urfave/cli v1.22.12
 	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10
-	google.golang.org/genproto v0.0.0-20221024183307-1bc688fe9f3e
 	google.golang.org/protobuf v1.28.1
 )
