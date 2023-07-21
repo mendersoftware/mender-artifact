@@ -233,49 +233,30 @@ func (a *APIError) Metadata() map[string]string {
 
 }
 
-// setDetailsFromError parses a Status error or a googleapi.Error
-// and sets status and details or httpErr and details, respectively.
-// It returns false if neither Status nor googleapi.Error can be parsed.
-func (a *APIError) setDetailsFromError(err error) bool {
+// FromError parses a Status error or a googleapi.Error and builds an APIError.
+func FromError(err error) (*APIError, bool) {
+	if err == nil {
+		return nil, false
+	}
+
+	ae := APIError{err: err}
 	st, isStatus := status.FromError(err)
 	var herr *googleapi.Error
 	isHTTPErr := errors.As(err, &herr)
 
 	switch {
 	case isStatus:
-		a.status = st
-		a.details = parseDetails(st.Details())
+		ae.status = st
+		ae.details = parseDetails(st.Details())
 	case isHTTPErr:
-		a.httpErr = herr
-		a.details = parseHTTPDetails(herr)
+		ae.httpErr = herr
+		ae.details = parseHTTPDetails(herr)
 	default:
-		return false
-	}
-	return true
-}
-
-// FromError parses a Status error or a googleapi.Error and builds an
-// APIError, wrapping the provided error in the new APIError. It
-// returns false if neither Status nor googleapi.Error can be parsed.
-func FromError(err error) (*APIError, bool) {
-	return ParseError(err, true)
-}
-
-// ParseError parses a Status error or a googleapi.Error and builds an
-// APIError. If wrap is true, it wraps the error in the new APIError.
-// It returns false if neither Status nor googleapi.Error can be parsed.
-func ParseError(err error, wrap bool) (*APIError, bool) {
-	if err == nil {
 		return nil, false
 	}
-	ae := APIError{}
-	if wrap {
-		ae = APIError{err: err}
-	}
-	if !ae.setDetailsFromError(err) {
-		return nil, false
-	}
+
 	return &ae, true
+
 }
 
 // parseDetails accepts a slice of interface{} that should be backed by some
