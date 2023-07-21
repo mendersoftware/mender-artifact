@@ -252,7 +252,7 @@ Format: JSON
 A file that provides information about the type of package contained within the
 tar file. The first and the only required entry is the type of the payload
 corresponding to the type in `header-info` file.
-It can also contain some additional parameters extending the global
+It can also contain some additional parameters extending or modifying the global
 `artifact_provides` set of parameters specific for a given payload type.
 
 ```
