@@ -55,46 +55,6 @@ For sample usage, please see the [Mender client source code](https://github.com/
 You can find the latest `mender-artifact` binaries in the [Downloads page on
 Mender Docs](https://docs.mender.io/downloads).
 
-## Building from source
-
-**Note: The build process is only supported on Linux-based environments.**
-
-### Containerized
-
-The preferred way to build `mender-artifact` from source is containerized in `docker`.
-This process can be used to generate binaries suitable for running on Linux, Windows and MacOS
-hosts. 
-
-You need the following prerequisites:
-- docker [Installation instructions](https://docs.docker.com/get-docker/)
-- the `make` tool. Most distributions offer a `make` package. Install it using your native
-  package management tool, such as `apt`, `yum`, `pacman`, ...
-
-In the source directory, build `mender-artifact` by issueing
-```
-make build-natives-contained
-```
-
-This results in the self-contained binary `mender-artifact`. You can leave it in place,
-or move it to a location on your systems `PATH`.
-
-**Note: containerized building on non-x86 platform is not supported yet**
-
-### Native
-
-To build `mender-artifact` from source you need the following prerequisites:
-(packages given for Debian-based environments)
-- the Go programming language. [Installation instructions](https://go.dev/doc/install)
-- the packages `build-essential liblzma-dev libssl-dev pkg-config`
-
-In the source directory, `mender-artifact` is built by simply issueing
-```
-make
-```
-
-This results in the self-contained binary `mender-artifact`. You can leave it in place,
-or move it to a location on your systems `PATH`.
-
 ## Enabling auto-completion in Bash & ZSH
 
 ### Automatic installation through the Makefile
