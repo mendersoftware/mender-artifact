@@ -214,8 +214,8 @@ following sub sections define each field under each such bucket.
 #### artifact_depends
 
 The `artifact_depends` contains a set of parameters that the current Artifact
-depends on. It can contain one or more key/value pairs (at least
-`device_type` is present).
+depends on. It can contain zero or more key/value pairs (in most cases at least
+`device_type` should be present though).
 
 The given Artifact will be installed, only if the device itself
 and the Artifact currently installed on the device are providing a full set
