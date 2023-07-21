@@ -25,10 +25,10 @@ import (
 	"github.com/mendersoftware/mender-artifact/artifact"
 
 	kms "cloud.google.com/go/kms/apiv1"
-	"cloud.google.com/go/kms/apiv1/kmspb"
 	gax "github.com/googleapis/gax-go/v2"
 	"github.com/minio/sha256-simd"
 	"github.com/pkg/errors"
+	kmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
