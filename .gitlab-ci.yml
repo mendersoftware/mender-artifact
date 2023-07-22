@@ -92,6 +92,8 @@ test:smoketests:mac:
   needs:
     - job: build:make
       artifacts: true
+  before_script:
+    - export TEST_MENDER_ARTIFACT_PATH=./mender-artifact-darwin
   script:
     - touch test.txt
     - ./mender-artifact-darwin
@@ -102,6 +104,7 @@ test:smoketests:mac:
     - ./mender-artifact-darwin write rootfs-image -t test -o test-rfs.mender -n test -f test.txt
     - ./mender-artifact-darwin read test-rfs.mender
     - ./mender-artifact-darwin validate test-rfs.mender
+    - ./tests/test_compressions/test_supported_compressions.sh
     - make build
   tags:
     - mac-runner
@@ -127,6 +130,7 @@ test:smoketests:linux:
     - ./mender-artifact-linux write rootfs-image -t test -o test-rfs.mender -n test -f test.txt
     - ./mender-artifact-linux read test-rfs.mender
     - ./mender-artifact-linux validate test-rfs.mender
+    - ./tests/test_compressions/test_supported_compressions.sh
     # QA-507: lock mender-artifact to OpenSSL 1.1
     - ldd ./mender-artifact-linux | grep libssl.so.1.1
     - make build
