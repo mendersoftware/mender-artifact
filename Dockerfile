@@ -1,4 +1,4 @@
-FROM golang:1.19.5-bullseye as builder
+FROM golang:1.20.7-bullseye as builder
 RUN mkdir -p /go/src/github.com/mendersoftware/mender-artifact
 WORKDIR /go/src/github.com/mendersoftware/mender-artifact
 ADD ./ .
