@@ -1,4 +1,5 @@
-FROM golang:1.19.5-bullseye as builder
+# Keep golang version aligned with latest yocto release
+FROM golang:1.17.13-bullseye as builder
 RUN mkdir -p /go/src/github.com/mendersoftware/mender-artifact
 WORKDIR /go/src/github.com/mendersoftware/mender-artifact
 ADD ./ .
