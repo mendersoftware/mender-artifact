@@ -170,7 +170,7 @@ github.com/mattn/go-colorable
 # github.com/mattn/go-isatty v0.0.12
 ## explicit; go 1.12
 github.com/mattn/go-isatty
-# github.com/mendersoftware/openssl v0.0.0-20220610125625-9fe59ddd6ba4
+# github.com/mendersoftware/openssl v1.1.1-0.20221101135106-cb94d0a179f8
 ## explicit
 github.com/mendersoftware/openssl
 github.com/mendersoftware/openssl/utils
