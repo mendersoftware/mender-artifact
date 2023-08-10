@@ -8,7 +8,7 @@ require (
 	github.com/hashicorp/vault/api v1.8.3
 	github.com/klauspost/compress v1.15.9
 	github.com/klauspost/pgzip v1.2.5
-	github.com/mendersoftware/openssl v0.0.0-20220610125625-9fe59ddd6ba4
+	github.com/mendersoftware/openssl v1.1.0
 	github.com/mendersoftware/progressbar v0.0.3
 	github.com/minio/sha256-simd v1.0.0
 	github.com/pkg/errors v0.9.1
