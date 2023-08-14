@@ -156,8 +156,8 @@ github.com/klauspost/compress/internal/cpuinfo
 github.com/klauspost/compress/internal/snapref
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
-# github.com/klauspost/cpuid/v2 v2.0.4
-## explicit; go 1.13
+# github.com/klauspost/cpuid/v2 v2.2.3
+## explicit; go 1.15
 github.com/klauspost/cpuid/v2
 # github.com/klauspost/pgzip v1.2.5
 ## explicit
@@ -177,8 +177,8 @@ github.com/mendersoftware/openssl/utils
 # github.com/mendersoftware/progressbar v0.0.3
 ## explicit; go 1.15
 github.com/mendersoftware/progressbar
-# github.com/minio/sha256-simd v1.0.0
-## explicit; go 1.13
+# github.com/minio/sha256-simd v1.0.1
+## explicit; go 1.17
 github.com/minio/sha256-simd
 # github.com/mitchellh/copystructure v1.0.0
 ## explicit

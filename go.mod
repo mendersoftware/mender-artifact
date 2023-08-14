@@ -10,7 +10,7 @@ require (
 	github.com/klauspost/pgzip v1.2.5
 	github.com/mendersoftware/openssl v1.1.1-0.20221101135106-cb94d0a179f8
 	github.com/mendersoftware/progressbar v0.0.3
-	github.com/minio/sha256-simd v1.0.0
+	github.com/minio/sha256-simd v1.0.1
 	github.com/pkg/errors v0.9.1
 	github.com/remyoudompheng/go-liblzma v0.0.0-20190506200333-81bf2d431b96
 	github.com/sirupsen/logrus v1.9.0
@@ -53,7 +53,7 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hashicorp/vault/sdk v0.7.0 // indirect
 	github.com/hashicorp/yamux v0.0.0-20180604194846-3520598351bb // indirect
-	github.com/klauspost/cpuid/v2 v2.0.4 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.3 // indirect
 	github.com/kr/pretty v0.2.1 // indirect
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
