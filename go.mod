@@ -6,8 +6,8 @@ require (
 	cloud.google.com/go/kms v1.6.0
 	github.com/googleapis/gax-go/v2 v2.7.0
 	github.com/hashicorp/vault/api v1.8.3
-	github.com/klauspost/compress v1.15.9
-	github.com/klauspost/pgzip v1.2.5
+	github.com/klauspost/compress v1.16.7
+	github.com/klauspost/pgzip v1.2.6
 	github.com/mendersoftware/openssl v1.1.1-0.20221101135106-cb94d0a179f8
 	github.com/mendersoftware/progressbar v0.0.3
 	github.com/minio/sha256-simd v1.0.1
@@ -17,7 +17,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli v1.22.14
 	golang.org/x/sys v0.11.0
-	google.golang.org/protobuf v1.28.1
+	google.golang.org/protobuf v1.31.0
 )
 
 require (
