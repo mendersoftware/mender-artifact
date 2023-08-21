@@ -13,7 +13,7 @@ require (
 	github.com/minio/sha256-simd v1.0.1
 	github.com/pkg/errors v0.9.1
 	github.com/remyoudompheng/go-liblzma v0.0.0-20190506200333-81bf2d431b96
-	github.com/sirupsen/logrus v1.9.0
+	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli v1.22.14
 	golang.org/x/sys v0.11.0
