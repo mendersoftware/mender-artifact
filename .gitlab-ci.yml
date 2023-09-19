@@ -241,7 +241,7 @@ publish:s3:
   before_script:
     - apt update && apt install -yyq awscli
   script:
-    - for bin in mender-artifact-darwin mender-artifact-linux mender-artifact-windows.exe; do
+    - for bin in mender-artifact-linux mender-artifact-linux-arm64 mender-artifact-darwin mender-artifact-windows.exe; do
       platform=${bin#mender-artifact-};
       platform=${platform%.*};
       echo "Publishing ${CI_COMMIT_REF_NAME} version for ${platform} to S3";

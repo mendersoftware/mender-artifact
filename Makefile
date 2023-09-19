@@ -50,6 +50,12 @@ build-native-linux:
 	 @env GOOS=linux GOARCH=$$arch \
         $(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-linux ;
 
+build-native-linux-arm64:
+	 @arch="arm64";
+	 @echo "building linux";
+	 @env GOOS=linux GOARCH=$$arch \
+        $(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-linux-arm64 ;
+
 build-native-mac:
 	@arch="amd64";
 	@echo "building mac";
@@ -62,7 +68,7 @@ build-native-windows:
 	@env GOOS=windows GOARCH=$$arch CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ \
         $(GO) build $(GO_LDFLAGS_WIN) $(BUILDV) -tags $(TAGS) nolzma -o $(PKGNAME)-windows.exe ;
 
-build-natives: build-native-linux build-native-mac build-native-windows
+build-natives: build-native-linux build-native-linux-arm64 build-native-mac build-native-windows
 
 build-contained:
 	rm -f mender-artifact && \
@@ -71,7 +77,7 @@ build-contained:
 	docker image rm $$image_id
 
 build-natives-contained:
-	rm -f mender-artifact-darwin mender-artifact-linux mender-artifact-windows.exe && \
+	rm -f mender-artifact-linux mender-artifact-linux-arm64 mender-artifact-darwin mender-artifact-windows.exe && \
 	image_id=$$(docker build -f Dockerfile.binaries -q .) && \
 	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact* /binary" && \
 	docker image rm $$image_id
