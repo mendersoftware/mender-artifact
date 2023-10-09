@@ -26,6 +26,7 @@ cache:
     - /go/src/gopkg.in
 
 variables:
+  DOCKER_HOST: tcp://docker:2375/
   DOCKER_REPOSITORY: mendersoftware/mender-artifact
   S3_BUCKET_NAME: "mender"
   S3_BUCKET_PATH: "mender-artifact"
@@ -69,34 +70,6 @@ build:make:
     DOCKER_CERT_PATH: "/certs/client"
     DOCKER_TLS_VERIFY: "1"
     DOCKER_TLS_CERTDIR: "/certs"
-
-build:docker-multiplatform:
-  tags:
-    - mender-qa-worker-generic-light
-  stage: build
-  needs: []
-  variables:
-    DOCKER_BUILDKIT: 1
-    MULTIPLATFORM_PLATFORMS: "linux/arm64"
-  image: "registry.gitlab.com/northern.tech/mender/mender-test-containers:docker-multiplatform-buildx-v1-master"
-  services:
-    - docker:20.10.21-dind
-  script:
-    - echo "building the arm64 version for the ${CI_PROJECT_NAME}"
-    - docker context create builder
-    - docker buildx create builder --use --driver-opt network=host --buildkitd-flags '--debug --allow-insecure-entitlement network.host'
-    - docker buildx build
-      --tag local
-      --file ${DOCKER_DIR:-.}/${DOCKERFILE:-Dockerfile}
-      --platform "linux/arm64,linux/amd64"
-      --output /tmp/multiplatform
-      ${DOCKER_DIR:-.}
-    - mv /tmp/multiplatform/linux_arm64/go/bin/mender-artifact mender-artifact-linux-arm64
-  artifacts:
-    expire_in: 2w
-    paths:
-      - mender-artifact-linux-arm64
-
 
 build:coverage:
   stage: build
@@ -260,19 +233,15 @@ publish:tests:
 publish:s3:
   stage: publish
   image: debian:buster
-  rules:
-    - if: '$CI_COMMIT_BRANCH =~ /^(master|[0-9]+\.[0-9]+\.x)$/' 
   needs:
     - job: build:make
       artifacts: true
     - job: test:smoketests:linux
     - job: test:smoketests:mac
-    - job: build:docker-multiplatform
-      artifacts: true
   before_script:
     - apt update && apt install -yyq awscli
   script:
-    - for bin in mender-artifact-darwin mender-artifact-linux mender-artifact-linux-arm64 mender-artifact-windows.exe; do
+    - for bin in mender-artifact-darwin mender-artifact-linux mender-artifact-windows.exe; do
       platform=${bin#mender-artifact-};
       platform=${platform%.*};
       echo "Publishing ${CI_COMMIT_REF_NAME} version for ${platform} to S3";
@@ -281,6 +250,8 @@ publish:s3:
       aws s3api put-object-acl --acl public-read --bucket $S3_BUCKET_NAME
       --key $S3_BUCKET_PATH/${CI_COMMIT_REF_NAME}/${platform}/mender-artifact;
       done
+  only:
+    - /^(master|[0-9]+\.[0-9]+\.x)$/
 
 generate-qa-trigger:
   image: python:alpine
