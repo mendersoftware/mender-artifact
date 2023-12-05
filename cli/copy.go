@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/urfave/cli"
 )
@@ -94,7 +95,13 @@ func Copy(c *cli.Context) (err error) {
 		if err != nil {
 			return cli.NewExitError(err, 1)
 		}
-		vfile, err = virtualImage.OpenFile(privateKey, c.Args().Get(1))
+
+		dstPath := c.Args().Get(1)
+		if strings.HasSuffix(c.Args().Get(1), "/") {
+			dstPath = dstPath + filepath.Base(c.Args().First())
+		}
+
+		vfile, err = virtualImage.OpenFile(privateKey, dstPath)
 		defer wclose(vfile)
 		if err != nil {
 			return cli.NewExitError(err, 1)
