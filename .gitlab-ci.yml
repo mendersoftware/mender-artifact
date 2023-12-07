@@ -204,6 +204,7 @@ publish:tests:
       artifacts: true
   variables:
     COVERALLS_WEBHOOK_URL: "https://coveralls.io/webhook"
+    COVERALLS_RERUN_BUILD_URL: "https://coveralls.io/rerun_build"
   before_script:
     - go install github.com/mattn/goveralls@v0.0.12
     # Coveralls env variables:
@@ -228,6 +229,9 @@ publish:tests:
       -flagname unittests:$PLATFORM
       -coverprofile coverage-$PLATFORM.txt
     - done
+    # Finalize the report
+    - 'curl -k ${COVERALLS_WEBHOOK_URL}?repo_token=${COVERALLS_TOKEN} -d "payload[build_num]=$CI_PIPELINE_ID&payload[status]=done"'
+    - 'curl -k "${COVERALLS_RERUN_BUILD_URL}?repo_token=${COVERALLS_TOKEN}&build_num=${CI_PIPELINE_ID}"'
 
 publish:s3:
   stage: publish
