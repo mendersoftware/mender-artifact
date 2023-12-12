@@ -162,6 +162,7 @@ func getCliContext() *cli.App {
 		Usage:    "Name of the artifact",
 		Required: true,
 	}
+
 	artifactNameDepends := cli.StringSliceFlag{
 		Name:  "artifact-name-depends, N",
 		Usage: "Sets the name(s) of the artifact(s) which this update depends upon",
@@ -173,6 +174,11 @@ func getCliContext() *cli.App {
 	artifactDependsGroups := cli.StringSliceFlag{
 		Name:  "depends-groups, G",
 		Usage: "The group(s) the artifact depends on",
+	}
+	artifactAddScripts := cli.StringSliceFlag{
+		Name: "script, s",
+		Usage: "Adds additional state script to an already existing artifact." +
+			"You can specify multiple scripts providing this parameter multiple times.",
 	}
 
 	// Common Software Version flags
@@ -565,6 +571,7 @@ func getCliContext() *cli.App {
 		artifactNameDepends,
 		artifactProvidesGroup,
 		artifactDependsGroups,
+		artifactAddScripts,
 		payloadProvides,
 		payloadDepends,
 		payloadMetaData,
