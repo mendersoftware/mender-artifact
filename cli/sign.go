@@ -1,4 +1,4 @@
-// Copyright 2021 Northern.tech AS
+// Copyright 2023 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -45,7 +45,6 @@ func signExisting(c *cli.Context) error {
 	if len(c.String("output-path")) > 0 {
 		outputFile = c.String("output-path")
 	}
-
 	tFile, err := ioutil.TempFile(filepath.Dir(outputFile), "mender-artifact")
 	if err != nil {
 		err = errors.Wrap(err, "Can not create temporary file for storing artifact")
@@ -61,6 +60,19 @@ func signExisting(c *cli.Context) error {
 	}
 	defer f.Close()
 
+	artFileStat, err := os.Stat(artFile)
+	if err != nil {
+		return cli.NewExitError("Could not get artifact file stat", 1)
+	}
+	err = CopyOwner(tFile, artFile)
+	if err != nil {
+		return cli.NewExitError("Could not set owner/group of signed artifact "+
+			"(needs root privileges)", 1)
+	}
+	err = os.Chmod(tFile.Name(), artFileStat.Mode())
+	if err != nil {
+		return cli.NewExitError("Could not give signed artifact same permissions", 1)
+	}
 	err = awriter.SignExisting(f, tFile, privateKey, c.Bool("force"))
 	if err == awriter.ErrAlreadyExistingSignature {
 		return cli.NewExitError(
