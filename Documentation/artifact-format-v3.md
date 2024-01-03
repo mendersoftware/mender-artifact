@@ -366,7 +366,7 @@ The complete script API consists of the following scripts:
 * `ArtifactFailure_Leave`
 *  **IMPORTANT** not all the scripts have `Error` support
 
-States in parentheses are states that are supported as scripts on stored on the
+States in parentheses are states that are supported as scripts stored on the
 filesystem, but are not included in the Artifact itself.
 
 For more information about the script and state API, see the official Mender

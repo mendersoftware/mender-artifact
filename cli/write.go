@@ -1,4 +1,4 @@
-// Copyright 2022 Northern.tech AS
+// Copyright 2023 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -891,9 +891,15 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	// established (password prompt is written to /dev/tty directly,
 	// and hence impossible to detect).
 	// When user id is 0 do not bother with sudo.
-	args = append(args, "/bin/sh", "-c",
-		`'[ $(id -u) -eq 0 ] || sudo_cmd="sudo -S"; $sudo_cmd /bin/sh -c "echo `+sshInitMagic+
-			`; mender snapshot dump" | cat'`)
+	args = append(
+		args,
+		"/bin/sh",
+		"-c",
+		`'mender_snapshot="mender snapshot"`+
+			`; which mender-snapshot && mender_snapshot="mender-snapshot"`+
+			`; [ $(id -u) -eq 0 ] || sudo_cmd="sudo -S"`+
+			`; $sudo_cmd /bin/sh -c "echo `+sshInitMagic+`; $mender_snapshot dump" | cat'`,
+	)
 
 	cmd := exec.Command("ssh", args...)
 
