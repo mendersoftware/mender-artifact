@@ -15,9 +15,6 @@ include:
   - project: "Northern.tech/Mender/mendertesting"
     file: ".gitlab-ci-check-license.yml"
 
-# Keep golang version aligned with latest yocto release
-image: golang:1.17-alpine3.16
-
 cache:
   paths:
     - /go/src/github.com
@@ -90,6 +87,7 @@ build:coverage:
 
 test:smoketests:mac:
   stage: test
+  image: docker
   needs:
     - job: build:make
       artifacts: true
@@ -112,10 +110,11 @@ test:smoketests:mac:
 
 test:smoketests:linux:
   stage: test
+  # Keep golang version aligned with latest yocto release
+  image: golang:1.17-buster
   needs:
     - job: build:make
       artifacts: true
-  image: golang:1.18-buster
   before_script:
     - apt-get update && apt-get install -q -y make liblzma-dev libssl-dev
     - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh --setup
@@ -138,7 +137,7 @@ test:smoketests:linux:
 
 test:coverage:linux:
   stage: test
-  image: golang:1.18-buster
+  image: debian:buster-slim
   needs:
     - job: build:coverage
       artifacts: true
@@ -164,8 +163,9 @@ test:coverage:linux:
 
 .test:unit:
   stage: test
+  # Keep golang version aligned with latest yocto release
+  image: golang:1.17-alpine3.16
   needs: []
-
   script:
     - make coverage
     - mv coverage.txt $CI_PROJECT_DIR/$COVERAGE_FILE
@@ -194,6 +194,7 @@ test:unit:mac:
 
 publish:tests:
   stage: publish
+  image: golang:1.20
   needs:
     - job: test:unit:linux
       artifacts: true
@@ -203,10 +204,9 @@ publish:tests:
       artifacts: true
   variables:
     COVERALLS_WEBHOOK_URL: "https://coveralls.io/webhook"
+    COVERALLS_RERUN_BUILD_URL: "https://coveralls.io/rerun_build"
   before_script:
-    - apk add --no-cache git curl
-    # Run go get out of the repo to not modify go.mod
-    - cd / && go get github.com/mattn/goveralls && cd -
+    - go install github.com/mattn/goveralls@v0.0.12
     # Coveralls env variables:
     #  According to https://docs.coveralls.io/supported-ci-services
     #  we should set CI_NAME, CI_BUILD_NUMBER, etc. But according
@@ -229,10 +229,13 @@ publish:tests:
       -flagname unittests:$PLATFORM
       -coverprofile coverage-$PLATFORM.txt
     - done
+    # Finalize the report
+    - 'curl -k ${COVERALLS_WEBHOOK_URL}?repo_token=${COVERALLS_TOKEN} -d "payload[build_num]=$CI_PIPELINE_ID&payload[status]=done"'
+    - 'curl -k "${COVERALLS_RERUN_BUILD_URL}?repo_token=${COVERALLS_TOKEN}&build_num=${CI_PIPELINE_ID}"'
 
 publish:s3:
   stage: publish
-  image: debian:buster
+  image: debian:buster-slim
   needs:
     - job: build:make
       artifacts: true

@@ -723,6 +723,22 @@ func TestCopyRootfsImage(t *testing.T) {
 			name: "Create a directory that already exists",
 			argv: []string{"mender-artifact", "install", "-d", "<artifact|sdimg|fat-sdimg|sparse-sdimg>:/"},
 		},
+		{
+			name: "read from output.txt and write to img without specifying target file name",
+			initfunc: func(imgpath string) {
+				assert.Nil(t, os.WriteFile("output.txt", []byte("artifact_name=foobar"), 0644))
+			},
+			argv: []string{"mender-artifact", "cp", "output.txt", "<artifact|sdimg|sparse-sdimg|fat-sdimg>:/"},
+			verifyTestFunc: func(imgpath string) {
+				cmd := exec.Command(filepath.Join(dir, "mender-artifact"), "cat", imgpath+":/output.txt")
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				err := cmd.Run()
+				assert.Nil(t, err, "got unexpected error: %s", err)
+				assert.Equal(t, "artifact_name=foobar", out.String())
+				os.Remove("output.txt")
+			},
+		},
 	}
 
 	for _, test := range tests {

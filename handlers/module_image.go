@@ -128,12 +128,8 @@ func (img *ModuleImage) GetUpdateAllFiles() [](*DataFile) {
 	files := img.GetUpdateFiles()
 	augmentFiles := img.GetUpdateAugmentFiles()
 	allFiles := make([](*DataFile), 0, len(files)+len(augmentFiles))
-	for n := range files {
-		allFiles = append(allFiles, files[n])
-	}
-	for n := range augmentFiles {
-		allFiles = append(allFiles, augmentFiles[n])
-	}
+	allFiles = append(allFiles, files...)
+	allFiles = append(allFiles, augmentFiles...)
 	return allFiles
 }
 
