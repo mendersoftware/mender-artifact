@@ -1,4 +1,4 @@
-// Copyright 2022 Northern.tech AS
+// Copyright 2023 Northern.tech AS
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -323,4 +323,37 @@ func TestSignWithWriteCommand(t *testing.T) {
 		artifactTarLines := strings.Split(string(artifactTar), "\n")
 		assert.Contains(t, artifactTarLines, "manifest.sig")
 	})
+}
+
+func TestSignExistingPermissions(t *testing.T) {
+	// first create archive, that we will be able to read
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	priv, _, err := generateKeys()
+	assert.NoError(t, err)
+
+	err = WriteArtifact(updateTestDir, 2, "")
+	assert.NoError(t, err)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "private.key",
+				Content: priv,
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	err = Run([]string{"mender-artifact", "sign",
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender.sig"),
+		filepath.Join(updateTestDir, "artifact.mender")})
+	assert.NoError(t, err)
+
+	preSignStat, _ := os.Stat(filepath.Join(updateTestDir, "artifact.mender"))
+	postSignStat, err := os.Stat(filepath.Join(updateTestDir, "artifact.mender.sig"))
+
+	assert.Equal(t, preSignStat.Mode(), postSignStat.Mode())
 }
