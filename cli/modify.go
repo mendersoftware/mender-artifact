@@ -254,6 +254,18 @@ func modifyArtifactAttributes(c *cli.Context, image VPImage) error {
 		art.writeArgs.Depends.ArtifactGroup = c.StringSlice("depends-groups")
 	}
 
+	if c.IsSet("script") {
+		if !isArt {
+			return errors.New("`--script` argument must be used with an Artifact")
+		}
+		for _, scriptName := range c.StringSlice("script") {
+			err := art.writeArgs.Scripts.Add(scriptName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	if c.IsSet("provides-group") {
 		if !isArt {
 			return errors.New("`--provides-group` argument must be used with an Artifact")

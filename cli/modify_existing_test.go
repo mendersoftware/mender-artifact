@@ -561,9 +561,9 @@ Updates:
 	require.NoError(t, err)
 	err = ioutil.WriteFile(filepath.Join(tmpdir, "ArtifactCommit_Leave_00"), []byte("more commands"), 0755)
 	require.NoError(t, err)
+	err = ioutil.WriteFile(filepath.Join(tmpdir, "ArtifactRollback_Enter_00"), []byte("even more commands"), 0755)
 	err = ioutil.WriteFile(filepath.Join(tmpdir, "meta-data"), []byte(`{"a":"b"}`), 0644)
 	require.NoError(t, err)
-
 	err = Run([]string{
 		"mender-artifact", "write", "module-image",
 		"-o", artfile,
@@ -572,23 +572,53 @@ Updates:
 		"-T", "testType",
 		"-f", filepath.Join(tmpdir, "updateFile"),
 		"-f", filepath.Join(tmpdir, "updateFile2"),
-		"-s", filepath.Join(tmpdir, "ArtifactInstall_Enter_00"),
+		// Only writes one of the scripts during the write operation to add them later with modify
 		"-s", filepath.Join(tmpdir, "ArtifactCommit_Leave_00"),
 		"-m", filepath.Join(tmpdir, "meta-data"),
 	})
 	assert.NoError(t, err)
 
+	// Adds the other script via modifying
+	modifyAndRead(t, artfile, "-s", filepath.Join(tmpdir, "ArtifactInstall_Enter_00"), "-s", filepath.Join(tmpdir, "ArtifactRollback_Enter_00"))
+
 	// Modify Artifact name shall work
 	data = modifyAndRead(t, artfile, "-n", "release-1")
-	// State scripts can unfortunately be in any order.
+	// State scripts can unfortunately be in any order, so we have to compare their placement before expecting a result with them
 	var expectedScripts string
-	if strings.Index(string(data), "ArtifactInstall") < strings.Index(string(data), "ArtifactCommit") {
-		expectedScripts = `    ArtifactInstall_Enter_00
-    ArtifactCommit_Leave_00`
-	} else {
-		expectedScripts = `    ArtifactCommit_Leave_00
+	installIndex := strings.Index(string(data), "ArtifactInstall")
+	commitIndex := strings.Index(string(data), "ArtifactCommit")  
+	rollbackIndex := strings.Index(string(data), "ArtifactRollback")
+
+	if installIndex < commitIndex {
+		if commitIndex < rollbackIndex {
+			expectedScripts = `    ArtifactCommmit_Leave_00 
+    ArtifactRollback_Enter_00
     ArtifactInstall_Enter_00`
+		} else if installIndex < rollbackIndex {
+			expectedScripts = `    ArtifactInstall_Enter_00
+    ArtifactRollback_Enter_00
+    ArtifactCommit_Leave_00`
+		} else {
+			expectedScripts = `    ArtifactInstall_Enter_00
+    ArtifactCommit_Leave_00
+    ArtifactRollback_Enter_00`
+		}
+	} else {
+		if installIndex < rollbackIndex { 
+			expectedScripts = `    ArtifactCommit_Leave_00
+    ArtifactInstall_Enter_00
+    ArtifactRollback_Enter_00`
+		} else if commitIndex < rollbackIndex {
+			expectedScripts = `    ArtifactCommit_Leave_00
+    ArtifactRollback_Enter_00
+    ArtifactInstall_Enter_00`
+		} else {
+			expectedScripts = `    ArtifactRollback_Enter_00
+    ArtifactCommit_Leave_00
+    ArtifactInstall_Enter_00`
+		}
 	}
+
 	expected = `Mender artifact:
   Name: release-1
   Format: mender
@@ -634,6 +664,7 @@ Updates:
 		"server-uri",
 		"tenant-token",
 		"verification-key",
+		"script",
 	})
 }
 
