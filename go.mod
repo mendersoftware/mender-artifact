@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	cloud.google.com/go/kms v1.10.1
+	github.com/Keyfactor/signserver-go-client-sdk v0.3.0
 	github.com/googleapis/gax-go/v2 v2.12.0
 	github.com/hashicorp/vault/api v1.10.0
 	github.com/klauspost/compress v1.16.7
@@ -16,7 +17,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli v1.22.14
-	golang.org/x/sys v0.15.0
+	golang.org/x/sys v0.16.0
 	google.golang.org/protobuf v1.32.0
 )
 

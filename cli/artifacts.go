@@ -25,6 +25,7 @@ import (
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/artifact/gcp"
+	"github.com/mendersoftware/mender-artifact/artifact/keyfactor"
 	"github.com/mendersoftware/mender-artifact/artifact/vault"
 	"github.com/mendersoftware/mender-artifact/awriter"
 	"github.com/mendersoftware/mender-artifact/handlers"
@@ -126,7 +127,13 @@ type SigningKey interface {
 
 func getKey(c *cli.Context) (SigningKey, error) {
 	var chosenOptions []string
-	possibleOptions := []string{"key", "gcp-kms-key", "vault-transit-key", "key-pkcs11"}
+	possibleOptions := []string{
+		"key",
+		"gcp-kms-key",
+		"vault-transit-key",
+		"key-pkcs11",
+		"keyfactor-signserver-worker",
+	}
 	for _, optName := range possibleOptions {
 		if c.String(optName) == "" {
 			continue
@@ -174,6 +181,8 @@ func getKey(c *cli.Context) (SigningKey, error) {
 		return vault.NewVaultSigner(c.String("vault-transit-key"))
 	case "key-pkcs11":
 		return artifact.NewPKCS11Signer(c.String("key-pkcs11"))
+	case "keyfactor-signserver-worker":
+		return keyfactor.NewSignServerSigner(c.String("keyfactor-signserver-worker"))
 	default:
 		return nil, fmt.Errorf("unsupported signing key type %q", chosenOption)
 	}
