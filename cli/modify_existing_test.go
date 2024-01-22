@@ -458,6 +458,7 @@ Updates:
 		"device-type",
 		"file",
 		"gcp-kms-key",
+		"keyfactor-signserver-worker",
 		"vault-transit-key",
 		"key",
 		"output-path",
@@ -466,6 +467,7 @@ Updates:
 	modifyFlagsTested.addFlags([]string{
 		"artifact-name",
 		"gcp-kms-key",
+		"keyfactor-signserver-worker",
 		"vault-transit-key",
 		"key",
 		"name",

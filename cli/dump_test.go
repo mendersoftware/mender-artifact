@@ -276,6 +276,7 @@ func testDumpContent(t *testing.T, imageType, printCmdline string) {
 		"file",
 		"gcp-kms-key",                  // Not tested in "dump".
 		"vault-transit-key",            // Not tested in "dump".
+		"keyfactor-signserver-worker",  // Not tested in "dump".
 		"key",                          // Not tested in "dump".
 		"legacy-rootfs-image-checksum", // Not relevant for "dump", which uses "module-image".
 		"meta-data",

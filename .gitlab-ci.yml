@@ -29,6 +29,10 @@ variables:
   S3_BUCKET_PATH: "mender-artifact"
   DOCKER_BUILDKIT: 1
 
+test:check-license-source:
+  variables:
+    LICENSE_HEADERS_IGNORE_FILES_REGEXP: './artifact/keyfactor/\(signer\|signer_test\)\.go'
+
 build:docker:
   image: docker
   needs: []

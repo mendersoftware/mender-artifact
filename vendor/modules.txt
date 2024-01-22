@@ -13,6 +13,9 @@ cloud.google.com/go/iam/apiv1/iampb
 cloud.google.com/go/kms/apiv1
 cloud.google.com/go/kms/apiv1/kmspb
 cloud.google.com/go/kms/internal
+# github.com/Keyfactor/signserver-go-client-sdk v0.3.0
+## explicit; go 1.19
+github.com/Keyfactor/signserver-go-client-sdk/api/signserver
 # github.com/cenkalti/backoff/v3 v3.0.0
 ## explicit; go 1.12
 github.com/cenkalti/backoff/v3

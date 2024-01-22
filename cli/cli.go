@@ -134,6 +134,13 @@ func getCliContext() *cli.App {
 			"the Artifact.",
 	}
 
+	signserverWorkerName := cli.StringFlag{
+		Name: "keyfactor-signserver-worker",
+		Usage: "The name of the SignServer worker that will be used to sign " +
+			"the Artifact. The worker name must be associated with a Plain Signer worker " +
+			"in SignServer. ",
+	}
+
 	vaultTransitKeyFlag := cli.StringFlag{
 		Name: "vault-transit-key",
 		Usage: "Key name of the Hashicorp Vault transit key that will be used to sign " +
@@ -258,6 +265,7 @@ func getCliContext() *cli.App {
 		privateKeyFlag,
 		gcpKMSKeyFlag,
 		vaultTransitKeyFlag,
+		signserverWorkerName,
 		cli.StringSliceFlag{
 			Name: "script, s",
 			Usage: "Full path to the state script(s). You can specify multiple " +
@@ -390,6 +398,7 @@ func getCliContext() *cli.App {
 		privateKeyFlag,
 		gcpKMSKeyFlag,
 		vaultTransitKeyFlag,
+		signserverWorkerName,
 		//////////////////////
 		// Sotware versions //
 		//////////////////////
@@ -442,6 +451,7 @@ func getCliContext() *cli.App {
 		payloadDepends,
 		privateKeyFlag,
 		gcpKMSKeyFlag,
+		signserverWorkerName,
 		vaultTransitKeyFlag,
 		/////////////////////////
 		// Version 3 specifics.//
@@ -477,6 +487,7 @@ func getCliContext() *cli.App {
 		Flags: []cli.Flag{
 			publicKeyFlag,
 			gcpKMSKeyFlag,
+			signserverWorkerName,
 			vaultTransitKeyFlag,
 			pkcs11Flag,
 		},
@@ -495,6 +506,7 @@ func getCliContext() *cli.App {
 		Flags: []cli.Flag{
 			publicKeyFlag,
 			gcpKMSKeyFlag,
+			signserverWorkerName,
 			vaultTransitKeyFlag,
 			pkcs11Flag,
 			cli.BoolFlag{
@@ -519,6 +531,7 @@ func getCliContext() *cli.App {
 	sign.Flags = []cli.Flag{
 		privateKeyFlag,
 		gcpKMSKeyFlag,
+		signserverWorkerName,
 		vaultTransitKeyFlag,
 		cli.StringFlag{
 			Name: "output-path, o",
@@ -586,6 +599,7 @@ func getCliContext() *cli.App {
 		},
 		privateKeyFlag,
 		gcpKMSKeyFlag,
+		signserverWorkerName,
 		vaultTransitKeyFlag,
 		compressionFlag,
 	}
@@ -611,6 +625,7 @@ func getCliContext() *cli.App {
 		compressionFlag,
 		privateKeyFlag,
 		gcpKMSKeyFlag,
+		signserverWorkerName,
 		vaultTransitKeyFlag,
 	}
 

@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	cloud.google.com/go/kms v1.10.1
+	github.com/Keyfactor/signserver-go-client-sdk v0.3.0
 	github.com/googleapis/gax-go/v2 v2.12.0
 	github.com/hashicorp/vault/api v1.10.0
 	github.com/klauspost/compress v1.16.7
