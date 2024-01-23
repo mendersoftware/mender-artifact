@@ -234,8 +234,7 @@ func (img *ModuleImage) setUpdateAugmentMetaData(metaData map[string]interface{}
 	return nil
 }
 
-// Copies JSON structures, with the additional restriction that lists cannot
-// contain any object or list.
+// Copies JSON structures
 func jsonDeepCopy(src interface{}) (interface{}, error) {
 	switch item := src.(type) {
 	case map[string]interface{}:
@@ -250,12 +249,12 @@ func jsonDeepCopy(src interface{}) (interface{}, error) {
 		return dst, nil
 	case []interface{}:
 		dst := make([]interface{}, 0, len(item))
-		for n := range item {
-			switch item[n].(type) {
-			case map[string]interface{}, []interface{}:
-				return nil, errors.New("List cannot contain JSON object or list")
+		for _, val := range item {
+			obj, err := jsonDeepCopy(val)
+			if err != nil {
+				return nil, err
 			}
-			dst = append(dst, item[n])
+			dst = append(dst, obj)
 		}
 		return dst, nil
 	default:
@@ -317,6 +316,7 @@ func mergeJsonStructures(orig, override map[string]interface{}) (map[string]inte
 		}
 		merged[key] = obj
 	}
+
 	return merged, nil
 }
 
