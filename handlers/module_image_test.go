@@ -32,98 +32,101 @@ func TestMergeJsonStructures(t *testing.T) {
 		successful bool
 	}
 	testCases := []testType{
-		testType{
+		{
 			orig:       []byte("{\"test\":\"hidden\"}"),
 			override:   []byte("{\"test\":\"overridden\"}"),
 			expected:   []byte("{\"test\":\"overridden\"}"),
 			successful: true,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":\"visible\"}"),
 			override:   []byte("{\"test2\":\"also-visible\"}"),
 			expected:   []byte("{\"test\":\"visible\",\"test2\":\"also-visible\"}"),
 			successful: true,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":[\"visible\"]}"),
 			override:   []byte("{}"),
 			expected:   []byte("{\"test\":[\"visible\"]}"),
 			successful: true,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":[\"visible\"]}"),
 			override:   []byte("{\"test2\":[\"also-visible\"]}"),
 			expected:   []byte("{\"test\":[\"visible\"],\"test2\":[\"also-visible\"]}"),
 			successful: true,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":[\"hidden\"]}"),
 			override:   []byte("{\"test\":[\"overridden\"]}"),
 			expected:   []byte("{\"test\":[\"overridden\"]}"),
 			successful: true,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":[\"hidden\"]}"),
 			override:   []byte("{\"test\":\"overridden\"}"),
 			successful: false,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":\"hidden\"}"),
 			override:   []byte("{\"test\":[\"overridden\"]}"),
 			successful: false,
 		},
-		testType{
+		{
 			orig:       []byte("{}"),
 			override:   []byte("{\"test\":[{\"inner\":\"overridden\"}]}"),
-			successful: false,
+			expected:   []byte("{\"test\":[{\"inner\":\"overridden\"}]}"),
+			successful: true,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":\"hidden\"}"),
 			override:   []byte("{\"test\":[{\"inner\":\"overridden\"}]}"),
 			successful: false,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":[{\"inner\":\"value\"}]}"),
 			override:   []byte("{}"),
-			successful: false,
+			expected:   []byte("{\"test\":[{\"inner\":\"value\"}]}"),
+			successful: true,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":\"hidden\"}"),
 			override:   []byte("{\"test\":{\"inner\":\"overridden\"}}"),
 			successful: false,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":{\"inner\":\"hidden\"}}"),
 			override:   []byte("{\"test\":\"overridden\"}"),
 			successful: false,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":{\"inner\":\"hidden\"}}"),
 			override:   []byte("{\"test\":{\"inner\":\"overridden\"}}"),
 			expected:   []byte("{\"test\":{\"inner\":\"overridden\"}}"),
 			successful: true,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":{\"inner\":\"one\"}}"),
 			override:   []byte("{\"test2\":{\"inner\":\"another\"}}"),
 			expected:   []byte("{\"test\":{\"inner\":\"one\"},\"test2\":{\"inner\":\"another\"}}"),
 			successful: true,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":{\"inner\":\"one\"}}"),
 			override:   []byte("{\"test\":{\"inner2\":\"another\"}}"),
 			expected:   []byte("{\"test\":{\"inner\":\"one\",\"inner2\":\"another\"}}"),
 			successful: true,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":{\"inner\":\"one\"}}"),
 			override:   []byte("{\"test\":{\"inner\":[\"another\"]}}"),
 			successful: false,
 		},
-		testType{
+		{
 			orig:       []byte("{\"test\":[\"hidden\"]}"),
 			override:   []byte("{\"test\":[{\"inner\":\"overridden\"}]}"),
-			successful: false,
+			expected:   []byte("{\"test\":[{\"inner\":\"overridden\"}]}"),
+			successful: true,
 		},
 	}
 
@@ -248,4 +251,61 @@ func TestModuleImageGetProperties(t *testing.T) {
 
 	_, err = augm.GetUpdateMetaData()
 	assert.Error(t, err)
+}
+
+func TestModuleImageMetaData(t *testing.T) {
+	orig := NewModuleImage("test-type")
+	augm := NewAugmentedModuleImage(orig, "test-type")
+
+	orig.metaData = map[string]interface{}{
+		"list": []map[string]string{
+			{
+				"a": "1",
+			},
+			{
+				"b": "2",
+			},
+		},
+		"version": 1.0,
+	}
+
+	augm.metaData = map[string]interface{}{
+		"data": [][]int{
+			{1, 3, 5, 7, 9},
+			{2, 4, 6, 8, 10},
+		},
+	}
+
+	metaData, err := orig.GetUpdateMetaData()
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{
+		"list": []map[string]string{
+			{
+				"a": "1",
+			},
+			{
+				"b": "2",
+			},
+		},
+		"version": 1.0,
+	}, metaData)
+
+	metaData, err = augm.GetUpdateMetaData()
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{
+		"list": []map[string]string{
+			{
+				"a": "1",
+			},
+			{
+				"b": "2",
+			},
+		},
+		"version": 1.0,
+		"data": [][]int{
+			{1, 3, 5, 7, 9},
+			{2, 4, 6, 8, 10},
+		},
+	}, metaData)
+
 }
