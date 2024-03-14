@@ -896,7 +896,7 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 		"/bin/sh",
 		"-c",
 		`'mender_snapshot="mender snapshot"`+
-			`; which mender-snapshot && mender_snapshot="mender-snapshot"`+
+			`; which mender-snapshot 1> /dev/null && mender_snapshot="mender-snapshot"`+
 			`; [ $(id -u) -eq 0 ] || sudo_cmd="sudo -S"`+
 			`; $sudo_cmd /bin/sh -c "echo `+sshInitMagic+`; $mender_snapshot dump" | cat'`,
 	)
