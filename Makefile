@@ -10,6 +10,9 @@ PKGFILES = $(shell find . \( -path ./vendor -o -path ./Godeps \) -prune \
 PKGFILES_notest = $(shell echo $(PKGFILES) | tr ' ' '\n' | grep -v _test.go)
 GOCYCLO ?= 20
 
+GOARCH ?= $(shell go env GOARCH)
+GOOS ?= $(shell go env GOOS)
+
 CGO_ENABLED=1
 export CGO_ENABLED
 
@@ -28,39 +31,35 @@ ifeq ($(V),1)
 BUILDV = -v
 endif
 
-TAGS ?= pkcs11
-ifeq ($(LOCAL),1)
-TAGS += local
-endif
-
-ifneq ($(TAGS),)
-BUILDTAGS = -tags '$(TAGS)'
-endif
+TAGS ?=
 
 build:
 	$(GO) build $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
 
 PLATFORMS := darwin linux windows
 
-GO_LDFLAGS_WIN = -ldflags "-X github.com/mendersoftware/mender-artifact/cli.Version=$(VERSION) -linkmode=internal -s -w -extldflags '-static' -extld=x86_64-w64-mingw32-gcc"
+$(PKGNAME)-%:
+	env CGO_ENABLED=$(CGO_ENABLED) \
+		GOARCH=$(GOARCH) \
+		GOOS=$(GOOS) \
+		go build \
+		    -a $(GO_LDFLAGS) $(BUILDV) -tags '$(TAGS)' \
+		    -o $@
 
-build-native-linux:
-	 @arch="amd64";
-	 @echo "building linux";
-	 @env GOOS=linux GOARCH=$$arch \
-        $(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-linux ;
+.nopkcs11:
+	$(warning "WARNING: Building without pkcs11 support")
 
-build-native-mac:
-	@arch="amd64";
-	@echo "building mac";
-	@env GOOS=darwin GOARCH=$$arch CGO_ENABLED=0 \
-        $(GO) build -a $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS) -o $(PKGNAME)-darwin ;
+build-native-linux: $(PKGNAME)-linux
 
-build-native-windows:
-	@arch="amd64";
-	@echo "building windows";
-	@env GOOS=windows GOARCH=$$arch CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ \
-        $(GO) build $(GO_LDFLAGS_WIN) $(BUILDV) -tags $(TAGS) nolzma -o $(PKGNAME)-windows.exe ;
+build-native-mac: GOOS = darwin
+build-native-mac: TAGS = nopkcs11
+build-native-mac: CGO_ENABLED = 0
+build-native-mac: .nopkcs11 $(PKGNAME)-darwin
+
+build-native-windows: GOOS = windows
+build-native-windows: TAGS = nopkcs11
+build-native-windows: GO_LDFLAGS = -ldflags "-X github.com/mendersoftware/mender-artifact/cli.Version=44d6905 -linkmode=internal -s -w -extldflags '-static' -extld=x86_64-w64-mingw32-gcc"
+build-native-windows: .nopkcs11 $(PKGNAME)-windows
 
 build-natives: build-native-linux build-native-mac build-native-windows
 
