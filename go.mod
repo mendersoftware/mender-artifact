@@ -16,6 +16,7 @@ require (
 	github.com/remyoudompheng/go-liblzma v0.0.0-20190506200333-81bf2d431b96
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
+	github.com/ulikunitz/xz v0.5.12
 	github.com/urfave/cli v1.22.15
 	golang.org/x/sys v0.19.0
 	google.golang.org/protobuf v1.33.0
