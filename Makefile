@@ -32,9 +32,12 @@ BUILDV = -v
 endif
 
 TAGS ?=
+ifneq ($(GOOS),linux)
+	TAGS += nopkcs11
+endif
 
 build:
-	$(GO) build $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
+	$(GO) build $(GO_LDFLAGS) $(BUILDV) -tags '$(TAGS)'
 
 PLATFORMS := darwin linux windows
 
@@ -143,15 +146,7 @@ instrument-binary:
 
 coverage:
 	rm -f coverage.txt
-	echo 'mode: count' > coverage.txt
-	set -e ; for p in $(PKGS); do \
-		rm -f coverage-tmp.txt;  \
-		$(GO) test -covermode=count -coverprofile=coverage-tmp.txt -coverpkg=$(SUBPKGS) $$p ; \
-		if [ -f coverage-tmp.txt ]; then \
-			cat coverage-tmp.txt |grep -v 'mode:' | cat >> coverage.txt; \
-		fi; \
-	done
-	rm -f coverage-tmp.txt
+	go test -tags '$(TAGS)' -covermode=atomic -coverprofile=coverage.txt ./...
 
 .PHONY: build clean get-tools test check \
 	cover htmlcover coverage tooldep install-autocomplete-scripts \
