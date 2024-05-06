@@ -52,7 +52,7 @@ var (
 		// The default depends on the preset: 0 uses hc3, 1–3 use hc4,
 		// and the rest use bt4.
 		// bt4 = BinaryTree with 4-byte hashing
-		Matcher: lzma.BinaryTree,
+		Matcher: lzma.HashTable4,
 		// xz(1): --block-size [...]
 		// In multi-threaded mode [...] The default size is three times
 		// the LZMA2 dictionary size or 1 MiB, whichever is more.
