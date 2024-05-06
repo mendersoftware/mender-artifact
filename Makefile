@@ -2,8 +2,7 @@ GO ?= go
 GOFMT ?= gofmt
 V ?=
 PREFIX ?= /usr/local
-PKGS = $(shell go list ./... | grep -v vendor)
-SUBPKGS = $(shell go list ./... | sed '1d' | tr '\n' ',' | sed 's/,$$//1')
+PKGS = $(shell go list ./... | tr '\n' ',' | head -c -1)
 PKGNAME = mender-artifact
 PKGFILES = $(shell find . \( -path ./vendor -o -path ./Godeps \) -prune \
 		-o -type f -name '*.go' -print)
@@ -146,7 +145,7 @@ instrument-binary:
 
 coverage:
 	rm -f coverage.txt
-	go test -tags '$(TAGS)' -covermode=atomic -coverprofile=coverage.txt ./...
+	go test -tags '$(TAGS)' -covermode=atomic -coverpkg=$(PKGS) -coverprofile=coverage.txt ./...
 
 .PHONY: build clean get-tools test check \
 	cover htmlcover coverage tooldep install-autocomplete-scripts \
