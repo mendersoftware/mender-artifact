@@ -61,7 +61,7 @@ build-native-mac: .nopkcs11 $(PKGNAME)-darwin
 build-native-windows: GOOS = windows
 build-native-windows: TAGS = nopkcs11
 build-native-windows: GO_LDFLAGS = -ldflags "-X github.com/mendersoftware/mender-artifact/cli.Version=44d6905 -linkmode=internal -s -w -extldflags '-static' -extld=x86_64-w64-mingw32-gcc"
-build-native-windows: .nopkcs11 $(PKGNAME)-windows
+build-native-windows: .nopkcs11 $(PKGNAME)-windows.exe
 
 build-natives: build-native-linux build-native-mac build-native-windows
 
