@@ -34,6 +34,8 @@ test:check-license-source:
     LICENSE_HEADERS_IGNORE_FILES_REGEXP: './artifact/keyfactor/\(signer\|signer_test\)\.go'
 
 build:docker:
+  tags:
+    - hetzner-amd-beefy
   image: docker
   needs: []
   services:
@@ -46,10 +48,16 @@ build:docker:
     expire_in: 2w
     paths:
       - image.tar
-  tags:
-    - docker
 
 build:make:
+  tags:
+    - mender-qa-worker-generic
+  variables:
+    # DinD setup in Mender CI runners
+    DOCKER_HOST: "tcp://docker:2376"
+    DOCKER_CERT_PATH: "/certs/client"
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_TLS_CERTDIR: "/certs"
   image: docker
   needs: []
   services:
@@ -63,16 +71,10 @@ build:make:
     expire_in: 2w
     paths:
       - mender-artifact-*
-  tags:
-    - mender-qa-worker-generic
-  variables:
-    # DinD setup in Mender CI runners
-    DOCKER_HOST: "tcp://docker:2376"
-    DOCKER_CERT_PATH: "/certs/client"
-    DOCKER_TLS_VERIFY: "1"
-    DOCKER_TLS_CERTDIR: "/certs"
 
 build:coverage:
+  tags:
+    - hetzner-amd-beefy
   stage: build
   image: docker
   needs: []
@@ -90,6 +92,8 @@ build:coverage:
       - mender-artifact-linux-coverage
 
 test:smoketests:mac:
+  tags:
+    - mac-runner
   stage: test
   image: docker
   needs:
@@ -109,10 +113,10 @@ test:smoketests:mac:
     - ./mender-artifact-darwin validate test-rfs.mender
     - ./tests/test_compressions/test_supported_compressions.sh
     - make build
-  tags:
-    - mac-runner
 
 test:smoketests:linux:
+  tags:
+    - hetzner-amd-beefy
   stage: test
   # Keep golang version aligned with latest yocto release
   image: golang:1.17-buster
@@ -140,6 +144,8 @@ test:smoketests:linux:
     - make build
 
 test:coverage:linux:
+  tags:
+    - hetzner-amd-beefy
   stage: test
   image: debian:buster-slim
   needs:
@@ -166,6 +172,8 @@ test:coverage:linux:
       - ${COVERAGE_FILE}
 
 .test:unit:
+  tags:
+    - hetzner-amd-beefy
   stage: test
   # Keep golang version aligned with latest yocto release
   image: golang:1.17-alpine3.16
@@ -197,6 +205,8 @@ test:unit:mac:
     - mac-runner
 
 publish:tests:
+  tags:
+    - hetzner-amd-beefy
   stage: publish
   image: golang:1.20
   needs:
@@ -238,6 +248,8 @@ publish:tests:
     - 'curl -k "${COVERALLS_RERUN_BUILD_URL}?repo_token=${COVERALLS_TOKEN}&build_num=${CI_PIPELINE_ID}"'
 
 publish:s3:
+  tags:
+    - hetzner-amd-beefy
   stage: publish
   image: debian:buster-slim
   needs:
@@ -261,6 +273,8 @@ publish:s3:
     - /^(master|[0-9]+\.[0-9]+\.x)$/
 
 generate-qa-trigger:
+  tags:
+    - hetzner-amd-beefy
   image: python:alpine
   stage: trigger_prep
   rules:
