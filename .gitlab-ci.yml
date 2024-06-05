@@ -28,24 +28,34 @@ variables:
   S3_BUCKET_NAME: "mender"
   S3_BUCKET_PATH: "mender-artifact"
   DOCKER_BUILDKIT: 1
+  DOCKER_PLATFORMS:
+    value: "linux/amd64,linux/arm64"
+    description: "Platforms for building and distributing container images"
 
 test:check-license-source:
   variables:
     LICENSE_HEADERS_IGNORE_FILES_REGEXP: './artifact/keyfactor/\(signer\|signer_test\)\.go'
 
 build:docker:
-  image: docker
+  image: docker:26-cli
   needs: []
   services:
-    - docker:dind
+    - docker:26-dind
   stage: build
+  before_script:
+    - |
+      echo ${CI_REGISTRY_PASSWORD} | \
+        docker login \
+          --username "$CI_REGISTRY_USER" \
+          --password-stdin \
+          "$CI_REGISTRY"
+    - docker buildx create --platform "$DOCKER_PLATFORMS" --name builder --bootstrap --use
   script:
-    - docker build -t $DOCKER_REPOSITORY:pr .
-    - docker save $DOCKER_REPOSITORY:pr > image.tar
-  artifacts:
-    expire_in: 2w
-    paths:
-      - image.tar
+    - |
+      docker buildx build --push \
+        --platform "$DOCKER_PLATFORMS" \
+        --tag "$CI_REGISTRY_IMAGE:$CI_PIPELINE_IID" \
+        .
   tags:
     - gitlab-org-docker
 
@@ -269,6 +279,36 @@ publish:s3:
       done
   only:
     - /^(master|[0-9]+\.[0-9]+\.x)$/
+
+publish:docker:
+  stage: publish
+  rules:
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - when: manual # Fallback; allow manual trigger
+      allow_failure: true
+  image:
+    name: "quay.io/skopeo/stable:v1.15"
+    # https://docs.gitlab.com/ee/ci/docker/using_docker_images.html#override-the-entrypoint-of-an-image
+    entrypoint: [""]
+  before_script:
+    - |
+      echo ${CI_REGISTRY_PASSWORD} | \
+        skopeo login \
+          --username "$CI_REGISTRY_USER" \
+          --password-stdin \
+          "$CI_REGISTRY"
+    - |
+      echo ${DOCKER_HUB_PASSWORD} | \
+        skopeo login \
+          --username "$DOCKER_HUB_USERNAME" \
+          --password-stdin \
+          docker.io
+  script:
+    - |
+      skopeo copy --multi-arch all \
+      "docker://${CI_REGISTRY_IMAGE}:${CI_PIPELINE_IID}" \
+      "docker://docker.io/mendersoftware/mender-artifact:${CI_COMMIT_REF_NAME}"
 
 generate-qa-trigger:
   image: python:alpine
