@@ -49,6 +49,16 @@ build:docker:
   tags:
     - gitlab-org-docker
 
+build:yoctocompat:
+  # Keep golang version aligned with latest yocto release
+  image: golang:1.17.13-bullseye
+  needs: []
+  before_script:
+    - apt-get update
+    - apt-get install -qy libssl-dev
+  script:
+    - go build
+
 build:make:
   image: docker
   needs: []
