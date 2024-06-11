@@ -73,6 +73,9 @@ build:make:
   image: golang:1.22.4
   needs: []
   stage: build
+  before_script:
+    - apt-get update
+    - apt-get install -qqy libssl-dev
   script:
     - make build-natives
   artifacts:
@@ -92,6 +95,9 @@ build:coverage:
   stage: build
   image: golang:1.22.4
   needs: []
+  before_script:
+    - apt-get update
+    - apt-get install -qqy libssl-dev
   script:
     - make build BUILDFLAGS='-cover'
   artifacts:
