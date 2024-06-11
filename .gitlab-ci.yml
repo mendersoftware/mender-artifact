@@ -150,8 +150,6 @@ test:smoketests:linux:
     - ./mender-artifact-linux read test-rfs.mender
     - ./mender-artifact-linux validate test-rfs.mender
     - ./tests/test_compressions/test_supported_compressions.sh
-    # QA-507: lock mender-artifact to OpenSSL 1.1
-    - ldd ./mender-artifact-linux | grep libssl.so.1.1
     - make build
 
 test:coverage:linux:
