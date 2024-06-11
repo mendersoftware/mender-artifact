@@ -70,10 +70,8 @@ build:yoctocompat:
     - go build
 
 build:make:
-  image: golang:1.17.13-bullseye
+  image: golang:1.22.4
   needs: []
-  before_script:
-    - apk add --no-cache make
   stage: build
   script:
     - make build-natives
@@ -126,8 +124,7 @@ test:smoketests:mac:
 
 test:smoketests:linux:
   stage: test
-  # Keep golang version aligned with latest yocto release
-  image: golang:1.17-buster
+  image: golang:1.22.4
   needs:
     - job: build:make
       artifacts: true
