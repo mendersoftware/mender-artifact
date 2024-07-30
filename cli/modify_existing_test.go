@@ -301,9 +301,9 @@ yOTl4wVLQKA6mFvMV9o8B9yTBNg3mQS0vA==
 func removeVolatileEntries(input string) string {
 	var output strings.Builder
 	for _, line := range strings.Split(input, "\n") {
-		if strings.HasPrefix(line, "      checksum:") ||
-			strings.HasPrefix(line, "      modified:") ||
-			strings.HasPrefix(line, "\trootfs-image.checksum:") {
+		if strings.Contains(line, " checksum:") ||
+			strings.Contains(line, " modified:") ||
+			strings.Contains(line, "rootfs-image.checksum:") {
 			continue
 		}
 		output.WriteString(line)
@@ -338,28 +338,27 @@ func TestModifyRootfsSigned(t *testing.T) {
 
 		// Modify the artifact, the result shall be unsigned
 		data := modifyAndRead(t, filepath.Join(tmp, "artifact.mender"), "-n", "release-2")
-		expected := `Mender artifact:
+		expected := `Mender Artifact:
   Name: release-2
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: '[my-device]'
+  Compatible devices: [my-device]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
-  State scripts:
+  State scripts: []
 
 Updates:
-    0:
-    Type:   rootfs-image
+  - Type: rootfs-image
     Provides:
-	rootfs-image.version: release-1
-    Depends: Nothing
-    Clears Provides: ["artifact_group", "rootfs_image_checksum", "rootfs-image.*"]
-    Metadata: Nothing
+      rootfs-image.version: release-1
+    Depends: {}
+    Clears Provides: [artifact_group, rootfs_image_checksum, rootfs-image.*]
+    Metadata: {}
     Files:
-      name:     mender_test.img
-      size:     524288
+        name: mender_test.img
+        size: 524288
 
 `
 		assert.Equal(t, expected, removeVolatileEntries(data))
@@ -367,28 +366,27 @@ Updates:
 		// Modify again with a private key, and the result shall be signed
 		data = modifyAndRead(t, filepath.Join(tmp, "artifact.mender"),
 			"-n", "release-3", "-k", filepath.Join(tmp, key))
-		expected = `Mender artifact:
+		expected = `Mender Artifact:
   Name: release-3
   Format: mender
   Version: 3
   Signature: signed but no key for verification provided; please use ` + "`-k`" + ` option for providing verification key
-  Compatible devices: '[my-device]'
+  Compatible devices: [my-device]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
-  State scripts:
+  State scripts: []
 
 Updates:
-    0:
-    Type:   rootfs-image
+  - Type: rootfs-image
     Provides:
-	rootfs-image.version: release-1
-    Depends: Nothing
-    Clears Provides: ["artifact_group", "rootfs_image_checksum", "rootfs-image.*"]
-    Metadata: Nothing
+      rootfs-image.version: release-1
+    Depends: {}
+    Clears Provides: [artifact_group, rootfs_image_checksum, rootfs-image.*]
+    Metadata: {}
     Files:
-      name:     mender_test.img
-      size:     524288
+        name: mender_test.img
+        size: 524288
 
 `
 		assert.Equal(t, expected, removeVolatileEntries(data))
@@ -419,18 +417,18 @@ Updates:
 	// State scripts can unfortunately be in any order.
 	var expectedScripts string
 	if strings.Index(data, "ArtifactInstall") < strings.Index(data, "ArtifactCommit") {
-		expectedScripts = `    ArtifactInstall_Enter_00
-    ArtifactCommit_Leave_00`
+		expectedScripts = `    - ArtifactInstall_Enter_00
+    - ArtifactCommit_Leave_00`
 	} else {
-		expectedScripts = `    ArtifactCommit_Leave_00
-    ArtifactInstall_Enter_00`
+		expectedScripts = `    - ArtifactCommit_Leave_00
+    - ArtifactInstall_Enter_00`
 	}
-	expected := `Mender artifact:
+	expected := `Mender Artifact:
   Name: release-2
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: '[my-device]'
+  Compatible devices: [my-device]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
@@ -438,16 +436,15 @@ Updates:
 ` + expectedScripts + `
 
 Updates:
-    0:
-    Type:   rootfs-image
+  - Type: rootfs-image
     Provides:
-	rootfs-image.version: release-1
-    Depends: Nothing
-    Clears Provides: ["artifact_group", "rootfs_image_checksum", "rootfs-image.*"]
-    Metadata: Nothing
+      rootfs-image.version: release-1
+    Depends: {}
+    Clears Provides: [artifact_group, rootfs_image_checksum, rootfs-image.*]
+    Metadata: {}
     Files:
-      name:     mender_test.img
-      size:     524288
+        name: mender_test.img
+        size: 524288
 
 `
 	assert.Equal(t, expected, removeVolatileEntries(data))
@@ -500,30 +497,29 @@ func TestModifyModuleArtifact(t *testing.T) {
 
 	// Modify Artifact name shall work
 	data := modifyAndRead(t, artfile, "-n", "release-1")
-	expected := `Mender artifact:
+	expected := `Mender Artifact:
   Name: release-1
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: '[testDevice]'
+  Compatible devices: [testDevice]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
-  State scripts:
+  State scripts: []
 
 Updates:
-    0:
-    Type:   testType
+  - Type: testType
     Provides:
-	rootfs-image.testType.version: testName
-    Depends: Nothing
-    Clears Provides: ["rootfs-image.testType.*"]
-    Metadata: Nothing
+      rootfs-image.testType.version: testName
+    Depends: {}
+    Clears Provides: [rootfs-image.testType.*]
+    Metadata: {}
     Files:
-      name:     updateFile
-      size:     13
-      name:     updateFile2
-      size:     14
+        name: updateFile
+        size: 13
+        name: updateFile2
+        size: 14
 
 `
 	assert.Equal(t, expected, removeVolatileEntries(data))
@@ -593,40 +589,40 @@ Updates:
 
 	if installIndex < commitIndex {
 		if commitIndex < rollbackIndex {
-			expectedScripts = `    ArtifactCommmit_Leave_00 
-    ArtifactRollback_Enter_00
-    ArtifactInstall_Enter_00`
+			expectedScripts = `    - ArtifactCommmit_Leave_00 
+    - ArtifactRollback_Enter_00
+    - ArtifactInstall_Enter_00`
 		} else if installIndex < rollbackIndex {
-			expectedScripts = `    ArtifactInstall_Enter_00
-    ArtifactRollback_Enter_00
-    ArtifactCommit_Leave_00`
+			expectedScripts = `    - ArtifactInstall_Enter_00
+    - ArtifactRollback_Enter_00
+    - ArtifactCommit_Leave_00`
 		} else {
-			expectedScripts = `    ArtifactInstall_Enter_00
-    ArtifactCommit_Leave_00
-    ArtifactRollback_Enter_00`
+			expectedScripts = `    - ArtifactInstall_Enter_00
+    - ArtifactCommit_Leave_00
+    - ArtifactRollback_Enter_00`
 		}
 	} else {
-		if installIndex < rollbackIndex { 
-			expectedScripts = `    ArtifactCommit_Leave_00
-    ArtifactInstall_Enter_00
-    ArtifactRollback_Enter_00`
+		if installIndex < rollbackIndex {
+			expectedScripts = `    - ArtifactCommit_Leave_00
+    - ArtifactInstall_Enter_00
+    - ArtifactRollback_Enter_00`
 		} else if commitIndex < rollbackIndex {
-			expectedScripts = `    ArtifactCommit_Leave_00
-    ArtifactRollback_Enter_00
-    ArtifactInstall_Enter_00`
+			expectedScripts = `    - ArtifactCommit_Leave_00
+    - ArtifactRollback_Enter_00
+    - ArtifactInstall_Enter_00`
 		} else {
-			expectedScripts = `    ArtifactRollback_Enter_00
-    ArtifactCommit_Leave_00
-    ArtifactInstall_Enter_00`
+			expectedScripts = `    - ArtifactRollback_Enter_00
+    - ArtifactCommit_Leave_00
+    - ArtifactInstall_Enter_00`
 		}
 	}
 
-	expected = `Mender artifact:
+	expected = `Mender Artifact:
   Name: release-1
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: '[testDevice]'
+  Compatible devices: [testDevice]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
@@ -634,21 +630,20 @@ Updates:
 ` + expectedScripts + `
 
 Updates:
-    0:
-    Type:   testType
+  - Type: testType
     Provides:
-	rootfs-image.testType.version: testName
-    Depends: Nothing
-    Clears Provides: ["rootfs-image.testType.*"]
+      rootfs-image.testType.version: testName
+    Depends: {}
+    Clears Provides: [rootfs-image.testType.*]
     Metadata:
-	{
-	  "a": "b"
-	}
+      {
+        "a": "b"
+      }
     Files:
-      name:     updateFile
-      size:     13
-      name:     updateFile2
-      size:     14
+        name: updateFile
+        size: 13
+        name: updateFile2
+        size: 14
 
 `
 	assert.Equal(t, expected, removeVolatileEntries(data))
@@ -730,33 +725,33 @@ func TestModifyExtraAttributes(t *testing.T) {
 		"--depends", "testDepends2:SomeStuff2",
 		"--meta-data", filepath.Join(tmpdir, "meta-data"),
 	)
-	expected := `Mender artifact:
+	expected := `Mender Artifact:
   Name: testName
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: '[testDevice]'
+  Compatible devices: [testDevice]
   Provides group: testProvidesGroup
   Depends on one of artifact(s): [testNameDepends, testNameDepends2]
   Depends on one of group(s): [testDependsGroup, testDependsGroup2]
-  State scripts:
+  State scripts: []
 
 Updates:
-    0:
-    Type:   testType
+  - Type: testType
     Provides:
-	testProvide1: SomeStuff1
-	testProvide2: SomeStuff2
+      testProvide1: SomeStuff1
+      testProvide2: SomeStuff2
     Depends:
-	testDepends1: SomeStuff1
-	testDepends2: SomeStuff2
+      testDepends1: SomeStuff1
+      testDepends2: SomeStuff2
+    Clears Provides: []
     Metadata:
-	{
-	  "meta": "data"
-	}
+      {
+        "meta": "data"
+      }
     Files:
-      name:     updateFile
-      size:     13
+        name: updateFile
+        size: 13
 
 `
 	assert.Equal(t, expected, removeVolatileEntries(data))
@@ -853,26 +848,25 @@ func TestModifyClearsProvides(t *testing.T) {
 	data := modifyAndRead(t, artfile, "--clears-provides", "my-fs.*",
 		"--delete-clears-provides", "rootfs-image.testType.*",
 	)
-	expected := `Mender artifact:
+	expected := `Mender Artifact:
   Name: testName
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: '[testDevice]'
+  Compatible devices: [testDevice]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
-  State scripts:
+  State scripts: []
 
 Updates:
-    0:
-    Type:   testType
+  - Type: testType
     Provides:
-	rootfs-image.testType.version: testName
-    Depends: Nothing
-    Clears Provides: ["my-fs.*"]
-    Metadata: Nothing
-    Files: None
+      rootfs-image.testType.version: testName
+    Depends: {}
+    Clears Provides: [my-fs.*]
+    Metadata: {}
+    Files: []
 
 `
 	assert.Equal(t, expected, removeVolatileEntries(data))
@@ -915,26 +909,26 @@ func TestModifyNoProvides(t *testing.T) {
 	require.NoError(t, err)
 
 	data := modifyAndRead(t, artfile)
-	expected := `Mender artifact:
+	expected := `Mender Artifact:
   Name: testName
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: '[testDevice]'
+  Compatible devices: [testDevice]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
-  State scripts:
+  State scripts: []
 
 Updates:
-    0:
-    Type:   rootfs-image
-    Provides: Nothing
-    Depends: Nothing
-    Metadata: Nothing
+  - Type: rootfs-image
+    Provides: {}
+    Depends: {}
+    Clears Provides: []
+    Metadata: {}
     Files:
-      name:     updateFile
-      size:     13
+        name: updateFile
+        size: 13
 
 `
 	assert.Equal(t, expected, removeVolatileEntries(data))
@@ -973,28 +967,27 @@ func TestModifyCompression(t *testing.T) {
 	require.NoError(t, err)
 
 	data := modifyAndRead(t, artfile, "--compression", "lzma")
-	expected := `Mender artifact:
+	expected := `Mender Artifact:
   Name: testName
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: '[testDevice]'
+  Compatible devices: [testDevice]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
-  State scripts:
+  State scripts: []
 
 Updates:
-    0:
-    Type:   rootfs-image
+  - Type: rootfs-image
     Provides:
-	rootfs-image.version: testName
-    Depends: Nothing
-    Clears Provides: ["artifact_group", "rootfs_image_checksum", "rootfs-image.*"]
-    Metadata: Nothing
+      rootfs-image.version: testName
+    Depends: {}
+    Clears Provides: [artifact_group, rootfs_image_checksum, rootfs-image.*]
+    Metadata: {}
     Files:
-      name:     updateFile
-      size:     13
+        name: updateFile
+        size: 13
 
 `
 	assert.Equal(t, expected, removeVolatileEntries(data))

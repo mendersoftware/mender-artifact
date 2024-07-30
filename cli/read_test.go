@@ -19,7 +19,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -105,50 +104,46 @@ func TestReadArtifactOutput(t *testing.T) {
 	err = cliContext.Run(args)
 	require.NoError(t, err)
 
-	expectedRegex := `Mender artifact:
+	expectedOutput := `Mender Artifact:
   Name: testName
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: '\[testDevice\]'
+  Compatible devices: [testDevice]
   Provides group: testGroupProvide
-  Depends on one of artifact\(s\): \[testNameDepends1, testNameDepends2\]
-  Depends on one of group\(s\): \[testGroupDepends1, testGroupDepends2\]
-  State scripts:
+  Depends on one of artifact(s): [testNameDepends1, testNameDepends2]
+  Depends on one of group(s): [testGroupDepends1, testGroupDepends2]
+  State scripts: []
 
 Updates:
-    0:
-    Type:   augmentType
+  - Type: augmentType
     Provides:
-	augmentProvideKey1: augmentProvideValue1
-	augmentProvideKey2: augmentProvideValue2
-	overrideProvideKey: augmentOverrideProvideValue
-	rootfs-image.testType.version: testName
-	testProvideKey1: testProvideValue1
-	testProvideKey2: testProvideValue2
+      augmentProvideKey1: augmentProvideValue1
+      augmentProvideKey2: augmentProvideValue2
+      overrideProvideKey: augmentOverrideProvideValue
+      rootfs-image.testType.version: testName
+      testProvideKey1: testProvideValue1
+      testProvideKey2: testProvideValue2
     Depends:
-	augmentDependKey1: augmentDependValue1
-	augmentDependKey2: augmentDependValue2
-	overrideDependKey: augmentOverrideDependValue
-	testDependKey1: testDependValue1
-	testDependKey2: testDependValue2
-    Clears Provides: \["rootfs-image\.testType\.\*"\]
+      augmentDependKey1: augmentDependValue1
+      augmentDependKey2: augmentDependValue2
+      overrideDependKey: augmentOverrideDependValue
+      testDependKey1: testDependValue1
+      testDependKey2: testDependValue2
+    Clears Provides: [rootfs-image.testType.*]
     Metadata:
-	\{
-	  "metadata": "augment"
-	\}
+      {
+        "metadata": "augment"
+      }
     Files:
-      name:     updateFile
-      size:     13
-      modified: .*
-      checksum: ee7cd8c4f4613a5dd2bf585815a77209a13ea7410aa5dedcc8654993b30a4972
-      name:     updateFileAugment
-      size:     14
-      modified: .*
-      checksum: 7511105a6f9a34b2b6877980400e99c5d3132cf8d73b28968a29f008667ed1de
+        name: updateFile
+        size: 13
+        name: updateFileAugment
+        size: 14
+
 `
 
-	checkMenderArtifactRead(t, tmpdir, artfile, expectedRegex, cliContext)
+	checkMenderArtifactRead(t, tmpdir, artfile, expectedOutput, cliContext)
 
 	args = []string{
 		"mender-artifact", "write", "rootfs-image",
@@ -160,34 +155,31 @@ Updates:
 	err = cliContext.Run(args)
 	require.NoError(t, err)
 
-	expectedRegex = `Mender artifact:
+	expectedOutput = `Mender Artifact:
   Name: testName
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: '\[testDevice\]'
+  Compatible devices: [testDevice]
   Provides group: 
-  Depends on one of artifact\(s\): \[\]
-  Depends on one of group\(s\): \[\]
-  State scripts:
+  Depends on one of artifact(s): []
+  Depends on one of group(s): []
+  State scripts: []
 
 Updates:
-    0:
-    Type:   rootfs-image
+  - Type: rootfs-image
     Provides:
-	rootfs-image.checksum: ee7cd8c4f4613a5dd2bf585815a77209a13ea7410aa5dedcc8654993b30a4972
-	rootfs-image.version: testName
-    Depends: Nothing
-    Clears Provides: \["artifact_group", "rootfs_image_checksum", "rootfs-image\.\*"\]
-    Metadata: Nothing
+      rootfs-image.version: testName
+    Depends: {}
+    Clears Provides: [artifact_group, rootfs_image_checksum, rootfs-image.*]
+    Metadata: {}
     Files:
-      name:     updateFile
-      size:     13
-      modified: .*
-      checksum: ee7cd8c4f4613a5dd2bf585815a77209a13ea7410aa5dedcc8654993b30a4972
+        name: updateFile
+        size: 13
+
 `
 
-	checkMenderArtifactRead(t, tmpdir, artfile, expectedRegex, cliContext)
+	checkMenderArtifactRead(t, tmpdir, artfile, expectedOutput, cliContext)
 }
 
 func TestReadBootstrapArtifactOutput(t *testing.T) {
@@ -234,21 +226,24 @@ func TestReadBootstrapArtifactOutput(t *testing.T) {
 	outputFile.Close()
 	require.NoError(t, err)
 
-	assert.Contains(t, string(output), "Mender artifact:\n")
+	assert.Contains(t, string(output), "Mender Artifact:\n")
 	assert.Contains(t, string(output), "Name: testName\n")
 	assert.Contains(t, string(output), "Format: mender\n")
 	assert.Contains(t, string(output), "Version: 3\n")
 	assert.Contains(t, string(output), "Signature: no signature\n")
-	assert.Contains(t, string(output), "Compatible devices: '[testDevice]'\n")
+	assert.Contains(t, string(output), "Compatible devices: [testDevice]\n")
 	assert.Contains(t, string(output), "Provides group: testGroupProvide\n")
 	assert.Contains(t, string(output), "Depends on one of artifact(s): []\n")
 	assert.Contains(t, string(output), "Provides group: testGroupProvide\n")
-	assert.Contains(t, string(output), "Depends on one of group(s): [testGroupDepends1, testGroupDepends2]\n")
-	assert.Contains(t, string(output), "State scripts:\n")
+	assert.Contains(
+		t,
+		string(output),
+		"Depends on one of group(s): [testGroupDepends1, testGroupDepends2]\n",
+	)
+	assert.Contains(t, string(output), "State scripts: []\n")
 
 	assert.Contains(t, string(output), "Updates:\n")
-	assert.Contains(t, string(output), "0:\n")
-	assert.Contains(t, string(output), "Type:   Empty type\n")
+	assert.Contains(t, string(output), "- Type: Empty type\n")
 	assert.Contains(t, string(output), "Provides:\n")
 	assert.Contains(t, string(output), "overrideProvideKey: originalOverrideProvideValue\n")
 	assert.Contains(t, string(output), "testProvideKey1: testProvideValue1\n")
@@ -257,11 +252,11 @@ func TestReadBootstrapArtifactOutput(t *testing.T) {
 	assert.Contains(t, string(output), "overrideDependKey: originalOverrideDependValue\n")
 	assert.Contains(t, string(output), "testDependKey1: testDependValue1\n")
 	assert.Contains(t, string(output), "testDependKey2: testDependValue2\n")
-	assert.Contains(t, string(output), "Metadata: Nothing\n")
-	assert.Contains(t, string(output), "Files: None\n")
+	assert.Contains(t, string(output), "Metadata: {}\n")
+	assert.Contains(t, string(output), "Files: []\n")
 }
 
-func checkMenderArtifactRead(t *testing.T, tmpdir, artfile, expectedRegex string,
+func checkMenderArtifactRead(t *testing.T, tmpdir, artfile, expected string,
 	cliContext *cli.App) {
 
 	oldStdout := os.Stdout
@@ -280,10 +275,18 @@ func checkMenderArtifactRead(t *testing.T, tmpdir, artfile, expectedRegex string
 
 	outputFile.Seek(0, 0)
 	output, err := ioutil.ReadAll(outputFile)
+	result := string(output)
 	outputFile.Close()
 	require.NoError(t, err)
 
-	match, err := regexp.Match(expectedRegex, output)
 	require.NoError(t, err)
-	assert.True(t, match, fmt.Sprintf("\n%s\n--- DOESN'T MATCH ---\n%s", string(output), expectedRegex))
+	assert.Contains(t, result, " modified: ")
+	assert.Contains(t, result, " checksum: ")
+	cleaned := removeVolatileEntries(result)
+	assert.Equal(
+		t,
+		cleaned,
+		expected,
+		fmt.Sprintf("\n%s\n--- DOESN'T MATCH EXPECTED ---\n%s", cleaned, expected),
+	)
 }

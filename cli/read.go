@@ -33,6 +33,214 @@ import (
 	"github.com/mendersoftware/mender-artifact/utils"
 )
 
+var defaultIndentation = "  "
+
+func sortedKeys(mapWithKeys interface{}) sort.StringSlice {
+	var keys sort.StringSlice
+	mapVal := reflect.ValueOf(mapWithKeys)
+	if mapVal.Kind() != reflect.Map {
+		return nil
+	}
+	keys = make([]string, mapVal.Len())
+	keysVal := mapVal.MapKeys()
+	for i, keyVal := range keysVal {
+		keys[i] = keyVal.String()
+	}
+	keys.Sort()
+	return keys
+}
+
+func printList(title string, iterable []string, err string, shouldFlow bool, indentationLevel int) {
+	fmt.Printf("%s%s:", strings.Repeat(defaultIndentation, indentationLevel), title)
+	if len(err) > 0 {
+		fmt.Printf("%s\n", err)
+	} else if len(iterable) == 0 {
+		fmt.Printf(" []\n")
+	} else if shouldFlow {
+		fmt.Printf(" [%s]\n", strings.Join(iterable, ", "))
+	} else {
+		fmt.Printf("\n")
+		for _, value := range iterable {
+			fmt.Printf("%s- %s\n", strings.Repeat(defaultIndentation, indentationLevel+1), value)
+		}
+	}
+}
+
+func printObject(
+	title string,
+	someObject map[string]interface{},
+	err string,
+	indentationLevel int,
+) {
+	fmt.Printf("%s%s:", strings.Repeat(defaultIndentation, indentationLevel), title)
+	if len(err) > 0 {
+		fmt.Printf("%s\n", err)
+	} else if len(someObject) == 0 {
+		fmt.Printf(" {}\n")
+	} else {
+		fmt.Printf("\n")
+		keys := sortedKeys(someObject)
+		for _, key := range keys {
+			fmt.Printf("%s%s: %s\n",
+				strings.Repeat(defaultIndentation, indentationLevel+1), key, (someObject)[key])
+		}
+	}
+}
+
+func printUnnamedObject(
+	someObject map[string]interface{},
+	indentationLevel int,
+) {
+	if len(someObject) == 0 {
+		fmt.Printf("%s- {}\n", strings.Repeat(defaultIndentation, indentationLevel))
+	} else {
+		keys := sortedKeys(someObject)
+		for index, key := range keys {
+			entry := fmt.Sprintf("%s: %s", key, (someObject)[key])
+			if index == 0 {
+				fmt.Printf("%s- %s\n", strings.Repeat(defaultIndentation, indentationLevel), entry)
+				continue
+			}
+			// here we assume indentationLevel is 2 spaces to increase by the 2 character length
+			// the list indicator "- " inserted above has
+			fmt.Printf("%s%s\n", strings.Repeat(defaultIndentation, indentationLevel+1), entry)
+		}
+	}
+}
+
+func printHeader(ar *areader.Reader, sigInfo string, indentationLevel int) {
+	info := ar.GetInfo()
+	fmt.Printf("%sMender Artifact:\n", strings.Repeat(defaultIndentation, indentationLevel))
+	fmt.Printf(
+		"%sName: %s\n",
+		strings.Repeat(defaultIndentation, indentationLevel+1),
+		ar.GetArtifactName(),
+	)
+	fmt.Printf(
+		"%sFormat: %s\n",
+		strings.Repeat(defaultIndentation, indentationLevel+1),
+		info.Format,
+	)
+	fmt.Printf(
+		"%sVersion: %d\n",
+		strings.Repeat(defaultIndentation, indentationLevel+1),
+		info.Version,
+	)
+	fmt.Printf("%sSignature: %s\n", strings.Repeat(defaultIndentation, indentationLevel+1), sigInfo)
+	printList("Compatible devices", ar.GetCompatibleDevices(), "", true, indentationLevel+1)
+}
+
+func printStateScripts(scripts []string, indentationLevel int) {
+	printList("State scripts", scripts, "", false, indentationLevel)
+}
+
+func printFiles(files []*handlers.DataFile, indentationLevel int) {
+	if len(files) == 0 {
+		fmt.Printf("%sFiles: []\n", strings.Repeat(defaultIndentation, indentationLevel))
+	} else {
+		fmt.Printf("%sFiles:\n", strings.Repeat(defaultIndentation, indentationLevel))
+		for _, f := range files {
+			data := map[string]interface{}{
+				"name":     f.Name,
+				"size":     fmt.Sprintf("%d", f.Size),
+				"modified": f.Date,
+				"checksum": f.Checksum,
+			}
+			printUnnamedObject(data, indentationLevel+1)
+		}
+	}
+}
+
+func printProvides(p handlers.Installer, indentationLevel int) {
+	provides, err := p.GetUpdateProvides()
+	error := ""
+	if err != nil {
+		error = fmt.Sprintf(" Invalid provides section: %s", err.Error())
+	}
+	providesWorkaround := make(map[string]interface{}, len(provides))
+	for k, v := range provides {
+		providesWorkaround[k] = v
+	}
+	printObject("Provides", providesWorkaround, error, indentationLevel)
+}
+
+func printDepends(p handlers.Installer, indentationLevel int) {
+	depends, err := p.GetUpdateDepends()
+	error := ""
+	if err != nil {
+		error = fmt.Sprintf(" Invalid depends section: %s", err.Error())
+	}
+	printObject("Depends", depends, error, indentationLevel)
+}
+
+func printClearsProvides(p handlers.Installer, indentationLevel int) {
+	caps := p.GetUpdateClearsProvides()
+	printList("Clears Provides", caps, "", true, indentationLevel)
+}
+
+func printUpdateMetadata(p handlers.Installer, indentationLevel int) {
+	metaData, err := p.GetUpdateMetaData()
+	fmt.Printf("%sMetadata:", strings.Repeat(defaultIndentation, indentationLevel))
+	if err != nil {
+		fmt.Printf(" Invalid metadata section: %s\n", err.Error())
+	} else if len(metaData) == 0 {
+		fmt.Printf(" {}\n")
+	} else {
+		var metaDataSlice []byte
+		if err == nil {
+			metaDataSlice, err = json.Marshal(metaData)
+		}
+		var metaDataBuf bytes.Buffer
+		if err == nil {
+			err = json.Indent(
+				&metaDataBuf,
+				metaDataSlice,
+				strings.Repeat(defaultIndentation, indentationLevel+1),
+				defaultIndentation)
+		}
+		if err != nil {
+			fmt.Printf(" Invalid metadata section: %s\n", err.Error())
+		} else {
+			fmt.Printf("\n")
+			fmt.Printf(
+				"%s%s\n",
+				strings.Repeat(defaultIndentation, indentationLevel+1),
+				metaDataBuf.String())
+		}
+	}
+}
+
+func printType(p handlers.Installer, indentationLevel int) {
+	updateType := p.GetUpdateType()
+	if updateType == nil {
+		emptyType := "Empty type"
+		updateType = &emptyType
+	}
+	fmt.Printf(
+		"%s- Type: %v\n",
+		strings.Repeat(defaultIndentation, indentationLevel),
+		*updateType,
+	)
+}
+
+func printPayload(p handlers.Installer, indentationLevel int) {
+	// here we assume indentationLevel is 2 spaces so the initial entry can omit
+	// the indentation increase and rely on the 2 character length of the list item indicator "- "
+	printType(p, indentationLevel)
+	printProvides(p, indentationLevel+1)
+	printDepends(p, indentationLevel+1)
+	printClearsProvides(p, indentationLevel+1)
+	printUpdateMetadata(p, indentationLevel+1)
+	printFiles(p.GetUpdateAllFiles(), indentationLevel+1)
+}
+
+func printUpdates(updatePayloads map[int]handlers.Installer, indentationLevel int) {
+	fmt.Printf("%sUpdates:\n", strings.Repeat(defaultIndentation, indentationLevel))
+	for _, payload := range updatePayloads {
+		printPayload(payload, indentationLevel+1)
+	}
+}
+
 func readArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return cli.NewExitError("Nothing specified, nothing read. \nMaybe you wanted"+
@@ -94,136 +302,29 @@ func readArtifact(c *cli.Context) error {
 		return cli.NewExitError(err.Error(), 1)
 	}
 
-	inst := ar.GetHandlers()
-	info := ar.GetInfo()
+	printHeader(ar, sigInfo, 0)
 
-	fmt.Printf("Mender artifact:\n")
-	fmt.Printf("  Name: %s\n", ar.GetArtifactName())
-	fmt.Printf("  Format: %s\n", info.Format)
-	fmt.Printf("  Version: %d\n", info.Version)
-	fmt.Printf("  Signature: %s\n", sigInfo)
-	fmt.Printf("  Compatible devices: '%s'\n", ar.GetCompatibleDevices())
 	provides := ar.GetArtifactProvides()
 	if provides != nil {
-		fmt.Printf("  Provides group: %s\n", provides.ArtifactGroup)
+		fmt.Printf("%sProvides group: %s\n", defaultIndentation, provides.ArtifactGroup)
 	}
 
 	depends := ar.GetArtifactDepends()
 	if depends != nil {
 		fmt.Printf(
-			"  Depends on one of artifact(s): [%s]\n",
-			strings.Join(depends.ArtifactName, ", "),
+			"%sDepends on one of artifact(s): [%s]\n",
+			defaultIndentation, strings.Join(depends.ArtifactName, ", "),
 		)
 		fmt.Printf(
-			"  Depends on one of group(s): [%s]\n",
-			strings.Join(depends.ArtifactGroup, ", "),
+			"%sDepends on one of group(s): [%s]\n",
+			defaultIndentation, strings.Join(depends.ArtifactGroup, ", "),
 		)
 	}
 
-	if len(scripts) > -1 {
-		fmt.Printf("  State scripts:\n")
-	}
-	for _, scr := range scripts {
-		fmt.Printf("    %s\n", scr)
-	}
+	printStateScripts(scripts, 1)
+	fmt.Println()
+	updatePayloads := ar.GetHandlers()
+	printUpdates(updatePayloads, 0)
 
-	fmt.Printf("\nUpdates:\n")
-	for k, p := range inst {
-		printPayload(k, p)
-	}
 	return nil
-}
-
-func sortedKeys(mapWithKeys interface{}) sort.StringSlice {
-	var keys sort.StringSlice
-	mapVal := reflect.ValueOf(mapWithKeys)
-	if mapVal.Kind() != reflect.Map {
-		return nil
-	}
-	keys = make([]string, mapVal.Len())
-	keysVal := mapVal.MapKeys()
-	for i, keyVal := range keysVal {
-		keys[i] = keyVal.String()
-	}
-	keys.Sort()
-	return keys
-}
-
-func printPayload(index int, p handlers.Installer) {
-	fmt.Printf("  %3d:\n", index)
-	updateType := p.GetUpdateType()
-	if updateType == nil {
-		emptyType := "Empty type"
-		updateType = &emptyType
-	}
-	fmt.Printf("    Type:   %v\n", *updateType)
-
-	provides, err := p.GetUpdateProvides()
-	fmt.Printf("    Provides:")
-	if err != nil {
-		fmt.Printf(" Invalid provides section: %s\n", err.Error())
-	} else if len(provides) == 0 {
-		fmt.Printf(" Nothing\n")
-	} else {
-		providesKeys := sortedKeys(provides)
-
-		fmt.Printf("\n")
-		for _, provideKey := range providesKeys {
-			fmt.Printf("\t%s: %s\n", provideKey, (provides)[provideKey])
-		}
-	}
-
-	depends, err := p.GetUpdateDepends()
-	fmt.Printf("    Depends:")
-	if err != nil {
-		fmt.Printf(" Invalid depends section: %s\n", err.Error())
-	} else if len(depends) == 0 {
-		fmt.Printf(" Nothing\n")
-	} else {
-		dependsKeys := sortedKeys(depends)
-
-		fmt.Printf("\n")
-		for _, dependKey := range dependsKeys {
-			fmt.Printf("\t%s: %s\n", dependKey, (depends)[dependKey])
-		}
-	}
-
-	caps := p.GetUpdateClearsProvides()
-	if caps != nil {
-		fmt.Printf("    Clears Provides: [\"%s\"]\n", strings.Join(caps, "\", \""))
-	}
-
-	metaData, err := p.GetUpdateMetaData()
-	fmt.Printf("    Metadata:")
-	if err != nil {
-		fmt.Printf(" Invalid metadata section: %s\n", err.Error())
-	} else if len(metaData) == 0 {
-		fmt.Printf(" Nothing\n")
-	} else {
-		var metaDataSlice []byte
-		if err == nil {
-			metaDataSlice, err = json.Marshal(metaData)
-		}
-		var metaDataBuf bytes.Buffer
-		if err == nil {
-			err = json.Indent(&metaDataBuf, metaDataSlice, "\t", "  ")
-		}
-		if err != nil {
-			fmt.Printf(" Invalid metadata section: %s\n", err.Error())
-		} else {
-			fmt.Printf("\n\t%s\n", metaDataBuf.String())
-		}
-	}
-
-	if len(p.GetUpdateAllFiles()) == 0 {
-		fmt.Printf("    Files: None\n")
-	} else {
-		fmt.Printf("    Files:\n")
-		for _, f := range p.GetUpdateAllFiles() {
-			fmt.Printf("      name:     %s\n", f.Name)
-			fmt.Printf("      size:     %d\n", f.Size)
-			fmt.Printf("      modified: %s\n", f.Date)
-			fmt.Printf("      checksum: %s\n", f.Checksum)
-		}
-	}
 }
