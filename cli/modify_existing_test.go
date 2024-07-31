@@ -16,7 +16,6 @@ package cli
 
 import (
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -54,7 +53,7 @@ func copyFile(src, dst string) error {
 }
 
 func TestDebugfs(t *testing.T) {
-	tmp, err := ioutil.TempDir("", "mender-modify")
+	tmp, err := os.MkdirTemp("", "mender-modify")
 	assert.NoError(t, err)
 
 	defer os.RemoveAll(tmp)
@@ -72,7 +71,7 @@ func TestDebugfs(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, false, st.IsDir())
 
-	tFile, err := ioutil.TempFile("", "test-mender-debugfs")
+	tFile, err := os.CreateTemp("", "test-mender-debugfs")
 	assert.NoError(t, err)
 
 	defer os.Remove(tFile.Name())
@@ -87,7 +86,11 @@ func TestDebugfs(t *testing.T) {
 		filepath.Join(tmp, "mender_test.img"))
 	assert.NoError(t, err)
 
-	err = debugfsReplaceFile("/nonexisting/foo.txt", tFile.Name(), filepath.Join(tmp, "mender_test.img"))
+	err = debugfsReplaceFile(
+		"/nonexisting/foo.txt",
+		tFile.Name(),
+		filepath.Join(tmp, "mender_test.img"),
+	)
 	assert.Error(t, err)
 
 	os.RemoveAll(tDir)
@@ -100,7 +103,7 @@ func verify(image, file, expected string) bool {
 	}
 	defer os.RemoveAll(tmp)
 
-	data, err := ioutil.ReadFile(filepath.Join(tmp, filepath.Base(file)))
+	data, err := os.ReadFile(filepath.Join(tmp, filepath.Base(file)))
 	if err != nil {
 		return false
 	}
@@ -127,7 +130,7 @@ func verifySDImg(image, file, expected string) bool {
 func TestModifyImage(t *testing.T) {
 	skipPartedTestsOnMac(t)
 
-	tmp, err := ioutil.TempDir("", "mender-modify")
+	tmp, err := os.MkdirTemp("", "mender-modify")
 	assert.NoError(t, err)
 
 	defer os.RemoveAll(tmp)
@@ -173,7 +176,7 @@ func TestModifyImage(t *testing.T) {
 func TestModifySdimage(t *testing.T) {
 	skipPartedTestsOnMac(t)
 
-	tmp, err := ioutil.TempDir("", "mender-modify")
+	tmp, err := os.MkdirTemp("", "mender-modify")
 	assert.NoError(t, err)
 
 	defer os.RemoveAll(tmp)
@@ -217,7 +220,7 @@ func modifyAndRead(t *testing.T, artFile string, args ...string) string {
 		goErr <- err
 	}()
 
-	data, err := ioutil.ReadAll(r)
+	data, err := io.ReadAll(r)
 	require.NoError(t, err)
 	err = <-goErr
 	require.NoError(t, err)
@@ -226,7 +229,7 @@ func modifyAndRead(t *testing.T, artFile string, args ...string) string {
 }
 
 func TestModifyRootfsArtifact(t *testing.T) {
-	tmp, err := ioutil.TempDir("", "mender-modify")
+	tmp, err := os.MkdirTemp("", "mender-modify")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmp)
 
@@ -245,7 +248,7 @@ func TestModifyRootfsArtifact(t *testing.T) {
 func TestModifyRootfsServerCert(t *testing.T) {
 	skipPartedTestsOnMac(t)
 
-	tmp, err := ioutil.TempDir("", "mender-modify")
+	tmp, err := os.MkdirTemp("", "mender-modify")
 	assert.NoError(t, err)
 	defer os.RemoveAll(tmp)
 
@@ -261,7 +264,7 @@ func TestModifyRootfsServerCert(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, fakeErrWriter.String(), "invalid server certificate")
 
-	tmpCert, err := ioutil.TempFile("", "mender-test-cert")
+	tmpCert, err := os.CreateTemp("", "mender-test-cert")
 	assert.NoError(t, err)
 	defer os.Remove(tmpCert.Name())
 
@@ -313,17 +316,17 @@ func removeVolatileEntries(input string) string {
 }
 
 func TestModifyRootfsSigned(t *testing.T) {
-	tmp, err := ioutil.TempDir("", "mender-modify")
+	tmp, err := os.MkdirTemp("", "mender-modify")
 	assert.NoError(t, err)
 	defer os.RemoveAll(tmp)
 
 	err = copyFile("mender_test.img", filepath.Join(tmp, "mender_test.img"))
 	assert.NoError(t, err)
 
-	err = ioutil.WriteFile(filepath.Join(tmp, "rsa.key"), []byte(PrivateRSAKey), 0711)
+	err = os.WriteFile(filepath.Join(tmp, "rsa.key"), []byte(PrivateRSAKey), 0711)
 	assert.NoError(t, err)
 
-	err = ioutil.WriteFile(filepath.Join(tmp, "ecdsa.key"), []byte(PrivateECDSAKey), 0711)
+	err = os.WriteFile(filepath.Join(tmp, "ecdsa.key"), []byte(PrivateECDSAKey), 0711)
 	assert.NoError(t, err)
 
 	for _, key := range []string{"rsa.key", "ecdsa.key"} {
@@ -394,9 +397,13 @@ Updates:
 
 	// Make sure scripts are preserved.
 
-	err = ioutil.WriteFile(filepath.Join(tmp, "ArtifactInstall_Enter_00"), []byte("commands"), 0755)
+	err = os.WriteFile(filepath.Join(tmp, "ArtifactInstall_Enter_00"), []byte("commands"), 0755)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(filepath.Join(tmp, "ArtifactCommit_Leave_00"), []byte("more commands"), 0755)
+	err = os.WriteFile(
+		filepath.Join(tmp, "ArtifactCommit_Leave_00"),
+		[]byte("more commands"),
+		0755,
+	)
 	require.NoError(t, err)
 
 	err = Run([]string{
@@ -473,15 +480,15 @@ Updates:
 
 func TestModifyModuleArtifact(t *testing.T) {
 
-	tmpdir, err := ioutil.TempDir("", "mendertest")
+	tmpdir, err := os.MkdirTemp("", "mendertest")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 	artfile := filepath.Join(tmpdir, "artifact.mender")
 
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "updateFile"), []byte("updateContent"), 0644)
+	err = os.WriteFile(filepath.Join(tmpdir, "updateFile"), []byte("updateContent"), 0644)
 	require.NoError(t, err)
 
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "updateFile2"), []byte("updateContent2"), 0644)
+	err = os.WriteFile(filepath.Join(tmpdir, "updateFile2"), []byte("updateContent2"), 0644)
 	require.NoError(t, err)
 
 	err = Run([]string{
@@ -531,7 +538,7 @@ Updates:
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), errFsTypeUnsupported.Error())
 
-	require.NoError(t, ioutil.WriteFile("dummy-cert", []byte("SecretCert"), 0644))
+	require.NoError(t, os.WriteFile("dummy-cert", []byte("SecretCert"), 0644))
 	defer os.Remove("dummy-cert")
 	err = Run([]string{
 		"mender-artifact", "modify", "-c", "dummy-cert", artfile,
@@ -539,7 +546,7 @@ Updates:
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), errFsTypeUnsupported.Error())
 
-	require.NoError(t, ioutil.WriteFile("dummy-key", []byte("SecretKey"), 0644))
+	require.NoError(t, os.WriteFile("dummy-key", []byte("SecretKey"), 0644))
 	defer os.Remove("dummy-key")
 	err = Run([]string{
 		"mender-artifact", "modify", "-v", "dummy-key", artfile,
@@ -555,12 +562,24 @@ Updates:
 
 	// Make sure scripts and meta-data are preserved.
 
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "ArtifactInstall_Enter_00"), []byte("commands"), 0755)
+	err = os.WriteFile(
+		filepath.Join(tmpdir, "ArtifactInstall_Enter_00"),
+		[]byte("commands"),
+		0755,
+	)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "ArtifactCommit_Leave_00"), []byte("more commands"), 0755)
+	err = os.WriteFile(
+		filepath.Join(tmpdir, "ArtifactCommit_Leave_00"),
+		[]byte("more commands"),
+		0755,
+	)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "ArtifactRollback_Enter_00"), []byte("even more commands"), 0755)
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "meta-data"), []byte(`{"a":"b"}`), 0644)
+	err = os.WriteFile(
+		filepath.Join(tmpdir, "ArtifactRollback_Enter_00"),
+		[]byte("even more commands"),
+		0755,
+	)
+	err = os.WriteFile(filepath.Join(tmpdir, "meta-data"), []byte(`{"a":"b"}`), 0644)
 	require.NoError(t, err)
 	err = Run([]string{
 		"mender-artifact", "write", "module-image",
@@ -577,14 +596,21 @@ Updates:
 	assert.NoError(t, err)
 
 	// Adds the other script via modifying
-	modifyAndRead(t, artfile, "-s", filepath.Join(tmpdir, "ArtifactInstall_Enter_00"), "-s", filepath.Join(tmpdir, "ArtifactRollback_Enter_00"))
+	modifyAndRead(
+		t,
+		artfile,
+		"-s",
+		filepath.Join(tmpdir, "ArtifactInstall_Enter_00"),
+		"-s",
+		filepath.Join(tmpdir, "ArtifactRollback_Enter_00"),
+	)
 
 	// Modify Artifact name shall work
 	data = modifyAndRead(t, artfile, "-n", "release-1")
 	// State scripts can unfortunately be in any order, so we have to compare their placement before expecting a result with them
 	var expectedScripts string
 	installIndex := strings.Index(string(data), "ArtifactInstall")
-	commitIndex := strings.Index(string(data), "ArtifactCommit")  
+	commitIndex := strings.Index(string(data), "ArtifactCommit")
 	rollbackIndex := strings.Index(string(data), "ArtifactRollback")
 
 	if installIndex < commitIndex {
@@ -668,12 +694,12 @@ Updates:
 func TestModifyBrokenArtifact(t *testing.T) {
 	skipPartedTestsOnMac(t)
 
-	tmpdir, err := ioutil.TempDir("", "")
+	tmpdir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 
 	artFile := filepath.Join(tmpdir, "artifact.mender")
-	err = ioutil.WriteFile(artFile, []byte("bogus content"), 0644)
+	err = os.WriteFile(artFile, []byte("bogus content"), 0644)
 	require.NoError(t, err)
 
 	err = Run([]string{
@@ -685,15 +711,15 @@ func TestModifyBrokenArtifact(t *testing.T) {
 }
 
 func TestModifyExtraAttributes(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "mendertest")
+	tmpdir, err := os.MkdirTemp("", "mendertest")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 	artfile := filepath.Join(tmpdir, "artifact.mender")
 
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "updateFile"), []byte("updateContent"), 0644)
+	err = os.WriteFile(filepath.Join(tmpdir, "updateFile"), []byte("updateContent"), 0644)
 	require.NoError(t, err)
 
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "meta-data"), []byte(`{"meta":"data"}`), 0644)
+	err = os.WriteFile(filepath.Join(tmpdir, "meta-data"), []byte(`{"meta":"data"}`), 0644)
 	require.NoError(t, err)
 
 	err = Run([]string{
@@ -794,7 +820,7 @@ Updates:
 func TestModifyExtraAttributesOnNonArtifact(t *testing.T) {
 	skipPartedTestsOnMac(t)
 
-	tmpdir, err := ioutil.TempDir("", "")
+	tmpdir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 
@@ -802,7 +828,7 @@ func TestModifyExtraAttributesOnNonArtifact(t *testing.T) {
 	err = copyFile("mender_test.img", art)
 	require.NoError(t, err)
 
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "meta-data"), []byte(`{"meta":"data"}`), 0644)
+	err = os.WriteFile(filepath.Join(tmpdir, "meta-data"), []byte(`{"meta":"data"}`), 0644)
 	require.NoError(t, err)
 
 	paramPairs := [][]string{
@@ -830,7 +856,7 @@ func testModifyExtraAttributesOnNonArtifact(t *testing.T, art string, p []string
 }
 
 func TestModifyClearsProvides(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "mendertest")
+	tmpdir, err := os.MkdirTemp("", "mendertest")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 	artfile := filepath.Join(tmpdir, "artifact.mender")
@@ -889,12 +915,12 @@ Updates:
 }
 
 func TestModifyNoProvides(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "mendertest")
+	tmpdir, err := os.MkdirTemp("", "mendertest")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 	artfile := filepath.Join(tmpdir, "artifact.mender")
 
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "updateFile"), []byte("updateContent"), 0644)
+	err = os.WriteFile(filepath.Join(tmpdir, "updateFile"), []byte("updateContent"), 0644)
 	require.NoError(t, err)
 
 	err = Run([]string{
@@ -949,12 +975,12 @@ Updates:
 }
 
 func TestModifyCompression(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "mendertest")
+	tmpdir, err := os.MkdirTemp("", "mendertest")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 	artfile := filepath.Join(tmpdir, "artifact.mender")
 
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "updateFile"), []byte("updateContent"), 0644)
+	err = os.WriteFile(filepath.Join(tmpdir, "updateFile"), []byte("updateContent"), 0644)
 	require.NoError(t, err)
 
 	err = Run([]string{

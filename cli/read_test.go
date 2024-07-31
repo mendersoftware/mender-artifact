@@ -16,7 +16,7 @@ package cli
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,7 +29,7 @@ import (
 
 func TestArtifactsRead(t *testing.T) {
 	// first create archive, that we will be able to read
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	err := WriteArtifact(updateTestDir, 2, "")
@@ -54,7 +54,7 @@ func TestArtifactsRead(t *testing.T) {
 func TestReadArtifactOutput(t *testing.T) {
 	cliContext := getCliContext()
 
-	tmpdir, err := ioutil.TempDir("", "mendertest")
+	tmpdir, err := os.MkdirTemp("", "mendertest")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 	artfile := filepath.Join(tmpdir, "artifact.mender")
@@ -185,7 +185,7 @@ Updates:
 func TestReadBootstrapArtifactOutput(t *testing.T) {
 	cliContext := getCliContext()
 
-	tmpdir, err := ioutil.TempDir("", "mendertest")
+	tmpdir, err := os.MkdirTemp("", "mendertest")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 	artfile := filepath.Join(tmpdir, "bootstrap.mender")
@@ -222,7 +222,7 @@ func TestReadBootstrapArtifactOutput(t *testing.T) {
 	assert.NoError(t, err)
 
 	outputFile.Seek(0, 0)
-	output, err := ioutil.ReadAll(outputFile)
+	output, err := io.ReadAll(outputFile)
 	outputFile.Close()
 	require.NoError(t, err)
 
@@ -274,7 +274,7 @@ func checkMenderArtifactRead(t *testing.T, tmpdir, artfile, expected string,
 	assert.NoError(t, err)
 
 	outputFile.Seek(0, 0)
-	output, err := ioutil.ReadAll(outputFile)
+	output, err := io.ReadAll(outputFile)
 	result := string(output)
 	outputFile.Close()
 	require.NoError(t, err)
