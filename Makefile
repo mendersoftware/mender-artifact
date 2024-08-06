@@ -26,8 +26,9 @@ VERSION = $(shell git describe --tags --dirty --exact-match 2>/dev/null || git r
 GO_LDFLAGS = \
 	-ldflags "-X github.com/mendersoftware/mender-artifact/cli.Version=$(VERSION)"
 
+BUILDFLAGS ?= -trimpath
 ifeq ($(V),1)
-BUILDV = -v
+BUILDFLAGS += -v
 endif
 
 TAGS ?=
@@ -36,7 +37,7 @@ ifneq ($(GOOS),linux)
 endif
 
 build:
-	$(GO) build $(GO_LDFLAGS) $(BUILDV) -tags '$(TAGS)'
+	$(GO) build $(GO_LDFLAGS) $(BUILDFLAGS) -tags '$(TAGS)'
 
 PLATFORMS := darwin linux windows
 
@@ -68,13 +69,13 @@ build-natives: build-native-linux build-native-mac build-native-windows
 build-contained:
 	rm -f mender-artifact && \
 	image_id=$$(docker build -f Dockerfile -q .) && \
-	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact /binary" && \
+	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /usr/bin/mender-artifact /binary" && \
 	docker image rm $$image_id
 
 build-natives-contained:
 	rm -f mender-artifact-darwin mender-artifact-linux mender-artifact-windows.exe && \
 	image_id=$$(docker build -f Dockerfile.binaries -q .) && \
-	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact* /binary" && \
+	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /usr/bin/mender-artifact* /binary" && \
 	docker image rm $$image_id
 
 install:
