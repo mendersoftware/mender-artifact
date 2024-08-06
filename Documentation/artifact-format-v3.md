@@ -452,14 +452,14 @@ file:
 | `manifest.sig`            | Optional after `manifest`      |
 | `manifest-augment`        | Optional after `manifest.sig`  |
 | `header.tar[.gz|.xz|.zst]`           | After all manifest files       |
-| `header-augment.tar[.gz|.xz|.zst]`   | Optional after `header.tar[.gz|.xz|.zst]` |
-| `data`                    | After `header.tar[.gz|.xz|.zst]`          |
+| `header-augment.tar[.gz|.xz|.zst]`   | Optional after `header.tar[.gz\|.xz\|.zst]` |
+| `data`                    | After `header.tar[.gz\|.xz\|.zst]`          |
 
 For the embedded `header.tar[.gz|.xz|.zst]` file:
 
 | File/Directory  | Ordering rule                 |
 |-----------------|-------------------------------|
-| `header-info`   | First in `header.tar[.gz|.xz|.zst]` file |
+| `header-info`   | First in `header.tar[.gz\|.xz\|.zst]` file |
 | `scripts`       | Optional after `header-info`  |
 | `headers`       | After `scripts`               |
 | `type-info`     | First in every `xxxx` bucket  |
