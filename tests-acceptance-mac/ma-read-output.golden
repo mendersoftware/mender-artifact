@@ -1,22 +1,21 @@
-Mender artifact:
+Mender Artifact:
   Name: release-1
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: '[beaglebone]'
+  Compatible devices: [beaglebone]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
-  State scripts:
+  State scripts: []
 
 Updates:
-    0:
-    Type:   rootfs-image
-    Provides: Nothing
-    Depends: Nothing
-    Metadata: Nothing
+  - Type: rootfs-image
+    Provides: {}
+    Depends: {}
+    Metadata: {}
     Files:
-      name:     rootfs.ext4
-      size:     0
-      modified: 2019-05-24 12:48:19 +0200 CEST
-      checksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+      - name: rootfs.ext4
+        size: 0
+        modified: 2019-05-24 12:48:19 +0200 CEST
+        checksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855

@@ -120,7 +120,9 @@ test:smoketests:linux:
     - job: build:make
       artifacts: true
   before_script:
-    - apt-get update && apt-get install -q -y make liblzma-dev libssl-dev
+    - apt-get update && apt-get install -q -y make liblzma-dev libssl-dev jq
+    # yq no longer has a maintained debian repo & requires golang 19, so we fall back on the GitHub release as the source
+    - wget -q https://github.com/mikefarah/yq/releases/download/v4.44.2/yq_linux_amd64 -O /usr/bin/yq && chmod +x /usr/bin/yq
     - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh --setup
     - export TEST_MENDER_ARTIFACT_PATH=./mender-artifact-linux
   script:
@@ -134,6 +136,7 @@ test:smoketests:linux:
     - ./mender-artifact-linux write rootfs-image -t test -o test-rfs.mender -n test -f test.txt
     - ./mender-artifact-linux read test-rfs.mender
     - ./mender-artifact-linux validate test-rfs.mender
+    - test $(./mender-artifact-linux read --no-progress test-rfs.mender | yq eval -o json | jq -r '."Mender Artifact".Name') == "test"
     - ./tests/test_compressions/test_supported_compressions.sh
     # QA-507: lock mender-artifact to OpenSSL 1.1
     - ldd ./mender-artifact-linux | grep libssl.so.1.1
