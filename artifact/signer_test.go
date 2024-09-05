@@ -259,5 +259,10 @@ func TestECDSARaw(t *testing.T) {
 	// use wrong size key for verification
 	err = r.Verify([]byte("my message"), []byte("signature"), crypt.Key)
 	assert.Error(t, err)
+	assert.Contains(t, errors.Cause(err).Error(), "asn1: syntax error: data truncated")
+
+	// use wrong size key for verification
+	err = r.Verify([]byte("my message"), []byte("signature longer than the 72 bytes for 256 means that we definitely are having something we do not recognize in any way, which should happen here, ever since MEN-7523."), crypt.Key)
+	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(), "invalid ecdsa key size")
 }

@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/pem"
 	"math/big"
@@ -77,6 +78,7 @@ func (r *RSA) Verify(message, sig []byte, key interface{}) error {
 // ECDSA Crypto interface implementation
 const ecdsa256curveBits = 256
 const ecdsa256keySize = 32
+const ecdsa256Asn1SizeBytes = 72
 
 type ECDSA256 struct{}
 
@@ -158,11 +160,56 @@ func MarshalECDSASignature(r, s *big.Int) ([]byte, error) {
 }
 
 func UnmarshalECDSASignature(sig []byte) (r, s *big.Int, e error) {
-	// check if the size of the key matches provided one
-	if len(sig) != 2*ecdsa256keySize {
-		return nil, nil, errors.Errorf("signer: invalid ecdsa key size: %d", len(sig))
+	// if the length of the signature is the double of key size, we know (and assume)
+	// that it was us who created it via MarshalECDSASignature.
+	// After the introduction of the hardware security support there is another possibility
+	// (see below)
+	if len(sig) == 2*ecdsa256keySize {
+		return UnmarshalECDSASignatureMenderArtifact(sig)
 	}
 
+	// in case of a key supplied via PKCS#11 URI, we have no control over what the signature is
+	// since it is designed to be actually verified via the same mechanism (PKCS#11 URI).
+	// We know here that it is ECDSA key, and judging form the size we can assume
+	// that it is ASN.1 encoded. If so, then it should be 72 bytes, the less or equal is here
+	// to support keys of size 71 bytes (strangely seen in the wild). In other words:
+	// if the signature has not been created with MarshalECDSASignature, then we assume
+	// it is to be decoded via ASN.1, with the protection on the signature length.
+	if len(sig) <= ecdsa256Asn1SizeBytes ||
+		len(sig) <= ecdsa256Asn1SizeBytes-1 {
+		return UnmarshalECDSASignatureASN1(sig)
+	}
+
+	return nil, nil, errors.Errorf("signer: invalid ecdsa key size: %d", len(sig))
+}
+
+func UnmarshalECDSASignatureASN1(sig []byte) (r *big.Int, s *big.Int, err error) {
+	var value asn1.RawValue
+	_, err = asn1.Unmarshal(sig, &value)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "cannot unmarshal asn1 data")
+	}
+	bytesValue := value.Bytes
+	if len(bytesValue) > 0 {
+		var v asn1.RawValue
+		bytesValue, err = asn1.Unmarshal(bytesValue, &v)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "cannot unmarshal asn1 r value")
+		}
+		r = big.NewInt(0).SetBytes(v.Bytes)
+	}
+	if len(bytesValue) > 0 {
+		var v asn1.RawValue
+		_, err = asn1.Unmarshal(bytesValue, &v)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "cannot unmarshal asn1 s value")
+		}
+		s = big.NewInt(0).SetBytes(v.Bytes)
+	}
+	return r, s, nil
+}
+
+func UnmarshalECDSASignatureMenderArtifact(sig []byte) (r *big.Int, s *big.Int, err error) {
 	// get the signature; see corresponding `Sign` function for more details
 	// about serialization
 	r = big.NewInt(0).SetBytes(sig[:ecdsa256keySize])
