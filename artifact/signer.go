@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/pem"
 	"math/big"
@@ -112,9 +113,45 @@ func (e *ECDSA256) Verify(message, sig []byte, key interface{}) error {
 		return errors.New("signer: invalid ecdsa public key")
 	}
 
-	r, s, err := UnmarshalECDSASignature(sig)
-	if err != nil {
-		return err
+	var r *big.Int
+	var s *big.Int
+	if len(sig) == 72 {
+		var seqOfAny asn1.RawValue
+		_, err := asn1.Unmarshal(sig, &seqOfAny)
+		if err != nil {
+		} else {
+			rest := seqOfAny.Bytes
+			if len(rest) > 0 {
+				var any asn1.RawValue
+				rest, err = asn1.Unmarshal(rest, &any)
+				if err != nil {
+
+				} else {
+					r = big.NewInt(0).SetBytes(any.Bytes)
+					//if r.IsUint64() {
+					//
+					//}
+				}
+			}
+			if len(rest) > 0 {
+				var any asn1.RawValue
+				rest, err = asn1.Unmarshal(rest, &any)
+				if err != nil {
+
+				} else {
+					s = big.NewInt(0).SetBytes(any.Bytes)
+					//if s.IsUint64() {
+					//
+					//}
+				}
+			}
+		}
+	} else {
+		var err error
+		r, s, err = UnmarshalECDSASignature(sig)
+		if err != nil {
+			return err
+		}
 	}
 
 	h := sha256.Sum256(message)
