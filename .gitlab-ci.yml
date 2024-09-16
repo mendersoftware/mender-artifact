@@ -115,7 +115,7 @@ test:smoketests:mac:
 test:smoketests:linux:
   stage: test
   # Keep golang version aligned with latest yocto release
-  image: golang:1.17-buster
+  image: golang:1.22.6-bullseye
   needs:
     - job: build:make
       artifacts: true
@@ -171,7 +171,7 @@ test:coverage:linux:
 .test:unit:
   stage: test
   # Keep golang version aligned with latest yocto release
-  image: golang:1.17-alpine3.16
+  image: golang:1.22.6-alpine
   needs: []
   script:
     - make coverage
@@ -201,7 +201,7 @@ test:unit:mac:
 
 publish:tests:
   stage: publish
-  image: golang:1.20
+  image: golang:1.22.6
   needs:
     - job: test:unit:linux
       artifacts: true

@@ -15,9 +15,9 @@ cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30  vendor/cloud.g
 73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68  vendor/github.com/golang/groupcache/LICENSE
 73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68  vendor/github.com/mendersoftware/openssl/LICENSE
 cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30  vendor/github.com/googleapis/enterprise-certificate-proxy/LICENSE
-dd26a7abddd02e2d0aba97805b31f248ef7835d9e10da289b22e3b8ab78b324d  vendor/github.com/go-jose/go-jose/v3/json/LICENSE
-cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30  vendor/github.com/go-jose/go-jose/v3/LICENSE
 cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30  vendor/github.com/google/s2a-go/LICENSE.md
+dd26a7abddd02e2d0aba97805b31f248ef7835d9e10da289b22e3b8ab78b324d  vendor/github.com/go-jose/go-jose/v4/json/LICENSE
+cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30  vendor/github.com/go-jose/go-jose/v4/LICENSE
 c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4  vendor/github.com/Keyfactor/signserver-go-client-sdk/LICENSE
 #
 # BSD 2 Clause licenses.
@@ -56,10 +56,10 @@ a55959c4e3e8917bfa857359bb641115336276a6cc97408fd8197e079fb18470  vendor/github.
 d18f6323b71b0b768bb5e9616e36da390fbd39369a81807cca352de4e4e6aa0b  vendor/gopkg.in/yaml.v3/LICENSE
 08eab1118c80885fa1fa6a6dd7303f65a379fcb3733e063d20d1bbc2c76e6fa1  vendor/github.com/mattn/go-isatty/LICENSE
 5d966570d7a442d4e969892860a914e542c97f262c873baee8f0aa48e1f40212  vendor/github.com/klauspost/cpuid/v2/LICENSE
+5c0476add4c38b55d0ed5ac11b85e00c38f26e1caee20dfe3ab58190103d1fbc  vendor/github.com/cenkalti/backoff/v4/LICENSE
 22adc4abdece712a737573672f082fd61ac2b21df878efb87ffcff4354a07f26  vendor/github.com/mitchellh/go-homedir/LICENSE
 22adc4abdece712a737573672f082fd61ac2b21df878efb87ffcff4354a07f26  vendor/github.com/mitchellh/mapstructure/LICENSE
 38049e50b486f5394e40b786388f4a006401996e46c7c1cd18925afe7c3b4e34  vendor/github.com/ryanuber/go-glob/LICENSE
-5c0476add4c38b55d0ed5ac11b85e00c38f26e1caee20dfe3ab58190103d1fbc  vendor/github.com/cenkalti/backoff/v3/LICENSE
 f566a9f97bacdaf00d9f21dd991e81dc11201c4e016c86b470799429a1c9a79c  vendor/github.com/klauspost/compress/zstd/internal/xxhash/LICENSE.txt
 #
 # MPL-2.0 licenses.
