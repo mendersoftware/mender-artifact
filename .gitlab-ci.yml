@@ -197,6 +197,15 @@ test:unit:mac:
   tags:
     - mac-runner
 
+# Test that we can build with the golang version of the oldest supported yocto LTS release
+test:backwards-compatibility:
+  image: golang:1.17.13-bullseye
+  needs: []
+  before_script:
+    - apt-get update && apt-get install --quiet --assume-yes libssl-dev
+  script:
+    - go build
+
 publish:tests:
   stage: publish
   image: golang:1.23
