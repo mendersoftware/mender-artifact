@@ -114,14 +114,13 @@ test:smoketests:mac:
 
 test:smoketests:linux:
   stage: test
-  # Keep golang version aligned with latest yocto release
-  image: golang:1.17-buster
+  image: debian:bullseye-slim
   needs:
     - job: build:make
       artifacts: true
   before_script:
-    - apt-get update && apt-get install -q -y make liblzma-dev libssl-dev jq
-    # yq no longer has a maintained debian repo & requires golang 19, so we fall back on the GitHub release as the source
+    - apt-get update && apt-get install -q -y make liblzma-dev libssl-dev jq wget
+    # yq no longer has a maintained debian repo so we fall back on the GitHub release as the source
     - wget -q https://github.com/mikefarah/yq/releases/download/v4.44.2/yq_linux_amd64 -O /usr/bin/yq && chmod +x /usr/bin/yq
     - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh --setup
     - export TEST_MENDER_ARTIFACT_PATH=./mender-artifact-linux
@@ -143,7 +142,7 @@ test:smoketests:linux:
 
 test:coverage:linux:
   stage: test
-  image: debian:buster-slim
+  image: debian:bullseye-slim
   needs:
     - job: build:coverage
       artifacts: true
@@ -169,8 +168,7 @@ test:coverage:linux:
 
 .test:unit:
   stage: test
-  # Keep golang version aligned with latest yocto release
-  image: golang:1.17-alpine3.16
+  image: golang:1.23-bullseye
   needs: []
   script:
     - make coverage
@@ -186,7 +184,8 @@ test:unit:linux:
   variables:
     COVERAGE_FILE: coverage-linux.txt
   before_script:
-    - apk update && apk add git make bash dosfstools e2fsprogs e2fsprogs-extra gcc libc6-compat mtools musl-dev parted perl-utils xz-dev libressl-dev openssl-dev
+    - apt-get update && apt-get install --quiet --assume-yes
+      git make bash dosfstools e2fsprogs gcc mtools musl-dev parted xz-utils libssl-dev
 
 test:unit:mac:
   extends: .test:unit
@@ -200,7 +199,7 @@ test:unit:mac:
 
 publish:tests:
   stage: publish
-  image: golang:1.20
+  image: golang:1.23
   needs:
     - job: test:unit:linux
       artifacts: true
@@ -241,7 +240,7 @@ publish:tests:
 
 publish:s3:
   stage: publish
-  image: debian:buster-slim
+  image: debian:bookworm-slim
   needs:
     - job: build:make
       artifacts: true
