@@ -1,5 +1,5 @@
-# Keep using Debian Bullseye OS for OpenSSL 1.1 compatibility. See QA-507
-FROM golang:1.23.1-bullseye as builder
+# Keep golang version aligned with latest yocto release
+FROM golang:1.17.13-bullseye as builder
 RUN apt-get update && \
     apt-get install -y \
     gcc gcc-mingw-w64 gcc-multilib \
