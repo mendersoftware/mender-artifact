@@ -43,7 +43,7 @@ build:docker:
     paths:
       - image.tar
   tags:
-    - docker
+    - gitlab-org-docker
 
 build:make:
   image: docker
