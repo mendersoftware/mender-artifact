@@ -55,6 +55,15 @@ For sample usage, please see the [Mender client source code](https://github.com/
 You can find the latest `mender-artifact` binaries in the [Downloads page on
 Mender Docs](https://docs.mender.io/downloads).
 
+These binaries are built using the containerized method described below, hence using the
+`Dockerfile`(s) from this repository with the Go version specified there.
+
+Additionally, `mender-artifact` is distributed in source flavor for Yocto recipes in
+[`meta-mender`](https://github.com/mendersoftware/meta-mender/tree/master/meta-mender-core/recipes-mender/mender-artifact)
+and as Debian/Ubuntu binary packages in [Mender APT
+repositories](https://docs.mender.io/downloads#install-using-the-apt-repository). For these the Go
+version to use is determined by the Yocto or Debian/Ubuntu distribution in use.
+
 ## Building from source
 
 **Note: The build process is only supported on Linux-based environments.**
