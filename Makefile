@@ -12,7 +12,7 @@ GOCYCLO ?= 20
 GOARCH ?= $(shell go env GOARCH)
 GOOS ?= $(shell go env GOOS)
 
-CGO_ENABLED=1
+CGO_ENABLED=0
 export CGO_ENABLED
 
 TOOLS = \
