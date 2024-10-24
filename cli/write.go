@@ -178,16 +178,22 @@ func writeBootstrapArtifact(c *cli.Context) error {
 
 	Log.Debugf("creating bootstrap artifact [%s], version: %d", name, version)
 
-	f, err := os.Create(name)
-	if err != nil {
-		return cli.NewExitError(
-			"can not create bootstrap artifact file: "+err.Error(),
-			errArtifactCreate,
-		)
+	var w io.Writer
+	if name == "-" {
+		w = os.Stdout
+	} else {
+		f, err := os.Create(name)
+		if err != nil {
+			return cli.NewExitError(
+				"can not create bootstrap artifact file: "+err.Error(),
+				errArtifactCreate,
+			)
+		}
+		defer f.Close()
+		w = f
 	}
-	defer f.Close()
 
-	aw, err := artifactWriter(c, comp, f, version)
+	aw, err := artifactWriter(c, comp, w, version)
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
@@ -287,16 +293,22 @@ func writeRootfs(c *cli.Context) error {
 		Updates: []handlers.Composer{h},
 	}
 
-	f, err := os.Create(name)
-	if err != nil {
-		return cli.NewExitError(
-			"can not create artifact file: "+err.Error(),
-			errArtifactCreate,
-		)
+	var w io.Writer
+	if name == "-" {
+		w = os.Stdout
+	} else {
+		f, err := os.Create(name)
+		if err != nil {
+			return cli.NewExitError(
+				"can not create artifact file: "+err.Error(),
+				errArtifactCreate,
+			)
+		}
+		defer f.Close()
+		w = f
 	}
-	defer f.Close()
 
-	aw, err := artifactWriter(c, comp, f, version)
+	aw, err := artifactWriter(c, comp, w, version)
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
@@ -743,16 +755,22 @@ func writeModuleImage(ctx *cli.Context) error {
 		return err
 	}
 
-	f, err := os.Create(name)
-	if err != nil {
-		return cli.NewExitError(
-			"can not create artifact file: "+err.Error(),
-			errArtifactCreate,
-		)
+	var w io.Writer
+	if name == "-" {
+		w = os.Stdout
+	} else {
+		f, err := os.Create(name)
+		if err != nil {
+			return cli.NewExitError(
+				"can not create artifact file: "+err.Error(),
+				errArtifactCreate,
+			)
+		}
+		defer f.Close()
+		w = f
 	}
-	defer f.Close()
 
-	aw, err := artifactWriter(ctx, comp, f, version)
+	aw, err := artifactWriter(ctx, comp, w, version)
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
