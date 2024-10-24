@@ -178,19 +178,14 @@ func writeBootstrapArtifact(c *cli.Context) error {
 
 	Log.Debugf("creating bootstrap artifact [%s], version: %d", name, version)
 
-	f, err := os.Create(name + ".tmp")
+	f, err := os.Create(name)
 	if err != nil {
 		return cli.NewExitError(
 			"can not create bootstrap artifact file: "+err.Error(),
 			errArtifactCreate,
 		)
 	}
-	defer func() {
-		f.Close()
-		// in case of success `.tmp` suffix will be removed and below
-		// will not remove valid artifact
-		os.Remove(name + ".tmp")
-	}()
+	defer f.Close()
 
 	aw, err := artifactWriter(c, comp, f, version)
 	if err != nil {
@@ -238,12 +233,6 @@ func writeBootstrapArtifact(c *cli.Context) error {
 			TypeInfoV3: typeInfoV3,
 			Bootstrap:  true,
 		})
-	if err != nil {
-		return cli.NewExitError(err.Error(), 1)
-	}
-
-	f.Close()
-	err = os.Rename(name+".tmp", name)
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
@@ -298,19 +287,14 @@ func writeRootfs(c *cli.Context) error {
 		Updates: []handlers.Composer{h},
 	}
 
-	f, err := os.Create(name + ".tmp")
+	f, err := os.Create(name)
 	if err != nil {
 		return cli.NewExitError(
 			"can not create artifact file: "+err.Error(),
 			errArtifactCreate,
 		)
 	}
-	defer func() {
-		f.Close()
-		// in case of success `.tmp` suffix will be removed and below
-		// will not remove valid artifact
-		os.Remove(name + ".tmp")
-	}()
+	defer f.Close()
 
 	aw, err := artifactWriter(c, comp, f, version)
 	if err != nil {
@@ -370,12 +354,6 @@ func writeRootfs(c *cli.Context) error {
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
-
-	f.Close()
-	err = os.Rename(name+".tmp", name)
-	if err != nil {
-		return cli.NewExitError(err.Error(), 1)
-	}
 	return nil
 }
 
@@ -400,7 +378,7 @@ func reportProgress(c context.Context, state chan string) {
 	}
 }
 
-func artifactWriter(c *cli.Context, comp artifact.Compressor, f *os.File,
+func artifactWriter(c *cli.Context, comp artifact.Compressor, w io.Writer,
 	ver int) (*awriter.Writer, error) {
 	privateKey, err := getKey(c)
 	if err != nil {
@@ -411,9 +389,9 @@ func artifactWriter(c *cli.Context, comp artifact.Compressor, f *os.File,
 			// check if we are having correct version
 			return nil, errors.New("can not use signed artifact with version 0")
 		}
-		return awriter.NewWriterSigned(f, comp, privateKey), nil
+		return awriter.NewWriterSigned(w, comp, privateKey), nil
 	}
-	return awriter.NewWriter(f, comp), nil
+	return awriter.NewWriter(w, comp), nil
 }
 
 func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
@@ -765,19 +743,14 @@ func writeModuleImage(ctx *cli.Context) error {
 		return err
 	}
 
-	f, err := os.Create(name + ".tmp")
+	f, err := os.Create(name)
 	if err != nil {
 		return cli.NewExitError(
 			"can not create artifact file: "+err.Error(),
 			errArtifactCreate,
 		)
 	}
-	defer func() {
-		f.Close()
-		// in case of success `.tmp` suffix will be removed and below
-		// will not remove valid artifact
-		os.Remove(name + ".tmp")
-	}()
+	defer f.Close()
 
 	aw, err := artifactWriter(ctx, comp, f, version)
 	if err != nil {
@@ -825,12 +798,6 @@ func writeModuleImage(ctx *cli.Context) error {
 			AugmentTypeInfoV3: augmentTypeInfoV3,
 			AugmentMetaData:   augmentMetaData,
 		})
-	if err != nil {
-		return cli.NewExitError(err.Error(), 1)
-	}
-
-	f.Close()
-	err = os.Rename(name+".tmp", name)
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
