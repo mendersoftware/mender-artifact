@@ -255,7 +255,7 @@ func getCliContext() *cli.App {
 		artifactName,
 		cli.StringFlag{
 			Name:  "output-path, o",
-			Usage: "Full path to output artifact file.",
+			Usage: "Full path to output artifact file, '-' for stdout.",
 		},
 		cli.IntFlag{
 			Name:  "version, v",
@@ -342,7 +342,7 @@ func getCliContext() *cli.App {
 		},
 		cli.StringFlag{
 			Name:  "output-path, o",
-			Usage: "Full path to output artifact file.",
+			Usage: "Full path to output artifact file, '-' for stdout.",
 		},
 		cli.IntFlag{
 			Name:  "version, v",
@@ -434,7 +434,7 @@ func getCliContext() *cli.App {
 		artifactName,
 		cli.StringFlag{
 			Name:  "output-path, o",
-			Usage: "Full path to output artifact file.",
+			Usage: "Full path to output artifact file, '-' for standard output.",
 		},
 		cli.IntFlag{
 			Name:  "version, v",
