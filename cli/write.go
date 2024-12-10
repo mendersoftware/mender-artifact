@@ -880,10 +880,13 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 		args,
 		"/bin/sh",
 		"-c",
-		`'mender_snapshot="mender snapshot"`+
-			`; which mender-snapshot 1> /dev/null && mender_snapshot="mender-snapshot"`+
-			`; [ $(id -u) -eq 0 ] || sudo_cmd="sudo -S"`+
-			`; $sudo_cmd /bin/sh -c "echo `+sshInitMagic+`; $mender_snapshot dump" | cat'`,
+		`'[ $(id -u) -eq 0 ] || sudo_cmd="sudo -S"`+
+			`; if which mender-snapshot 1> /dev/null`+
+			`; then $sudo_cmd /bin/sh -c "echo `+sshInitMagic+`; mender-snapshot dump" | cat`+
+			`; elif which mender 1> /dev/null`+
+			`; then $sudo_cmd /bin/sh -c "echo `+sshInitMagic+`; mender snapshot dump" | cat`+
+			`; else echo "Mender not found: Please check that Mender is installed" >&2 &&`+
+			`exit 1; fi'`,
 	)
 
 	cmd := exec.Command("ssh", args...)
