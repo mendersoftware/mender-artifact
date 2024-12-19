@@ -58,6 +58,7 @@ func EchoSigHandler(
 		select {
 		case <-ctx.Done():
 			errChan <- nil
+			_ = unix.IoctlSetTermios(int(os.Stdin.Fd()), ioctlSetTermios, term)
 			return
 		case sig, sigRecved = <-sigChan:
 		}
