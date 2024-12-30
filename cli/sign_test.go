@@ -357,3 +357,43 @@ func TestSignExistingPermissions(t *testing.T) {
 
 	assert.Equal(t, preSignStat.Mode(), postSignStat.Mode())
 }
+func TestSignViaSymlink(t *testing.T) {
+	updateTestDir, _ := ioutil.TempDir("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	priv, pub, err := generateKeys()
+	assert.NoError(t, err)
+
+	err = WriteArtifact(updateTestDir, 2, "")
+	assert.NoError(t, err)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "private.key",
+				Content: priv,
+				IsDir:   false,
+			},
+			{
+				Path:    "public.key",
+				Content: pub,
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	symlink := filepath.Join(updateTestDir, "symlink")
+	os.Symlink(filepath.Join(updateTestDir, "artifact.mender"), symlink)
+
+	// signing the symlink
+	err = Run([]string{"mender-artifact", "sign",
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		symlink})
+	assert.NoError(t, err)
+
+	// validating the orignal artifact
+	err = Run([]string{"mender-artifact", "validate",
+		"-k", filepath.Join(updateTestDir, "public.key"),
+		filepath.Join(updateTestDir, "artifact.mender")})
+	assert.NoError(t, err)
+}

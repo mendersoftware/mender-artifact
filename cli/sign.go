@@ -60,9 +60,28 @@ func signExisting(c *cli.Context) error {
 	}
 	defer f.Close()
 
-	artFileStat, err := os.Stat(artFile)
+	artFileStat, err := os.Lstat(artFile)
 	if err != nil {
 		return cli.NewExitError("Could not get artifact file stat", 1)
+	}
+
+	if artFileStat.Mode()&os.ModeSymlink == os.ModeSymlink {
+		f.Close()
+		artFile, err = os.Readlink(artFile)
+		if err != nil {
+			return cli.NewExitError(err, 1)
+		}
+		outputFile = artFile
+		artFileStat, err = os.Stat(artFile)
+		if err != nil {
+			return cli.NewExitError("Could not get artifact file stat", 1)
+		}
+		f, err = os.Open(artFile)
+		if err != nil {
+			err = errors.Wrapf(err, "Can not open: %s", artFile)
+			return cli.NewExitError(err, 1)
+		}
+		defer f.Close()
 	}
 	err = CopyOwner(tFile, artFile)
 	if err != nil {
