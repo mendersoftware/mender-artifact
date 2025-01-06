@@ -49,7 +49,7 @@ func debugfsCopyFile(file, image string) (ret string, err error) {
 		filepath.Join(tmpDir, filepath.Base(file)))
 	bin, err := utils.GetBinaryPath("debugfs")
 	if err != nil {
-		return "", fmt.Errorf(debugfsMissingErr)
+		return "", errors.New(debugfsMissingErr)
 	}
 	cmd := exec.Command(bin, "-R", dumpCmd, image)
 	ep, err := cmd.StderrPipe()
@@ -187,7 +187,7 @@ func debugfsExecuteCommand(cmdstr, image string) (stdout *bytes.Buffer, err erro
 	}
 	bin, err := utils.GetBinaryPath("debugfs")
 	if err != nil {
-		return nil, fmt.Errorf(debugfsMissingErr)
+		return nil, errors.New(debugfsMissingErr)
 	}
 
 	cmd := exec.Command(bin, "-w", "-f", scr.Name(), image)
