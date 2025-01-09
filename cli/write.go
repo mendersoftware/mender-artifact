@@ -103,6 +103,10 @@ func validateInput(c *cli.Context) error {
 }
 
 func createRootfsFromSSH(c *cli.Context) (string, error) {
+	_, err := utils.GetBinaryPath("blkid")
+	if err != nil {
+		Log.Warnf("Skipping running fsck on the Artifact: %v", errBlkidNotFound)
+	}
 	rootfsFilename, err := getDeviceSnapshot(c)
 	if err != nil {
 		return rootfsFilename, cli.NewExitError("SSH error: "+err.Error(), 1)
@@ -112,7 +116,6 @@ func createRootfsFromSSH(c *cli.Context) (string, error) {
 	fstype, err := imgFilesystemType(rootfsFilename)
 	if err != nil {
 		if err == errBlkidNotFound {
-			Log.Warnf("Skipping running fsck on the Artifact: %v", err)
 			return rootfsFilename, nil
 		}
 		return rootfsFilename, cli.NewExitError(
@@ -343,7 +346,6 @@ func writeRootfs(c *cli.Context) error {
 			)
 		}
 	}
-
 	if !c.Bool("no-progress") {
 		ctx, cancel := context.WithCancel(context.Background())
 		go reportProgress(ctx, aw.State)
@@ -1005,6 +1007,7 @@ func recvSnapshot(dst io.Writer, src io.Reader) (int64, error) {
 	for {
 		nr, err := src.Read(buf)
 		if err == io.EOF {
+			fmt.Println()
 			break
 		} else if err != nil {
 			return written, errors.Wrap(err,
