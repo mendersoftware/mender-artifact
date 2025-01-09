@@ -124,7 +124,7 @@ func (s *SignServerSigner) sign(message []byte) ([]byte, *x509.Certificate, erro
 			detail += fmt.Sprintf(" - %s", string(bodyError.Body()))
 		}
 
-		return nil, nil, fmt.Errorf(detail)
+		return nil, nil, errors.New(detail)
 	}
 
 	// SignServer returns the signer's certificate (public key) in Base64-encoded

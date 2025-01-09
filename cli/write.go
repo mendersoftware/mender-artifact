@@ -68,7 +68,7 @@ func writeRootfsImageChecksum(rootfsFilename string,
 	if typeInfo.ArtifactProvides == nil {
 		t, err := artifact.NewTypeInfoProvides(map[string]string{checksumKey: checksum})
 		if err != nil {
-			return errors.Wrapf(err, "Failed to write the "+"`"+checksumKey+"` provides")
+			return errors.Wrapf(err, "%s", "Failed to write the "+"`"+checksumKey+"` provides")
 		}
 		typeInfo.ArtifactProvides = t
 	} else {
