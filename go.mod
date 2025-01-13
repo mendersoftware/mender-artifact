@@ -18,7 +18,7 @@ require (
 	github.com/ulikunitz/xz v0.5.12
 	github.com/urfave/cli v1.22.15
 	golang.org/x/sys v0.29.0
-	google.golang.org/protobuf v1.34.1
+	google.golang.org/protobuf v1.36.2
 )
 
 require (
