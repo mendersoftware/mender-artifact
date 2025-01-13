@@ -10,7 +10,7 @@ WORKDIR /go/src/github.com/mendersoftware/mender-artifact
 COPY ./ .
 RUN make build-natives
 
-FROM alpine:3.21.0
+FROM alpine:3.21.2
 RUN apk add --no-cache libc6-compat xz-dev libressl-dev
 COPY --from=builder /go/src/github.com/mendersoftware/mender-artifact/mender-artifact* /go/bin/
 ENTRYPOINT [ "/go/bin/mender-artifact-linux" ]
