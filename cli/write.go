@@ -268,12 +268,17 @@ func writeRootfs(c *cli.Context) error {
 		name = c.String("output-path")
 	}
 	version := c.Int("version")
+	var showprovides map[string]string
 
 	Log.Debugf("creating artifact [%s], version: %d", name, version)
 	rootfsFilename := c.String("file")
 	if strings.HasPrefix(rootfsFilename, "ssh://") {
 		rootfsFilename, err = createRootfsFromSSH(c)
 		defer os.Remove(rootfsFilename)
+		if err != nil {
+			return cli.NewExitError(err.Error(), errArtifactCreate)
+		}
+		showprovides, err = showProvides(c)
 		if err != nil {
 			return cli.NewExitError(err.Error(), errArtifactCreate)
 		}
@@ -335,6 +340,12 @@ func writeRootfs(c *cli.Context) error {
 	typeInfoV3, _, err := makeTypeInfo(c)
 	if err != nil {
 		return err
+	}
+	for k, v := range showprovides {
+		_, exist := typeInfoV3.ArtifactProvides[k]
+		if !exist {
+			typeInfoV3.ArtifactProvides[k] = v
+		}
 	}
 
 	if !c.Bool("no-checksum-provide") {
@@ -959,6 +970,70 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	}
 
 	return filePath, err
+}
+func showProvides(c *cli.Context) (map[string]string, error) {
+	var userAtHost string
+	providesMap := make(map[string]string)
+	port := "22"
+	host := strings.TrimPrefix(c.String("file"), "ssh://")
+
+	if remotePort := strings.Split(host, ":"); len(remotePort) == 2 {
+		port = remotePort[1]
+		userAtHost = remotePort[0]
+	} else {
+		userAtHost = host
+	}
+
+	args := c.StringSlice("ssh-args")
+	// Check if port is specified explicitly with the --ssh-args flag
+	addPort := true
+	for _, arg := range args {
+		if strings.Contains(arg, "-p") {
+			addPort = false
+			break
+		}
+	}
+	if addPort {
+		args = append(args, "-p", port)
+	}
+	args = append(args, userAtHost)
+
+	providesArgs := ` 'if which mender-update 1> /dev/null` +
+		`; then mender-update show-provides` +
+		`; elif which mender 1> /dev/null` +
+		`; then mender show-provides` +
+		`; else echo "Mender not found: Please check that Mender is installed" >&2 &&` +
+		` exit 1; fi'`
+
+	args = append(
+		args,
+		"/bin/sh",
+		"-c",
+		providesArgs)
+
+	cmd := exec.Command("ssh", args...)
+
+	stdout, err := cmd.CombinedOutput()
+
+	if err != nil {
+		return nil, err
+	}
+	if len(stdout) == 0 {
+		return nil, nil
+	}
+	provides := strings.Split(string(stdout), "\n")
+
+	for _, p := range provides {
+		if p == "" || !strings.HasPrefix(p, "rootfs-image.") {
+			continue
+		}
+		info := strings.Split(p, "=")
+		if len(info) != 2 {
+			continue
+		}
+		providesMap[info[0]] = info[1]
+	}
+	return providesMap, nil
 }
 
 // Reads from src waiting for the string specified by signal, writing all other
