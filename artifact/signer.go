@@ -180,7 +180,8 @@ func UnmarshalECDSASignature(sig []byte) (r, s *big.Int, e error) {
 		return UnmarshalECDSASignatureASN1(sig)
 	}
 
-	return nil, nil, errors.Errorf("signer: invalid ecdsa key size: %d", len(sig))
+	return nil, nil, errors.Errorf("signer: invalid signature length: %d. "+
+		"For ECDSA only P-256 is supported.", len(sig))
 }
 
 func UnmarshalECDSASignatureASN1(sig []byte) (r *big.Int, s *big.Int, err error) {
