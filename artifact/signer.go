@@ -78,7 +78,8 @@ func (r *RSA) Verify(message, sig []byte, key interface{}) error {
 // ECDSA Crypto interface implementation
 const ecdsa256curveBits = 256
 const ecdsa256keySize = 32
-const ecdsa256Asn1SizeBytes = 72
+const ecdsa256Asn1SizeBytes = 70
+const ecdsa256Asn1Padding = 2
 
 type ECDSA256 struct{}
 
@@ -171,15 +172,14 @@ func UnmarshalECDSASignature(sig []byte) (r, s *big.Int, e error) {
 	// in case of a key supplied via PKCS#11 URI, we have no control over what the signature is
 	// since it is designed to be actually verified via the same mechanism (PKCS#11 URI).
 	// We know here that it is ECDSA key, and judging form the size we can assume
-	// that it is ASN.1 encoded. If so, then it should be 72 bytes, the less or equal is here
-	// to support keys of size 71 bytes (strangely seen in the wild). In other words:
+	// that it is ASN.1 encoded. If so, then it should be between 70 and 72 bytes.
+	// In other words:
 	// if the signature has not been created with MarshalECDSASignature, then we assume
 	// it is to be decoded via ASN.1, with the protection on the signature length.
-	if len(sig) == ecdsa256Asn1SizeBytes ||
-		len(sig) == ecdsa256Asn1SizeBytes-1 {
+	if len(sig) >= ecdsa256Asn1SizeBytes &&
+		len(sig) <= ecdsa256Asn1SizeBytes+ecdsa256Asn1Padding {
 		return UnmarshalECDSASignatureASN1(sig)
 	}
-
 	return nil, nil, errors.Errorf("signer: invalid signature length: %d. "+
 		"For ECDSA only P-256 is supported.", len(sig))
 }
