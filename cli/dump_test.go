@@ -268,6 +268,7 @@ func testDumpContent(t *testing.T, imageType, printCmdline string) {
 	flagChecker.addFlags([]string{
 		"artifact-name",
 		"artifact-name-depends",
+		"azure-key",  // Not tested in "dump".
 		"clears-provides",
 		"compression", // Not tested in "dump".
 		"depends",
