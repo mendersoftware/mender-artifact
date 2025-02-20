@@ -161,6 +161,16 @@ func getCliContext() *cli.App {
 			"the Artifact signature.",
 	}
 
+	azureKeyFlag := cli.StringFlag{
+		Name: "azure-key",
+		Usage: "Name of the Azure Key Vault key that will be used to sign the Artifact. " +
+			"This operation requires the keys/sign and keys/get permissions. Need to " +
+			"set the KEY_VAULT_NAME environment variable for the key vault name. To use " +
+			"a specific key version, set the KEY_VAULT_KEY_VERSION environment variable. " +
+			"If not set, it will use the latest key.",
+
+	}
+
 	//
 	// Common Artifact flags
 	//
@@ -490,6 +500,7 @@ func getCliContext() *cli.App {
 			signserverWorkerName,
 			vaultTransitKeyFlag,
 			pkcs11Flag,
+			azureKeyFlag,
 		},
 	}
 
@@ -543,6 +554,7 @@ func getCliContext() *cli.App {
 			Usage: "Force creating new signature if the artifact is already signed",
 		},
 		pkcs11Flag,
+		azureKeyFlag,
 	}
 
 	//
