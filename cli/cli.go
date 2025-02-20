@@ -161,6 +161,17 @@ func getCliContext() *cli.App {
 			"the Artifact signature.",
 	}
 
+	azureKeyFlag := cli.StringFlag{
+		Name: "azure-key",
+		Usage: "Name of the Azure Key Vault key that will be used to sign the Artifact. " +
+			"This operation requires the keys/sign and keys/get permissions. Uses " +
+			"DefaultAzureCredential to authenticate, which tries to authenticate based " +
+			"on a credential chain, stopping when one provides a token. Need to set the " +
+			"KEY_VAULT_NAME environment variable for the key vault name. To use a " +
+			"specific key version, set the KEY_VAULT_KEY_VERSION environment variable. " +
+			"If not set, it will use the latest key.",
+	}
+
 	//
 	// Common Artifact flags
 	//
@@ -266,6 +277,7 @@ func getCliContext() *cli.App {
 		gcpKMSKeyFlag,
 		vaultTransitKeyFlag,
 		signserverWorkerName,
+		azureKeyFlag,
 		cli.StringSliceFlag{
 			Name: "script, s",
 			Usage: "Full path to the state script(s). You can specify multiple " +
@@ -399,6 +411,7 @@ func getCliContext() *cli.App {
 		gcpKMSKeyFlag,
 		vaultTransitKeyFlag,
 		signserverWorkerName,
+		azureKeyFlag,
 		//////////////////////
 		// Sotware versions //
 		//////////////////////
@@ -453,6 +466,7 @@ func getCliContext() *cli.App {
 		gcpKMSKeyFlag,
 		signserverWorkerName,
 		vaultTransitKeyFlag,
+		azureKeyFlag,
 		/////////////////////////
 		// Version 3 specifics.//
 		/////////////////////////
@@ -490,6 +504,7 @@ func getCliContext() *cli.App {
 			signserverWorkerName,
 			vaultTransitKeyFlag,
 			pkcs11Flag,
+			azureKeyFlag,
 		},
 	}
 
@@ -509,6 +524,7 @@ func getCliContext() *cli.App {
 			signserverWorkerName,
 			vaultTransitKeyFlag,
 			pkcs11Flag,
+			azureKeyFlag,
 			cli.BoolFlag{
 				Name:  "no-progress",
 				Usage: "Suppress the progressbar output",
@@ -543,6 +559,7 @@ func getCliContext() *cli.App {
 			Usage: "Force creating new signature if the artifact is already signed",
 		},
 		pkcs11Flag,
+		azureKeyFlag,
 	}
 
 	//
@@ -602,6 +619,7 @@ func getCliContext() *cli.App {
 		signserverWorkerName,
 		vaultTransitKeyFlag,
 		compressionFlag,
+		azureKeyFlag,
 	}
 	modify.Before = func(c *cli.Context) error {
 		if c.String("name") != "" {
@@ -627,6 +645,7 @@ func getCliContext() *cli.App {
 		gcpKMSKeyFlag,
 		signserverWorkerName,
 		vaultTransitKeyFlag,
+		azureKeyFlag,
 	}
 
 	cat := cli.Command{

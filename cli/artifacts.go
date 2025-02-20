@@ -24,6 +24,7 @@ import (
 
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/mendersoftware/mender-artifact/artifact/azure"
 	"github.com/mendersoftware/mender-artifact/artifact/gcp"
 	"github.com/mendersoftware/mender-artifact/artifact/keyfactor"
 	"github.com/mendersoftware/mender-artifact/artifact/vault"
@@ -133,6 +134,7 @@ func getKey(c *cli.Context) (SigningKey, error) {
 		"vault-transit-key",
 		"key-pkcs11",
 		"keyfactor-signserver-worker",
+		"azure-key",
 	}
 	for _, optName := range possibleOptions {
 		if c.String(optName) == "" {
@@ -183,6 +185,8 @@ func getKey(c *cli.Context) (SigningKey, error) {
 		return artifact.NewPKCS11Signer(c.String("key-pkcs11"))
 	case "keyfactor-signserver-worker":
 		return keyfactor.NewSignServerSigner(c.String("keyfactor-signserver-worker"))
+	case "azure-key":
+		return azure.NewKeyVaultSigner(c.String("azure-key"))
 	default:
 		return nil, fmt.Errorf("unsupported signing key type %q", chosenOption)
 	}
