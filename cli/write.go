@@ -813,6 +813,13 @@ func writeModuleImage(ctx *cli.Context) error {
 		return err
 	}
 
+	if !ctx.Bool("no-progress") {
+		ctx, cancel := context.WithCancel(context.Background())
+		go reportProgress(ctx, aw.State)
+		defer cancel()
+		aw.ProgressWriter = utils.NewProgressWriter()
+	}
+
 	err = aw.WriteArtifact(
 		&awriter.WriteArtifactArgs{
 			Format:            "mender",

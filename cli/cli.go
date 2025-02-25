@@ -423,6 +423,10 @@ func getCliContext() *cli.App {
 		},
 		softwareVersionValue,
 		softwareFilesystem,
+		cli.BoolFlag{
+			Name:  "no-progress",
+			Usage: "Suppress the progressbar output",
+		},
 	}
 	writeModuleCommand.Before = applyCompressionInCommand
 
