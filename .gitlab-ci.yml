@@ -200,8 +200,9 @@ test:unit:mac:
     - mac-runner
 
 # Test that we can build with the golang version of the oldest supported yocto LTS release
+# MEN-8141: We don't support yocto kirkstone due to libraries requirements for new features
 test:backwards-compatibility:
-  image: golang:1.17.13-bullseye
+  image: golang:1.22.12-bullseye
   needs: []
   before_script:
     - apt-get update && apt-get install --quiet --assume-yes libssl-dev
