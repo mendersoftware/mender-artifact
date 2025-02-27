@@ -458,6 +458,7 @@ Updates:
 
 	modifyWriteFlagsTested.addFlags([]string{
 		"artifact-name",
+		"azure-key",
 		"compression",
 		"device-type",
 		"file",
@@ -470,6 +471,7 @@ Updates:
 	})
 	modifyFlagsTested.addFlags([]string{
 		"artifact-name",
+		"azure-key",
 		"gcp-kms-key",
 		"keyfactor-signserver-worker",
 		"vault-transit-key",
