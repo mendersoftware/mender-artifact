@@ -16,7 +16,7 @@ package cli
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path"
 	"sort"
@@ -29,7 +29,7 @@ import (
 )
 
 func makeFile(t *testing.T, tmpdir, name, content string) {
-	err := ioutil.WriteFile(path.Join(tmpdir, name), []byte(content), 0644)
+	err := os.WriteFile(path.Join(tmpdir, name), []byte(content), 0644)
 	require.NoError(t, err)
 }
 
@@ -59,7 +59,7 @@ func runAndCollectStdout(args []string) (string, error) {
 		goRoutineErr = getCliContext().Run(args)
 	}()
 
-	printed, err := ioutil.ReadAll(pipeR)
+	printed, err := io.ReadAll(pipeR)
 	if err != nil {
 		return "", err
 	}
@@ -86,7 +86,7 @@ func TestDumpContent(t *testing.T) {
 }
 
 func testDumpContent(t *testing.T, imageType, printCmdline string) {
-	tmpdir, err := ioutil.TempDir("", "")
+	tmpdir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 
@@ -268,7 +268,7 @@ func testDumpContent(t *testing.T, imageType, printCmdline string) {
 	flagChecker.addFlags([]string{
 		"artifact-name",
 		"artifact-name-depends",
-		"azure-key",  // Not tested in "dump".
+		"azure-key", // Not tested in "dump".
 		"clears-provides",
 		"compression", // Not tested in "dump".
 		"depends",

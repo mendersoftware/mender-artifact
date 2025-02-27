@@ -18,7 +18,6 @@ import (
 	"archive/tar"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -160,7 +159,7 @@ func (s *devNullUpdateStorer) PrepareStoreUpdate() error {
 }
 
 func (s *devNullUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
-	_, err := io.Copy(ioutil.Discard, r)
+	_, err := io.Copy(io.Discard, r)
 	return err
 }
 

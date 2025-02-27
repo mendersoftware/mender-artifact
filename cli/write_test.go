@@ -15,7 +15,6 @@
 package cli
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -42,7 +41,7 @@ func TestArtifactsWrite(t *testing.T) {
 	assert.Contains(t, err.Error(), "Required flags \"artifact-name, device-type, file\" not set",
 		"Required flags error missing")
 
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	err = MakeFakeUpdateDir(updateTestDir,
@@ -85,7 +84,7 @@ func TestArtifactsWrite(t *testing.T) {
 }
 
 func TestWithScripts(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	err := MakeFakeUpdateDir(updateTestDir,
@@ -165,7 +164,7 @@ func TestWithScripts(t *testing.T) {
 }
 
 func TestWriteModuleImage(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "mendertest")
+	tmpdir, err := os.MkdirTemp("", "mendertest")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 	artfile := filepath.Join(tmpdir, "artifact.mender")
@@ -309,12 +308,12 @@ func TestWriteModuleImage(t *testing.T) {
 }
 
 func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "mendertest")
+	tmpdir, err := os.MkdirTemp("", "mendertest")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 	artfile := filepath.Join(tmpdir, "artifact.mender")
 
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	err = MakeFakeUpdateDir(updateTestDir,
@@ -429,12 +428,12 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 }
 
 func TestWriteRootfsArtifactDependsAndProvidesOverrides(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "mendertest")
+	tmpdir, err := os.MkdirTemp("", "mendertest")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 	artfile := filepath.Join("./", "artifact.mender")
 
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	err = MakeFakeUpdateDir(updateTestDir,
@@ -570,7 +569,7 @@ func TestWriteRootfsImageChecksum(t *testing.T) {
 	assert.Contains(t, err.Error(), "Failed to open the payload file")
 
 	// Checksum a dummy file
-	tf, err := ioutil.TempFile("", "TestWriteRootfsImageChecksum")
+	tf, err := os.CreateTemp("", "TestWriteRootfsImageChecksum")
 	require.NoError(t, err)
 	_, err = tf.Write([]byte("foobar"))
 	require.NoError(t, err)
@@ -697,12 +696,12 @@ func TestGetSoftwareVersion(t *testing.T) {
 }
 
 func TestWriteClearsProvides(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "mendertest")
+	tmpdir, err := os.MkdirTemp("", "mendertest")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 	artfile := filepath.Join(tmpdir, "artifact.mender")
 
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	err = MakeFakeUpdateDir(updateTestDir,

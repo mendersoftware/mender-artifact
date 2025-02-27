@@ -15,7 +15,6 @@
 package cli
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -45,7 +44,7 @@ func signExisting(c *cli.Context) error {
 	if len(c.String("output-path")) > 0 {
 		outputFile = c.String("output-path")
 	}
-	tFile, err := ioutil.TempFile(filepath.Dir(outputFile), "mender-artifact")
+	tFile, err := os.CreateTemp(filepath.Dir(outputFile), "mender-artifact")
 	if err != nil {
 		err = errors.Wrap(err, "Can not create temporary file for storing artifact")
 		return cli.NewExitError(err, 1)

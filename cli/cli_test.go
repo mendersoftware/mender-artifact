@@ -16,7 +16,6 @@ package cli
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"testing"
@@ -28,7 +27,7 @@ import (
 func TestCompressionArgumentLocations(t *testing.T) {
 	app := getCliContext()
 
-	dummyFile, err := ioutil.TempFile("", "")
+	dummyFile, err := os.CreateTemp("", "")
 	require.NoError(t, err)
 	_, err = dummyFile.Write([]byte("abcd"))
 	require.NoError(t, err)
@@ -36,7 +35,7 @@ func TestCompressionArgumentLocations(t *testing.T) {
 	dummyName := dummyFile.Name()
 	defer os.Remove(dummyName)
 
-	menderFile, err := ioutil.TempFile("", "")
+	menderFile, err := os.CreateTemp("", "")
 	require.NoError(t, err)
 	menderFile.Close()
 	menderName := menderFile.Name()
@@ -137,7 +136,7 @@ func TestCompressionArgumentLocations(t *testing.T) {
 func TestModuleImageWithoutPayload(t *testing.T) {
 	app := getCliContext()
 
-	menderFile, err := ioutil.TempFile("", "")
+	menderFile, err := os.CreateTemp("", "")
 	require.NoError(t, err)
 	menderFile.Close()
 	menderName := menderFile.Name()
@@ -161,7 +160,7 @@ func TestModuleImageWithoutPayload(t *testing.T) {
 func TestWriteBootstrapArtifact(t *testing.T) {
 	app := getCliContext()
 
-	menderFile, err := ioutil.TempFile("", "")
+	menderFile, err := os.CreateTemp("", "")
 	require.NoError(t, err)
 	menderFile.Close()
 	menderName := menderFile.Name()

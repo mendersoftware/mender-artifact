@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -36,7 +35,7 @@ import (
 
 func testSetupTeardown(t *testing.T) (artifact, sdimg, fatsdimg, sparsesdimg string, f func()) {
 
-	tmp, err := ioutil.TempDir("", "mender-modify")
+	tmp, err := os.MkdirTemp("", "mender-modify")
 	assert.NoError(t, err)
 
 	err = copyFile("mender_test.img", filepath.Join(tmp, "mender_test.img"))
@@ -178,12 +177,12 @@ func TestCopyRootfsImage(t *testing.T) {
 			initfunc: func(imgpath string) {
 				// Write a private key to the same directory as the test artifact.
 				privateKeyFileName := filepath.Join(filepath.Dir(imgpath), "private.key")
-				err := ioutil.WriteFile(privateKeyFileName, []byte(testPrivateKey), 0600)
+				err := os.WriteFile(privateKeyFileName, []byte(testPrivateKey), 0600)
 				assert.Nil(t, err, "unexpected error writing private key file: %v", err)
 
 				// Write a public key to the same directory as the test artifact.
 				publicKeyFileName := filepath.Join(filepath.Dir(imgpath), "public.key")
-				err = ioutil.WriteFile(publicKeyFileName, []byte(testPublicKey), 0600)
+				err = os.WriteFile(publicKeyFileName, []byte(testPublicKey), 0600)
 				assert.Nil(t, err, "unexpected error writing public key file: %v", err)
 
 				// Use the private key to sign the artifact in place.
@@ -201,12 +200,12 @@ func TestCopyRootfsImage(t *testing.T) {
 		},
 		{
 			initfunc: func(imgpath string) {
-				assert.Nil(t, ioutil.WriteFile("output.txt", []byte{}, 0755))
+				assert.Nil(t, os.WriteFile("output.txt", []byte{}, 0755))
 			},
 			name: "write artifact_info file to output.txt",
 			argv: []string{"mender-artifact", "cp", "<artifact|sdimg|fat-sdimg|sparse-sdimg>:/etc/mender/artifact_info", "output.txt"},
 			verifyTestFunc: func(imgpath string) {
-				data, err := ioutil.ReadFile("output.txt")
+				data, err := os.ReadFile("output.txt")
 				assert.Nil(t, err)
 				assert.Equal(t, strings.TrimSpace(string(data)), "artifact_name=release-1")
 				os.Remove("output.txt")
@@ -217,7 +216,7 @@ func TestCopyRootfsImage(t *testing.T) {
 			initfunc: func(imgpath string) {
 				// create some new data in the output.txt file,
 				// so that it does not shadow the previous test
-				assert.Nil(t, ioutil.WriteFile("output.txt", []byte("artifact_name=foobar"), 0644))
+				assert.Nil(t, os.WriteFile("output.txt", []byte("artifact_name=foobar"), 0644))
 			},
 			argv: []string{"mender-artifact", "cp", "output.txt", "<artifact|sdimg|sparse-sdimg|fat-sdimg>:test.txt"},
 			verifyTestFunc: func(imgpath string) {
@@ -235,7 +234,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		},
 		{
 			initfunc: func(imgpath string) {
-				assert.Nil(t, ioutil.WriteFile("input.txt", []byte("dummy-text"), 0755))
+				assert.Nil(t, os.WriteFile("input.txt", []byte("dummy-text"), 0755))
 			},
 			name: "copy file into a non-existing directory",
 			argv: []string{"mender-artifact", "cp", "input.txt", "<artifact|sdimg|sparse-sdimg|fat-sdimg>:/non/existing/path"},
@@ -246,7 +245,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		},
 		{
 			initfunc: func(imgpath string) {
-				assert.Nil(t, ioutil.WriteFile("input.mender.txt", []byte("dummy-text"), 0755))
+				assert.Nil(t, os.WriteFile("input.mender.txt", []byte("dummy-text"), 0755))
 			},
 			name: "copy file with containing '.mender' in its filename",
 			argv: []string{"mender-artifact", "cp", "input.mender.txt", "<artifact|sdimg|sparse-sdimg|fat-sdimg>:/etc/mender/"},
@@ -257,7 +256,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "write and read from the data partition",
 			initfunc: func(imgpath string) {
-				assert.Nil(t, ioutil.WriteFile("artifact_info", []byte("artifact_name=foobar"), 0755))
+				assert.Nil(t, os.WriteFile("artifact_info", []byte("artifact_name=foobar"), 0755))
 				_, err := os.Open("artifact_info")
 				require.Nil(t, err)
 			},
@@ -275,7 +274,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "error: artifact does not contain a data partition",
 			initfunc: func(string) {
-				assert.Nil(t, ioutil.WriteFile("foo.txt", nil, 0755))
+				assert.Nil(t, os.WriteFile("foo.txt", nil, 0755))
 
 			},
 			argv: []string{"mender-artifact", "cp", "foo.txt", "<artifact>:/data/test.txt"},
@@ -287,7 +286,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "error: artifact does not contain a boot partition",
 			initfunc: func(string) {
-				assert.Nil(t, ioutil.WriteFile("foo.txt", nil, 0755))
+				assert.Nil(t, os.WriteFile("foo.txt", nil, 0755))
 
 			},
 			argv: []string{"mender-artifact", "cp", "foo.txt", "<artifact>:/uboot/test.txt"},
@@ -299,7 +298,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "Install file, standard permissions (0600)",
 			initfunc: func(imgpath string) {
-				require.Nil(t, ioutil.WriteFile("testkey", []byte("foobar"), 0644))
+				require.Nil(t, os.WriteFile("testkey", []byte("foobar"), 0644))
 			},
 			argv: []string{"mender-artifact", "install", "-m", "0600", "testkey", "<artifact|sdimg|sparse-sdimg|fat-sdimg>:/etc/mender/testkey.key"},
 			verifyTestFunc: func(imgpath string) {
@@ -339,7 +338,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "Install file with permissions (0777)",
 			initfunc: func(imgpath string) {
-				require.Nil(t, ioutil.WriteFile("testkey", []byte("foobar"), 0644))
+				require.Nil(t, os.WriteFile("testkey", []byte("foobar"), 0644))
 			},
 			argv: []string{"mender-artifact", "install", "-m", "0777", "testkey", "<artifact|sdimg|sparse-sdimg|fat-sdimg>:/etc/mender/testkey.key"},
 			verifyTestFunc: func(imgpath string) {
@@ -379,7 +378,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "Install file with permissions (0700)",
 			initfunc: func(imgpath string) {
-				require.Nil(t, ioutil.WriteFile("testkey", []byte("foobar"), 0644))
+				require.Nil(t, os.WriteFile("testkey", []byte("foobar"), 0644))
 			},
 			argv: []string{"mender-artifact", "install", "-m", "0700", "testkey", "<artifact|sdimg|sparse-sdimg|fat-sdimg>:/etc/mender/testkey.key"},
 			verifyTestFunc: func(imgpath string) {
@@ -419,7 +418,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "write and read from the boot partition",
 			initfunc: func(imgpath string) {
-				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+				require.Nil(t, os.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
 			argv: []string{"mender-artifact", "cp", "foo.txt", "<sdimg|fat-sdimg|sparse-sdimg>:/uboot/test.txt"},
 			verifyTestFunc: func(imgpath string) {
@@ -428,7 +427,7 @@ func TestCopyRootfsImage(t *testing.T) {
 					imgpath + ":/uboot/test.txt",
 					"test.res"})
 				assert.NoError(t, err)
-				data, err := ioutil.ReadFile("test.res")
+				data, err := os.ReadFile("test.res")
 				assert.Nil(t, err, imgpath)
 				assert.Equal(t, "foobar", string(data), imgpath)
 				os.Remove("foo.txt")
@@ -438,7 +437,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "write and read from the boot/efi partition",
 			initfunc: func(imgpath string) {
-				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+				require.Nil(t, os.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
 			argv: []string{"mender-artifact", "cp", "foo.txt", "<sdimg|fat-sdimg|sparse-sdimg>:/boot/efi/test.txt"},
 			verifyTestFunc: func(imgpath string) {
@@ -447,7 +446,7 @@ func TestCopyRootfsImage(t *testing.T) {
 					imgpath + ":/boot/efi/test.txt",
 					"test.res"})
 				assert.NoError(t, err)
-				data, err := ioutil.ReadFile("test.res")
+				data, err := os.ReadFile("test.res")
 				require.Nil(t, err)
 				assert.Equal(t, "foobar", string(data))
 				os.Remove("foo.txt")
@@ -457,7 +456,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "cat from the boot partition",
 			initfunc: func(imgpath string) {
-				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+				require.Nil(t, os.WriteFile("foo.txt", []byte("foobar"), 0644))
 				err := Run([]string{
 					"mender-artifact", "cp",
 					"foo.txt",
@@ -474,7 +473,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "write and read from the boot/grub partition",
 			initfunc: func(imgpath string) {
-				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+				require.Nil(t, os.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
 			argv: []string{"mender-artifact", "cp", "foo.txt", "<sdimg|fat-sdimg|sparse-sdimg>:/boot/grub/test.txt"},
 			verifyTestFunc: func(imgpath string) {
@@ -483,7 +482,7 @@ func TestCopyRootfsImage(t *testing.T) {
 					imgpath + ":/boot/grub/test.txt",
 					"test.res"})
 				assert.NoError(t, err)
-				data, err := ioutil.ReadFile("test.res")
+				data, err := os.ReadFile("test.res")
 				require.Nil(t, err)
 				assert.Equal(t, "foobar", string(data))
 				os.Remove("foo.txt")
@@ -508,7 +507,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "check if artifact does not change name",
 			initfunc: func(imgpath string) {
-				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+				require.Nil(t, os.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
 			argv: []string{"mender-artifact", "cp", "foo.txt", "<artifact>:/test.txt"},
 			verifyTestFunc: func(imgpath string) {
@@ -536,7 +535,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "Make sure that the update in a mender artifact does not change name",
 			initfunc: func(imgpath string) {
-				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+				require.Nil(t, os.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
 			argv: []string{"mender-artifact", "cp", "foo.txt", "<artifact>:/etc/test.txt"},
 			verifyTestFunc: func(imgpath string) {
@@ -589,7 +588,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "Delete a file from a fat partition",
 			initfunc: func(imgpath string) {
-				require.Nil(t, ioutil.WriteFile("test.txt", []byte("foobar"), 0644))
+				require.Nil(t, os.WriteFile("test.txt", []byte("foobar"), 0644))
 				require.NoError(t, Run([]string{
 					"mender-artifact", "cp",
 					"test.txt",
@@ -644,7 +643,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "Make sure that rootfs-image.checksum is updated when repacking Artifact",
 			initfunc: func(imgpath string) {
-				require.Nil(t, ioutil.WriteFile("foo.txt", []byte("foobar"), 0644))
+				require.Nil(t, os.WriteFile("foo.txt", []byte("foobar"), 0644))
 			},
 			argv: []string{"mender-artifact", "cp", "foo.txt", "<artifact>:/etc/test.txt"},
 			verifyTestFunc: func(imgpath string) {
@@ -674,7 +673,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "Create a directory",
 			initfunc: func(imgpath string) {
-				require.Nil(t, ioutil.WriteFile("test.txt", []byte("foobar"), 0644))
+				require.Nil(t, os.WriteFile("test.txt", []byte("foobar"), 0644))
 			},
 			argv: []string{"mender-artifact", "install", "-d", "<artifact|sdimg|fat-sdimg|sparse-sdimg>:/foo"},
 			verifyTestFunc: func(imgpath string) {
@@ -698,7 +697,7 @@ func TestCopyRootfsImage(t *testing.T) {
 		{
 			name: "Create nested directories",
 			initfunc: func(imgpath string) {
-				require.Nil(t, ioutil.WriteFile("test.txt", []byte("foobar"), 0644))
+				require.Nil(t, os.WriteFile("test.txt", []byte("foobar"), 0644))
 			},
 			argv: []string{"mender-artifact", "install", "-d", "<artifact|sdimg|fat-sdimg|sparse-sdimg>:/foo/bar"},
 			verifyTestFunc: func(imgpath string) {
@@ -896,7 +895,7 @@ func TestCopyFromStdin(t *testing.T) {
 					"output.txt"})
 				defer os.Remove("output.txt")
 				assert.Nil(t, err)
-				of, err := ioutil.ReadFile("output.txt")
+				of, err := os.ReadFile("output.txt")
 				assert.Nil(t, err)
 				assert.Equal(t, "foobar", string(of), te.name, te.testImg)
 			},
@@ -958,11 +957,11 @@ func TestCopyFromStdin(t *testing.T) {
 
 func TestCopyModuleImage(t *testing.T) {
 
-	tmpdir, err := ioutil.TempDir("", "mendertest")
+	tmpdir, err := os.MkdirTemp("", "mendertest")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpdir)
 	artfile := filepath.Join(tmpdir, "artifact.mender")
-	df, err := ioutil.TempFile(tmpdir, "CopyModuleImage")
+	df, err := os.CreateTemp(tmpdir, "CopyModuleImage")
 	require.Nil(t, err)
 	defer df.Close()
 

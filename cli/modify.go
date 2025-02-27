@@ -17,7 +17,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -92,7 +91,7 @@ func modifyArtifactInfoName(name string, image VPImage) error {
 	}
 
 	data := fmt.Sprintf("artifact_name=%s", name)
-	tmpNameFile, err := ioutil.TempFile("", "mender-name")
+	tmpNameFile, err := os.CreateTemp("", "mender-name")
 	if err != nil {
 		return err
 	}
@@ -137,7 +136,7 @@ func modifyVerificationKey(newKey string, image VPImage) error {
 func modifyMenderConfVar(confKey, confValue string, image VPImage) error {
 	confFile := "/etc/mender/mender.conf"
 
-	dir, err := ioutil.TempDir("", "")
+	dir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return err
 	}
@@ -150,7 +149,7 @@ func modifyMenderConfVar(confKey, confValue string, image VPImage) error {
 		return err
 	}
 
-	raw, err := ioutil.ReadFile(localFile)
+	raw, err := os.ReadFile(localFile)
 	if err != nil {
 		return err
 	}
@@ -166,7 +165,7 @@ func modifyMenderConfVar(confKey, confValue string, image VPImage) error {
 		return err
 	}
 
-	if err = ioutil.WriteFile(localFile, data, 0755); err != nil {
+	if err = os.WriteFile(localFile, data, 0755); err != nil {
 		return err
 	}
 

@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -620,7 +619,7 @@ func TestWithScripts(t *testing.T) {
 	u := handlers.NewRootfsV2(upd)
 	updates := &Updates{Updates: []handlers.Composer{u}}
 
-	scr, err := ioutil.TempFile("", "ArtifactInstall_Enter_10_")
+	scr, err := os.CreateTemp("", "ArtifactInstall_Enter_10_")
 	assert.NoError(t, err)
 	defer os.Remove(scr.Name())
 
@@ -722,7 +721,7 @@ type TestDirEntry struct {
 }
 
 func MakeFakeUpdate(data string) (string, error) {
-	f, err := ioutil.TempFile("", "test_update")
+	f, err := os.CreateTemp("", "test_update")
 	if err != nil {
 		return "", err
 	}
@@ -737,7 +736,7 @@ func MakeFakeUpdate(data string) (string, error) {
 
 func MakeFakeInvalidUpdate(data string) (string, error) {
 	// random string replaces the last "*", hence double "*" are needed
-	f, err := ioutil.TempFile("", "test_update_**")
+	f, err := os.CreateTemp("", "test_update_**")
 	if err != nil {
 		return "", err
 	}
@@ -779,7 +778,7 @@ func TestRootfsCompose(t *testing.T) {
 	tw := tar.NewWriter(buf)
 	defer tw.Close()
 
-	f, err := ioutil.TempFile("", "update")
+	f, err := os.CreateTemp("", "update")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 

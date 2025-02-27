@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -162,7 +161,7 @@ func (ar *Reader) readHeader(headerSum []byte, comp artifact.Compressor) error {
 
 	// Empty the remaining reader
 	// See (MEN-5094)
-	_, _ = io.Copy(ioutil.Discard, r)
+	_, _ = io.Copy(io.Discard, r)
 
 	// Check if header checksum is correct.
 	if cr, ok := r.(*artifact.Checksum); ok {
@@ -227,7 +226,7 @@ func (ar *Reader) readAugmentedHeader(headerSum []byte, comp artifact.Compressor
 
 	// Empty the remaining reader
 	// See (MEN-5094)
-	_, _ = io.Copy(ioutil.Discard, r)
+	_, _ = io.Copy(io.Discard, r)
 
 	// Check if header checksum is correct.
 	if cr, ok := r.(*artifact.Checksum); ok {
@@ -310,7 +309,7 @@ func verifyVersion(ver []byte, manifest *artifact.ChecksumStore) error {
 	}
 	buf := bytes.NewBuffer(ver)
 	c := artifact.NewReaderChecksum(buf, verSum)
-	_, err = io.Copy(ioutil.Discard, c)
+	_, err = io.Copy(io.Discard, c)
 	return err
 }
 

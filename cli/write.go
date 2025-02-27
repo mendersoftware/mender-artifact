@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"io"
-	"io/ioutil"
 
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
@@ -43,7 +42,7 @@ import (
 
 func writeRootfsImageChecksum(rootfsFilename string,
 	typeInfo *artifact.TypeInfoV3, legacy bool) (err error) {
-	chk := artifact.NewWriterChecksum(ioutil.Discard)
+	chk := artifact.NewWriterChecksum(io.Discard)
 	payload, err := os.Open(rootfsFilename)
 	if err != nil {
 		return cli.NewExitError(
@@ -913,7 +912,7 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	}
 
 	// Create tempfile for storing the snapshot
-	f, err := ioutil.TempFile("", "rootfs.tmp")
+	f, err := os.CreateTemp("", "rootfs.tmp")
 	if err != nil {
 		return "", err
 	}

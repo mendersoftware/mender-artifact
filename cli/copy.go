@@ -17,7 +17,6 @@ package cli
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -302,7 +301,7 @@ func parseCLIOptions(c *cli.Context) int {
 // current file, with the permissions given by perm.
 func createTmpFileWithPerm(f *os.File, perm os.FileMode) (string, error) {
 
-	td, err := ioutil.TempDir("", "mender-artifact-install")
+	td, err := os.MkdirTemp("", "mender-artifact-install")
 	if err != nil {
 		return "", err
 	}
