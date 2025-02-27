@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -103,7 +102,7 @@ func scripts(scripts []string) (*artifact.Scripts, error) {
 
 		// Read either a directory, or add the script file directly.
 		if statInfo.IsDir() {
-			fileList, err := ioutil.ReadDir(scriptArg)
+			fileList, err := os.ReadDir(scriptArg)
 			if err != nil {
 				return nil, errors.Wrapf(err, "can not list directory contents of: %s", scriptArg)
 			}
@@ -149,7 +148,7 @@ func getKey(c *cli.Context) (SigningKey, error) {
 	}
 	switch chosenOption := chosenOptions[0]; chosenOption {
 	case "key":
-		key, err := ioutil.ReadFile(c.String("key"))
+		key, err := os.ReadFile(c.String("key"))
 		if err != nil {
 			return nil, errors.Wrap(err, "Error reading key file")
 		}
@@ -206,7 +205,7 @@ func unpackArtifact(name string) (ua *unpackedArtifact, err error) {
 	aReader := areader.NewReader(f)
 	ua.ar = aReader
 
-	tmpdir, err := ioutil.TempDir("", "mender-artifact")
+	tmpdir, err := os.MkdirTemp("", "mender-artifact")
 	if err != nil {
 		return nil, err
 	}
@@ -442,7 +441,7 @@ func repack(comp artifact.Compressor, ua *unpackedArtifact, to io.Writer, key Si
 }
 
 func repackArtifact(comp artifact.Compressor, key SigningKey, ua *unpackedArtifact) error {
-	tmp, err := ioutil.TempFile(filepath.Dir(ua.origPath), "mender-artifact")
+	tmp, err := os.CreateTemp(filepath.Dir(ua.origPath), "mender-artifact")
 	if err != nil {
 		return err
 	}

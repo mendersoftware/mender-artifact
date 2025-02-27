@@ -17,7 +17,7 @@ package cli
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,7 +35,7 @@ const (
 )
 
 func debugfsCopyFile(file, image string) (ret string, err error) {
-	tmpDir, err := ioutil.TempDir("", "mender")
+	tmpDir, err := os.MkdirTemp("", "mender")
 	if err != nil {
 		return "", errors.Wrap(err, "debugfs: create temp directory")
 	}
@@ -59,7 +59,7 @@ func debugfsCopyFile(file, image string) (ret string, err error) {
 	if err = cmd.Start(); err != nil {
 		return "", errors.Wrap(err, "debugfs: run debugfs dump")
 	}
-	data, err := ioutil.ReadAll(ep)
+	data, err := io.ReadAll(ep)
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to read from stderr-pipe")
 	}
@@ -166,7 +166,7 @@ func debugfsRemoveDir(imageFile, image string, recursive bool) (err error) {
 
 // debugfsExecuteCommand takes a command string and passes it on to debugfs on the image given.
 func debugfsExecuteCommand(cmdstr, image string) (stdout *bytes.Buffer, err error) {
-	scr, err := ioutil.TempFile("", "mender-debugfs")
+	scr, err := os.CreateTemp("", "mender-debugfs")
 	if err != nil {
 		return nil, errors.Wrap(err, "debugfs: create sync script file")
 	}

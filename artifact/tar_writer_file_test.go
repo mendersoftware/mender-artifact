@@ -18,7 +18,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"io"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -33,7 +32,7 @@ func TestTarFile(t *testing.T) {
 	err := fa.Write(nil, "my_file")
 	assert.Error(t, err)
 
-	f, err := ioutil.TempFile("", "test")
+	f, err := os.CreateTemp("", "test")
 	assert.NoError(t, err)
 	assert.NotNil(t, f)
 	defer os.Remove(f.Name())

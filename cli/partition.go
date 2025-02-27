@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -704,7 +703,7 @@ func newExtFile(imagePath, imageFilePath string) (e *extFile, err error) {
 			"The directory: %s does not exist in the image", filepath.Dir(imageFilePath),
 		)
 	}
-	tmpf, err := ioutil.TempFile("", "mendertmp-extfile")
+	tmpf, err := os.CreateTemp("", "mendertmp-extfile")
 	// Cleanup resources in case of error.
 	e = &extFile{
 		imagePath:     imagePath,
@@ -741,11 +740,11 @@ func (ef *extFile) Read(b []byte) (int, error) {
 	if err != nil {
 		return 0, errors.Wrap(err, "extFile: ReadError: debugfsCopyFile failed")
 	}
-	data, err := ioutil.ReadFile(filepath.Join(str, filepath.Base(ef.imageFilePath)))
+	data, err := os.ReadFile(filepath.Join(str, filepath.Base(ef.imageFilePath)))
 	if err != nil {
 		return 0, errors.Wrapf(
 			err,
-			"extFile: ReadError: ioutil.Readfile failed to read file: %s",
+			"extFile: ReadError: os.ReadFile failed to read file: %s",
 			filepath.Join(str, filepath.Base(ef.imageFilePath)),
 		)
 	}
@@ -861,7 +860,7 @@ func newFatFile(imagePath, imageFilePath string) (*fatFile, error) {
 		return nil, err
 	}
 
-	tmpf, err := ioutil.TempFile("", "mendertmp-fatfile")
+	tmpf, err := os.CreateTemp("", "mendertmp-fatfile")
 	ff := &fatFile{
 		imagePath:     imagePath,
 		imageFilePath: imageFilePath,
@@ -1034,7 +1033,7 @@ func processSdimg(image string) (VPImage, error) {
 
 func extractFromSdimg(partitions []partition, image string) ([]partition, error) {
 	for i, part := range partitions {
-		tmp, err := ioutil.TempFile("", "mender-modify-image")
+		tmp, err := os.CreateTemp("", "mender-modify-image")
 		if err != nil {
 			return nil, errors.Wrap(err, "can not create temp file for storing image")
 		}

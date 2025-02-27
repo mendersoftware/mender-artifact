@@ -15,7 +15,6 @@
 package cli
 
 import (
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,7 +26,7 @@ import (
 
 func TestSignExistingV2(t *testing.T) {
 	// first create archive, that we will be able to read
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	priv, pub, err := generateKeys()
@@ -79,7 +78,7 @@ func TestSignExistingV2(t *testing.T) {
 }
 
 func TestSignExistingWithScripts(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	priv, pub, err := generateKeys()
@@ -145,7 +144,7 @@ func TestSignExistingWithScripts(t *testing.T) {
 }
 
 func TestSignExistingWithModules(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	priv, pub, err := generateKeys()
@@ -209,7 +208,7 @@ func TestSignExistingWithModules(t *testing.T) {
 }
 
 func TestSignExistingBrokenFiles(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	priv, pub, err := generateKeys()
@@ -255,7 +254,7 @@ func TestSignExistingBrokenFiles(t *testing.T) {
 }
 
 func TestSignWithWriteCommand(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	priv, pub, err := generateKeys()
@@ -327,7 +326,7 @@ func TestSignWithWriteCommand(t *testing.T) {
 
 func TestSignExistingPermissions(t *testing.T) {
 	// first create archive, that we will be able to read
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	priv, _, err := generateKeys()
@@ -358,7 +357,7 @@ func TestSignExistingPermissions(t *testing.T) {
 	assert.Equal(t, preSignStat.Mode(), postSignStat.Mode())
 }
 func TestSignViaSymlink(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	priv, pub, err := generateKeys()
