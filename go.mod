@@ -1,6 +1,6 @@
 module github.com/mendersoftware/mender-artifact
 
-go 1.17
+go 1.22
 
 require (
 	cloud.google.com/go/kms v1.10.1
