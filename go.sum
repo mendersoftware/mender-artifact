@@ -176,6 +176,8 @@ github.com/mendersoftware/openssl v1.1.1-0.20221101135106-cb94d0a179f8 h1:LO1M21
 github.com/mendersoftware/openssl v1.1.1-0.20221101135106-cb94d0a179f8/go.mod h1:tikEC94q+Y0TU6r19L6mHzwruoTNYPEkrQPvsHEcQyU=
 github.com/mendersoftware/progressbar v0.0.3 h1:AUdBGPvXO0l9i39rmXKZbEAPet2FzBeiG8b30D5/2Vc=
 github.com/mendersoftware/progressbar v0.0.3/go.mod h1:NYaLNLhy3UXkRweGjhR3We3Q1ngmUmOWjC3+m8EzwjE=
+github.com/mendersoftware/progressbar v0.0.4 h1:R2uO9WiNRwF4pL278KlzSFFeIq4GBK2bSg1uD9uy9MI=
+github.com/mendersoftware/progressbar v0.0.4/go.mod h1:4opIJf3RMZWokFEMM7z1EdPjWtVWShdy9RvUDyHqmSk=
 github.com/minio/sha256-simd v1.0.1 h1:6kaan5IFmwTNynnKKpDHe6FWHohJOHhCPchzK49dzMM=
 github.com/minio/sha256-simd v1.0.1/go.mod h1:Pz6AKMiUdngCLpeTL/RJY1M9rUuPMYujV5xJjtbRSN8=
 github.com/mitchellh/cli v1.0.0/go.mod h1:hNIlj7HEI86fIcpObd7a0FcrxTWetlwJDGcceTlRvqc=
