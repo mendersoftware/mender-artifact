@@ -1,10 +1,7 @@
-//go:build !amd64 || appengine || !gc || noasm
-// +build !amd64 appengine !gc noasm
-
 // Copyright 2019+ Klaus Post. All rights reserved.
 // License information can be found in the LICENSE file.
 
-package zstd
+package flate
 
 import (
 	"math/bits"
@@ -24,9 +21,9 @@ func matchLen(a, b []byte) (n int) {
 		n += 8
 		left -= 8
 	}
+
 	a = a[n:]
 	b = b[n:]
-
 	for i := range a {
 		if a[i] != b[i] {
 			break
@@ -34,5 +31,4 @@ func matchLen(a, b []byte) (n int) {
 		n++
 	}
 	return n
-
 }

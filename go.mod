@@ -10,7 +10,7 @@ require (
 	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/googleapis/gax-go/v2 v2.12.0
 	github.com/hashicorp/vault/api v1.10.0
-	github.com/klauspost/compress v1.16.7
+	github.com/klauspost/compress v1.18.0
 	github.com/klauspost/pgzip v1.2.6
 	github.com/lestrrat-go/jwx v1.2.30
 	github.com/mendersoftware/openssl v1.1.1-0.20221101135106-cb94d0a179f8
