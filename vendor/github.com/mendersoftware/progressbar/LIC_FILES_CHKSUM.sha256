@@ -5,6 +5,6 @@ d18f6323b71b0b768bb5e9616e36da390fbd39369a81807cca352de4e4e6aa0b  vendor/gopkg.i
 08eab1118c80885fa1fa6a6dd7303f65a379fcb3733e063d20d1bbc2c76e6fa1  vendor/github.com/mattn/go-isatty/LICENSE
 f8e536c1c7b695810427095dc85f5f80d44ff7c10535e8a9486cf393e2599189  vendor/github.com/stretchr/testify/LICENSE
 #ISC
-6a6ae99c69879233ddb1095938f7f3ea651fd91d82d46988fb0be6489c7a1bb6  vendor/github.com/davecgh/go-spew/LICENSE
+1b93a317849ee09d3d7e4f1d20c2b78ddb230b4becb12d7c224c927b9d470251  vendor/github.com/davecgh/go-spew/LICENSE
 # Apache 2.0
-8f5d89b47d7a05a199b77b7e0f362dad391d451ebda4ef48ba11c50c071564c7  LICENSE
+132fb47b89947cd5f98e380186bc412af5561c70669d37d3a83b36f03a0ddae5  LICENSE
