@@ -15,7 +15,6 @@
 package cli
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -132,7 +131,7 @@ func TestValidate(t *testing.T) {
 
 func TestArtifactsValidate(t *testing.T) {
 	// first create archive, that we will be able to read
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	err := WriteArtifact(updateTestDir, 2, "")

@@ -21,7 +21,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -195,7 +194,7 @@ func MakeAnyImageArtifact(version int, signed bool,
 
 	scr := artifact.Scripts{}
 	if hasScripts {
-		s, err := ioutil.TempFile("", "ArtifactInstall_Enter_10_")
+		s, err := os.CreateTemp("", "ArtifactInstall_Enter_10_")
 		if err != nil {
 			return nil, err
 		}
@@ -441,7 +440,7 @@ func TestReadWithScripts(t *testing.T) {
 }
 
 func MakeFakeUpdate(data string) (string, error) {
-	f, err := ioutil.TempFile("", "test_update")
+	f, err := os.CreateTemp("", "test_update")
 	if err != nil {
 		return "", err
 	}
@@ -599,7 +598,7 @@ func (s *testUpdateStorer) StoreUpdate(r io.Reader, info os.FileInfo) error {
 	if s.w != nil {
 		w = s.w
 	} else {
-		w = ioutil.Discard
+		w = io.Discard
 	}
 	_, err := io.Copy(w, r)
 	return err
@@ -1170,7 +1169,7 @@ func TestReadBrokenArtifact(t *testing.T) {
 
 				fd, err = os.Open(filepath.Join(tmpdir, "header-augment.tar.gz"))
 				require.NoError(t, err)
-				buf, err := ioutil.ReadAll(fd)
+				buf, err := io.ReadAll(fd)
 				require.NoError(t, err)
 				checksumBytes := sha256.Sum256(buf)
 				checksum := hex.EncodeToString(checksumBytes[:])
@@ -1179,7 +1178,7 @@ func TestReadBrokenArtifact(t *testing.T) {
 				require.NoError(t, err)
 				defer augmFd.Close()
 
-				buf, err = ioutil.ReadAll(augmFd)
+				buf, err = io.ReadAll(augmFd)
 				require.NoError(t, err)
 
 				manifestLines := bytes.Split(bytes.TrimSpace(buf), []byte("\n"))
@@ -1222,7 +1221,7 @@ func TestReadBrokenArtifact(t *testing.T) {
 				fd.Write(content)
 				fd.Close()
 
-				statlist, err := ioutil.ReadDir(datatmp)
+				statlist, err := os.ReadDir(datatmp)
 				require.NoError(t, err)
 				arglist := make([]string, 0, len(statlist)+2)
 				arglist = append(arglist, "czf")
@@ -1268,7 +1267,7 @@ func TestReadBrokenArtifact(t *testing.T) {
 
 				fd, err = os.Open(filepath.Join(tmpdir, "header.tar.gz"))
 				require.NoError(t, err)
-				content, err := ioutil.ReadAll(fd)
+				content, err := io.ReadAll(fd)
 				require.NoError(t, err)
 				fd.Close()
 				checksumBytes := sha256.Sum256(content)
@@ -1277,7 +1276,7 @@ func TestReadBrokenArtifact(t *testing.T) {
 				fd, err = os.OpenFile(filepath.Join(tmpdir, "manifest"),
 					os.O_RDWR, 0)
 				require.NoError(t, err)
-				manifestLines, err := ioutil.ReadAll(fd)
+				manifestLines, err := io.ReadAll(fd)
 				require.NoError(t, err)
 				fd.Seek(0, 0)
 				fd.Truncate(0)
@@ -1313,7 +1312,7 @@ func TestReadBrokenArtifact(t *testing.T) {
 
 				fd, err = os.Open(filepath.Join(tmpdir, "header.tar.gz"))
 				require.NoError(t, err)
-				content, err := ioutil.ReadAll(fd)
+				content, err := io.ReadAll(fd)
 				require.NoError(t, err)
 				fd.Close()
 				checksumBytes := sha256.Sum256(content)
@@ -1322,7 +1321,7 @@ func TestReadBrokenArtifact(t *testing.T) {
 				fd, err = os.OpenFile(filepath.Join(tmpdir, "manifest"),
 					os.O_RDWR, 0)
 				require.NoError(t, err)
-				manifestLines, err := ioutil.ReadAll(fd)
+				manifestLines, err := io.ReadAll(fd)
 				require.NoError(t, err)
 				fd.Seek(0, 0)
 				fd.Truncate(0)
@@ -1354,7 +1353,7 @@ func TestReadBrokenArtifact(t *testing.T) {
 			require.NoError(t, err)
 
 			// Perform manipulation of artifact
-			tmpdir, err := ioutil.TempDir("", "mender-TestReadBrokenArtifact")
+			tmpdir, err := os.MkdirTemp("", "mender-TestReadBrokenArtifact")
 			require.NoError(t, err)
 			defer os.RemoveAll(tmpdir)
 

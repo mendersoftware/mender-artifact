@@ -17,7 +17,6 @@ package artifact
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -99,18 +98,18 @@ func TestChecksumWrite(t *testing.T) {
 func TestChecksumRead(t *testing.T) {
 	sum := bytes.NewBuffer([]byte(checksumData))
 	r := NewReaderChecksum(sum, []byte(sumData))
-	n, err := io.Copy(ioutil.Discard, r)
+	n, err := io.Copy(io.Discard, r)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(len(checksumData)), n)
 
 	r = NewReaderChecksum(nil, nil)
-	n, err = io.Copy(ioutil.Discard, r)
+	n, err = io.Copy(io.Discard, r)
 	assert.Error(t, err)
 	assert.Zero(t, n)
 
 	sum = bytes.NewBuffer([]byte(checksumData))
 	r = NewReaderChecksum(sum, []byte("12121212"))
-	_, err = io.Copy(ioutil.Discard, r)
+	_, err = io.Copy(io.Discard, r)
 	assert.Error(t, err)
 }
 
@@ -118,7 +117,7 @@ func TestChecksumReadBigData(t *testing.T) {
 	sum := bytes.NewBuffer([]byte(checksumBigData))
 	r := NewReaderChecksum(sum, []byte(sumBigData))
 
-	n, err := copyBuffer(ioutil.Discard, r)
+	n, err := copyBuffer(io.Discard, r)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(len(checksumBigData)), n)
 }

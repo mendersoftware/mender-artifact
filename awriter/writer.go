@@ -18,7 +18,6 @@ import (
 	"archive/tar"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -96,7 +95,7 @@ func calcDataHash(
 			files = u.GetUpdateFiles()
 		}
 		for _, f := range files {
-			ch := artifact.NewWriterChecksum(ioutil.Discard)
+			ch := artifact.NewWriterChecksum(io.Discard)
 			df, err := os.Open(f.Name)
 			if err != nil {
 				return errors.Wrapf(err, "writer: can not open data file: %s", f.Name)
@@ -124,7 +123,7 @@ func writeTempHeader(c artifact.Compressor, manifestChecksumStore *artifact.Chec
 	name string, args *WriteArtifactArgs, augmented bool) (*os.File, error) {
 
 	// create temporary header file
-	f, err := ioutil.TempFile("", name)
+	f, err := os.CreateTemp("", name)
 	if err != nil {
 		return nil, errors.New("writer: can not create temporary header file")
 	}
@@ -388,7 +387,7 @@ func writeManifestVersion(
 	switch version {
 	case 2:
 		// add checksum of `version`
-		ch := artifact.NewWriterChecksum(ioutil.Discard)
+		ch := artifact.NewWriterChecksum(io.Discard)
 		_, err := ch.Write(artifactInfoStream)
 		if err != nil {
 			return errors.Wrapf(err, "writer: can not write manifest stream")
@@ -408,7 +407,7 @@ func writeManifestVersion(
 		}
 	case 3:
 		// Add checksum of `version`.
-		ch := artifact.NewWriterChecksum(ioutil.Discard)
+		ch := artifact.NewWriterChecksum(io.Discard)
 		_, err := ch.Write(artifactInfoStream)
 		if err != nil {
 			return errors.Wrapf(err, "writer: can not write manifest stream")
@@ -546,7 +545,7 @@ func writeData(
 func writeOneDataTar(tw *tar.Writer, comp artifact.Compressor, no int,
 	baseUpdate, augmentUpdate handlers.Composer, pw ProgressWriter) error {
 
-	f, ferr := ioutil.TempFile("", "data")
+	f, ferr := os.CreateTemp("", "data")
 	if ferr != nil {
 		return errors.New("Payload: can not create temporary data file")
 	}

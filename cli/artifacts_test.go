@@ -22,7 +22,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -51,7 +50,7 @@ func init() {
 }
 
 func CreateFakeUpdate() (string, error) {
-	upd, err := ioutil.TempFile("", "mender-update")
+	upd, err := os.CreateTemp("", "mender-update")
 	if err != nil {
 		return "", err
 	}
@@ -226,7 +225,7 @@ func generateKeys() ([]byte, []byte, error) {
 }
 
 func TestArtifactsSigned(t *testing.T) {
-	updateTestDir, _ := ioutil.TempDir("", "update")
+	updateTestDir, _ := os.MkdirTemp("", "update")
 	defer os.RemoveAll(updateTestDir)
 
 	priv, pub, err := generateKeys()
