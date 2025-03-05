@@ -137,7 +137,7 @@ htmlcover: coverage
 	$(GO) tool cover -html=coverage.txt
 
 instrument-binary-contained:
-	docker run --rm --name instrument-binary --entrypoint "/bin/sh" -v $(shell pwd):/go/src/github.com/mendersoftware/mender-artifact golang:1.18 -c "cd /go/src/github.com/mendersoftware/mender-artifact && go install github.com/mendersoftware/gobinarycoverage@latest && make instrument-binary"
+	docker run --rm --name instrument-binary --entrypoint "/bin/sh" -v $(shell pwd):/go/src/github.com/mendersoftware/mender-artifact golang:1.22 -c "cd /go/src/github.com/mendersoftware/mender-artifact && go install github.com/mendersoftware/gobinarycoverage@latest && make instrument-binary"
 
 instrument-binary:
 	git apply patches/0001-Instrument-with-coverage.patch
