@@ -53,7 +53,7 @@ func (s *Scripts) Add(path string) error {
 	// the first element should be the whole matched name of the script and
 	// the second one shold be the name of the state
 	matches := re.FindStringSubmatch(name)
-	if matches == nil || len(matches) < 3 {
+	if len(matches) < 3 {
 		return errors.Errorf(
 			"Invalid script name: %q. Scripts must have a name on the form:"+
 				" <STATE_NAME>_<ACTION>_<ORDERING_NUMBER>_<OPTIONAL_DESCRIPTION>."+
