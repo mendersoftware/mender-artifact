@@ -1,6 +1,7 @@
 module github.com/mendersoftware/mender-artifact
 
 go 1.22.0
+toolchain go1.24.1
 
 require (
 	cloud.google.com/go/kms v1.10.1
@@ -21,7 +22,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/ulikunitz/xz v0.5.12
 	github.com/urfave/cli v1.22.15
-	golang.org/x/sys v0.30.0
+	golang.org/x/sys v0.32.0
 	google.golang.org/protobuf v1.36.6
 )
 
