@@ -23,6 +23,7 @@ cache:
     - /go/src/gopkg.in
 
 variables:
+  DEFAULT_BRANCH: "master"
   DOCKER_HOST: tcp://docker:2375/
   DOCKER_REPOSITORY: mendersoftware/mender-artifact
   S3_BUCKET_NAME: "mender"
@@ -253,6 +254,12 @@ publish:tests:
 publish:s3:
   stage: publish
   image: debian:bookworm-slim
+  rules:
+    # Publish for build and final tags + default and maintenance branches
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+-build\d+$/'
+    - if: '$CI_COMMIT_BRANCH =~ /^\d+\.\d+\.x$/'
+    - if: $CI_COMMIT_BRANCH == $DEFAULT_BRANCH
   needs:
     - job: build:make
       artifacts: true
@@ -269,5 +276,3 @@ publish:s3:
       aws s3api put-object-acl --acl public-read --bucket $S3_BUCKET_NAME
       --key $S3_BUCKET_PATH/${CI_COMMIT_REF_NAME}/${platform}/mender-artifact;
       done
-  only:
-    - /^(master|[0-9]+\.[0-9]+\.x)$/
