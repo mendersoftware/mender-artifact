@@ -5,8 +5,9 @@ USAGE:
    mender-artifact write command [command options] [arguments...]
 
 COMMANDS:
-     rootfs-image  Writes Mender artifact containing rootfs image
-     module-image  Writes Mender artifact for an update module
+   bootstrap-artifact  Writes Mender bootstrap artifact containing empty payload
+   module-image        Writes Mender artifact for an update module
+   rootfs-image        Writes Mender artifact containing rootfs image
 
 OPTIONS:
    --help, -h  show help
