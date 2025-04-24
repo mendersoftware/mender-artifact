@@ -11,11 +11,14 @@ Mender Artifact:
 
 Updates:
   - Type: rootfs-image
-    Provides: {}
+    Provides:
+      rootfs-image.checksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+      rootfs-image.version: release-1
     Depends: {}
+    Clears Provides: [artifact_group, rootfs_image_checksum, rootfs-image.*]
     Metadata: {}
     Files:
-      - name: rootfs.ext4
+      - checksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        modified: 2025-04-23 14:41:48 +0200 CEST
+        name: rootfs.ext4
         size: 0
-        modified: 2019-05-24 12:48:19 +0200 CEST
-        checksum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
