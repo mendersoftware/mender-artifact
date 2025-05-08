@@ -30,12 +30,37 @@ variables:
   S3_BUCKET_PATH: "mender-artifact"
   DOCKER_BUILDKIT: 1
 
+.requires-docker: &requires-docker
+  - DOCKER_RETRY_SLEEP_S=2
+  - DOCKER_RUNNING=false
+  - for try in 4 3 2 1; do
+  -  docker ps && DOCKER_RUNNING=true
+  -  if [ "${DOCKER_RUNNING}" == "true" ]; then
+  -   break
+  -  fi
+  -  sleep "${DOCKER_RETRY_SLEEP_S}"
+  - done
+  - if [ "${DOCKER_RUNNING}" != "true" ]; then
+  -  exit 192
+  - fi
+
+.build:base:
+  before_script:
+    - *requires-docker
+  retry:
+    max: 2
+    exit_codes:
+      - 137
+      - 192
+      - 125
+
 test:check-license-source:
   variables:
     LICENSE_HEADERS_IGNORE_FILES_REGEXP: './artifact/keyfactor/\(signer\|signer_test\)\.go'
 
 build:docker:
   image: docker
+  extends: .build:base
   needs: []
   services:
     - docker:dind
@@ -52,6 +77,7 @@ build:docker:
 
 build:make:
   image: docker
+  extends: .build:base
   needs: []
   services:
     - docker:dind
@@ -75,6 +101,7 @@ build:make:
 
 build:coverage:
   stage: build
+  extends: .build:base
   image: docker
   needs: []
   services:
