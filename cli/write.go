@@ -20,12 +20,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
-	"os/signal"
 	"regexp"
 	"strings"
-	"syscall"
-	"time"
 
 	"io"
 
@@ -860,63 +856,9 @@ func extractKeyValues(params []string) (*map[string]string, error) {
 
 // SSH to remote host and dump rootfs snapshot to a local temporary file.
 func getDeviceSnapshot(c *cli.Context) (string, error) {
-
-	const sshInitMagic = "Initializing snapshot..."
-	var userAtHost string
-	var sigChan chan os.Signal
-	var errChan chan error
+	const sshConnectedToken = "Initializing snapshot..."
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	port := "22"
-	host := strings.TrimPrefix(c.String("file"), "ssh://")
-
-	if remotePort := strings.Split(host, ":"); len(remotePort) == 2 {
-		port = remotePort[1]
-		userAtHost = remotePort[0]
-	} else {
-		userAtHost = host
-	}
-
-	// Prepare command-line arguments
-	args := c.StringSlice("ssh-args")
-	// Check if port is specified explicitly with the --ssh-args flag
-	addPort := true
-	for _, arg := range args {
-		if strings.Contains(arg, "-p") {
-			addPort = false
-			break
-		}
-	}
-	if addPort {
-		args = append(args, "-p", port)
-	}
-	args = append(args, userAtHost)
-	// First echo to stdout such that we know when ssh connection is
-	// established (password prompt is written to /dev/tty directly,
-	// and hence impossible to detect).
-	// When user id is 0 do not bother with sudo.
-	args = append(
-		args,
-		"/bin/sh",
-		"-c",
-		`'[ $(id -u) -eq 0 ] || sudo_cmd="sudo -S"`+
-			`; if which mender-snapshot 1> /dev/null`+
-			`; then $sudo_cmd /bin/sh -c "echo `+sshInitMagic+`; mender-snapshot dump" | cat`+
-			`; elif which mender 1> /dev/null`+
-			`; then $sudo_cmd /bin/sh -c "echo `+sshInitMagic+`; mender snapshot dump" | cat`+
-			`; else echo "Mender not found: Please check that Mender is installed" >&2 &&`+
-			`exit 1; fi'`,
-	)
-
-	cmd := exec.Command("ssh", args...)
-
-	// Simply connect stdin/stderr
-	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return "", errors.New("Error redirecting stdout on exec")
-	}
 
 	// Create tempfile for storing the snapshot
 	f, err := os.CreateTemp("", "rootfs.tmp")
@@ -927,157 +869,89 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 
 	defer removeOnPanic(filePath)
 	defer f.Close()
+	// // First echo to stdout such that we know when ssh connection is
+	// // established (password prompt is written to /dev/tty directly,
+	// // and hence impossible to detect).
+	// // When user id is 0 do not bother with sudo.
+	snapshotArgs := `'[ $(id -u) -eq 0 ] || sudo_cmd="sudo -S"` +
+		`; if which mender-snapshot 1> /dev/null` +
+		`; then $sudo_cmd /bin/sh -c "echo ` + sshConnectedToken + `; mender-snapshot dump" | cat` +
+		`; elif which mender 1> /dev/null` +
+		`; then $sudo_cmd /bin/sh -c "echo ` + sshConnectedToken + `; mender snapshot dump" | cat` +
+		`; else echo "Mender not found: Please check that Mender is installed" >&2 &&` +
+		`exit 1; fi'`
 
-	// Disable tty echo before starting
-	term, err := util.DisableEcho(int(os.Stdin.Fd()))
-	if err == nil {
-		sigChan = make(chan os.Signal, 1)
-		errChan = make(chan error, 1)
-		// Make sure that echo is enabled if the process gets
-		// interrupted
-		signal.Notify(sigChan)
-		go util.EchoSigHandler(ctx, sigChan, errChan, term)
-	} else if err != syscall.ENOTTY {
-		return "", err
+	command, echoErrChan, err := util.StartSSHCommand(c,
+		ctx,
+		cancel,
+		snapshotArgs,
+		sshConnectedToken,
+	)
+	if echoErrChan != nil {
+		defer util.WaitForEchoRestore(echoErrChan)
 	}
-
-	if err := cmd.Start(); err != nil {
-		return "", err
-	}
-
-	// Wait for 60 seconds for ssh to establish connection
-	err = waitForBufferSignal(stdout, os.Stdout, sshInitMagic, 2*time.Minute)
 	if err != nil {
-		_ = cmd.Process.Kill()
-		return "", errors.Wrap(err,
-			"Error waiting for ssh session to be established.")
-	}
-
-	_, err = recvSnapshot(f, stdout)
-	if err != nil {
-		_ = cmd.Process.Kill()
 		return "", err
 	}
 
-	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
-		return "", errors.New("SSH session closed unexpectedly")
+	_, err = recvSnapshot(f, command.Stdout)
+	if err != nil {
+		_ = command.Cmd.Process.Kill()
+		return "", err
 	}
 
-	if err = cmd.Wait(); err != nil {
-		return "", errors.Wrap(err,
-			"SSH session closed with error")
-	}
-
-	if sigChan != nil {
-		// Wait for signal handler to execute
-		signal.Stop(sigChan)
-		cancel()
-		err = <-errChan
+	err = command.EndSSHCommand()
+	if err != nil {
+		return "", err
 	}
 
 	return filePath, err
 }
+
 func showProvides(c *cli.Context) (map[string]string, error) {
-	var userAtHost string
+	const sshConnectedToken = "Initializing show-provides..."
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	providesMap := make(map[string]string)
-	port := "22"
-	host := strings.TrimPrefix(c.String("file"), "ssh://")
 
-	if remotePort := strings.Split(host, ":"); len(remotePort) == 2 {
-		port = remotePort[1]
-		userAtHost = remotePort[0]
-	} else {
-		userAtHost = host
-	}
-
-	args := c.StringSlice("ssh-args")
-	// Check if port is specified explicitly with the --ssh-args flag
-	addPort := true
-	for _, arg := range args {
-		if strings.Contains(arg, "-p") {
-			addPort = false
-			break
-		}
-	}
-	if addPort {
-		args = append(args, "-p", port)
-	}
-	args = append(args, userAtHost)
-
-	providesArgs := ` 'if which mender-update 1> /dev/null` +
-		`; then mender-update show-provides` +
+	providesArgs := `'[ $(id -u) -eq 0 ] || sudo_cmd="sudo -S"` +
+		`; if which mender-update 1> /dev/null` +
+		`; then $sudo_cmd /bin/sh -c "echo ` + sshConnectedToken + `;mender-update show-provides"` +
 		`; elif which mender 1> /dev/null` +
-		`; then mender show-provides` +
+		`; then $sudo_cmd /bin/sh -c "echo ` + sshConnectedToken + `;mender show-provides"` +
 		`; else echo "Mender not found: Please check that Mender is installed" >&2 &&` +
 		` exit 1; fi'`
 
-	args = append(
-		args,
-		"/bin/sh",
-		"-c",
-		providesArgs)
-
-	cmd := exec.Command("ssh", args...)
-
-	stdout, err := cmd.CombinedOutput()
-
+	command, echoErrChan, err := util.StartSSHCommand(c,
+		ctx,
+		cancel,
+		providesArgs,
+		sshConnectedToken,
+	)
+	if echoErrChan != nil {
+		defer util.WaitForEchoRestore(echoErrChan)
+	}
 	if err != nil {
 		return nil, err
 	}
-	if len(stdout) == 0 {
-		return nil, nil
-	}
-	provides := strings.Split(string(stdout), "\n")
 
-	for _, p := range provides {
-		if p == "" || !strings.HasPrefix(p, "rootfs-image.") {
-			continue
+	scanner := bufio.NewScanner(command.Stdout)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "rootfs-image.") {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				providesMap[parts[0]] = parts[1]
+			}
 		}
-		info := strings.Split(p, "=")
-		if len(info) != 2 {
-			continue
-		}
-		providesMap[info[0]] = info[1]
 	}
+
+	err = command.EndSSHCommand()
+	if err != nil {
+		return nil, err
+	}
+
 	return providesMap, nil
-}
-
-// Reads from src waiting for the string specified by signal, writing all other
-// output appearing at src to sink. The function returns an error if occurs
-// reading from the stream or the deadline exceeds.
-func waitForBufferSignal(src io.Reader, sink io.Writer,
-	signal string, deadline time.Duration) error {
-
-	var err error
-	errChan := make(chan error)
-
-	go func() {
-		stdoutRdr := bufio.NewReader(src)
-		for {
-			line, err := stdoutRdr.ReadString('\n')
-			if err != nil {
-				errChan <- err
-				break
-			}
-			if strings.Contains(line, signal) {
-				errChan <- nil
-				break
-			}
-			_, err = sink.Write([]byte(line + "\n"))
-			if err != nil {
-				errChan <- err
-				break
-			}
-		}
-	}()
-
-	select {
-	case err = <-errChan:
-		// Error from goroutine
-	case <-time.After(deadline):
-		err = errors.New("Input deadline exceeded")
-	}
-	return err
 }
 
 // Performs the same operation as io.Copy while at the same time prining
