@@ -29,6 +29,12 @@ variables:
   S3_BUCKET_NAME: "mender"
   S3_BUCKET_PATH: "mender-artifact"
   DOCKER_BUILDKIT: 1
+  INSTALL_BREW:
+    value: false
+    description: |
+      Run a job to install and test mender-artifact
+      with brew from upstream.
+
 
 .requires-docker: &requires-docker
   - DOCKER_RETRY_SLEEP_S=2
@@ -236,6 +242,21 @@ test:backwards-compatibility:
     - apt-get update && apt-get install --quiet --assume-yes libssl-dev
   script:
     - go build
+
+test:install:brew:
+  stage: test
+  tags:
+    - mac-runner
+  script:
+    # Reinstall in case we already have mender-artifact
+    - brew reinstall mender-artifact
+    - brew test mender-artifact
+  after_script:
+    # Uninstall because the mac-runner is
+    # not a container, so installations persist between jobs
+    - brew uninstall mender-artifact
+  rules:
+    - if: $INSTALL_BREW == "true"
 
 publish:tests:
   stage: publish
