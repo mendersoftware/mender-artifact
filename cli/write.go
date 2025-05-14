@@ -978,8 +978,13 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	return filePath, err
 }
 func showProvides(c *cli.Context) (map[string]string, error) {
+	const sshInitMagic = "Initializing show-provides..."
 	var userAtHost string
+	var sigChan chan os.Signal
+	var errChan chan error
 	providesMap := make(map[string]string)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	port := "22"
 	host := strings.TrimPrefix(c.String("file"), "ssh://")
 
@@ -990,6 +995,7 @@ func showProvides(c *cli.Context) (map[string]string, error) {
 		userAtHost = host
 	}
 
+	// Prepare command-line arguments
 	args := c.StringSlice("ssh-args")
 	// Check if port is specified explicitly with the --ssh-args flag
 	addPort := true
@@ -1004,10 +1010,11 @@ func showProvides(c *cli.Context) (map[string]string, error) {
 	}
 	args = append(args, userAtHost)
 
-	providesArgs := ` 'if which mender-update 1> /dev/null` +
-		`; then mender-update show-provides` +
+	providesArgs := `'[ $(id -u) -eq 0 ] || sudo_cmd="sudo -S"` +
+		`; if which mender-update 1> /dev/null` +
+		`; then $sudo_cmd /bin/sh -c "echo ` + sshInitMagic + `;mender-update show-provides"` +
 		`; elif which mender 1> /dev/null` +
-		`; then mender show-provides` +
+		`; then $sudo_cmd /bin/sh -c "echo ` + sshInitMagic + `;mender show-provides"` +
 		`; else echo "Mender not found: Please check that Mender is installed" >&2 &&` +
 		` exit 1; fi'`
 
@@ -1019,27 +1026,66 @@ func showProvides(c *cli.Context) (map[string]string, error) {
 
 	cmd := exec.Command("ssh", args...)
 
-	stdout, err := cmd.CombinedOutput()
-
+	// Simply connect stdin/stderr
+	cmd.Stdin = os.Stdin
+	cmd.Stderr = os.Stderr
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		return nil, errors.New("Error redirecting stdout on exec")
+	}
+
+	// Disable tty echo before starting
+	term, err := util.DisableEcho(int(os.Stdin.Fd()))
+	if err == nil {
+		sigChan = make(chan os.Signal, 1)
+		errChan = make(chan error, 1)
+		// Make sure that echo is enabled if the process gets
+		// interrupted
+		signal.Notify(sigChan)
+		go util.EchoSigHandler(ctx, sigChan, errChan, term)
+	} else if err != syscall.ENOTTY {
 		return nil, err
 	}
-	if len(stdout) == 0 {
-		return nil, nil
-	}
-	provides := strings.Split(string(stdout), "\n")
 
-	for _, p := range provides {
-		if p == "" || !strings.HasPrefix(p, "rootfs-image.") {
-			continue
-		}
-		info := strings.Split(p, "=")
-		if len(info) != 2 {
-			continue
-		}
-		providesMap[info[0]] = info[1]
+	if err := cmd.Start(); err != nil {
+		return nil, err
 	}
-	return providesMap, nil
+
+	// Wait for 60 seconds for ssh to establish connection
+	err = waitForBufferSignal(stdout, os.Stdout, sshInitMagic, 2*time.Minute)
+	if err != nil {
+		_ = cmd.Process.Kill()
+		return nil, errors.Wrap(err,
+			"Error waiting for ssh session to be established.")
+	}
+
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "rootfs-image.") {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				providesMap[parts[0]] = parts[1]
+			}
+		}
+	}
+
+	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
+		return nil, errors.New("SSH session closed unexpectedly")
+	}
+
+	if err = cmd.Wait(); err != nil {
+		return nil, errors.Wrap(err,
+			"SSH session closed with error")
+	}
+
+	if sigChan != nil {
+		// Wait for signal handler to execute
+		signal.Stop(sigChan)
+		cancel()
+		err = <-errChan
+	}
+	return providesMap, err
 }
 
 // Reads from src waiting for the string specified by signal, writing all other
