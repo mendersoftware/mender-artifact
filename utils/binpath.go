@@ -15,9 +15,11 @@
 package utils
 
 import (
+	"fmt"
 	"os/exec"
 	"path"
 	"runtime"
+	"slices"
 
 	"github.com/pkg/errors"
 )
@@ -25,6 +27,14 @@ import (
 var (
 	ExternalBinaryPaths = []string{"/usr/sbin", "/sbin", "/usr/local/sbin"}
 )
+
+var unsupportedBinariesDarwin = []string{
+	"parted",
+	"fsck.ext4",
+	"fsck.vfat",
+}
+
+const errorUnsupportedDarwin = "Operations that use %q are unfortunately not available on Mac OS."
 
 func GetBinaryPath(command string) (string, error) {
 	// first check if command exists in PATH
@@ -42,11 +52,11 @@ func GetBinaryPath(command string) (string, error) {
 	}
 
 	// not found, but oh well...
-	if runtime.GOOS == "darwin" && path.Base(command) == "parted" {
-		return command, errors.Wrap(
-			err,
-			"Operations that use \"parted\" are unfortunately not available on Mac OS.",
-		)
+	if runtime.GOOS == "darwin" {
+		base := path.Base(command)
+		if slices.Contains(unsupportedBinariesDarwin, base) {
+			return command, errors.Wrap(err, fmt.Sprintf(errorUnsupportedDarwin, base))
+		}
 	}
 
 	return command, err
