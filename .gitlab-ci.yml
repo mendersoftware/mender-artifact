@@ -258,6 +258,33 @@ test:install:brew:
   rules:
     - if: $INSTALL_BREW == "true"
 
+test:build:brew:
+  # TODO: create a CI/CD component for brew build checks as in https://github.com/mendersoftware/mendertesting/pull/367 [MEN-8436]
+  stage: test
+  tags:
+    - mac-runner
+  needs: []
+  before_script:
+    - brew install gnu-sed
+  script:
+    - TEMP_BUILD_DIR="$(mktemp -d /tmp/brew_build_XXXXXX)"
+    - cd "$TEMP_BUILD_DIR"
+    # 1. get the custom download strategy for brew so that we can fetch a PR revision from GH
+    # TODO: use a better location (mendertesting, together with the component?) [MEN-8436]
+    - wget -O mender-artifact.rb https://gist.github.com/vpodzime/f0171f1ce8d914d29b5fbb1d8ab607c1/raw/e4340ecfc6e75abb770d09c3514979dfa8e128c6/gh_pr_brew_dl_strategy.rb
+    - echo >> mender-artifact.rb # Make sure there's a newline after download strategy class
+    # 2. fetch the upstream brew formula
+    - wget -O mender-artifact_upstream.rb https://github.com/Homebrew/homebrew-core/raw/refs/heads/master/Formula/m/mender-artifact.rb
+    # 3. adapt the formula to use the PR revision instead of a release tarball
+    - |
+        gsed -e /sha256/d -e '/url /s|".*"|"https://github.com/mendersoftware/mender-artifact.git",|' -e "/url \"https/a\ \ \ \ revision: \"${CI_COMMIT_SHA}\",\n    using: GitHubPRDownloadStrategy\n  version \"1234\"" < mender-artifact_upstream.rb >> mender-artifact.rb
+    # 4. run brew build and test
+    - HOMEBREW_NO_INSTALL_FROM_API=1 brew reinstall --build-from-source --verbose --debug --formula ./mender-artifact.rb
+    - brew test ./mender-artifact.rb
+  after_script:
+    - brew remove mender-artifact
+    - rm -rf "$TEMP_BUILD_DIR"
+
 publish:tests:
   stage: publish
   image: golang:1.23
