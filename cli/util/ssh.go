@@ -104,7 +104,7 @@ func StartSSHCommand(c *cli.Context,
 		return nil, err
 	}
 
-	// Wait for 60 seconds for ssh to establish connection
+	// Wait for 120 seconds for ssh to establish connection
 	err = waitForBufferSignal(stdout, os.Stdout, sshConnectedToken, 2*time.Minute)
 	if err != nil {
 		_ = cmd.Process.Kill()
