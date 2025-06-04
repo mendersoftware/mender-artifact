@@ -314,16 +314,11 @@ publish:s3:
   needs:
     - job: build:make
       artifacts: true
-    - job: test:smoketests:mac
   before_script:
     - apt update && apt install -yyq awscli
   script:
-    - for bin in mender-artifact-darwin mender-artifact-windows.exe; do
-      platform=${bin#mender-artifact-};
-      platform=${platform%.*};
-      echo "Publishing ${CI_COMMIT_REF_NAME} version for ${platform} to S3";
-      aws s3 cp ${bin}
-      s3://$S3_BUCKET_NAME/$S3_BUCKET_PATH/${CI_COMMIT_REF_NAME}/${platform}/mender-artifact;
+    - echo "Publishing ${CI_COMMIT_REF_NAME} version for windows to S3";
+      aws s3 cp mender-artifact-windows.exe
+      s3://$S3_BUCKET_NAME/$S3_BUCKET_PATH/${CI_COMMIT_REF_NAME}/windows/mender-artifact;
       aws s3api put-object-acl --acl public-read --bucket $S3_BUCKET_NAME
-      --key $S3_BUCKET_PATH/${CI_COMMIT_REF_NAME}/${platform}/mender-artifact;
-      done
+      --key $S3_BUCKET_PATH/${CI_COMMIT_REF_NAME}/windows/mender-artifact;
