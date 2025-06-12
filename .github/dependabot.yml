@@ -6,13 +6,9 @@ updates:
     package-ecosystem: gomod
     schedule:
       interval: weekly
-    reviewers:
-      - "mendersoftware/client-dependabot-reviewers"
   - commit-message:
       prefix: "chore"
     directory: /
     package-ecosystem: docker
     schedule:
       interval: weekly
-    reviewers:
-      - "mendersoftware/client-dependabot-reviewers"
