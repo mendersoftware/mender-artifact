@@ -29,7 +29,6 @@ var (
 )
 
 var unsupportedBinariesDarwin = []string{
-	"parted",
 	"fsck.ext4",
 	"fsck.vfat",
 }
