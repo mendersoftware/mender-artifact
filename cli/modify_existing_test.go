@@ -128,8 +128,6 @@ func verifySDImg(image, file, expected string) bool {
 }
 
 func TestModifyImage(t *testing.T) {
-	skipPartedTestsOnMac(t)
-
 	tmp, err := os.MkdirTemp("", "mender-modify")
 	assert.NoError(t, err)
 
@@ -174,7 +172,6 @@ func TestModifyImage(t *testing.T) {
 }
 
 func TestModifySdimage(t *testing.T) {
-	skipPartedTestsOnMac(t)
 
 	tmp, err := os.MkdirTemp("", "mender-modify")
 	assert.NoError(t, err)
@@ -246,7 +243,6 @@ func TestModifyRootfsArtifact(t *testing.T) {
 }
 
 func TestModifyRootfsServerCert(t *testing.T) {
-	skipPartedTestsOnMac(t)
 
 	tmp, err := os.MkdirTemp("", "mender-modify")
 	assert.NoError(t, err)
@@ -694,7 +690,6 @@ Updates:
 }
 
 func TestModifyBrokenArtifact(t *testing.T) {
-	skipPartedTestsOnMac(t)
 
 	tmpdir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
@@ -709,7 +704,7 @@ func TestModifyBrokenArtifact(t *testing.T) {
 		"-n", "release-1",
 		artFile})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "can not execute `parted` command or image is broken")
+	assert.Contains(t, err.Error(), "can not execute `fdisk` command or image is broken")
 }
 
 func TestModifyExtraAttributes(t *testing.T) {
@@ -820,7 +815,6 @@ Updates:
 }
 
 func TestModifyExtraAttributesOnNonArtifact(t *testing.T) {
-	skipPartedTestsOnMac(t)
 
 	tmpdir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)

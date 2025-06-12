@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -984,19 +985,36 @@ func (fd *fatDir) Close() (err error) {
 }
 
 func processSdimg(image string) (VPImage, error) {
-	bin, err := utils.GetBinaryPath("parted")
+	bin, err := utils.GetBinaryPath("fdisk")
 	if err != nil {
-		return nil, errors.Wrap(err, "`parted` binary not found on the system")
+		return nil, errors.Wrap(err, "`fdisk` binary not found on the system")
 	}
-	out, err := exec.Command(bin, image, "unit s", "print").Output()
-	if err != nil {
-		return nil, errors.Wrap(err, "can not execute `parted` command or image is broken; "+
-			"make sure parted is available in your system and is in the $PATH")
+	
+	// Get OS-specific fdisk flags and parse the output accordingly
+	var reg *regexp.Regexp
+	var cmd *exec.Cmd
+
+	if runtime.GOOS == "darwin" {
+		// macOS fdisk uses different flags and output format
+		cmd = exec.Command(bin, image)
+		// macOS fdisk output looks like:
+		//         Start      Size  Kind
+		//      2048   65536  Linux
+		reg = regexp.MustCompile(`(?m)^\s*(\d+)\s+(\d+)\s+(?:Linux|EFI|Apple_HFS)`)
+	} else {
+		// Linux fdisk output looks like:
+		// /dev/loop0p1     2048    67583    65536   32M Linux filesystem
+		cmd = exec.Command(bin, "-lu", image)
+		reg = regexp.MustCompile(`(?m)^\S+\s+(\d+)\s+\d+\s+(\d+)\s+.*$`)
 	}
 
-	reg := regexp.MustCompile(
-		`(?m)^[[:blank:]][0-9]+[[:blank:]]+([0-9]+)s[[:blank:]]+[0-9]+s[[:blank:]]+([0-9]+)s`,
-	)
+	cmd.Env = append(os.Environ(), "LANG=C") // Force English output
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, errors.Wrap(err, "can not execute `fdisk` command or image is broken; "+
+			"make sure fdisk is available in your system and is in the $PATH")
+	}
+
 	partitionMatch := reg.FindAllStringSubmatch(string(out), -1)
 
 	if len(partitionMatch) == 4 {

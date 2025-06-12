@@ -38,19 +38,18 @@ variables:
       Run a job to install and test mender-artifact
       with brew from upstream.
 
-
 .requires-docker: &requires-docker
   - DOCKER_RETRY_SLEEP_S=2
   - DOCKER_RUNNING=false
   - for try in 4 3 2 1; do
-  -  docker ps && DOCKER_RUNNING=true
-  -  if [ "${DOCKER_RUNNING}" == "true" ]; then
-  -   break
-  -  fi
-  -  sleep "${DOCKER_RETRY_SLEEP_S}"
+  - docker ps && DOCKER_RUNNING=true
+  - if [ "${DOCKER_RUNNING}" == "true" ]; then
+  - break
+  - fi
+  - sleep "${DOCKER_RETRY_SLEEP_S}"
   - done
   - if [ "${DOCKER_RUNNING}" != "true" ]; then
-  -  exit 192
+  - exit 192
   - fi
 
 .build:base:
@@ -224,7 +223,7 @@ test:unit:linux:
     COVERAGE_FILE: coverage-linux.txt
   before_script:
     - apt-get update && apt-get install --quiet --assume-yes
-      git make bash dosfstools e2fsprogs gcc mtools musl-dev parted xz-utils libssl-dev
+      git make bash dosfstools e2fsprogs gcc mtools musl-dev fdisk xz-utils libssl-dev
 
 test:unit:mac:
   extends: .test:unit

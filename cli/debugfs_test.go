@@ -59,7 +59,7 @@ func TestExternalBinaryDependency(t *testing.T) {
 	assert.EqualError(t, err, debugfsMissingErr)
 
 	_, err = processSdimg("foobar")
-	assert.Contains(t, err.Error(), "`parted` binary not found on the system")
+	assert.Contains(t, err.Error(), "`fdisk` binary not found on the system")
 
 	_, err = imgFilesystemType("foobar")
 	assert.ErrorIs(t, err, errBlkidNotFound)
