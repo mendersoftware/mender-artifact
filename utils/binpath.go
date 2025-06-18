@@ -16,6 +16,7 @@ package utils
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path"
 	"runtime"
@@ -26,6 +27,10 @@ import (
 
 var (
 	ExternalBinaryPaths = []string{"/usr/sbin", "/sbin", "/usr/local/sbin"}
+)
+
+var (
+	BrewSpecificPaths = []string{"/usr/local/opt"}
 )
 
 var unsupportedBinariesDarwin = []string{
@@ -51,8 +56,29 @@ func GetBinaryPath(command string) (string, error) {
 		}
 	}
 
-	// not found, but oh well...
 	if runtime.GOOS == "darwin" {
+		// look for the binaries in brew symlink directories
+		// example: /usr/local/opt/e2fsprogs/bin, /usr/local/opt/mtools/bin etc.
+		for _, p = range BrewSpecificPaths {
+			items, err := os.ReadDir(p)
+			if err != nil {
+				break
+			}
+			for _, d := range items {
+				// normal files and symbolic links will be processed too
+				// and just result in error when looking for binary
+				k, err := exec.LookPath(path.Join(p, d.Name(), "bin", command))
+				if err == nil {
+					return k, nil
+				}
+				k, err = exec.LookPath(path.Join(p, d.Name(), "sbin", command))
+				if err == nil {
+					return k, nil
+				}
+			}
+		}
+
+		// not found, but oh well...
 		base := path.Base(command)
 		if slices.Contains(unsupportedBinariesDarwin, base) {
 			return command, errors.Wrap(err, fmt.Sprintf(errorUnsupportedDarwin, base))
