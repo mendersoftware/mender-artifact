@@ -16,6 +16,7 @@ package utils
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path"
 	"runtime"
@@ -26,6 +27,10 @@ import (
 
 var (
 	ExternalBinaryPaths = []string{"/usr/sbin", "/sbin", "/usr/local/sbin"}
+)
+
+var (
+	BrewSpecificPaths = []string{"/usr/local/opt"}
 )
 
 var unsupportedBinariesDarwin = []string{
@@ -48,6 +53,25 @@ func GetBinaryPath(command string) (string, error) {
 		p, err = exec.LookPath(path.Join(p, command))
 		if err == nil {
 			return p, nil
+		}
+	}
+
+	// look for the binaries in brew symlink directories
+	// example: /usr/local/opt/e2fsprogs/bin, /usr/local/opt/mtools/bin etc.
+	for _, p = range BrewSpecificPaths {
+		items, err := os.ReadDir(p)
+		for _, d := range items {
+			if !d.isDir() {
+				continue
+			}
+			p, err = exec.LookPath(path.Join(d, "bin",  command))
+			if err == nil {
+				return p, nil
+			}
+			p, err = exec.LookPath(path.Join(d, "sbin",  command))
+			if err == nil {
+				return p, nil
+			}
 		}
 	}
 
