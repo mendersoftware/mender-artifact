@@ -45,10 +45,14 @@ func TestExternalBinaryDependency(t *testing.T) {
 	origPATH := os.Getenv("PATH")
 	// "/usr/sbin", "/sbin", "/usr/local/sbin" also needs to be unset
 	origExternalBinaryPaths := utils.ExternalBinaryPaths
+	// also make sure that Mac Brew specific paths are not set
+	origBrewSpecificPaths := utils.BrewSpecificPaths
 	utils.ExternalBinaryPaths = []string{}
+	utils.BrewSpecificPaths = []string{}
 	defer func() {
 		os.Setenv("PATH", origPATH)
 		utils.ExternalBinaryPaths = origExternalBinaryPaths
+		utils.BrewSpecificPaths = origBrewSpecificPaths
 	}()
 	os.Setenv("PATH", "")
 	tmpdir, err := debugfsCopyFile("foo", "bar")
