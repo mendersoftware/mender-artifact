@@ -222,7 +222,7 @@ and the Artifact currently installed on the device are providing a full set
 of matching parameters. The complete list contains following parameters:
 
 * `artifact_name` is the name of the Artifact currently installed on the device
-* `device_type` is the type of the device (see `device_provides` below)
+* `device_type` is the type of the device/component or system (see `device_provides` below)
 * `artifact_group` is the group the current Artifact belongs to
 
 
@@ -242,7 +242,7 @@ which are not a part of the Artifact. Those are the values, that the device
 itself can read and send to the Mender server when needed. The full list of
 `device_provides` is as follows:
 
-* `device_type` is the current device type
+* `device_type` is the current device type for any single device/component or system type for a device using mender-orchestrator
 
 
 ### type-info

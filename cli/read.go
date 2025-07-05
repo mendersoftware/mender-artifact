@@ -127,7 +127,7 @@ func printHeader(ar *areader.Reader, sigInfo string, indentationLevel int) {
 		info.Version,
 	)
 	fmt.Printf("%sSignature: %s\n", strings.Repeat(defaultIndentation, indentationLevel+1), sigInfo)
-	printList("Compatible devices", ar.GetCompatibleDevices(), "", true, indentationLevel+1)
+	printList("Compatible types", ar.GetCompatibleDevices(), "", true, indentationLevel+1)
 }
 
 func printStateScripts(scripts []string, indentationLevel int) {
