@@ -109,7 +109,7 @@ func TestReadArtifactOutput(t *testing.T) {
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: [testDevice]
+  Compatible types: [testDevice]
   Provides group: testGroupProvide
   Depends on one of artifact(s): [testNameDepends1, testNameDepends2]
   Depends on one of group(s): [testGroupDepends1, testGroupDepends2]
@@ -160,7 +160,7 @@ Updates:
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: [testDevice]
+  Compatible types: [testDevice]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
@@ -231,7 +231,7 @@ func TestReadBootstrapArtifactOutput(t *testing.T) {
 	assert.Contains(t, string(output), "Format: mender\n")
 	assert.Contains(t, string(output), "Version: 3\n")
 	assert.Contains(t, string(output), "Signature: no signature\n")
-	assert.Contains(t, string(output), "Compatible devices: [testDevice]\n")
+	assert.Contains(t, string(output), "Compatible types: [testDevice]\n")
 	assert.Contains(t, string(output), "Provides group: testGroupProvide\n")
 	assert.Contains(t, string(output), "Depends on one of artifact(s): []\n")
 	assert.Contains(t, string(output), "Provides group: testGroupProvide\n")

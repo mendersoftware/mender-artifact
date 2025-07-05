@@ -346,7 +346,7 @@ func TestModifyRootfsSigned(t *testing.T) {
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: [my-device]
+  Compatible types: [my-device]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
@@ -374,7 +374,7 @@ Updates:
   Format: mender
   Version: 3
   Signature: signed but no key for verification provided; please use ` + "`-k`" + ` option for providing verification key
-  Compatible devices: [my-device]
+  Compatible types: [my-device]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
@@ -435,7 +435,7 @@ Updates:
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: [my-device]
+  Compatible types: [my-device]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
@@ -511,7 +511,7 @@ func TestModifyModuleArtifact(t *testing.T) {
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: [testDevice]
+  Compatible types: [testDevice]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
@@ -650,7 +650,7 @@ Updates:
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: [testDevice]
+  Compatible types: [testDevice]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
@@ -758,7 +758,7 @@ func TestModifyExtraAttributes(t *testing.T) {
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: [testDevice]
+  Compatible types: [testDevice]
   Provides group: testProvidesGroup
   Depends on one of artifact(s): [testNameDepends, testNameDepends2]
   Depends on one of group(s): [testDependsGroup, testDependsGroup2]
@@ -881,7 +881,7 @@ func TestModifyClearsProvides(t *testing.T) {
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: [testDevice]
+  Compatible types: [testDevice]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
@@ -942,7 +942,7 @@ func TestModifyNoProvides(t *testing.T) {
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: [testDevice]
+  Compatible types: [testDevice]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
@@ -1000,7 +1000,7 @@ func TestModifyCompression(t *testing.T) {
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: [testDevice]
+  Compatible types: [testDevice]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
