@@ -134,7 +134,7 @@ func (ar *Reader) readHeader(headerSum []byte, comp artifact.Compressor) error {
 	if err = ar.populateArtifactInfo(ar.info.Version, tr); err != nil {
 		return errors.Wrap(err, "readHeader")
 	}
-	// after reading header-info we can check device compatibility
+	// after reading header-info we can check device (or system) compatibility
 	if ar.CompatibleDevicesCallback != nil {
 		if err = ar.CompatibleDevicesCallback(ar.GetCompatibleDevices()); err != nil {
 			return err

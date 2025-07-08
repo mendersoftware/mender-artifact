@@ -260,7 +260,7 @@ func getCliContext() *cli.App {
 		cli.StringSliceFlag{
 			Name: "device-type, t",
 			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
-				"compatible devices providing this parameter multiple times.",
+				"compatible devices by providing this parameter multiple times.",
 			Required: true,
 		},
 		artifactName,
@@ -349,7 +349,9 @@ func getCliContext() *cli.App {
 		cli.StringSliceFlag{
 			Name: "device-type, t",
 			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
-				"compatible devices providing this parameter multiple times.",
+				"compatible types by providing this parameter multiple times. This parameter " +
+				"can be either device type for a regular artifact or system type for an " +
+				"artifact containing mender-orchestrator manifest.",
 			Required: true,
 		},
 		cli.StringFlag{

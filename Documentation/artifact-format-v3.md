@@ -222,7 +222,7 @@ and the Artifact currently installed on the device are providing a full set
 of matching parameters. The complete list contains following parameters:
 
 * `artifact_name` is the name of the Artifact currently installed on the device
-* `device_type` is the type of the device (see `device_provides` below)
+* `device_type` is the type of the device (or system for artifacts containing mender-orchestrator manifest. See `device_provides` below)
 * `artifact_group` is the group the current Artifact belongs to
 
 
