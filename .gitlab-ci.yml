@@ -235,6 +235,15 @@ test:unit:mac:
     GIT_STRATEGY: clone
   tags:
     - mac-runner
+  before_script:
+    # fsck.ext4 is required for the tests
+    - brew install e2fsprogs
+  after_script:
+    # we want a clean environment on the runner for testing `brew install
+    # mender-artifact` (which pulls `e2fsprogs`, among others, as a dependency)
+    # XXX: brew is broken right now so we need to leave this in place for `brew
+    #      test mender-artifact` to work
+    # - brew remove e2fsprogs
 
 # Test that we can build with the golang version of the oldest supported yocto LTS release
 # MEN-8141: We don't support yocto kirkstone due to libraries requirements for new features
