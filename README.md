@@ -98,7 +98,7 @@ To build `mender-artifact` from source you need the following prerequisites:
 
 In the source directory, `mender-artifact` is built by simply issueing
 ```
-make
+make build
 ```
 
 This results in the self-contained binary `mender-artifact`. You can leave it in place,
