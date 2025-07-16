@@ -35,6 +35,26 @@ ifneq ($(GOOS),linux)
 	TAGS += nopkcs11
 endif
 
+default: help
+
+help:
+	@echo "make [TARGETS...]"
+	@echo
+	@echo "The following targets are available:"
+	@echo
+	@echo "    help:               Print this usage information."
+	@echo
+	@echo "    build:              Build the code on the localhost"
+	@echo "    build-contained:    Build the code in the container"
+	@echo "    clean:              Remove build artifacts"
+	@echo
+	@echo "    install:            Install build artifacts on the locally"
+	@echo "    uninstall:          Uninstall build artifacts from the localhost"
+	@echo
+	@echo "    test:               Run tests"
+	@echo "    check:              Run various code checking tools"
+	@echo "    coverage:           Run code coverage checks"
+
 build:
 	$(GO) build $(GO_LDFLAGS) $(BUILDV) -tags '$(TAGS)'
 
@@ -147,6 +167,6 @@ coverage:
 	rm -f coverage.txt
 	go test -tags '$(TAGS)' -covermode=atomic -coverpkg=$(PKGS) -coverprofile=coverage.txt ./...
 
-.PHONY: build clean get-tools test check \
+.PHONY: help build clean get-tools test check \
 	cover htmlcover coverage tooldep install-autocomplete-scripts \
 	instrument-binary
