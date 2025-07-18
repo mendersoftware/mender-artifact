@@ -186,7 +186,7 @@ func (ar *Reader) populateArtifactInfo(version int, tr *tar.Reader) error {
 		return err
 	}
 	ar.hInfo = hInfo
-	return nil
+	return hInfo.Validate()
 }
 
 func (ar *Reader) readAugmentedHeader(headerSum []byte, comp artifact.Compressor) error {

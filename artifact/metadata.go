@@ -20,9 +20,12 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode"
 
 	"github.com/pkg/errors"
 )
+
+const MaxLenArtifactName = 256
 
 // WriteValidator is the interface that wraps the io.Writer interface and
 // Validate method.
@@ -86,6 +89,7 @@ type HeaderInfoer interface {
 	GetUpdates() []UpdateType
 	GetArtifactDepends() *ArtifactDepends
 	GetArtifactProvides() *ArtifactProvides
+	Validate() error
 }
 
 // HeaderInfo contains information of number and type of update files
@@ -149,6 +153,20 @@ func (hi HeaderInfo) Validate() error {
 	}
 	if len(hi.ArtifactName) == 0 {
 		missingArgs = append(missingArgs, "No artifact name")
+	} else if len(hi.ArtifactName) > MaxLenArtifactName {
+		missingArgs = append(missingArgs, fmt.Sprintf(
+			"Artifact name: cannot be longer than %d characters",
+			MaxLenArtifactName,
+		))
+	} else {
+		i := strings.IndexFunc(hi.ArtifactName,
+			func(r rune) bool { return !unicode.IsGraphic(r) })
+		if i >= 0 {
+			missingArgs = append(missingArgs, fmt.Sprintf(
+				"Artifact name: invalid character %U at position %d",
+				hi.ArtifactName[i], i,
+			))
+		}
 	}
 	for _, update := range hi.Updates {
 		if update == (UpdateType{}) {
@@ -238,13 +256,42 @@ func (hi *HeaderInfoV3) Validate() error {
 	if hi.ArtifactProvides == nil {
 		missingArgs = append(missingArgs, "Empty Artifact provides")
 	} else {
-		/* Artifact must have a name. */
+		/* Artifact must have a valid name. */
 		if len(hi.ArtifactProvides.ArtifactName) == 0 {
 			missingArgs = append(missingArgs, "Artifact name")
+		} else if len(hi.ArtifactProvides.ArtifactName) > MaxLenArtifactName {
+			missingArgs = append(missingArgs, fmt.Sprintf(
+				"Artifact name: cannot be longer than %d characters",
+				MaxLenArtifactName,
+			))
+		} else {
+			i := strings.IndexFunc(hi.ArtifactProvides.ArtifactName,
+				func(r rune) bool { return !unicode.IsGraphic(r) })
+			if i >= 0 {
+				missingArgs = append(missingArgs, fmt.Sprintf(
+					"Artifact name: invalid character %U at position %d",
+					hi.ArtifactProvides.ArtifactName[i], i,
+				))
+			}
 		}
 		//
-		/* Artifact need not have a group */
+		/* Artifact need not have a group: but must be valid */
 		//
+		if len(hi.ArtifactProvides.ArtifactGroup) > MaxLenArtifactName {
+			missingArgs = append(missingArgs, fmt.Sprintf(
+				"Artifact group: cannot be longer than %d characters",
+				MaxLenArtifactName,
+			))
+		} else if len(hi.ArtifactProvides.ArtifactGroup) > 0 {
+			i := strings.IndexFunc(hi.ArtifactProvides.ArtifactGroup,
+				func(r rune) bool { return !unicode.IsGraphic(r) })
+			if i >= 0 {
+				missingArgs = append(missingArgs, fmt.Sprintf(
+					"Artifact group: invalid character %U at position %d",
+					hi.ArtifactProvides.ArtifactGroup[i], i,
+				))
+			}
+		}
 	}
 	///////////////////////////////////////
 	// Artifact-depends can be empty, thus:
