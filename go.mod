@@ -1,6 +1,6 @@
 module github.com/mendersoftware/mender-artifact
 
-go 1.22.0
+go 1.23.0
 
 require (
 	cloud.google.com/go/kms v1.10.1
@@ -78,7 +78,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
 	golang.org/x/crypto v0.33.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
-	golang.org/x/oauth2 v0.24.0 // indirect
+	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
