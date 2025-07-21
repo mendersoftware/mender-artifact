@@ -22,6 +22,8 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+
+	"github.com/mendersoftware/mender-artifact/utils"
 )
 
 // WriteValidator is the interface that wraps the io.Writer interface and
@@ -86,6 +88,7 @@ type HeaderInfoer interface {
 	GetUpdates() []UpdateType
 	GetArtifactDepends() *ArtifactDepends
 	GetArtifactProvides() *ArtifactProvides
+	Validate() error
 }
 
 // HeaderInfo contains information of number and type of update files
@@ -138,6 +141,20 @@ func (hi *HeaderInfo) GetUpdates() []UpdateType {
 	return hi.Updates
 }
 
+type errSlice []error
+
+func (errs errSlice) Error() string {
+	var bldr strings.Builder
+	idxLast := len(errs) - 1
+	for i, err := range errs {
+		_, _ = bldr.WriteString(err.Error())
+		if i < idxLast {
+			bldr.WriteString(", ")
+		}
+	}
+	return bldr.String()
+}
+
 // Validate checks if header-info structure is correct.
 func (hi HeaderInfo) Validate() error {
 	missingArgs := []string{"Artifact validation failed with missing argument"}
@@ -162,6 +179,21 @@ func (hi HeaderInfo) Validate() error {
 		}
 		missingArgs[0] = missingArgs[0] + ": "
 		return errors.New(missingArgs[0] + strings.Join(missingArgs[1:], ", "))
+	}
+
+	var errs errSlice
+	if err := utils.ValidateString(hi.ArtifactName); err != nil {
+		errs = append(errs, fmt.Errorf("invalid artifact name: %w", err))
+	}
+	for i, d := range hi.CompatibleDevices {
+		if err := utils.ValidateString(d); err != nil {
+			errs = append(errs,
+				fmt.Errorf("compatible devices at index %d invalid: %w", i, err),
+			)
+		}
+	}
+	if len(errs) > 0 {
+		return errs
 	}
 	return nil
 }
@@ -261,6 +293,21 @@ func (hi *HeaderInfoV3) Validate() error {
 		missingArgs[0] = missingArgs[0] + ": "
 		return errors.New(missingArgs[0] + strings.Join(missingArgs[1:], ", "))
 	}
+
+	var (
+		errs errSlice
+	)
+	err := hi.ArtifactProvides.Validate()
+	if err != nil {
+		errs = append(errs, fmt.Errorf("invalid artifact provides: %w", err))
+	}
+	err = hi.ArtifactDepends.Validate()
+	if err != nil {
+		errs = append(errs, fmt.Errorf("invalid artifact depends: %w", err))
+	}
+	if len(errs) > 0 {
+		return errs
+	}
 	return nil
 }
 
@@ -275,6 +322,42 @@ type ArtifactDepends struct {
 	ArtifactName      []string `json:"artifact_name,omitempty"`
 	CompatibleDevices []string `json:"device_type,omitempty"`
 	ArtifactGroup     []string `json:"artifact_group,omitempty"`
+}
+
+func (deps *ArtifactDepends) Validate() error {
+	if deps == nil {
+		return nil
+	}
+	var errs errSlice
+
+	for i, d := range deps.ArtifactName {
+		if err := utils.ValidateString(d); err != nil {
+			errs = append(errs,
+				fmt.Errorf("artifact name at index %d invalid: %w", i, err),
+			)
+		}
+	}
+	for i, d := range deps.CompatibleDevices {
+		if err := utils.ValidateString(d); err != nil {
+			errs = append(errs,
+				fmt.Errorf("compatible devices at index %d invalid: %w", i, err),
+			)
+		}
+	}
+
+	for i, d := range deps.ArtifactGroup {
+		if err := utils.ValidateString(d); err != nil {
+			errs = append(errs,
+				fmt.Errorf("artifact group at index %d invalid: %w", i, err),
+			)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errs
+	}
+
+	return nil
 }
 
 var ErrCompatibleDevices error = errors.New(
@@ -299,6 +382,20 @@ func (a *ArtifactDepends) UnmarshalJSON(b []byte) error {
 type ArtifactProvides struct {
 	ArtifactName  string `json:"artifact_name"`
 	ArtifactGroup string `json:"artifact_group,omitempty"`
+}
+
+func (provides *ArtifactProvides) Validate() error {
+	var errs errSlice
+	if err := utils.ValidateString(provides.ArtifactName); err != nil {
+		errs = append(errs, fmt.Errorf("invalid artifact name: %w", err))
+	}
+	if err := utils.ValidateString(provides.ArtifactGroup); err != nil {
+		errs = append(errs, fmt.Errorf("invalid artifact group: %w", err))
+	}
+	if len(errs) > 0 {
+		return errs
+	}
+	return nil
 }
 
 // TypeInfo provides information of type of individual updates
