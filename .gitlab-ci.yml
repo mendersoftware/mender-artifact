@@ -237,7 +237,10 @@ test:unit:mac:
     - mac-runner
   before_script:
     # fsck.ext4 is required for the tests
-    - brew install e2fsprogs
+    # From some reason brew does not installed e2fsprogs
+    # correct and has not created valid links. This is the reason
+    # why we are forcing to reinstall it
+    - brew reinstall e2fsprogs
   after_script:
     # we want a clean environment on the runner for testing `brew install
     # mender-artifact` (which pulls `e2fsprogs`, among others, as a dependency)
