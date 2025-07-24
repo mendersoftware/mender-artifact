@@ -292,6 +292,7 @@ func readArtifact(c *cli.Context) error {
 		fmt.Fprintln(os.Stderr, "Reading Artifact...")
 		ar.ProgressReader = utils.NewProgressReader()
 	}
+	ar.WarnOnValidationErrors(Log)
 	ar.ScriptsReadCallback = readScripts
 	ar.VerifySignatureCallback = ver
 	err = ar.ReadArtifact()

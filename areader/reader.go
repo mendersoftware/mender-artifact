@@ -47,6 +47,9 @@ type Reader struct {
 	IsSigned                  bool
 	ForbidUnknownHandlers     bool
 
+	warnOnValidationErrors bool
+	logger                 utils.Logger
+
 	shouldBeSigned  bool
 	hInfo           artifact.HeaderInfoer
 	augmentedhInfo  artifact.HeaderInfoer
@@ -80,6 +83,12 @@ func NewReaderSigned(r io.Reader) *Reader {
 		installers:     make(map[int]handlers.Installer, 1),
 		updateStorers:  make(map[int]handlers.UpdateStorer),
 	}
+}
+
+func (r *Reader) WarnOnValidationErrors(logger utils.Logger) *Reader {
+	r.warnOnValidationErrors = true
+	r.logger = logger
+	return r
 }
 
 func getReader(tReader io.Reader, headerSum []byte) io.Reader {
@@ -184,6 +193,13 @@ func (ar *Reader) populateArtifactInfo(version int, tr *tar.Reader) error {
 	// first part of header must always be header-info
 	if err := readNext(tr, hInfo, "header-info"); err != nil {
 		return err
+	}
+	if err := hInfo.Validate(); err != nil {
+		if ar.warnOnValidationErrors {
+			ar.logger.Warn(fmt.Sprintf("invalid header info: %s", err.Error()))
+		} else {
+			return err
+		}
 	}
 	ar.hInfo = hInfo
 	return nil
