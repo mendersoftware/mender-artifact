@@ -37,16 +37,10 @@ in the "Ordering" section.
   |    `---headers
   |         |
   |         +---0000
-  |         |    |
-  |         |    +---type-info
-  |         |    |
-  |         |    +---meta-data
-  |         |
-  |         +---0001
-  |         |    |
-  |         |    `---<more headers>
-  |         |
-  |         `---000n ...
+  |              |
+  |              +---type-info
+  |              |
+  |              +---meta-data
   |
   +---header-augment.tar[.gz|.xz|.zst] (Optionally compressed)
   |    |
@@ -55,30 +49,16 @@ in the "Ordering" section.
   |    `---headers
   |         |
   |         +---0000
-  |         |    |
-  |         |    +---type-info
-  |         |    |
-  |         |    +---meta-data
-  |         |
-  |         +---0001
-  |         |    |
-  |         |    `---<more headers>
-  |         |
-  |         `---000n ...
+  |              |
+  |              +---type-info
+  |              |
+  |              +---meta-data
   |
   `---data
        |
        +---0000.tar.[.gz|.xz|.zst] (Optionally compressed)
-       |    +--<image-file (ext4)>
-       |    +--<binary delta, etc>
-       |    `--...
-       |
-       +---0001.tar[.gz|.xz|.zst] (Optionally compressed)
-       |    +--<image-file (ext4)>
-       |    +--<binary delta, etc>
-       |    `--...
-       |
-       +---000n.tar[.gz|.xz|.zst] (Optionally compressed) ...
+            +--<image-file (ext4)>
+            +--<binary delta, etc>
             `--...
 ```
 
@@ -171,9 +151,6 @@ compressed)`. Its content is:
     "payloads": [
         {
             "type": "rootfs-image"
-        },
-        {
-            "type": "delta-image"
         }
     ],
     "artifact_provides": {
@@ -192,10 +169,12 @@ compressed)`. Its content is:
 }
 ```
 
-The `payloads` list is a list of all the Artifact payloads contained within the
-Artifact. The intention of having multiple payloads is to allow multiple updates
-to several distinct components to be contained in one Artifact. For example,
-there may be an update to a file, and a package install contained in the same
+The `payloads` list should have only one entry with the payload contained within the Artifact.
+
+> **_NOTE:_** The intention of having a list, as opposed to simply one field `payload`, is to allow for future
+expansion of Artifact file format v3 where multiple updates to several distinct components would
+be contained in one Artifact.
+For example, there could be an update to a file and a package install contained in the same
 Artifact. For full rootfs updates, there will usually be only one payload.
 
 `type` is the type of payload contained within the image. At the moment there are
@@ -207,8 +186,10 @@ external update modules.
 
 The remaining entries in `header.tar[.gz|.xz|.zst]` are then organized in buckets under
 `headers/xxxx` folders, where `xxxx` are four digits, starting from zero, and
-corresponding to each element `payloads` inside `header-info`, in order. The
-following sub sections define each field under each such bucket.
+corresponding to each element `payloads` inside `header-info`, in order.
+Currently `headers/0000` is supported exclusively.
+
+The following sub sections define each field under each such bucket.
 
 
 #### artifact_depends
@@ -390,17 +371,11 @@ These files and attributes are allowed:
     "payloads": [
         {
             "type": "rootfs-image"
-        },
-        {
-            "type": "delta-image"
         }
     ]
   }
   ```
-  The `payloads` attribute is expected to be in the same order as the original
-  in `header.tar[.gz|.xz|.zst]`, and will override it. An empty string can be used to
-  disable overriding for that entry, which may be necessary in order to get
-  indexing right if some entries are overriden, but not all.
+  The `payloads` attribute will override the original in `header.tar[.gz|.xz|.zst]`.
 
 * `type-info` file with any valid field:
   ```
@@ -433,10 +408,10 @@ data by using alternative means, such as providing a download link in
 
 Each file in the `data` folder should be a file of the format `xxxx.tar[.gz|.xz|.zst]`,
 where `xxxx` are four digits corresponding to each entry in the `payloads` list
-in `header-info`, in order. If any file appears in the data directory that
-doesn't have a corresponding header number (e.g. "0000"), or if any file inside
-the archive appears that isn't listed in any of the manifest files, an error
-should be produced and the update should fail.
+in `header-info`, in order. Currently `0000.tar[.gz|.xz|.zst]` is supported exclusively.
+If any file appears in the data directory that doesn't have a corresponding header number
+(i.e. "0000"), or if any file inside the archive appears that isn't listed in any of the
+manifest files, an error should be produced and the update should fail.
 
 
 Ordering
