@@ -73,6 +73,8 @@ func StartSSHCommand(c *cli.Context,
 	args = append(args, userAtHost)
 	args = append(
 		args,
+		"-o ServerAliveInterval=30",
+		"-o ServerAliveCountMax=1",
 		"/bin/sh",
 		"-c",
 		command)
