@@ -855,7 +855,8 @@ func extractKeyValues(params []string) (*map[string]string, error) {
 }
 
 // SSH to remote host and dump rootfs snapshot to a local temporary file.
-func getDeviceSnapshot(c *cli.Context) (string, error) {
+func getDeviceSnapshot(c *cli.Context) (filePath string, err error) {
+	filePath = ""
 	const sshConnectedToken = "Initializing snapshot..."
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -863,11 +864,10 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	// Create tempfile for storing the snapshot
 	f, err := os.CreateTemp("", "rootfs.tmp")
 	if err != nil {
-		return "", err
+		return
 	}
-	filePath := f.Name()
 
-	defer removeOnPanic(filePath)
+	defer removeOnPanic(f.Name())
 	defer f.Close()
 	// // First echo to stdout such that we know when ssh connection is
 	// // established (password prompt is written to /dev/tty directly,
@@ -887,30 +887,38 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 		snapshotArgs,
 		sshConnectedToken,
 	)
+	defer func() {
+		if cleanupErr := command.WaitForEchoRestore(); cleanupErr != nil {
+			filePath = ""
+			err = cleanupErr
+		}
+	}()
 
 	if err != nil {
-		return "", err
+		return
 	}
 
 	_, err = recvSnapshot(f, command.Stdout)
 	if err != nil {
 		_ = command.Cmd.Process.Kill()
-		return "", err
+		return
 	}
 
 	err = command.EndSSHCommand()
 	if err != nil {
-		return "", err
+		return
 	}
 
-	return filePath, err
+	filePath = f.Name()
+	return
 }
 
-func showProvides(c *cli.Context) (map[string]string, error) {
+func showProvides(c *cli.Context) (providesMap map[string]string, err error) {
 	const sshConnectedToken = "Initializing show-provides..."
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	providesMap := make(map[string]string)
+	providesMap = nil
+	tmpMap := make(map[string]string)
 
 	providesArgs := `'[ $(id -u) -eq 0 ] || sudo_cmd="sudo -S"` +
 		`; if which mender-update 1> /dev/null` +
@@ -926,8 +934,15 @@ func showProvides(c *cli.Context) (map[string]string, error) {
 		providesArgs,
 		sshConnectedToken,
 	)
+	defer func() {
+		if cleanupErr := command.WaitForEchoRestore(); cleanupErr != nil {
+			providesMap = nil
+			err = cleanupErr
+		}
+	}()
+
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	scanner := bufio.NewScanner(command.Stdout)
@@ -936,17 +951,17 @@ func showProvides(c *cli.Context) (map[string]string, error) {
 		if strings.HasPrefix(line, "rootfs-image.") {
 			parts := strings.SplitN(line, "=", 2)
 			if len(parts) == 2 {
-				providesMap[parts[0]] = parts[1]
+				tmpMap[parts[0]] = parts[1]
 			}
 		}
 	}
 
 	err = command.EndSSHCommand()
 	if err != nil {
-		return nil, err
+		return
 	}
-
-	return providesMap, nil
+	providesMap = tmpMap
+	return
 }
 
 // Performs the same operation as io.Copy while at the same time prining
