@@ -48,6 +48,11 @@ func StartSSHCommand(c *cli.Context,
 	var userAtHost string
 	var sigChan chan os.Signal
 	var errChan chan error
+	s := &SSHCommand{
+		ctx:    _ctx,
+		cancel: cancel,
+	}
+
 	port := "22"
 	host := strings.TrimPrefix(c.String("file"), "ssh://")
 
@@ -80,47 +85,44 @@ func StartSSHCommand(c *cli.Context,
 		command)
 
 	cmd := exec.Command("ssh", args...)
+	s.Cmd = cmd
 
 	// Simply connect stdin/stderr
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, errors.New("Error redirecting stdout on exec")
+		return s, errors.New("Error redirecting stdout on exec")
 	}
+	s.Stdout = stdout
 
 	// Disable tty echo before starting
 	term, err := DisableEcho(int(os.Stdin.Fd()))
 	if err == nil {
 		sigChan = make(chan os.Signal, 1)
 		errChan = make(chan error, 1)
+		s.sigChan = sigChan
+		s.errChan = errChan
 		// Make sure that echo is enabled if the process gets
 		// interrupted
 		signal.Notify(sigChan)
 		go EchoSigHandler(_ctx, sigChan, errChan, term)
 	} else if err != syscall.ENOTTY {
-		return nil, err
+		return s, err
 	}
 
 	if err := cmd.Start(); err != nil {
-		return nil, err
+		return s, err
 	}
 
 	// Wait for 120 seconds for ssh to establish connection
 	err = waitForBufferSignal(stdout, os.Stdout, sshConnectedToken, 2*time.Minute)
 	if err != nil {
 		_ = cmd.Process.Kill()
-		return nil, errors.Wrap(err,
+		return s, errors.Wrap(err,
 			"Error waiting for ssh session to be established.")
 	}
-	return &SSHCommand{
-		ctx:     _ctx,
-		Cmd:     cmd,
-		Stdout:  stdout,
-		cancel:  cancel,
-		sigChan: sigChan,
-		errChan: errChan,
-	}, nil
+	return s, nil
 }
 
 func (s *SSHCommand) EndSSHCommand() error {
@@ -131,16 +133,6 @@ func (s *SSHCommand) EndSSHCommand() error {
 	if err := s.Cmd.Wait(); err != nil {
 		return errors.Wrap(err,
 			"SSH session closed with error")
-	}
-
-	if s.sigChan != nil {
-		signal.Stop(s.sigChan)
-		s.cancel()
-		if err := <-s.errChan; err != nil {
-			return err
-		}
-	} else {
-		s.cancel()
 	}
 
 	return nil
@@ -182,4 +174,15 @@ func waitForBufferSignal(src io.Reader, sink io.Writer,
 		err = errors.New("Input deadline exceeded")
 	}
 	return err
+}
+
+func (s *SSHCommand) WaitForEchoRestore() error {
+	if s.sigChan != nil {
+		signal.Stop(s.sigChan)
+		s.cancel()
+		if err := <-s.errChan; err != nil {
+			return err
+		}
+	}
+	return nil
 }
