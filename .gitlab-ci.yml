@@ -14,7 +14,7 @@ include:
     file: ".gitlab-ci-check-commits.yml"
   - project: "Northern.tech/Mender/mendertesting"
     file: ".gitlab-ci-check-license.yml"
-  - component: gitlab.com/Northern.tech/Mender/mendertesting/brew-build@master
+  - component: gitlab.com/Northern.tech/Mender/mendertesting/brew-build@test-homebrew-developer
     inputs:
       formula: "m/mender-artifact.rb"
 
