@@ -1,2 +1,13 @@
-# Default owners for everything
-* @mendersoftware/client-dependabot-reviewers
+# Dependencies and build files
+go.mod @mendersoftware/client-dependabot-reviewers
+go.sum @mendersoftware/client-dependabot-reviewers
+Dockerfile* @mendersoftware/client-dependabot-reviewers
+requirements.txt @mendersoftware/client-dependabot-reviewers
+requirements*.txt @mendersoftware/client-dependabot-reviewers
+package.json @mendersoftware/client-dependabot-reviewers
+package-lock.json @mendersoftware/client-dependabot-reviewers
+yarn.lock @mendersoftware/client-dependabot-reviewers
+Pipfile @mendersoftware/client-dependabot-reviewers
+Pipfile.lock @mendersoftware/client-dependabot-reviewers
+pyproject.toml @mendersoftware/client-dependabot-reviewers
+poetry.lock @mendersoftware/client-dependabot-reviewers
