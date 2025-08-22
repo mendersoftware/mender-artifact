@@ -1,2 +1,7 @@
-# Default owners for everything
-* @mendersoftware/client-dependabot-reviewers
+# Dependency updates
+go.mod @mendersoftware/client-dependabot-reviewers
+go.sum @mendersoftware/client-dependabot-reviewers
+Dockerfile* @mendersoftware/client-dependabot-reviewers
+*requirements*.txt @mendersoftware/client-dependabot-reviewers
+package.json @mendersoftware/client-dependabot-reviewers
+package-lock.json @mendersoftware/client-dependabot-reviewers
