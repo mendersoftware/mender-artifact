@@ -17,9 +17,23 @@ include:
       - '.gitlab-ci-check-commits-signoffs.yml'
   - project: "Northern.tech/Mender/mendertesting"
     file: ".gitlab-ci-check-license.yml"
+
+  # Release CI/CD components
+  - component: gitlab.com/Northern.tech/Mender/mendertesting/release-candidate@master
+    inputs:
+      github_repo: mendersoftware/mender-artifact
+  - component: gitlab.com/Northern.tech/Mender/mendertesting/release-mender-docs@master
+    inputs:
+      component: mender-artifact
+  - component: gitlab.com/Northern.tech/Mender/mendertesting/release-dist-packages@master
+    inputs:
+      package: MENDER_ARTIFACT
   - component: gitlab.com/Northern.tech/Mender/mendertesting/brew-build@master
     inputs:
       formula: "m/mender-artifact.rb"
+  - component: gitlab.com/Northern.tech/Mender/mendertesting/release-compass@master
+    inputs:
+      compass_component_id: "3a6f19a5-306f-4900-93f6-c2e953eac6e8"
 
 cache:
   paths:
