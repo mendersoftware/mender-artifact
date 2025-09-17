@@ -1,4 +1,64 @@
 ---
+## 4.1.1 - 2025-09-17
+
+
+### Bug fixes
+
+
+- Call show-provides with sudo
+([MEN-8382](https://northerntech.atlassian.net/browse/MEN-8382)) ([f92cc16](https://github.com/mendersoftware/mender-artifact/commit/f92cc165af03046af2068ab60d0fa7ed7b363b18))  by @michalkopczan
+- Add validation rules for validating string parameters
+([MEN-8513](https://northerntech.atlassian.net/browse/MEN-8513)) ([ddd821f](https://github.com/mendersoftware/mender-artifact/commit/ddd821f8a5150fb8a3186b337525f17b2757599c))  by @alfrunes
+
+
+  Artifact name and group must no more than 256 characters and contain
+  printable characters. Only characters from the following Unicode
+  categories are allowed: L, M, N, P, S and ASCII white space.
+  
+  Creating artifact violating these conditions will result in an error.
+  Reading an existing artifact will print a warning.
+- Mender-artifact hangs when ssh connection fails silently
+([MEN-8429](https://northerntech.atlassian.net/browse/MEN-8429)) ([9db4a2b](https://github.com/mendersoftware/mender-artifact/commit/9db4a2ba108323eada30bd76867b3281913a0599))  by @michalkopczan
+- Mender-artifact does not reenable echo on ssh error
+([MEN-8428](https://northerntech.atlassian.net/browse/MEN-8428)) ([15921d6](https://github.com/mendersoftware/mender-artifact/commit/15921d69f66897e290ea7f8b0ceffc5601114a0f))  by @michalkopczan
+
+
+  Original idea was to handle reenabling echo thanks to EchoSigHandler, but it was failing sometimes.
+  The issue was that EchoSigHandler, when finishing its execution, sends an error to errChan. We need
+  to wait on errChan until we get something on it - meaning that the EchoSigHandler finished,
+  and we can safely exit the application.
+  
+  However, before my changes, if there was an error returned before reaching
+  if s.sigChan != nil { signal.Stop(s.sigChan) s.cancel() if err := <-s.errChan; err != nil { return err } }
+  
+  So, for example, here:
+  _, err = recvSnapshot(f, command.Stdout) if err != nil { _ = command.Cmd.Process.Kill() return "", err }
+  
+  Then we never waitied on errChan. Application was closed, EchoSigHandler never got the chance to
+  reenable echo (sometimes it did, sometimes it didn't), and we were left with echo disabled.
+  
+  Adding a separate function that waits for errChan, and deferring it, we have the problem solved.
+- Split token into fixed number of parts
+([SEC-1676](https://northerntech.atlassian.net/browse/SEC-1676)) ([0cce29b](https://github.com/mendersoftware/mender-artifact/commit/0cce29b57063b63eec5c9be91e23b9ce5b339e59))  by @lluiscampos
+
+
+  Fixes CVE-2025-22868. Fix ported from
+  https://go-review.googlesource.com/c/oauth2/+/652155
+
+
+
+
+### Documentation
+
+
+- Make current support for only one payload in artifact v3 explicit in the documentation
+([MEN-8588](https://northerntech.atlassian.net/browse/MEN-8588)) ([879f89d](https://github.com/mendersoftware/mender-artifact/commit/879f89d0a1d663287558504905ab648235f95fb9))  by @michalkopczan
+
+
+
+
+
+
 
 ## mender-artifact 4.1.0
 
