@@ -34,6 +34,10 @@ include:
   - component: gitlab.com/Northern.tech/Mender/mendertesting/release-compass@master
     inputs:
       compass_component_id: "3a6f19a5-306f-4900-93f6-c2e953eac6e8"
+  - component: gitlab.com/Northern.tech/Mender/mendertesting/release-oslicenses-golang@master
+    inputs:
+      remote_license_file: "302.Release-information/03.Open-source-licenses/30.mender-artifact/docs.md"
+
 
 cache:
   paths:
