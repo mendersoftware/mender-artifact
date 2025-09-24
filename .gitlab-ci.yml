@@ -288,6 +288,8 @@ test:install:brew:
   script:
     # Reinstall in case we already have mender-artifact
     - brew reinstall mender-artifact
+    # Refresh cache for new versions
+    - brew update
     - brew test mender-artifact
   after_script:
     # Uninstall because the mac-runner is
