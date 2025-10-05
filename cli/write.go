@@ -374,7 +374,8 @@ func writeRootfs(c *cli.Context) error {
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
-	return nil
+
+	return checkArtifactSizeLimits(name, c)
 }
 
 func reportProgress(c context.Context, state chan string) {
@@ -834,7 +835,8 @@ func writeModuleImage(ctx *cli.Context) error {
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)
 	}
-	return nil
+
+	return checkArtifactSizeLimits(name, ctx)
 }
 
 func extractKeyValues(params []string) (*map[string]string, error) {
@@ -988,6 +990,20 @@ func recvSnapshot(dst io.Writer, src io.Reader) (int64, error) {
 		written += int64(nw)
 	}
 	return written, nil
+}
+
+func checkArtifactSizeLimits(name string, c *cli.Context) error {
+	if name != "-" {
+		if err := CheckArtifactSize(name, c); err != nil {
+			return cli.NewExitError(err.Error(), errArtifactCreate)
+		}
+	} else {
+		// Inform user that size limits don't apply to stdout
+		if c.String("max-artifact-size") != "" || c.String("warn-artifact-size") != "" {
+			Log.Info("Note: Artifact size limits are not enforced when writing to stdout")
+		}
+	}
+	return nil
 }
 
 func removeOnPanic(filename string) {
