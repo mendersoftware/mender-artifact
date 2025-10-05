@@ -132,7 +132,7 @@ tooldep:
 	mtools --version
 
 test: tooldep
-	$(GO) test -v $(PKGS)
+	$(GO) test -v ./...
 
 extracheck:
 	echo "-- checking if code is gofmt'ed"
