@@ -1,2 +1,9 @@
 liblzma-dev
 libssl-dev
+parted
+e2fsprogs
+libglib2.0-dev
+dosfstools
+mtools
+xz-utils
+musl-dev
