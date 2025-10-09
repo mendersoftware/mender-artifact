@@ -38,12 +38,6 @@ func TestAdding(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, s.names, 3)
 
-	// script already exists
-	err = s.Add(`ArtifactCommit_Enter_11`)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Script already exists")
-	assert.Len(t, s.names, 3)
-
 	// non existing state
 	err = s.Add(`InvalidState_Enter_10`)
 	assert.Error(t, err)

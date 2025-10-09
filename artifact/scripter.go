@@ -67,7 +67,7 @@ func (s *Scripts) Add(path string) error {
 	}
 
 	if _, exists := s.names[name]; exists {
-		logrus.Warning("script already exists, overwriting it")
+		logrus.Warning("script already exists, overwriting it: %s", name)
 	}
 
 	s.names[name] = path
