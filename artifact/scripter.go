@@ -19,6 +19,7 @@ import (
 	"regexp"
 
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 type Scripts struct {
@@ -66,7 +67,7 @@ func (s *Scripts) Add(path string) error {
 	}
 
 	if _, exists := s.names[name]; exists {
-		return errors.Errorf("Script already exists: %s", name)
+		logrus.Warning("script already exists, overwriting it")
 	}
 
 	s.names[name] = path
