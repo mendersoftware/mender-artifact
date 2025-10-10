@@ -239,6 +239,18 @@ func getCliContext() *cli.App {
 		Usage: "Do not add any default clears_artifact_provides fields to Artifact payload",
 	}
 
+	// Artifact size limit flags
+	artifactSizeLimit := cli.StringFlag{
+		Name: "max-artifact-size",
+		Usage: "Maximum allowed artifact size (e.g., 5MB, 1.5GB). " +
+			"Artifact creation fails and file is deleted if exceeded.",
+	}
+	artifactSizeWarnLimit := cli.StringFlag{
+		Name:  "warn-artifact-size",
+		Usage: "Warn if artifact size exceeds limit (e.g., 5MB, 1.5GB).",
+		Value: "5MB",
+	}
+
 	//
 	// write
 	//
@@ -326,6 +338,8 @@ func getCliContext() *cli.App {
 		},
 		softwareVersionValue,
 		softwareFilesystem,
+		artifactSizeLimit,
+		artifactSizeWarnLimit,
 	}
 
 	writeRootfsCommand.Before = applyCompressionInCommand
@@ -427,6 +441,8 @@ func getCliContext() *cli.App {
 			Name:  "no-progress",
 			Usage: "Suppress the progressbar output",
 		},
+		artifactSizeLimit,
+		artifactSizeWarnLimit,
 	}
 	writeModuleCommand.Before = applyCompressionInCommand
 

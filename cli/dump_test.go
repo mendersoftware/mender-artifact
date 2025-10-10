@@ -295,6 +295,8 @@ func testDumpContent(t *testing.T, imageType, printCmdline string) {
 		"type",
 		"version", // Could be supported, but in practice we only support >= v3.
 		"no-progress",
+		"warn-artifact-size",
+		"max-artifact-size",
 	})
 
 	flagChecker.checkAllFlagsTested(t)

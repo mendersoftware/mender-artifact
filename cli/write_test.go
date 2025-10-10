@@ -877,3 +877,146 @@ func TestWriteClearsProvides(t *testing.T) {
 		}
 	}
 }
+
+func TestWriteRootfsWithPayloadSizeLimits(t *testing.T) {
+	tmpdir, err := os.MkdirTemp("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+
+	// Create a small test file (~1KB)
+	smallFile := filepath.Join(tmpdir, "small.ext4")
+	err = os.WriteFile(smallFile, make([]byte, 1024), 0644)
+	require.NoError(t, err)
+
+	// Create a medium test file (~6KB to exceed default 5MB would need larger)
+	// For testing, we'll use smaller limits
+	mediumFile := filepath.Join(tmpdir, "medium.ext4")
+	err = os.WriteFile(mediumFile, make([]byte, 6*1024), 0644)
+	require.NoError(t, err)
+
+	t.Run("small artifact under default warning", func(t *testing.T) {
+		artfile := filepath.Join(tmpdir, "small.mender")
+		err := Run([]string{
+			"mender-artifact", "write", "rootfs-image",
+			"-t", "test-device",
+			"-n", "test-small",
+			"-f", smallFile,
+			"-o", artfile,
+			"--warn-artifact-size", "10KB",
+		})
+		assert.NoError(t, err)
+		assert.FileExists(t, artfile)
+	})
+
+	t.Run("artifact exceeds custom warning threshold", func(t *testing.T) {
+		artfile := filepath.Join(tmpdir, "warn.mender")
+		err := Run([]string{
+			"mender-artifact", "write", "rootfs-image",
+			"-t", "test-device",
+			"-n", "test-warn",
+			"-f", mediumFile,
+			"-o", artfile,
+			"--warn-artifact-size", "1KB",
+		})
+		// Should succeed but with warning
+		assert.NoError(t, err)
+		assert.FileExists(t, artfile)
+	})
+
+	t.Run("artifact exceeds max size limit", func(t *testing.T) {
+		artfile := filepath.Join(tmpdir, "fail.mender")
+		err := Run([]string{
+			"mender-artifact", "write", "rootfs-image",
+			"-t", "test-device",
+			"-n", "test-fail",
+			"-f", mediumFile,
+			"-o", artfile,
+			"--max-artifact-size", "1KB",
+		})
+		// Should fail
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds maximum allowed size")
+		// File should be deleted
+		assert.NoFileExists(t, artfile)
+	})
+
+	t.Run("various size formats", func(t *testing.T) {
+		testCases := []struct {
+			name      string
+			sizeLimit string
+			shouldErr bool
+		}{
+			{"lowercase mb", "100mb", false},
+			{"uppercase KB", "100KB", false},
+			{"decimal", "1.5MB", false},
+			{"bare number", "1000000", false},
+			{"invalid format", "5XB", true},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				artfile := filepath.Join(tmpdir, "format-"+tc.name+".mender")
+				err := Run([]string{
+					"mender-artifact", "write", "rootfs-image",
+					"-t", "test-device",
+					"-n", "test-format",
+					"-f", smallFile,
+					"-o", artfile,
+					"--max-artifact-size", tc.sizeLimit,
+				})
+				if tc.shouldErr {
+					assert.Error(t, err)
+				} else {
+					assert.NoError(t, err)
+				}
+			})
+		}
+	})
+}
+
+func TestWriteModuleImageWithPayloadSizeLimits(t *testing.T) {
+	tmpdir, err := os.MkdirTemp("", "mendertest")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpdir)
+
+	// Create a small test file
+	smallFile := filepath.Join(tmpdir, "small-update")
+	err = os.WriteFile(smallFile, make([]byte, 1024), 0644)
+	require.NoError(t, err)
+
+	// Create a medium test file
+	mediumFile := filepath.Join(tmpdir, "medium-update")
+	err = os.WriteFile(mediumFile, make([]byte, 6*1024), 0644)
+	require.NoError(t, err)
+
+	t.Run("small artifact under warning", func(t *testing.T) {
+		artfile := filepath.Join(tmpdir, "module-small.mender")
+		err := Run([]string{
+			"mender-artifact", "write", "module-image",
+			"-t", "test-device",
+			"-n", "test-module-small",
+			"-T", "test-type",
+			"-f", smallFile,
+			"-o", artfile,
+			"--warn-artifact-size", "10KB",
+		})
+		assert.NoError(t, err)
+		assert.FileExists(t, artfile)
+	})
+
+	t.Run("artifact exceeds max size", func(t *testing.T) {
+		artfile := filepath.Join(tmpdir, "module-fail.mender")
+		err := Run([]string{
+			"mender-artifact", "write", "module-image",
+			"-t", "test-device",
+			"-n", "test-module-fail",
+			"-T", "test-type",
+			"-f", mediumFile,
+			"-o", artfile,
+			"--max-artifact-size", "1KB",
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds maximum allowed size")
+		assert.NoFileExists(t, artfile)
+	})
+}

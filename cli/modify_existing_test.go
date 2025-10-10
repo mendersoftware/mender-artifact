@@ -468,6 +468,8 @@ Updates:
 		"key",
 		"output-path",
 		"script",
+		"warn-artifact-size",
+		"max-artifact-size",
 	})
 	modifyFlagsTested.addFlags([]string{
 		"artifact-name",
