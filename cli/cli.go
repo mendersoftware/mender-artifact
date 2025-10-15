@@ -248,7 +248,6 @@ func getCliContext() *cli.App {
 	artifactSizeWarnLimit := cli.StringFlag{
 		Name:  "warn-artifact-size",
 		Usage: "Warn if artifact size exceeds limit (e.g., 5MB, 1.5GB).",
-		Value: "5MB",
 	}
 
 	//
