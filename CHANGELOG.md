@@ -1,4 +1,44 @@
 ---
+## 4.2.0 - 2025-10-15
+
+
+### Features
+
+
+- Optionally warn or fail on large Artifact sizes
+([MEN-8567](https://northerntech.atlassian.net/browse/MEN-8567)) ([5f23818](https://github.com/mendersoftware/mender-artifact/commit/5f238184522985159fa1175e6f5ccd31dfbc2371))  by @lluiscampos
+
+
+  The `write` commands can now warn or fail when creating Artifacts bigger
+  than a certain size. This feature is meant to be used with upcoming
+  Mender Tier plans, which may set up limits on the Artifact size.
+  
+  The behaviour can be controlled with the flags:
+  * `--warn-artifact-size` to soft warn on Artifacts larger than the limit
+  * `--max-artifact-size` to hard fail on Artifacts larger than the limit
+  
+  Note that the limits are not enforced when streaming to stdout output,
+  nor on other commands that may increase the Artifact size like `modify`,
+  `cp` or `install`.
+
+
+
+
+### Build
+
+
+- Fix `make test` target
+ ([41c96f0](https://github.com/mendersoftware/mender-artifact/commit/41c96f0542995e5621951c81e4725a7a0b856723))  by @lluiscampos
+
+
+  The well-intended commit ba669f03 broke `make test` when improving
+  the `make coverage` target :)
+
+
+
+
+
+
 ## 4.1.1 - 2025-09-17
 
 
