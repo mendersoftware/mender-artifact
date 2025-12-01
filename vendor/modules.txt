@@ -216,8 +216,8 @@ github.com/hashicorp/hcl/json/token
 # github.com/hashicorp/vault/api v1.10.0
 ## explicit; go 1.19
 github.com/hashicorp/vault/api
-# github.com/klauspost/compress v1.18.0
-## explicit; go 1.22
+# github.com/klauspost/compress v1.18.2
+## explicit; go 1.23
 github.com/klauspost/compress
 github.com/klauspost/compress/flate
 github.com/klauspost/compress/fse
