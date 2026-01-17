@@ -45,6 +45,7 @@ help:
 	@echo "    help:               Print this usage information."
 	@echo
 	@echo "    build:              Build the code on the localhost"
+	@echo "    build-cover:        Build mender-artifact instrumented for code coverage"
 	@echo "    build-contained:    Build the code in the container"
 	@echo "    clean:              Remove build artifacts"
 	@echo
@@ -57,6 +58,9 @@ help:
 
 build:
 	$(GO) build $(GO_LDFLAGS) $(BUILDV) -tags '$(TAGS)'
+
+build-cover:
+	$(GO) build -cover $(GO_LDFLAGS) $(BUILDV) -tags '$(TAGS)'
 
 PLATFORMS := darwin linux windows
 

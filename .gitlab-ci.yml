@@ -132,15 +132,12 @@ build:make:
 build:coverage:
   stage: build
   extends: .build:base
-  image: docker
+  image: golang:1.25-trixie
   needs: []
-  services:
-    - docker:dind
   before_script:
-    - apk add --no-cache make
-    - make instrument-binary-contained
+    - make get-build-deps
   script:
-    - make build-contained
+    - make build-cover
     - mv mender-artifact mender-artifact-linux-coverage
   artifacts:
     expire_in: 2w
@@ -202,24 +199,20 @@ test:smoketests:linux:
 
 test:coverage:linux:
   stage: test
-  image: debian:bullseye-slim
+  image: golang:1.25-trixie
   needs:
     - job: build:coverage
       artifacts: true
   variables:
     COVERAGE_FILE: coverage-linux-pkcs.txt
+    GOCOVERDIR: coverage
   before_script:
     - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh --setup
     - export TEST_MENDER_ARTIFACT_PATH=./mender-artifact-linux-coverage
+    - mkdir --parents ${GOCOVERDIR}
   script:
     - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh
-  after_script:
-    - set -- /tmp/coverage-artifact*.out
-    - head -n 1 $1 > ${COVERAGE_FILE}
-    - |
-      for cover in $@; do
-        tail -n +2 $cover >> ${COVERAGE_FILE}
-      done
+    - go tool covdata textfmt -i ${GOCOVERDIR} -o ${COVERAGE_FILE}
   artifacts:
     expire_in: 2w
     untracked: true
