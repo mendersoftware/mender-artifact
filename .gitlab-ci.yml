@@ -173,7 +173,7 @@ test:coverage:linux:
 
 .test:unit:
   stage: test
-  image: golang:1.23-bullseye
+  image: golang:1.25-trixie
   needs: []
   script:
     - make coverage
@@ -244,7 +244,7 @@ test:install:brew:
 
 publish:tests:
   stage: publish
-  image: golang:1.23
+  image: golang:1.25
   needs:
     - job: test:unit:linux
       artifacts: true
