@@ -44,8 +44,9 @@ help:
 	@echo
 	@echo "    help:               Print this usage information."
 	@echo
-	@echo "    build:              Build the code on the localhost"
-	@echo "    build-contained:    Build the code in the container"
+	@echo "    build:              Build mender-artifact natively"
+	@echo "    build-cover:        Build mender-artifact instrumented for code coverage"
+	@echo "    build-natives:      Cross-build mender-artifact for all platforms"
 	@echo "    clean:              Remove build artifacts"
 	@echo
 	@echo "    install:            Install build artifacts on the locally"
@@ -57,6 +58,9 @@ help:
 
 build:
 	$(GO) build $(GO_LDFLAGS) $(BUILDV) -tags '$(TAGS)'
+
+build-cover:
+	$(GO) build -cover $(GO_LDFLAGS) $(BUILDV) -tags '$(TAGS)'
 
 PLATFORMS := darwin linux windows
 
@@ -84,18 +88,6 @@ build-native-windows: GO_LDFLAGS = -ldflags "-X github.com/mendersoftware/mender
 build-native-windows: .nopkcs11 $(PKGNAME)-windows.exe
 
 build-natives: build-native-linux build-native-mac build-native-windows
-
-build-contained:
-	rm -f mender-artifact && \
-	image_id=$$(docker build -f Dockerfile -q .) && \
-	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact /binary" && \
-	docker image rm $$image_id
-
-build-natives-contained:
-	rm -f mender-artifact-darwin mender-artifact-linux mender-artifact-windows.exe && \
-	image_id=$$(docker build -f Dockerfile.binaries -q .) && \
-	docker run --rm --entrypoint "/bin/sh" -v $(shell pwd):/binary $$image_id -c "cp /go/bin/mender-artifact* /binary" && \
-	docker image rm $$image_id
 
 install:
 	@$(GO) install $(GO_LDFLAGS) $(BUILDV) $(BUILDTAGS)
