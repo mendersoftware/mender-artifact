@@ -17,7 +17,7 @@ require (
 	github.com/mendersoftware/progressbar v0.0.4
 	github.com/minio/sha256-simd v1.0.1
 	github.com/pkg/errors v0.9.1
-	github.com/sirupsen/logrus v1.9.3
+	github.com/sirupsen/logrus v1.9.4
 	github.com/stretchr/testify v1.11.1
 	github.com/ulikunitz/xz v0.5.15
 	github.com/urfave/cli v1.22.17
