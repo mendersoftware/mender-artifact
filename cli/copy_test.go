@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -151,7 +152,13 @@ func TestCLIErrors(t *testing.T) {
 
 func TestCopyRootfsImage(t *testing.T) {
 	// build the mender-artifact binary
-	assert.Nil(t, exec.Command("go", "build", "..").Run())
+	buildArgs := []string{"build", ".."}
+	if runtime.GOOS != "linux" {
+		// On non-Linux platforms, we need to disable PKCS#11 support
+		// because it requires OpenSSL CGO bindings that are not available
+		buildArgs = []string{"build", "-tags", "nopkcs11", ".."}
+	}
+	assert.Nil(t, exec.Command("go", buildArgs...).Run())
 	defer os.Remove("mender-artifact")
 
 	dir, err := os.Getwd()

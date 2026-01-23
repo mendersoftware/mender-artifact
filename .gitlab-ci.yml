@@ -100,7 +100,6 @@ build:coverage:
 
 test:smoketests:mac:
   stage: test
-  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/docker
   needs:
     - job: build:make
       artifacts: true
@@ -120,7 +119,7 @@ test:smoketests:mac:
     - ./tests/test_compressions/test_supported_compressions.sh
     - make build
   tags:
-    - mac-runner
+    - mac-arm-runner
 
 test:smoketests:linux:
   stage: test
@@ -194,13 +193,15 @@ test:unit:linux:
 
 test:unit:mac:
   extends: .test:unit
+  # Override image since mac-arm-runner is a shell executor, not Docker
+  image: null
   variables:
     COVERAGE_FILE: coverage-mac.txt
     # This is needed because the host is reusing the workdir, it is not a Docker
     # runner.
     GIT_STRATEGY: clone
   tags:
-    - mac-runner
+    - mac-arm-runner
   before_script:
     # fsck.ext4 is required for the tests
     # From some reason brew does not installed e2fsprogs
@@ -227,20 +228,13 @@ test:backwards-compatibility:
 test:install:brew:
   stage: test
   tags:
-    - mac-runner
+    - mac-arm-runner
   script:
     # Reinstall in case we already have mender-artifact
     - brew reinstall mender-artifact
     # Refresh cache for new versions
     - brew update
     - brew test mender-artifact
-  after_script:
-    # Uninstall because the mac-runner is
-    # not a container, so installations persist between jobs
-    - brew uninstall mender-artifact
-  rules:
-    - when: never  # FIXME: QA-1350
-    - if: $INSTALL_BREW == "true"
 
 publish:tests:
   stage: publish
