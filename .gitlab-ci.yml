@@ -228,44 +228,6 @@ test:install:brew:
     - brew update
     - brew test mender-artifact
 
-publish:tests:
-  stage: publish
-  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/golang:1.25
-  needs:
-    - job: test:unit:linux
-      artifacts: true
-    - job: test:unit:mac
-      artifacts: true
-  variables:
-    COVERALLS_WEBHOOK_URL: "https://coveralls.io/webhook"
-    COVERALLS_RERUN_BUILD_URL: "https://coveralls.io/rerun_build"
-  before_script:
-    - go install github.com/mattn/goveralls@v0.0.12
-    # Coveralls env variables:
-    #  According to https://docs.coveralls.io/supported-ci-services
-    #  we should set CI_NAME, CI_BUILD_NUMBER, etc. But according
-    #  to goveralls source code (https://github.com/mattn/goveralls)
-    #  many of these are not supported. Set CI_BRANCH, CI_PR_NUMBER,
-    #  and pass few others as command line arguments.
-    #  See also https://docs.coveralls.io/api-reference
-    - export CI_BRANCH=${CI_COMMIT_BRANCH}
-    - export CI_PR_NUMBER=${CI_COMMIT_BRANCH#pr_}
-  script:
-    # Submit coverage from all platforms.
-    - for PLATFORM in linux mac; do
-    - goveralls
-      -repotoken ${COVERALLS_TOKEN}
-      -service gitlab-ci
-      -jobid $CI_PIPELINE_ID
-      -parallel
-      -covermode set
-      -flagname unittests:$PLATFORM
-      -coverprofile coverage-$PLATFORM.txt
-    - done
-    # Finalize the report
-    - 'curl -k ${COVERALLS_WEBHOOK_URL}?repo_token=${COVERALLS_TOKEN} -d "payload[build_num]=$CI_PIPELINE_ID&payload[status]=done"'
-    - 'curl -k "${COVERALLS_RERUN_BUILD_URL}?repo_token=${COVERALLS_TOKEN}&build_num=${CI_PIPELINE_ID}"'
-
 publish:s3:
   stage: publish
   image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/debian:bookworm-slim
