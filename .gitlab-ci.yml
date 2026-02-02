@@ -229,6 +229,10 @@ test:install:brew:
   stage: test
   tags:
     - mac-arm-runner
+  before_script:
+    # These are genuine dependencies, but somehow brew doesn't install them
+    # automatically for `brew test` below.
+    - brew install ca-certificates openssl@3
   script:
     # Reinstall in case we already have mender-artifact
     - brew reinstall mender-artifact
