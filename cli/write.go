@@ -94,6 +94,10 @@ func validateInput(c *cli.Context) error {
 	// Check mutual exclusivity of --device-type and --compatible-types
 	hasDeviceType := len(c.StringSlice("device-type")) > 0
 	hasCompatibleTypes := len(c.StringSlice("compatible-types")) > 0
+	if hasDeviceType {
+		Log.Warn("--device-type is deprecated and will be removed in future versions, " +
+			"use --compatible-types instead")
+	}
 	if hasDeviceType && hasCompatibleTypes {
 		return cli.NewExitError(
 			"`device-type` and `compatible-types` are mutually exclusive",
@@ -780,6 +784,10 @@ func writeModuleImage(ctx *cli.Context) error {
 	// Check mutual exclusivity of --device-type and --compatible-types
 	hasDeviceType := len(ctx.StringSlice("device-type")) > 0
 	hasCompatibleTypes := len(ctx.StringSlice("compatible-types")) > 0
+	if hasDeviceType {
+		Log.Warn("--device-type is deprecated and will be removed in future versions, " +
+			"use --compatible-types instead")
+	}
 	if hasDeviceType && hasCompatibleTypes {
 		return cli.NewExitError(
 			"`device-type` and `compatible-types` are mutually exclusive",
