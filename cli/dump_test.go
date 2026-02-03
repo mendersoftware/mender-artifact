@@ -270,7 +270,8 @@ func testDumpContent(t *testing.T, imageType, printCmdline string) {
 		"artifact-name-depends",
 		"azure-key", // Not tested in "dump".
 		"clears-provides",
-		"compression", // Not tested in "dump".
+		"compatible-types", // Alias for device-type, handled the same way.
+		"compression",      // Not tested in "dump".
 		"depends",
 		"depends-groups",
 		"device-type",
