@@ -3,7 +3,7 @@ Mender Artifact:
   Format: mender
   Version: 3
   Signature: no signature
-  Compatible devices: [beaglebone]
+  Compatible types: [beaglebone]
   Provides group: 
   Depends on one of artifact(s): []
   Depends on one of group(s): []
