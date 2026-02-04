@@ -16,8 +16,6 @@ include:
   - component: gitlab.com/Northern.tech/Mender/mendertesting/brew-build@master
     inputs:
       formula: "m/mender-artifact.rb"
-    rules:
-      - when: never # FIXME: QA-1350
 
   # Release CI/CD components
   - component: gitlab.com/Northern.tech/Mender/mendertesting/release-candidate@master
