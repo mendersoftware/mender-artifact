@@ -110,7 +110,7 @@ func (rp *Rootfs) GetVersion() int {
 func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bool) error {
 	rp.version = version
 	switch {
-	case filepath.Base(path) == "files":
+	case match("headers/*/files", path):
 		if version >= 3 {
 			return errors.New("\"files\" entry found in version 3 artifact")
 		}
@@ -124,7 +124,7 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bo
 		if err != nil {
 			return err
 		}
-	case filepath.Base(path) == "type-info":
+	case match("headers/*/type-info", path):
 		if rp.version < 3 {
 			// This was ignored in pre-v3 versions, so keep ignoring it.
 			break
@@ -135,7 +135,7 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bo
 			return errors.Wrap(err, "error reading type-info")
 		}
 
-	case filepath.Base(path) == "meta-data":
+	case match("headers/*/meta-data", path):
 		dec := json.NewDecoder(r)
 		var data interface{}
 		err := dec.Decode(&data)

@@ -463,13 +463,13 @@ func (img *ModuleImage) ReadHeader(r io.Reader, path string, version int, augmen
 
 	img.version = version
 	switch {
-	case filepath.Base(path) == "type-info":
+	case match("headers/*/type-info", path):
 		dec := json.NewDecoder(r)
 		err := dec.Decode(&img.typeInfoV3)
 		if err != nil {
 			return errors.Wrap(err, "error reading type-info")
 		}
-	case filepath.Base(path) == "meta-data":
+	case match("headers/*/meta-data", path):
 		dec := json.NewDecoder(r)
 		var data interface{}
 		err := dec.Decode(&data)

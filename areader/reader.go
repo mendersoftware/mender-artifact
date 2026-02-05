@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -865,12 +866,16 @@ func (ar *Reader) assignUpdateFiles() error {
 }
 
 // should be `headers/0000/file` format
-func getUpdateNoFromHeaderPath(path string) (int, error) {
-	split := strings.Split(path, "/")
-	if len(split) < 3 {
-		return 0, errors.New("can not get Payload order from tar path")
+func getUpdateNoFromHeaderPath(tarPath string) (int, error) {
+	ok, _ := path.Match("headers/[0-9][0-9][0-9][0-9]/*", tarPath)
+	if !ok {
+		return 0, fmt.Errorf("invalid header path %q", tarPath)
 	}
-	return strconv.Atoi(split[1])
+	split := strings.SplitN(strings.TrimPrefix(tarPath, "headers/"), "/", 2)
+	if len(split) < 2 {
+		return 0, fmt.Errorf("invalid header path %q", tarPath)
+	}
+	return strconv.Atoi(split[0])
 }
 
 // should be 0000.tar.gz
