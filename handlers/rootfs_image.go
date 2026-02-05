@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"path/filepath"
+	"path"
 
 	"github.com/pkg/errors"
 
@@ -354,17 +354,17 @@ func (rfs *Rootfs) GetUpdateAugmentClearsProvides() []string {
 
 func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 
-	path := artifact.UpdateHeaderPath(args.No)
+	tarPath := artifact.UpdateHeaderPath(args.No)
 
 	switch rfs.version {
 	case 1, 2:
 		// first store files
-		if err := writeFiles(args.TarWriter, []string{filepath.Base(rfs.update.Name)},
-			path); err != nil {
+		if err := writeFiles(args.TarWriter, []string{path.Base(rfs.update.Name)},
+			tarPath); err != nil {
 			return err
 		}
 
-		if err := writeTypeInfo(args.TarWriter, "rootfs-image", path); err != nil {
+		if err := writeTypeInfo(args.TarWriter, "rootfs-image", tarPath); err != nil {
 			return err
 		}
 
@@ -379,7 +379,7 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 
 		if err := writeTypeInfoV3(&WriteInfoArgs{
 			tarWriter:  args.TarWriter,
-			dir:        path,
+			dir:        tarPath,
 			typeinfov3: args.TypeInfoV3,
 		}); err != nil {
 			return errors.Wrap(err, "ComposeHeader")
@@ -397,7 +397,7 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 		)
 	}
 	sw := artifact.NewTarWriterStream(args.TarWriter)
-	if err := sw.Write(nil, filepath.Join(path, "meta-data")); err != nil {
+	if err := sw.Write(nil, path.Join(tarPath, "meta-data")); err != nil {
 		return errors.Wrap(err, "Payload: can not store meta-data")
 	}
 

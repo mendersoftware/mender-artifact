@@ -21,7 +21,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -112,7 +111,7 @@ func readStateScripts(tr *tar.Reader, header *tar.Header, cb ScriptsReadFn) erro
 			return errors.Wrapf(err,
 				"reader: error reading artifact header file: %v", hdr)
 		}
-		if filepath.Dir(hdr.Name) == "scripts" {
+		if path.Dir(hdr.Name) == "scripts" {
 			if cb != nil {
 				if err = cb(tr, hdr.FileInfo()); err != nil {
 					return err
@@ -879,8 +878,8 @@ func getUpdateNoFromHeaderPath(tarPath string) (int, error) {
 }
 
 // should be 0000.tar.gz
-func getUpdateNoFromDataPath(comp artifact.Compressor, path string) (int, error) {
-	no := strings.TrimSuffix(filepath.Base(path), ".tar"+comp.GetFileExtension())
+func getUpdateNoFromDataPath(comp artifact.Compressor, tarPath string) (int, error) {
+	no := strings.TrimSuffix(path.Base(tarPath), ".tar"+comp.GetFileExtension())
 	return strconv.Atoi(no)
 }
 
@@ -940,7 +939,7 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
 	} else if err != nil {
 		return errors.Wrapf(err, "reader: error reading Payload file: [%v]", hdr)
 	}
-	if filepath.Dir(hdr.Name) != "data" {
+	if path.Dir(hdr.Name) != "data" {
 		return errors.New("reader: invalid data file name: " + hdr.Name)
 	}
 	comp, err := artifact.NewCompressorFromFileName(hdr.Name)
@@ -1084,7 +1083,7 @@ func (ar *Reader) readAndInstallDataFiles(tar *tar.Reader, i handlers.Installer,
 		if df == nil {
 			return errors.Errorf("Payload: can not find data file: %s", hdr.Name)
 		}
-		matched := matcher.MatchString(filepath.Base(hdr.Name))
+		matched := matcher.MatchString(path.Base(hdr.Name))
 
 		if !matched {
 			message := "Payload: data file " + hdr.Name + " contains forbidden characters"
@@ -1102,7 +1101,7 @@ func (ar *Reader) readAndInstallDataFiles(tar *tar.Reader, i handlers.Installer,
 		// all the names of the data files in manifest are written with the
 		// archive relative path: data/0000/update.ext4
 		if ar.manifest != nil {
-			df.Checksum, err = ar.manifest.GetAndMark(filepath.Join(artifact.UpdatePath(no),
+			df.Checksum, err = ar.manifest.GetAndMark(path.Join(artifact.UpdatePath(no),
 				hdr.FileInfo().Name()))
 			if err != nil {
 				return errors.Wrapf(err, "Payload: checksum missing")
