@@ -270,9 +270,16 @@ func getCliContext() *cli.App {
 		},
 		cli.StringSliceFlag{
 			Name: "device-type, t",
+			Usage: "DEPRECATED. Use --compatible-types instead. " +
+				"Type of device(s) supported by the Artifact. You can specify multiple " +
+				"compatible devices providing this parameter multiple times. " +
+				"Mutually exclusive with --compatible-types.",
+		},
+		cli.StringSliceFlag{
+			Name: "compatible-types, c",
 			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
-				"compatible devices providing this parameter multiple times.",
-			Required: true,
+				"compatible devices providing this parameter multiple times. " +
+				"Mutually exclusive with --device-type.",
 		},
 		artifactName,
 		cli.StringFlag{
@@ -361,9 +368,16 @@ func getCliContext() *cli.App {
 	writeModuleCommand.Flags = []cli.Flag{
 		cli.StringSliceFlag{
 			Name: "device-type, t",
+			Usage: "DEPRECATED. Use --compatible-types instead. " +
+				"Type of device(s) supported by the Artifact. You can specify multiple " +
+				"compatible devices providing this parameter multiple times. " +
+				"Mutually exclusive with --compatible-types.",
+		},
+		cli.StringSliceFlag{
+			Name: "compatible-types, c",
 			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
-				"compatible devices providing this parameter multiple times.",
-			Required: true,
+				"compatible devices providing this parameter multiple times. " +
+				"Mutually exclusive with --device-type.",
 		},
 		cli.StringFlag{
 			Name:  "output-path, o",
@@ -459,9 +473,16 @@ func getCliContext() *cli.App {
 	writeBootstrapArtifactCommand.Flags = []cli.Flag{
 		cli.StringSliceFlag{
 			Name: "device-type, t",
+			Usage: "DEPRECATED. Use --compatible-types instead. " +
+				"Type of device(s) supported by the Artifact. You can specify multiple " +
+				"compatible devices providing this parameter multiple times. " +
+				"Mutually exclusive with --compatible-types.",
+		},
+		cli.StringSliceFlag{
+			Name: "compatible-types, c",
 			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
-				"compatible devices providing this parameter multiple times.",
-			Required: true,
+				"compatible devices providing this parameter multiple times. " +
+				"Mutually exclusive with --device-type.",
 		},
 		artifactName,
 		cli.StringFlag{

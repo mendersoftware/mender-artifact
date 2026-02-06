@@ -1041,6 +1041,7 @@ Updates:
 func TestModifyAllFlagsTested(t *testing.T) {
 	// Add a few irrelevant flags for "modify" tests.
 	modifyWriteFlagsTested.addFlags([]string{
+		"compatible-types", // Alias for device-type, handled the same way.
 		"ssh-args",
 		"version",     // Could be supported, but we don't care about this.
 		"no-progress", // Has no effect on the output
