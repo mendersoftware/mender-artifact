@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
+	"path"
 	"regexp"
 
 	"github.com/pkg/errors"
@@ -107,7 +107,7 @@ func calcDataHash(
 			sum := ch.Checksum()
 			f.Checksum = sum
 			err = manifestChecksumStore.Add(
-				filepath.Join(artifact.UpdatePath(i), filepath.Base(f.Name)),
+				path.Join(artifact.UpdatePath(i), path.Base(f.Name)),
 				sum,
 			)
 			if err != nil {
@@ -448,7 +448,7 @@ func writeScripts(tw *tar.Writer, scr *artifact.Scripts) error {
 		defer f.Close()
 
 		if err :=
-			sw.Write(f, filepath.Join("scripts", filepath.Base(script))); err != nil {
+			sw.Write(f, path.Join("scripts", path.Base(script))); err != nil {
 			return errors.Wrapf(err, "writer: can not store script: %s", script)
 		}
 	}
@@ -615,7 +615,7 @@ func writeOneDataTar(tw *tar.Writer, comp artifact.Compressor, no int,
 }
 
 func writeOneDataFile(tarw *tar.Writer, file *handlers.DataFile) error {
-	matched, err := regexp.MatchString(`^[\w\-.,]+$`, filepath.Base(file.Name))
+	matched, err := regexp.MatchString(`^[\w\-.,]+$`, path.Base(file.Name))
 
 	if err != nil {
 		return errors.Wrapf(err, "Payload: invalid regular expression pattern")
@@ -632,7 +632,7 @@ func writeOneDataFile(tarw *tar.Writer, file *handlers.DataFile) error {
 		return errors.Wrapf(err, "Payload: can not open data file: %s", file.Name)
 	}
 	fw := artifact.NewTarWriterFile(tarw)
-	if err := fw.Write(df, filepath.Base(file.Name)); err != nil {
+	if err := fw.Write(df, path.Base(file.Name)); err != nil {
 		df.Close()
 		return errors.Wrapf(err,
 			"Payload: can not write tar temp data header: %v", file)

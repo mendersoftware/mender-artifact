@@ -1202,7 +1202,7 @@ func TestReadBrokenArtifact(t *testing.T) {
 			// it's because the script directory is not expected at
 			// all, so the code goes straight to trying to figure
 			// out the payload index number.
-			errorStr:        "can not get Payload order from tar path",
+			errorStr:        `invalid header path "scripts/ArtifactInstall_Enter_00"`,
 			numFiles:        1,
 			numAugmentFiles: 1,
 		},

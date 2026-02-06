@@ -16,7 +16,7 @@ package artifact
 
 import (
 	"fmt"
-	"path/filepath"
+	"path"
 )
 
 const (
@@ -25,13 +25,13 @@ const (
 )
 
 func UpdatePath(no int) string {
-	return filepath.Join(DataDirectory, fmt.Sprintf("%04d", no))
+	return path.Join(DataDirectory, fmt.Sprintf("%04d", no))
 }
 
 func UpdateHeaderPath(no int) string {
-	return filepath.Join(HeaderDirectory, fmt.Sprintf("%04d", no))
+	return path.Join(HeaderDirectory, fmt.Sprintf("%04d", no))
 }
 
 func UpdateDataPath(no int) string {
-	return filepath.Join(DataDirectory, fmt.Sprintf("%04d.tar", no))
+	return path.Join(DataDirectory, fmt.Sprintf("%04d.tar", no))
 }

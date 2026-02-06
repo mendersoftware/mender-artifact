@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"path/filepath"
 
 	"github.com/pkg/errors"
 
@@ -140,7 +139,7 @@ func (b *BootstrapArtifact) ReadHeader(
 	}
 	b.version = version
 	switch {
-	case filepath.Base(path) == "type-info":
+	case match("headers/*/type-info", path):
 		dec := json.NewDecoder(r)
 		err := dec.Decode(&b.typeInfoV3)
 		if err != nil {

@@ -15,7 +15,7 @@
 package artifact
 
 import (
-	"path/filepath"
+	"path"
 	"regexp"
 
 	"github.com/pkg/errors"
@@ -39,12 +39,12 @@ var availableScriptType = map[string]bool{
 	"ArtifactFailure":        true,
 }
 
-func (s *Scripts) Add(path string) error {
+func (s *Scripts) Add(tarPath string) error {
 	if s.names == nil {
 		s.names = make(map[string]string)
 	}
 
-	name := filepath.Base(path)
+	name := path.Base(tarPath)
 
 	// all scripts must be formated like `ArtifactInstall_Enter_05_wifi-driver`
 	re := regexp.MustCompile(`([A-Za-z]+)_(Enter|Leave|Error)_[0-9][0-9](_\S+)?`)
@@ -69,7 +69,7 @@ func (s *Scripts) Add(path string) error {
 		return errors.Errorf("Script already exists: %s", name)
 	}
 
-	s.names[name] = path
+	s.names[name] = tarPath
 	return nil
 }
 

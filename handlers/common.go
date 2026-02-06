@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
-	"path/filepath"
+	"path"
 	"time"
 
 	"github.com/pkg/errors"
@@ -179,7 +179,7 @@ func parseFiles(r io.Reader) (*artifact.Files, error) {
 }
 
 func match(pattern, name string) bool {
-	match, err := filepath.Match(pattern, name)
+	match, err := path.Match(pattern, name)
 	if err != nil {
 		return false
 	}
@@ -199,7 +199,7 @@ func writeFiles(tw *tar.Writer, updFiles []string, dir string) error {
 		return errors.Wrap(err, "writeFiles: ")
 	}
 	if err := sa.Write(stream,
-		filepath.Join(dir, "files")); err != nil {
+		path.Join(dir, "files")); err != nil {
 		return errors.Wrapf(err, "writer: can not tar files")
 	}
 	return nil
@@ -213,7 +213,7 @@ func writeTypeInfo(tw *tar.Writer, updateType string, dir string) error {
 	}
 
 	w := artifact.NewTarWriterStream(tw)
-	if err := w.Write(info, filepath.Join(dir, "type-info")); err != nil {
+	if err := w.Write(info, path.Join(dir, "type-info")); err != nil {
 		return errors.Wrapf(err, "Payload: can not tar type-info")
 	}
 	return nil
@@ -232,7 +232,7 @@ func writeTypeInfoV3(args *WriteInfoArgs) error {
 	}
 
 	w := artifact.NewTarWriterStream(args.tarWriter)
-	if err := w.Write(info, filepath.Join(args.dir, "type-info")); err != nil {
+	if err := w.Write(info, path.Join(args.dir, "type-info")); err != nil {
 		return errors.Wrapf(err, "Payload: can not tar type-info")
 	}
 	return nil
