@@ -38,7 +38,7 @@ func TestArtifactsWrite(t *testing.T) {
 
 	err = Run([]string{"mender-artifact", "write", "rootfs-image"})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Required flags \"artifact-name, device-type, file\" not set",
+	assert.Contains(t, err.Error(), "Required flags \"artifact-name, file\" not set",
 		"Required flags error missing")
 
 	updateTestDir, _ := os.MkdirTemp("", "update")
@@ -53,6 +53,14 @@ func TestArtifactsWrite(t *testing.T) {
 			},
 		})
 	assert.NoError(t, err)
+
+	// neither --device-type nor --compatible-types provided
+	err = Run([]string{"mender-artifact", "write", "rootfs-image",
+		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
+		"-o", filepath.Join(updateTestDir, "art.mender")})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(),
+		"must provide `compatible-types`, `artifact-name` and `file`")
 
 	// no whitespace allowed in artifact-name
 	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",

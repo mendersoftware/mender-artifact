@@ -72,6 +72,16 @@ func writeRootfsImageChecksum(rootfsFilename string,
 	return nil
 }
 
+// getCompatibleDevices returns the device types from either --device-type or --compatible-types
+// flag. Both flags are mutually exclusive and at least one must be provided.
+func getCompatibleDevices(c *cli.Context) []string {
+	deviceTypes := c.StringSlice("device-type")
+	if len(deviceTypes) > 0 {
+		return deviceTypes
+	}
+	return c.StringSlice("compatible-types")
+}
+
 func validateInput(c *cli.Context) error {
 	// Version 2 and 3 validation.
 	fileMissing := false
@@ -80,10 +90,25 @@ func validateInput(c *cli.Context) error {
 			fileMissing = true
 		}
 	}
-	if len(c.StringSlice("device-type")) == 0 ||
+
+	// Check mutual exclusivity of --device-type and --compatible-types
+	hasDeviceType := len(c.StringSlice("device-type")) > 0
+	hasCompatibleTypes := len(c.StringSlice("compatible-types")) > 0
+	if hasDeviceType {
+		Log.Warn("--device-type is deprecated and will be removed in future versions, " +
+			"use --compatible-types instead")
+	}
+	if hasDeviceType && hasCompatibleTypes {
+		return cli.NewExitError(
+			"`device-type` and `compatible-types` are mutually exclusive",
+			errArtifactInvalidParameters,
+		)
+	}
+
+	if !hasDeviceType && !hasCompatibleTypes ||
 		len(c.String("artifact-name")) == 0 || fileMissing {
 		return cli.NewExitError(
-			"must provide `device-type`, `artifact-name` and `file`",
+			"must provide `compatible-types`, `artifact-name` and `file`",
 			errArtifactInvalidParameters,
 		)
 	}
@@ -196,9 +221,10 @@ func writeBootstrapArtifact(c *cli.Context) error {
 		return cli.NewExitError(err.Error(), 1)
 	}
 
+	compatibleDevices := getCompatibleDevices(c)
 	depends := artifact.ArtifactDepends{
 		ArtifactName:      c.StringSlice("artifact-name-depends"),
-		CompatibleDevices: c.StringSlice("device-type"),
+		CompatibleDevices: compatibleDevices,
 		ArtifactGroup:     c.StringSlice("depends-groups"),
 	}
 
@@ -228,7 +254,7 @@ func writeBootstrapArtifact(c *cli.Context) error {
 		&awriter.WriteArtifactArgs{
 			Format:     "mender",
 			Version:    version,
-			Devices:    c.StringSlice("device-type"),
+			Devices:    compatibleDevices,
 			Name:       c.String("artifact-name"),
 			Updates:    upd,
 			Scripts:    nil,
@@ -321,9 +347,10 @@ func writeRootfs(c *cli.Context) error {
 		return cli.NewExitError(err.Error(), 1)
 	}
 
+	compatibleDevices := getCompatibleDevices(c)
 	depends := artifact.ArtifactDepends{
 		ArtifactName:      c.StringSlice("artifact-name-depends"),
-		CompatibleDevices: c.StringSlice("device-type"),
+		CompatibleDevices: compatibleDevices,
 		ArtifactGroup:     c.StringSlice("depends-groups"),
 	}
 
@@ -363,7 +390,7 @@ func writeRootfs(c *cli.Context) error {
 		&awriter.WriteArtifactArgs{
 			Format:     "mender",
 			Version:    version,
-			Devices:    c.StringSlice("device-type"),
+			Devices:    compatibleDevices,
 			Name:       c.String("artifact-name"),
 			Updates:    upd,
 			Scripts:    scr,
@@ -754,9 +781,23 @@ func writeModuleImage(ctx *cli.Context) error {
 		return cli.NewExitError("Mender-Artifact version 1 is not supported", 1)
 	}
 
-	// The device-type flag is required
-	if len(ctx.StringSlice("device-type")) == 0 {
-		return cli.NewExitError("The `device-type` flag is required", 1)
+	// Check mutual exclusivity of --device-type and --compatible-types
+	hasDeviceType := len(ctx.StringSlice("device-type")) > 0
+	hasCompatibleTypes := len(ctx.StringSlice("compatible-types")) > 0
+	if hasDeviceType {
+		Log.Warn("--device-type is deprecated and will be removed in future versions, " +
+			"use --compatible-types instead")
+	}
+	if hasDeviceType && hasCompatibleTypes {
+		return cli.NewExitError(
+			"`device-type` and `compatible-types` are mutually exclusive",
+			errArtifactInvalidParameters,
+		)
+	}
+
+	// Either device-type or compatible-types flag is required
+	if !hasDeviceType && !hasCompatibleTypes {
+		return cli.NewExitError("The `device-type` or `compatible-types` flag is required", 1)
 	}
 
 	upd, err := makeUpdates(ctx)
@@ -789,9 +830,10 @@ func writeModuleImage(ctx *cli.Context) error {
 		return cli.NewExitError(err.Error(), 1)
 	}
 
+	compatibleDevices := getCompatibleDevices(ctx)
 	depends := artifact.ArtifactDepends{
 		ArtifactName:      ctx.StringSlice("artifact-name-depends"),
-		CompatibleDevices: ctx.StringSlice("device-type"),
+		CompatibleDevices: compatibleDevices,
 		ArtifactGroup:     ctx.StringSlice("depends-groups"),
 	}
 
@@ -821,7 +863,7 @@ func writeModuleImage(ctx *cli.Context) error {
 		&awriter.WriteArtifactArgs{
 			Format:            "mender",
 			Version:           version,
-			Devices:           ctx.StringSlice("device-type"),
+			Devices:           compatibleDevices,
 			Name:              ctx.String("artifact-name"),
 			Updates:           upd,
 			Scripts:           scr,
