@@ -864,7 +864,8 @@ func getDeviceSnapshot(c *cli.Context) (filePath string, err error) {
 	defer cancel()
 
 	// Create tempfile for storing the snapshot
-	f, err := os.CreateTemp("", "rootfs.tmp")
+	tmpDir := c.String("tmp")
+	f, err := os.CreateTemp(tmpDir, "rootfs.tmp")
 	if err != nil {
 		return
 	}

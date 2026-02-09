@@ -16,6 +16,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -310,6 +311,11 @@ func getCliContext() *cli.App {
 			Usage: "Arguments to pass to ssh - only applies when " +
 				"creating artifact from snapshot (i.e. FILE " +
 				"contains 'ssh://' schema)",
+		},
+		cli.StringFlag{
+			Name:  "tmp",
+			Value: os.TempDir(),
+			Usage: "Provide custom file path for tmp directory.",
 		},
 		cli.BoolFlag{
 			Name:  "no-progress",
@@ -630,6 +636,11 @@ func getCliContext() *cli.App {
 			Usage: "Erase one \"Clears Provides\" filter from the Artifact.",
 		},
 		cli.StringFlag{
+			Name:  "tmp",
+			Value: os.TempDir(),
+			Usage: "Provide custom file path for tmp directory.",
+		},
+		cli.StringFlag{
 			Name:  "tenant-token, t",
 			Usage: "Full path to the tenant token that will be injected into modified file.",
 		},
@@ -693,6 +704,11 @@ func getCliContext() *cli.App {
 		cli.BoolFlag{
 			Name:  "directory, d",
 			Usage: "Create a directory inside an artifact",
+		},
+		cli.StringFlag{
+			Name:  "tmp",
+			Value: os.TempDir(),
+			Usage: "Provide custom file path for tmp directory.",
 		},
 	}
 
