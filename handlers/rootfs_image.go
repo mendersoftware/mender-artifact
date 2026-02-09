@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"path/filepath"
+	"path"
 
 	"github.com/pkg/errors"
 
@@ -110,7 +110,7 @@ func (rp *Rootfs) GetVersion() int {
 func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bool) error {
 	rp.version = version
 	switch {
-	case filepath.Base(path) == "files":
+	case match("headers/*/files", path):
 		if version >= 3 {
 			return errors.New("\"files\" entry found in version 3 artifact")
 		}
@@ -124,7 +124,7 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bo
 		if err != nil {
 			return err
 		}
-	case filepath.Base(path) == "type-info":
+	case match("headers/*/type-info", path):
 		if rp.version < 3 {
 			// This was ignored in pre-v3 versions, so keep ignoring it.
 			break
@@ -135,7 +135,7 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int, augmented bo
 			return errors.Wrap(err, "error reading type-info")
 		}
 
-	case filepath.Base(path) == "meta-data":
+	case match("headers/*/meta-data", path):
 		dec := json.NewDecoder(r)
 		var data interface{}
 		err := dec.Decode(&data)
@@ -354,17 +354,17 @@ func (rfs *Rootfs) GetUpdateAugmentClearsProvides() []string {
 
 func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 
-	path := artifact.UpdateHeaderPath(args.No)
+	tarPath := artifact.UpdateHeaderPath(args.No)
 
 	switch rfs.version {
 	case 1, 2:
 		// first store files
-		if err := writeFiles(args.TarWriter, []string{filepath.Base(rfs.update.Name)},
-			path); err != nil {
+		if err := writeFiles(args.TarWriter, []string{path.Base(rfs.update.Name)},
+			tarPath); err != nil {
 			return err
 		}
 
-		if err := writeTypeInfo(args.TarWriter, "rootfs-image", path); err != nil {
+		if err := writeTypeInfo(args.TarWriter, "rootfs-image", tarPath); err != nil {
 			return err
 		}
 
@@ -379,7 +379,7 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 
 		if err := writeTypeInfoV3(&WriteInfoArgs{
 			tarWriter:  args.TarWriter,
-			dir:        path,
+			dir:        tarPath,
 			typeinfov3: args.TypeInfoV3,
 		}); err != nil {
 			return errors.Wrap(err, "ComposeHeader")
@@ -397,7 +397,7 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 		)
 	}
 	sw := artifact.NewTarWriterStream(args.TarWriter)
-	if err := sw.Write(nil, filepath.Join(path, "meta-data")); err != nil {
+	if err := sw.Write(nil, path.Join(tarPath, "meta-data")); err != nil {
 		return errors.Wrap(err, "Payload: can not store meta-data")
 	}
 

@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"path/filepath"
+	"path"
 
 	"github.com/pkg/errors"
 
@@ -429,11 +429,11 @@ func (img *ModuleImage) ComposeHeader(args *ComposeHeaderArgs) error {
 
 	img.typeInfoV3 = args.TypeInfoV3
 
-	path := artifact.UpdateHeaderPath(args.No)
+	tarPath := artifact.UpdateHeaderPath(args.No)
 
 	if err := writeTypeInfoV3(&WriteInfoArgs{
 		tarWriter:  args.TarWriter,
-		dir:        path,
+		dir:        tarPath,
 		typeinfov3: args.TypeInfoV3,
 	}); err != nil {
 		return errors.Wrap(err, "ComposeHeader: ")
@@ -448,7 +448,7 @@ func (img *ModuleImage) ComposeHeader(args *ComposeHeaderArgs) error {
 				"MetaData field unmarshalable. This is a bug in the application",
 			)
 		}
-		if err = sw.Write(data, filepath.Join(path, "meta-data")); err != nil {
+		if err = sw.Write(data, path.Join(tarPath, "meta-data")); err != nil {
 			return errors.Wrap(err, "Payload: can not store meta-data")
 		}
 	}
@@ -463,13 +463,13 @@ func (img *ModuleImage) ReadHeader(r io.Reader, path string, version int, augmen
 
 	img.version = version
 	switch {
-	case filepath.Base(path) == "type-info":
+	case match("headers/*/type-info", path):
 		dec := json.NewDecoder(r)
 		err := dec.Decode(&img.typeInfoV3)
 		if err != nil {
 			return errors.Wrap(err, "error reading type-info")
 		}
-	case filepath.Base(path) == "meta-data":
+	case match("headers/*/meta-data", path):
 		dec := json.NewDecoder(r)
 		var data interface{}
 		err := dec.Decode(&data)
