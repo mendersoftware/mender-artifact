@@ -470,6 +470,7 @@ Updates:
 		"script",
 		"warn-artifact-size",
 		"max-artifact-size",
+		"tmp",
 	})
 	modifyFlagsTested.addFlags([]string{
 		"artifact-name",
@@ -479,6 +480,7 @@ Updates:
 		"vault-transit-key",
 		"key",
 		"name",
+		"tmp",
 	})
 }
 
@@ -1044,6 +1046,7 @@ func TestModifyAllFlagsTested(t *testing.T) {
 		"ssh-args",
 		"version",     // Could be supported, but we don't care about this.
 		"no-progress", // Has no effect on the output
+		"tmp",
 	})
 
 	modifyWriteFlagsTested.checkAllFlagsTested(t)
