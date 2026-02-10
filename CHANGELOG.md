@@ -1,4 +1,60 @@
 ---
+## 4.3.0 - 2026-02-10
+
+
+### Bug fixes
+
+
+- Improve header path validation parsing artifact header
+ ([171d940](https://github.com/mendersoftware/mender-artifact/commit/171d94000ac8efc1308a1a06a52e3d1944c2599f))  by @alfrunes
+
+
+
+
+  Currently, the artifact format allows path traversal patterns in the
+  `header.tar` entry as only the prefix and basename of the path is
+  validated. Although the mender artifact library or CLI never extracts
+  the artifact header to the file system, the validation should validate
+  the paths against the specification.
+  This commit makes the installer parse the entire path pattern.
+- Compatibility with Windows for tar paths
+ ([743ec49](https://github.com/mendersoftware/mender-artifact/commit/743ec49680dd23fea8de7236b1c42fc1b738bb21))  by @alfrunes
+
+  Replaced path expansion library from OS dependent `path/filepath` to `path` which uses tar-compatible `/` separator for path segments when evaluating tar paths.
+
+
+
+
+
+### Features
+
+
+- Add --compatible-types (-c) as alias for --device-type
+([MEN-9010](https://northerntech.atlassian.net/browse/MEN-9010)) ([1adacac](https://github.com/mendersoftware/mender-artifact/commit/1adacac680082e826ae6e82a990682b3427f61ee))  by @vpodzime
+
+
+
+
+
+
+
+  Add a new CLI option --compatible-types with short option -c that
+  works the same way as --device-type but is mutually exclusive
+  with it. This provides an alternative name for specifying
+  compatible types when creating artifacts.
+  
+  The new flag is available on all write subcommands: rootfs-image,
+  module-image, and bootstrap-artifact.
+
+  The old CLI option --device-type is now marked as deprecated and
+  its use produces a warning.
+
+  Also, "Compatible devices" is now replaced by "Compatible types" in `read`
+  command output.
+
+
+
+
 ## 4.2.0 - 2025-10-15
 
 
