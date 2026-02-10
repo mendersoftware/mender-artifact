@@ -115,7 +115,7 @@ func TestSignExistingWithScripts(t *testing.T) {
 	assert.NoError(t, err)
 
 	// write artifact
-	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-c", "my-device",
 		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Enter_99"),
@@ -169,7 +169,7 @@ func TestSignExistingWithModules(t *testing.T) {
 			},
 		})
 
-	err = Run([]string{"mender-artifact", "write", "module-image", "-t", "my-device",
+	err = Run([]string{"mender-artifact", "write", "module-image", "-c", "my-device",
 		"-n", "mender-1.1", "-T", "custom-update-type",
 		"-f", filepath.Join(updateTestDir, "payload-file"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender")})
@@ -280,7 +280,7 @@ func TestSignWithWriteCommand(t *testing.T) {
 		})
 
 	t.Run("module-image", func(t *testing.T) {
-		err = Run([]string{"mender-artifact", "write", "module-image", "-t", "my-device",
+		err = Run([]string{"mender-artifact", "write", "module-image", "-c", "my-device",
 			"-n", "mender-1.1", "-T", "custom-update-type",
 			"-f", filepath.Join(updateTestDir, "payload-file"),
 			"-k", filepath.Join(updateTestDir, "private.key"),
@@ -302,7 +302,7 @@ func TestSignWithWriteCommand(t *testing.T) {
 	})
 
 	t.Run("rootfs-image", func(t *testing.T) {
-		err = Run([]string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+		err = Run([]string{"mender-artifact", "write", "rootfs-image", "-c", "my-device",
 			"-n", "mender-1.1",
 			"-f", filepath.Join(updateTestDir, "payload-file"),
 			"-k", filepath.Join(updateTestDir, "private.key"),

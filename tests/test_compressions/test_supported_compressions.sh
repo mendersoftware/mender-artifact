@@ -18,7 +18,7 @@ set -xe
 supported_compressions=`"${TEST_MENDER_ARTIFACT_PATH}" write rootfs-image --help | grep compression | cut -f2 -d: | tr -d , | tr -d .`
 [[ "$supported_compressions" != "" ]] || exit 1
 for c in $supported_compressions; do
-  "${TEST_MENDER_ARTIFACT_PATH}" --compression "$c" write rootfs-image -t test -o "test-rfs-${c}.mender" -n "test-${c}" -f test.txt
+  "${TEST_MENDER_ARTIFACT_PATH}" --compression "$c" write rootfs-image -c test -o "test-rfs-${c}.mender" -n "test-${c}" -f test.txt
   "${TEST_MENDER_ARTIFACT_PATH}" read "test-rfs-${c}.mender"
   "${TEST_MENDER_ARTIFACT_PATH}" validate "test-rfs-${c}.mender"
 done

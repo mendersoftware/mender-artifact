@@ -333,7 +333,7 @@ func TestModifyRootfsSigned(t *testing.T) {
 
 		// Create and sign artifact using RSA private key.
 		err = Run([]string{
-			"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+			"mender-artifact", "write", "rootfs-image", "-c", "my-device",
 			"-n", "release-1", "-f", filepath.Join(tmp, "mender_test.img"),
 			"-o", filepath.Join(tmp, "artifact.mender"),
 			"-k", filepath.Join(tmp, key)})
@@ -409,7 +409,7 @@ Updates:
 	err = Run([]string{
 		"mender-artifact", "write",
 		"rootfs-image",
-		"-t", "my-device",
+		"-c", "my-device",
 		"-n", "release-1",
 		"-f", filepath.Join(tmp, "mender_test.img"),
 		"-o", filepath.Join(tmp, "artifact.mender"),
@@ -499,7 +499,7 @@ func TestModifyModuleArtifact(t *testing.T) {
 		"mender-artifact", "write", "module-image",
 		"-o", artfile,
 		"-n", "testName",
-		"-t", "testDevice",
+		"-c", "testDevice",
 		"-T", "testType",
 		"-f", filepath.Join(tmpdir, "updateFile"),
 		"-f", filepath.Join(tmpdir, "updateFile2"),
@@ -589,7 +589,7 @@ Updates:
 		"mender-artifact", "write", "module-image",
 		"-o", artfile,
 		"-n", "testName",
-		"-t", "testDevice",
+		"-c", "testDevice",
 		"-T", "testType",
 		"-f", filepath.Join(tmpdir, "updateFile"),
 		"-f", filepath.Join(tmpdir, "updateFile2"),
@@ -730,7 +730,7 @@ func TestModifyExtraAttributes(t *testing.T) {
 		"mender-artifact", "write", "module-image",
 		"-o", artfile,
 		"-n", "testName",
-		"-t", "testDevice",
+		"-c", "testDevice",
 		"-T", "testType",
 		"-f", filepath.Join(tmpdir, "updateFile"),
 		"--no-default-clears-provides",
@@ -869,7 +869,7 @@ func TestModifyClearsProvides(t *testing.T) {
 		"mender-artifact", "write", "module-image",
 		"-o", artfile,
 		"-n", "testName",
-		"-t", "testDevice",
+		"-c", "testDevice",
 		"-T", "testType",
 	})
 	require.NoError(t, err)
@@ -931,7 +931,7 @@ func TestModifyNoProvides(t *testing.T) {
 		"mender-artifact", "write", "rootfs-image",
 		"-o", artfile,
 		"-n", "testName",
-		"-t", "testDevice",
+		"-c", "testDevice",
 		"-f", filepath.Join(tmpdir, "updateFile"),
 		"--no-checksum-provide",
 		"--no-default-software-version",
@@ -991,7 +991,7 @@ func TestModifyCompression(t *testing.T) {
 		"mender-artifact", "write", "rootfs-image",
 		"-o", artfile,
 		"-n", "testName",
-		"-t", "testDevice",
+		"-c", "testDevice",
 		"-f", filepath.Join(tmpdir, "updateFile"),
 	})
 	require.NoError(t, err)
