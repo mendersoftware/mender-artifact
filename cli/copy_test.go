@@ -981,7 +981,7 @@ func TestCopyModuleImage(t *testing.T) {
 		"mender-artifact", "write", "module-image",
 		"-o", artfile,
 		"-n", "testName",
-		"-t", "testDevice",
+		"-c", "testDevice",
 		"-T", "testType",
 		"-f", filepath.Join(tmpdir, "updateFile"),
 	})

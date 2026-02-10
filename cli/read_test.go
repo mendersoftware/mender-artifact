@@ -76,7 +76,7 @@ func TestReadArtifactOutput(t *testing.T) {
 		"mender-artifact", "write", "module-image",
 		"-o", artfile,
 		"-n", "testName",
-		"-t", "testDevice",
+		"-c", "testDevice",
 		"-N", "testNameDepends1",
 		"-N", "testNameDepends2",
 		"-g", "testGroupProvide",
@@ -149,7 +149,7 @@ Updates:
 		"mender-artifact", "write", "rootfs-image",
 		"-o", artfile,
 		"-n", "testName",
-		"-t", "testDevice",
+		"-c", "testDevice",
 		"-f", filepath.Join(tmpdir, "updateFile"),
 	}
 	err = cliContext.Run(args)
@@ -193,7 +193,7 @@ func TestReadBootstrapArtifactOutput(t *testing.T) {
 		"mender-artifact", "write", "bootstrap-artifact",
 		"-o", artfile,
 		"-n", "testName",
-		"-t", "testDevice",
+		"-c", "testDevice",
 		"-g", "testGroupProvide",
 		"-G", "testGroupDepends1",
 		"-G", "testGroupDepends2",

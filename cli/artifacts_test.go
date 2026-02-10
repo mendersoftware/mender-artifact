@@ -252,7 +252,7 @@ func TestArtifactsSigned(t *testing.T) {
 	assert.NoError(t, err)
 
 	// invalid private key
-	args := []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+	args := []string{"mender-artifact", "write", "rootfs-image", "-c", "my-device",
 		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-k", "non-existing-private.key"}
@@ -261,7 +261,7 @@ func TestArtifactsSigned(t *testing.T) {
 	assert.Contains(t, errors.Cause(err).Error(), "Error reading key file")
 
 	// store named file
-	args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+	args = []string{"mender-artifact", "write", "rootfs-image", "-c", "my-device",
 		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-k", filepath.Join(updateTestDir, "private.key")}
@@ -309,7 +309,7 @@ func TestArtifactsSigned(t *testing.T) {
 	assert.Contains(t, errors.Cause(err).Error(), "Error reading key file")
 
 	// invalid version
-	args = []string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+	args = []string{"mender-artifact", "write", "rootfs-image", "-c", "my-device",
 		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-k", filepath.Join(updateTestDir, "private.key"),

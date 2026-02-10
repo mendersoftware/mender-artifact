@@ -107,10 +107,10 @@ test:smoketests:mac:
     - touch test.txt
     - ./mender-artifact-darwin
     - ./mender-artifact-darwin --version
-    - ./mender-artifact-darwin write module-image -t test -o test.mender -T script -n test -f test.txt
+    - ./mender-artifact-darwin write module-image -c test -o test.mender -T script -n test -f test.txt
     - ./mender-artifact-darwin read test.mender
     - ./mender-artifact-darwin validate test.mender
-    - ./mender-artifact-darwin write rootfs-image -t test -o test-rfs.mender -n test -f test.txt
+    - ./mender-artifact-darwin write rootfs-image -c test -o test-rfs.mender -n test -f test.txt
     - ./mender-artifact-darwin read test-rfs.mender
     - ./mender-artifact-darwin validate test-rfs.mender
     - ./mender-artifact-darwin validate --key tests/data/ec.pem tests/data/a0-signed-nitro.mender
@@ -136,10 +136,10 @@ test:smoketests:linux:
     - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh
     - ./mender-artifact-linux
     - ./mender-artifact-linux --version
-    - ./mender-artifact-linux write module-image -t test -o test.mender -T script -n test -f test.txt
+    - ./mender-artifact-linux write module-image -c test -o test.mender -T script -n test -f test.txt
     - ./mender-artifact-linux read test.mender
     - ./mender-artifact-linux validate test.mender
-    - ./mender-artifact-linux write rootfs-image -t test -o test-rfs.mender -n test -f test.txt
+    - ./mender-artifact-linux write rootfs-image -c test -o test-rfs.mender -n test -f test.txt
     - ./mender-artifact-linux read test-rfs.mender
     - ./mender-artifact-linux validate test-rfs.mender
     - ./mender-artifact-linux validate --key tests/data/ec.pem tests/data/a0-signed-nitro.mender

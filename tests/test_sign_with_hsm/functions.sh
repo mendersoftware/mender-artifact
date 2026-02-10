@@ -55,7 +55,7 @@ function test_main() {
         module-image \
         -T local-type \
         -n ci-tests-artifact-1 \
-        -t ci-type-1 \
+        -c ci-type-1 \
         -o "$artifact"
     cat << EOF > /etc/ssl/openssl.cnf
 [openssl_init]

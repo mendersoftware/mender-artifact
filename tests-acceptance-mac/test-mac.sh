@@ -23,7 +23,7 @@ touch rootfs.ext4
 mender-artifact write | diff ma-write-help-text.golden -
 
 ########## Step 1 - Write an Artifact  ##########
-mender-artifact write rootfs-image -t beaglebone -n release-1 -f rootfs.ext4 -o artifact.mender 2> /dev/null
+mender-artifact write rootfs-image -c beaglebone -n release-1 -f rootfs.ext4 -o artifact.mender 2> /dev/null
 
 ########## Step 2 - Verify an Artifact ##########
 mender-artifact validate artifact.mender > /dev/null

@@ -63,13 +63,13 @@ func TestArtifactsWrite(t *testing.T) {
 		"must provide `compatible-types`, `artifact-name` and `file`")
 
 	// no whitespace allowed in artifact-name
-	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-c", "my-device",
 		"-n", "mender-1. 1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "art.mender"), "-v", "2"})
 	assert.Equal(t, "whitespace is not allowed in the artifact-name", err.Error())
 
 	// store named file V2.
-	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-c", "my-device",
 		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "art.mender"), "-v", "2"})
 	assert.NoError(t, err)
@@ -79,13 +79,13 @@ func TestArtifactsWrite(t *testing.T) {
 	assert.False(t, fs.IsDir())
 
 	// store named file V3.
-	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-c", "my-device",
 		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "art.mender"), "-v", "3"})
 	assert.NoError(t, err)
 
 	// Write invalid artifact-version.
-	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-c", "my-device",
 		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "art.mender"), "-v", "300"})
 	assert.Error(t, err)
@@ -136,7 +136,7 @@ func TestWithScripts(t *testing.T) {
 	assert.NoError(t, err)
 
 	// write artifact
-	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-c", "my-device",
 		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Enter_99"),
@@ -151,7 +151,7 @@ func TestWithScripts(t *testing.T) {
 
 	// write artifact with invalid version
 	fakeErrWriter.Reset()
-	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-c", "my-device",
 		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-s", filepath.Join(updateTestDir, "ArtifactInstall_Enter_99"),
@@ -162,7 +162,7 @@ func TestWithScripts(t *testing.T) {
 
 	// write artifact vith invalid script name
 	fakeErrWriter.Reset()
-	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-t", "my-device",
+	err = Run([]string{"mender-artifact", "write", "rootfs-image", "-c", "my-device",
 		"-n", "mender-1.1", "-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-o", filepath.Join(updateTestDir, "artifact.mender"),
 		"-s", filepath.Join(updateTestDir, "InvalidScript")})
@@ -194,7 +194,7 @@ func TestWriteModuleImage(t *testing.T) {
 		"mender-artifact", "write", "module-image",
 		"-o", artfile,
 		"-n", "testName",
-		"-t", "testDevice",
+		"-c", "testDevice",
 		"-N", "testNameDepends1",
 		"-N", "testNameDepends2",
 		"-g", "testGroupProvide",
@@ -336,7 +336,7 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 
 	err = Run([]string{
 		"mender-artifact", "write", "rootfs-image",
-		"-t", "mydevice",
+		"-c", "mydevice",
 		"-o", artfile,
 		"-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-n", "testName",
@@ -407,7 +407,7 @@ func TestWriteRootfsArtifactDependsAndProvides(t *testing.T) {
 
 	err = Run([]string{
 		"mender-artifact", "write", "rootfs-image",
-		"-t", "mydevice",
+		"-c", "mydevice",
 		"-o", tart,
 		"-f", filepath.Join(updateTestDir, "update.ext4"),
 		"-n", "noprovides",
@@ -461,7 +461,7 @@ func TestWriteRootfsArtifactDependsAndProvidesOverrides(t *testing.T) {
 		"default": {
 			args: []string{
 				"mender-artifact", "write", "rootfs-image",
-				"-t", "mydevice",
+				"-c", "mydevice",
 				"-o", artfile,
 				"-f", filepath.Join(updateTestDir, "update.ext4"),
 				"-n", "testName",
@@ -480,7 +480,7 @@ func TestWriteRootfsArtifactDependsAndProvidesOverrides(t *testing.T) {
 		"override with provides": {
 			args: []string{
 				"mender-artifact", "write", "rootfs-image",
-				"-t", "mydevice",
+				"-c", "mydevice",
 				"-o", artfile,
 				"-f", filepath.Join(updateTestDir, "update.ext4"),
 				"-n", "testName",
@@ -500,7 +500,7 @@ func TestWriteRootfsArtifactDependsAndProvidesOverrides(t *testing.T) {
 		"override with software-version": {
 			args: []string{
 				"mender-artifact", "write", "rootfs-image",
-				"-t", "mydevice",
+				"-c", "mydevice",
 				"-o", artfile,
 				"-f", filepath.Join(updateTestDir, "update.ext4"),
 				"-n", "testName",
@@ -521,7 +521,7 @@ func TestWriteRootfsArtifactDependsAndProvidesOverrides(t *testing.T) {
 		"override with software-version and provides": {
 			args: []string{
 				"mender-artifact", "write", "rootfs-image",
-				"-t", "mydevice",
+				"-c", "mydevice",
 				"-o", artfile,
 				"-f", filepath.Join(updateTestDir, "update.ext4"),
 				"-n", "testName",
@@ -846,7 +846,7 @@ func TestWriteClearsProvides(t *testing.T) {
 		testfunc := func(t *testing.T, payloadType string) {
 			args := []string{
 				"mender-artifact", "write", payloadType,
-				"-t", "mydevice",
+				"-c", "mydevice",
 				"-o", artfile,
 				"-f", filepath.Join(updateTestDir, "update.ext4"),
 				"-n", "testName",
@@ -906,7 +906,7 @@ func TestWriteRootfsWithPayloadSizeLimits(t *testing.T) {
 		artfile := filepath.Join(tmpdir, "small.mender")
 		err := Run([]string{
 			"mender-artifact", "write", "rootfs-image",
-			"-t", "test-device",
+			"-c", "test-device",
 			"-n", "test-small",
 			"-f", smallFile,
 			"-o", artfile,
@@ -920,7 +920,7 @@ func TestWriteRootfsWithPayloadSizeLimits(t *testing.T) {
 		artfile := filepath.Join(tmpdir, "warn.mender")
 		err := Run([]string{
 			"mender-artifact", "write", "rootfs-image",
-			"-t", "test-device",
+			"-c", "test-device",
 			"-n", "test-warn",
 			"-f", mediumFile,
 			"-o", artfile,
@@ -935,7 +935,7 @@ func TestWriteRootfsWithPayloadSizeLimits(t *testing.T) {
 		artfile := filepath.Join(tmpdir, "fail.mender")
 		err := Run([]string{
 			"mender-artifact", "write", "rootfs-image",
-			"-t", "test-device",
+			"-c", "test-device",
 			"-n", "test-fail",
 			"-f", mediumFile,
 			"-o", artfile,
@@ -966,7 +966,7 @@ func TestWriteRootfsWithPayloadSizeLimits(t *testing.T) {
 				artfile := filepath.Join(tmpdir, "format-"+tc.name+".mender")
 				err := Run([]string{
 					"mender-artifact", "write", "rootfs-image",
-					"-t", "test-device",
+					"-c", "test-device",
 					"-n", "test-format",
 					"-f", smallFile,
 					"-o", artfile,
@@ -1001,7 +1001,7 @@ func TestWriteModuleImageWithPayloadSizeLimits(t *testing.T) {
 		artfile := filepath.Join(tmpdir, "module-small.mender")
 		err := Run([]string{
 			"mender-artifact", "write", "module-image",
-			"-t", "test-device",
+			"-c", "test-device",
 			"-n", "test-module-small",
 			"-T", "test-type",
 			"-f", smallFile,
@@ -1016,7 +1016,7 @@ func TestWriteModuleImageWithPayloadSizeLimits(t *testing.T) {
 		artfile := filepath.Join(tmpdir, "module-fail.mender")
 		err := Run([]string{
 			"mender-artifact", "write", "module-image",
-			"-t", "test-device",
+			"-c", "test-device",
 			"-n", "test-module-fail",
 			"-T", "test-type",
 			"-f", mediumFile,
