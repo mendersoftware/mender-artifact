@@ -80,7 +80,7 @@ func modifyArtifact(c *cli.Context) (err error) {
 }
 
 // oblivious to whether the file exists beforehand
-func modifyArtifactInfoName(name string, image VPImage) error {
+func modifyArtifactInfoName(c *cli.Context, name string, image VPImage) error {
 	art, isArt := image.(*ModImageArtifact)
 	if isArt {
 		// For artifacts, modify name in attributes.
@@ -91,7 +91,8 @@ func modifyArtifactInfoName(name string, image VPImage) error {
 	}
 
 	data := fmt.Sprintf("artifact_name=%s", name)
-	tmpNameFile, err := os.CreateTemp("", "mender-name")
+	tmpDir := c.String("tmp")
+	tmpNameFile, err := os.CreateTemp(tmpDir, "mender-name")
 	if err != nil {
 		return err
 	}
@@ -133,10 +134,11 @@ func modifyVerificationKey(newKey string, image VPImage) error {
 	return CopyIntoImage(newKey, image, "/etc/mender/artifact-verify-key.pem")
 }
 
-func modifyMenderConfVar(confKey, confValue string, image VPImage) error {
+func modifyMenderConfVar(c *cli.Context, confKey, confValue string, image VPImage) error {
 	confFile := "/etc/mender/mender.conf"
 
-	dir, err := os.MkdirTemp("", "")
+	tmpDir := c.String("tmp")
+	dir, err := os.MkdirTemp(tmpDir, "")
 	if err != nil {
 		return err
 	}
@@ -192,7 +194,7 @@ func extractKeyValuesIfArtifact(
 
 func modifyExisting(c *cli.Context, image VPImage) error {
 	if c.String("server-uri") != "" {
-		if err := modifyMenderConfVar("ServerURL",
+		if err := modifyMenderConfVar(c, "ServerURL",
 			c.String("server-uri"), image); err != nil {
 			return err
 		}
@@ -211,7 +213,7 @@ func modifyExisting(c *cli.Context, image VPImage) error {
 	}
 
 	if c.String("tenant-token") != "" {
-		if err := modifyMenderConfVar("TenantToken",
+		if err := modifyMenderConfVar(c, "TenantToken",
 			c.String("tenant-token"), image); err != nil {
 			return err
 		}
@@ -232,7 +234,7 @@ func modifyExisting(c *cli.Context, image VPImage) error {
 
 func modifyArtifactAttributes(c *cli.Context, image VPImage) error {
 	if c.String("artifact-name") != "" {
-		if err := modifyArtifactInfoName(c.String("artifact-name"), image); err != nil {
+		if err := modifyArtifactInfoName(c, c.String("artifact-name"), image); err != nil {
 			return err
 		}
 	}

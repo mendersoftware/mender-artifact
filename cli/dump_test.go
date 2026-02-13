@@ -298,6 +298,7 @@ func testDumpContent(t *testing.T, imageType, printCmdline string) {
 		"no-progress",
 		"warn-artifact-size",
 		"max-artifact-size",
+		"tmp",
 	})
 
 	flagChecker.checkAllFlagsTested(t)

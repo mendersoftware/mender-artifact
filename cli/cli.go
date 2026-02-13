@@ -314,6 +314,11 @@ func getCliContext() *cli.App {
 				"creating artifact from snapshot (i.e. FILE " +
 				"contains 'ssh://' schema)",
 		},
+		cli.StringFlag{
+			Name:  "tmp",
+			Value: "",
+			Usage: "Provide custom file path for tmp directory.",
+		},
 		cli.BoolFlag{
 			Name:  "no-progress",
 			Usage: "Suppress the progressbar output",
@@ -639,6 +644,11 @@ func getCliContext() *cli.App {
 			Usage: "Erase one \"Clears Provides\" filter from the Artifact.",
 		},
 		cli.StringFlag{
+			Name:  "tmp",
+			Value: "",
+			Usage: "Provide custom file path for tmp directory.",
+		},
+		cli.StringFlag{
 			Name:  "tenant-token, t",
 			Usage: "Full path to the tenant token that will be injected into modified file.",
 		},
@@ -702,6 +712,11 @@ func getCliContext() *cli.App {
 		cli.BoolFlag{
 			Name:  "directory, d",
 			Usage: "Create a directory inside an artifact",
+		},
+		cli.StringFlag{
+			Name:  "tmp",
+			Value: "",
+			Usage: "Provide custom file path for tmp directory.",
 		},
 	}
 
