@@ -276,6 +276,7 @@ func getCliContext() *cli.App {
 			Name: "compatible-types, c",
 			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
 				"compatible devices providing this parameter multiple times.",
+			Required: true,
 		},
 		artifactName,
 		cli.StringFlag{
@@ -370,6 +371,7 @@ func getCliContext() *cli.App {
 			Name: "compatible-types, c",
 			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
 				"compatible devices providing this parameter multiple times.",
+			Required: true,
 		},
 		cli.StringFlag{
 			Name:  "output-path, o",
@@ -471,6 +473,7 @@ func getCliContext() *cli.App {
 			Name: "compatible-types, c",
 			Usage: "Type of device(s) supported by the Artifact. You can specify multiple " +
 				"compatible devices providing this parameter multiple times.",
+			Required: true,
 		},
 		artifactName,
 		cli.StringFlag{
