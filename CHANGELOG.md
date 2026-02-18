@@ -1,4 +1,25 @@
 ---
+## 4.4.0 - 2026-02-18
+
+
+### Features
+
+
+- Added 'tmp' directory cli option
+([MEN-8479](https://northerntech.atlassian.net/browse/MEN-8479)) ([e6d7ff1](https://github.com/mendersoftware/mender-artifact/commit/e6d7ff13fd9267dbaa581bebe90b6fdb68e12d91))  by @rewanrashid-boop
+
+
+
+
+
+  Changed mender-artifact 'install', 'write rootfs-image', 'modify' to
+  allow for custom 'tmp' directory
+
+
+
+
+
+
 ## 4.3.0 - 2026-02-10
 
 
