@@ -187,7 +187,7 @@ func Install(c *cli.Context) (err error) {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 
-		tfName, err := createTmpFileWithPerm(f, perm)
+		tfName, err := createTmpFileWithPerm(c, f, perm)
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
@@ -299,9 +299,10 @@ func parseCLIOptions(c *cli.Context) int {
 
 // createTmpFileWithPerm Takes a file, and creates a temp-file copy of the
 // current file, with the permissions given by perm.
-func createTmpFileWithPerm(f *os.File, perm os.FileMode) (string, error) {
+func createTmpFileWithPerm(c *cli.Context, f *os.File, perm os.FileMode) (string, error) {
 
-	td, err := os.MkdirTemp("", "mender-artifact-install")
+	tmpDir := c.String("tmp")
+	td, err := os.MkdirTemp(tmpDir, "mender-artifact-install")
 	if err != nil {
 		return "", err
 	}
