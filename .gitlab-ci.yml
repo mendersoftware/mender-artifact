@@ -6,6 +6,10 @@ stages:
   - trigger
 
 include:
+  - project: Northern.tech/Mender/mendertesting
+    file:
+      - qa-common/runner.yml
+      - qa-common/retry.yml
   - project: "Northern.tech/Mender/mendertesting"
     file: ".gitlab-ci-check-golang-lint.yml"
   - project: "Northern.tech/Mender/mendertesting"
@@ -36,6 +40,10 @@ include:
   - component: gitlab.com/Northern.tech/Mender/mendertesting/release-docs-changelog@master
     inputs:
       remote_changelog_file: "30.mender-artifact/docs.md"
+
+default:
+  tags: !reference [.qa-common-default-runner, tags]
+  retry: !reference [.qa-common-default-retry, retry]
 
 cache:
   paths:
@@ -126,6 +134,7 @@ test:smoketests:linux:
     - job: build:make
       artifacts: true
   before_script:
+    - !reference [.qa-common-network-apt-retry, before_script]
     - apt-get update && apt-get install -q -y make liblzma-dev libssl-dev jq wget
     # yq no longer has a maintained debian repo so we fall back on the GitHub release as the source
     - wget -q https://github.com/mikefarah/yq/releases/download/v4.44.2/yq_linux_amd64 -O /usr/bin/yq && chmod +x /usr/bin/yq
@@ -186,6 +195,7 @@ test:unit:linux:
   variables:
     COVERAGE_FILE: coverage-linux.txt
   before_script:
+    - !reference [.qa-common-network-apt-retry, before_script]
     - apt-get update && apt-get install --quiet --assume-yes
       git make bash dosfstools e2fsprogs gcc mtools musl-dev parted xz-utils libssl-dev
 
@@ -219,6 +229,7 @@ test:backwards-compatibility:
   image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/golang:1.22.12-bullseye
   needs: []
   before_script:
+    - !reference [.qa-common-network-apt-retry, before_script]
     - apt-get update && apt-get install --quiet --assume-yes libssl-dev
   script:
     - go build
@@ -292,6 +303,7 @@ publish:s3:
     - job: build:make
       artifacts: true
   before_script:
+    - !reference [.qa-common-network-apt-retry, before_script]
     - apt update && apt install -yyq awscli
   script:
     - echo "Publishing ${CI_COMMIT_REF_NAME} version for windows to S3";
