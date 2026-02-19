@@ -278,14 +278,11 @@ func (hi *HeaderInfoV3) Validate() error {
 		/* Artifact need not have a group */
 		//
 	}
-	///////////////////////////////////////
-	// Artifact-depends can be empty, thus:
-	///////////////////////////////////////
-	/* Artifact must not depend on a name. */
-	/* Artifact must not depend on a device. */
-	/* Artifact must not depend on an device group. */
-	/* Artifact must not depend on a update types supported. */
-	/* Artifact must not depend on artifact versions supported. */
+
+	if hi.ArtifactDepends == nil {
+		missingArgs = append(missingArgs, "Missing Field 'artifact_depends'")
+	}
+
 	if len(missingArgs) > 1 {
 		if len(missingArgs) > 2 {
 			missingArgs[0] = missingArgs[0] + "s" // Add plural.

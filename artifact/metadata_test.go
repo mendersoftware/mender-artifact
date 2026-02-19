@@ -110,6 +110,9 @@ func TestValidateHeaderInfoV3(t *testing.T) {
 		"Empty Artifact name": {
 			in:  HeaderInfoV3{Updates: []UpdateType{{}}, ArtifactProvides: &ArtifactProvides{}},
 			err: "Artifact name"},
+		"Missing ArtifactDepends":{
+			in: HeaderInfoV3{Updates: []UpdateType{{}}, ArtifactProvides: &ArtifactProvides{}},
+			err: "artifact_depends"},
 	}
 	for name, tt := range tests {
 		e := tt.in.Validate()
