@@ -26,7 +26,7 @@ USAGE:
    {{if .UsageText}}{{.UsageText}}{{else}}{{.HelpName}} command{{if .VisibleFlags}} [command options]{{end}} {{if .ArgsUsage}}{{.ArgsUsage}}{{else}}[arguments...]{{end}}{{end}}
 {{if .VisibleFlags}}{{$reqs:=false}}{{range .VisibleFlags}}{{if .IsRequired}}{{$reqs = true}}{{end}}{{end}}
 {{- if $reqs}}
-REQUIRED ARGUMENTS:{{range .VisibleFlags}}{{if .IsRequired}}
+REQUIRED ARGUMENTS:{{range .VisibleFlags}}{{if or .IsRequired (eq .GetName "compatible-types, c")}}
    {{.}}{{end}}{{end}}{{end}}
 
 OPTIONS:
