@@ -238,7 +238,7 @@ func writeBootstrapArtifact(c *cli.Context) error {
 		return err
 	}
 
-	typeInfoV3, _, err := makeTypeInfo(c)
+	typeInfoV3, _, err := makeTypeInfo(c, "")
 	if err != nil {
 		return err
 	}
@@ -359,7 +359,7 @@ func writeRootfs(c *cli.Context) error {
 		ArtifactGroup: c.String("provides-group"),
 	}
 
-	typeInfoV3, _, err := makeTypeInfo(c)
+	typeInfoV3, _, err := makeTypeInfo(c, "rootfs-image")
 	if err != nil {
 		return err
 	}
@@ -495,7 +495,10 @@ func makeUpdates(ctx *cli.Context) (*awriter.Updates, error) {
 
 // makeTypeInfo returns the type-info provides and depends and the augmented
 // type-info provides and depends, or nil.
-func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3, error) {
+func makeTypeInfo(
+	ctx *cli.Context,
+	typ string,
+) (*artifact.TypeInfoV3, *artifact.TypeInfoV3, error) {
 	// Make key value pairs from the type-info fields supplied on command
 	// line.
 	var keyValues *map[string]string
@@ -547,10 +550,10 @@ func makeTypeInfo(ctx *cli.Context) (*artifact.TypeInfoV3, *artifact.TypeInfoV3,
 	}
 
 	var typeInfo *string
-	if ctx.Command.Name != "bootstrap-artifact" {
-		typeFlag := ctx.String("type")
-		typeInfo = &typeFlag
+	if typ != "" {
+		typeInfo = &typ
 	}
+
 	typeInfoV3 := &artifact.TypeInfoV3{
 		Type:                   typeInfo,
 		ArtifactDepends:        typeInfoDepends,
@@ -842,7 +845,7 @@ func writeModuleImage(ctx *cli.Context) error {
 		ArtifactGroup: ctx.String("provides-group"),
 	}
 
-	typeInfoV3, augmentTypeInfoV3, err := makeTypeInfo(ctx)
+	typeInfoV3, augmentTypeInfoV3, err := makeTypeInfo(ctx, ctx.String("type"))
 	if err != nil {
 		return err
 	}

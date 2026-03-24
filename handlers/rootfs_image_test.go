@@ -91,7 +91,7 @@ func TestRootfsReadHeader(t *testing.T) {
 			errMsg:             "unsupported file",
 			shouldErrAugmented: true,
 			errMsgAugmented:    "unsupported file"},
-		{rootfs: NewRootfsV3("custom"), data: "{}",
+		{rootfs: NewRootfsV3("custom"), data: `{"type": "rootfs-image"}`,
 			name: "headers/0000/type-info", shouldErr: false, version: 3},
 	}
 
