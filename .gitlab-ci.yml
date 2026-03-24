@@ -72,6 +72,9 @@ variables:
       - 137
       - 192
       - 125
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 test:check-license-source:
   variables:
