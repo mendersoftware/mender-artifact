@@ -1,4 +1,55 @@
 ---
+## 4.4.0 - 2026-03-28
+
+
+### Bug fixes
+
+
+- List `compatible-types` as a required argument
+([MEN-9376](https://northerntech.atlassian.net/browse/MEN-9376)) ([daca4c3](https://github.com/mendersoftware/mender-artifact/commit/daca4c3be135e8818ec42ac44586d0ab0c820aab))  by @danielskinstad
+
+
+
+
+
+- Populate type in type-info for rootfs-image
+ ([7598da8](https://github.com/mendersoftware/mender-artifact/commit/7598da81d0adfbff8e1488aab2ff39d2bcaffa03)) 
+
+
+
+
+
+  Fix regression which caused the "write rootfs-image"
+  command to produce an Artifact with empty "type" in type-info and
+  thus not adhering to the format specification. The same versions
+  that write such an Artifact will also accept it, but both issues
+  have been fixed: A corrupt Artifact is not written anymore, nor
+  will corrupt Artifacts be accepted. If you have produced an
+  Artifact using a version of mender-artifact prior to 4.3.1, you
+  may have to recreate it.
+
+
+
+
+
+### Features
+
+
+- Add 'tmp' directory cli option
+([MEN-8479](https://northerntech.atlassian.net/browse/MEN-8479)) ([e6d7ff1](https://github.com/mendersoftware/mender-artifact/commit/e6d7ff13fd9267dbaa581bebe90b6fdb68e12d91))  by @rewanrashid-boop
+
+
+
+
+
+  Change mender-artifact 'install', 'write rootfs-image', 'modify' to
+  allow for custom 'tmp' directory
+
+
+
+
+
+
 ## 4.3.0 - 2026-02-10
 
 
