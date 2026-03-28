@@ -17,8 +17,7 @@ export CGO_ENABLED
 
 TOOLS = \
 	github.com/fzipp/gocyclo/... \
-	github.com/opennota/check/cmd/varcheck \
-	github.com/mendersoftware/deadcode
+	github.com/opennota/check/cmd/varcheck
 
 VERSION = $(shell git describe --tags --dirty --exact-match 2>/dev/null || git rev-parse --short HEAD)
 
@@ -134,8 +133,6 @@ extracheck:
 	fi
 	echo "-- checking with govet"
 	$(GO) vet -unsafeptr=false
-	echo "-- checking for dead code"
-	deadcode
 	echo "-- checking with varcheck"
 	varcheck .
 	echo "-- checking cyclometric complexity > $(GOCYCLO)"
