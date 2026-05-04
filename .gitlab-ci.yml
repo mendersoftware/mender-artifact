@@ -263,36 +263,22 @@ publish:tests:
       artifacts: true
     - job: test:coverage:linux
       artifacts: true
-  variables:
-    COVERALLS_WEBHOOK_URL: "https://coveralls.io/webhook"
-    COVERALLS_RERUN_BUILD_URL: "https://coveralls.io/rerun_build"
   before_script:
-    - go install github.com/mattn/goveralls@v0.0.12
-    # Coveralls env variables:
-    #  According to https://docs.coveralls.io/supported-ci-services
-    #  we should set CI_NAME, CI_BUILD_NUMBER, etc. But according
-    #  to goveralls source code (https://github.com/mattn/goveralls)
-    #  many of these are not supported. Set CI_BRANCH, CI_PR_NUMBER,
-    #  and pass few others as command line arguments.
-    #  See also https://docs.coveralls.io/api-reference
-    - export CI_BRANCH=${CI_COMMIT_BRANCH}
-    - export CI_PR_NUMBER=${CI_COMMIT_BRANCH#pr_}
+    - curl -Os https://cli.codecov.io/latest/linux/codecov
+    - chmod +x codecov
   script:
     - if [[ -f coverage-linux.txt && -f coverage-linux-pkcs.txt ]]; then tail -n +2 coverage-linux-pkcs.txt >> coverage-linux.txt; fi
-    # Submit coverage from all platforms.
+    - PR_FLAG=$(echo "${CI_COMMIT_BRANCH}" | grep -q '^pr_' && echo "--pr $(echo "${CI_COMMIT_BRANCH}" | sed 's/^pr_//')" || echo "")
     - for PLATFORM in linux mac; do
-    - goveralls
-      -repotoken ${COVERALLS_TOKEN}
-      -service gitlab-ci
-      -jobid $CI_PIPELINE_ID
-      -parallel
-      -covermode set
-      -flagname unittests:$PLATFORM
-      -coverprofile coverage-$PLATFORM.txt
+    - ./codecov upload-process
+      --fail-on-error
+      --git-service github
+      --slug mendersoftware/${CI_PROJECT_NAME}
+      --sha ${CI_COMMIT_SHA}
+      ${PR_FLAG}
+      --file coverage-${PLATFORM}.txt
+      --flag unittests-${PLATFORM}
     - done
-    # Finalize the report
-    - 'curl -k ${COVERALLS_WEBHOOK_URL}?repo_token=${COVERALLS_TOKEN} -d "payload[build_num]=$CI_PIPELINE_ID&payload[status]=done"'
-    - 'curl -k "${COVERALLS_RERUN_BUILD_URL}?repo_token=${COVERALLS_TOKEN}&build_num=${CI_PIPELINE_ID}"'
 
 publish:s3:
   stage: publish
