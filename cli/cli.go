@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	errArtifactInvalidParameters = iota
+	errArtifactInvalidParameters = iota + 1
 	errArtifactUnsupportedVersion
 	errArtifactCreate
 	errArtifactOpen
