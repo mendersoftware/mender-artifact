@@ -1,4 +1,37 @@
 ---
+## 4.4.1 - 2026-07-01
+
+
+### Bug fixes
+
+
+- *(cli)* Exit with non-zero code on invalid arguments
+ ([31511d7](https://github.com/mendersoftware/mender-artifact/commit/31511d7f07ab6d2cf8cb2162c02b1658846f11ca))  by @lluiscampos
+
+
+
+
+
+  The error code constants were defined with a bare iota, making
+  errArtifactInvalidParameters equal to 0. Any call to
+  cli.NewExitError(..., errArtifactInvalidParameters) would therefore exit
+  successfully, turning hard errors into silent warnings.
+
+- Replace --device-type with --compatible-types when dumping cmdline
+([MEN-9010](https://northerntech.atlassian.net/browse/MEN-9010)) ([898669b](https://github.com/mendersoftware/mender-artifact/commit/898669ba369f000d65bd7f7a0349c3c0dd849645))  by @vpodzime
+
+
+
+
+
+
+  `--device-type` is deprecated since 0eb186e0baf2381658160d289462.
+
+
+
+
+
+
 ## 4.4.0 - 2026-03-28
 
 
