@@ -17,6 +17,8 @@ package artifact
 import (
 	"path"
 	"regexp"
+	"sort"
+	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -27,7 +29,7 @@ type Scripts struct {
 
 var availableScriptType = map[string]bool{
 	// Idle, Sync and Download scripts are part of rootfs and can not
-	// be a part of the artifact itself; Leaving below for refference...
+	// be a part of the artifact itself; Leaving below for reference...
 	//"Idle":                   true,
 	//"Sync":                   true,
 	//"Download":               true,
@@ -39,6 +41,19 @@ var availableScriptType = map[string]bool{
 	"ArtifactFailure":        true,
 }
 
+// validScriptStates is a sorted, comma-separated list of the keys in
+// availableScriptType, built once at init time and used in error messages.
+var validScriptStates string
+
+func init() {
+	states := make([]string, 0, len(availableScriptType))
+	for s := range availableScriptType {
+		states = append(states, s)
+	}
+	sort.Strings(states)
+	validScriptStates = strings.Join(states, ", ")
+}
+
 func (s *Scripts) Add(tarPath string) error {
 	if s.names == nil {
 		s.names = make(map[string]string)
@@ -46,23 +61,30 @@ func (s *Scripts) Add(tarPath string) error {
 
 	name := path.Base(tarPath)
 
-	// all scripts must be formated like `ArtifactInstall_Enter_05_wifi-driver`
+	// all scripts must be formatted like `ArtifactInstall_Enter_05_wifi-driver`
 	re := regexp.MustCompile(`([A-Za-z]+)_(Enter|Leave|Error)_[0-9][0-9](_\S+)?`)
 
 	// `matches` should contain a slice of string of match of regex;
 	// the first element should be the whole matched name of the script and
-	// the second one shold be the name of the state
+	// the second one should be the name of the state
 	matches := re.FindStringSubmatch(name)
 	if len(matches) < 3 {
 		return errors.Errorf(
 			"Invalid script name: %q. Scripts must have a name on the form:"+
 				" <STATE_NAME>_<ACTION>_<ORDERING_NUMBER>_<OPTIONAL_DESCRIPTION>."+
-				" For example: 'Download_Enter_05_wifi-driver' is a valid script name.",
+				" For example: 'ArtifactInstall_Enter_05_wifi-driver' is a valid script name.",
 			name,
 		)
 	}
 	if _, found := availableScriptType[matches[1]]; !found {
-		return errors.Errorf("Unsupported script state: %s", matches[1])
+		return errors.Errorf(
+			"Unsupported script state: %q. Only Artifact state scripts are allowed in an"+
+				" Artifact; valid states are: %s."+
+				" See https://docs.mender.io/artifact-creation/state-scripts#root-filesystem-and-artifact-scripts"+ //nolint:lll
+				" for more information.",
+			matches[1],
+			validScriptStates,
+		)
 	}
 
 	if _, exists := s.names[name]; exists {
