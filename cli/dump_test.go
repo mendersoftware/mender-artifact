@@ -143,7 +143,7 @@ func testDumpContent(t *testing.T, imageType, printCmdline string) {
 			" --artifact-name Name"+
 			" --provides-group providesGroup"+
 			" --artifact-name-depends dependsOnArtifact"+
-			" --device-type TestDevice"+
+			" --compatible-types TestDevice"+
 			" --depends-groups dependsGroup"+
 			" --type %s"+
 			" --no-default-software-version"+
@@ -216,8 +216,8 @@ func testDumpContent(t *testing.T, imageType, printCmdline string) {
 			" --provides-group providesGroup"+
 			" --artifact-name-depends dependsOnArtifact"+
 			" --artifact-name-depends dependsOnArtifact2"+
-			" --device-type TestDevice"+
-			" --device-type TestDevice2"+
+			" --compatible-types TestDevice"+
+			" --compatible-types TestDevice2"+
 			" --depends-groups dependsGroup"+
 			" --depends-groups dependsGroup2"+
 			fmt.Sprintf(" --type %s", imageType)+

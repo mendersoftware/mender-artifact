@@ -204,8 +204,9 @@ func printCmdline(ar *areader.Reader, args []string, sep, endChar rune) {
 				strings.Join(artDeps.ArtifactName,
 					fmt.Sprintf("%c--artifact-name-depends%c", sep, sep)))
 		}
-		fmt.Printf("%c--device-type%c%s", sep, sep,
-			strings.Join(artDeps.CompatibleDevices, fmt.Sprintf("%c--device-type%c", sep, sep)))
+		fmt.Printf("%c--compatible-types%c%s", sep, sep,
+			strings.Join(artDeps.CompatibleDevices,
+				fmt.Sprintf("%c--compatible-types%c", sep, sep)))
 		if len(artDeps.ArtifactGroup) > 0 {
 			fmt.Printf("%c--depends-groups%c%s", sep, sep,
 				strings.Join(artDeps.ArtifactGroup, fmt.Sprintf("%c--depends-groups%c", sep, sep)))
@@ -213,8 +214,8 @@ func printCmdline(ar *areader.Reader, args []string, sep, endChar rune) {
 
 	} else if ar.GetInfo().Version == 2 {
 		fmt.Printf("%c--artifact-name%c%s", sep, sep, ar.GetArtifactName())
-		fmt.Printf("%c--device-type%c%s", sep, sep,
-			strings.Join(ar.GetCompatibleDevices(), " --device-type "))
+		fmt.Printf("%c--compatible-types%c%s", sep, sep,
+			strings.Join(ar.GetCompatibleDevices(), " --compatible-types "))
 	}
 
 	handlers := ar.GetHandlers()
