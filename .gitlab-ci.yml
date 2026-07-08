@@ -57,6 +57,7 @@ variables:
   DEFAULT_BRANCH: "master"
   S3_BUCKET_NAME: "mender"
   S3_BUCKET_PATH: "mender-artifact"
+  AWS_S3_PUBLISH_ROLE_ARN: "arn:aws:iam::175683096866:role/nt-mender-artifact-s3-publishing"
   DOCKER_BUILDKIT: 1
   INSTALL_BREW:
     value: false
@@ -270,9 +271,21 @@ publish:tests:
       --flag unittests-${PLATFORM}
     - done
 
+.aws-oidc-auth: &aws-oidc-auth
+  - >
+    export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN=%s"
+    $(aws sts assume-role-with-web-identity
+    --role-arn ${AWS_S3_PUBLISH_ROLE_ARN}
+    --role-session-name "GitLabRunner-${CI_PROJECT_ID}-${CI_PIPELINE_ID}"
+    --web-identity-token ${AWS_OIDC_TOKEN}
+    --duration-seconds 900
+    --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]'
+    --output text))
+  - aws sts get-caller-identity
+
 publish:s3:
   stage: publish
-  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/debian:bookworm-slim
+  image: registry.gitlab.com/northern.tech/mender/mender-test-containers/base-debian:master
   rules:
     # Publish for build and final tags + default and maintenance branches
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
@@ -282,9 +295,11 @@ publish:s3:
   needs:
     - job: build:make
       artifacts: true
+  id_tokens:
+    AWS_OIDC_TOKEN:
+      aud: https://gitlab.com
   before_script:
-    - !reference [.qa-common-network-apt-retry, before_script]
-    - apt update && apt install -yyq awscli
+    - *aws-oidc-auth
   script:
     - echo "Publishing ${CI_COMMIT_REF_NAME} version for windows to S3";
       aws s3 cp mender-artifact-windows.exe
