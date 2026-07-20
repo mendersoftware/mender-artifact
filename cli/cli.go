@@ -196,8 +196,9 @@ func getCliContext() *cli.App {
 	}
 	artifactAddScripts := cli.StringSliceFlag{
 		Name: "script, s",
-		Usage: "Adds additional state script to an already existing artifact." +
-			"You can specify multiple scripts providing this parameter multiple times.",
+		Usage: "Adds an Artifact state script (Artifact* scripts only," +
+			" e.g. ArtifactInstall_Enter_05) to an already existing artifact." +
+			" You can specify multiple scripts by providing this parameter multiple times.",
 	}
 
 	// Common Software Version flags
