@@ -144,7 +144,7 @@ test:smoketests:linux:
       artifacts: true
   before_script:
     - !reference [.qa-common-network-apt-retry, before_script]
-    - apt-get update && apt-get install -q -y make liblzma-dev libssl-dev jq wget
+    - apt-get update && apt-get install -q -y make liblzma-dev libssl-dev jq wget xdelta3
     # yq no longer has a maintained debian repo so we fall back on the GitHub release as the source
     - wget -q https://github.com/mikefarah/yq/releases/download/v4.44.2/yq_linux_amd64 -O /usr/bin/yq && chmod +x /usr/bin/yq
     - ./tests/test_sign_with_hsm/test_sign_with_hsm.sh --setup
@@ -162,6 +162,11 @@ test:smoketests:linux:
     - ./mender-artifact-linux validate test-rfs.mender
     - ./mender-artifact-linux validate --key tests/data/ec.pem tests/data/a0-signed-nitro.mender
     - test $(./mender-artifact-linux read --no-progress test-rfs.mender | yq eval -o json | jq -r '."Mender Artifact".Name') == "test"
+    - echo delta > test2.txt
+    - ./mender-artifact-linux write rootfs-image -c test -o test-rfs2.mender -n test2 -f test2.txt
+    - ./mender-artifact-linux write delta-image --from test-rfs.mender --to test-rfs2.mender -o test-delta.mender
+    - ./mender-artifact-linux read test-delta.mender
+    - ./mender-artifact-linux validate test-delta.mender
     - ./tests/test_compressions/test_supported_compressions.sh
 
 test:coverage:linux:
@@ -207,6 +212,7 @@ test:unit:linux:
     - !reference [.qa-common-network-apt-retry, before_script]
     - apt-get update && apt-get install --quiet --assume-yes
       git make bash dosfstools e2fsprogs gcc mtools musl-dev parted xz-utils libssl-dev
+      xdelta3
 
 test:unit:mac:
   extends: .test:unit
@@ -225,6 +231,8 @@ test:unit:mac:
     # correct and has not created valid links. This is the reason
     # why we are forcing to reinstall it
     - brew reinstall e2fsprogs
+    # xdelta3 is required by the `write delta-image` tests
+    - brew install xdelta
   after_script:
     # we want a clean environment on the runner for testing `brew install
     # mender-artifact` (which pulls `e2fsprogs`, among others, as a dependency)
