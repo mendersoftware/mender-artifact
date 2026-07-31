@@ -396,3 +396,141 @@ func TestSignViaSymlink(t *testing.T) {
 		filepath.Join(updateTestDir, "artifact.mender")})
 	assert.NoError(t, err)
 }
+
+func TestSignViaRelativeSymlink(t *testing.T) {
+	updateTestDir, _ := os.MkdirTemp("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	priv, pub, err := generateKeys()
+	assert.NoError(t, err)
+
+	err = WriteArtifact(updateTestDir, 2, "")
+	assert.NoError(t, err)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "private.key",
+				Content: priv,
+				IsDir:   false,
+			},
+			{
+				Path:    "public.key",
+				Content: pub,
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	cwd, err := os.Getwd()
+	assert.NoError(t, err)
+	assert.NotEqual(t, cwd, updateTestDir)
+
+	symlink := filepath.Join(updateTestDir, "symlink")
+	err = os.Symlink("artifact.mender", symlink)
+	assert.NoError(t, err)
+
+	err = Run([]string{"mender-artifact", "sign",
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		symlink})
+	assert.NoError(t, err)
+
+	// the original artifact got signed in place
+	err = Run([]string{"mender-artifact", "validate",
+		"-k", filepath.Join(updateTestDir, "public.key"),
+		filepath.Join(updateTestDir, "artifact.mender")})
+	assert.NoError(t, err)
+}
+
+func TestSignViaSymlinkChain(t *testing.T) {
+	updateTestDir, _ := os.MkdirTemp("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	priv, pub, err := generateKeys()
+	assert.NoError(t, err)
+
+	err = WriteArtifact(updateTestDir, 2, "")
+	assert.NoError(t, err)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "private.key",
+				Content: priv,
+				IsDir:   false,
+			},
+			{
+				Path:    "public.key",
+				Content: pub,
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	link1 := filepath.Join(updateTestDir, "link1")
+	link2 := filepath.Join(updateTestDir, "link2")
+	err = os.Symlink("artifact.mender", link1)
+	assert.NoError(t, err)
+	err = os.Symlink("link1", link2)
+	assert.NoError(t, err)
+
+	err = Run([]string{"mender-artifact", "sign",
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		link2})
+	assert.NoError(t, err)
+
+	err = Run([]string{"mender-artifact", "validate",
+		"-k", filepath.Join(updateTestDir, "public.key"),
+		filepath.Join(updateTestDir, "artifact.mender")})
+	assert.NoError(t, err)
+}
+
+func TestSignViaSymlinkWithOutputPath(t *testing.T) {
+	updateTestDir, _ := os.MkdirTemp("", "update")
+	defer os.RemoveAll(updateTestDir)
+
+	priv, pub, err := generateKeys()
+	assert.NoError(t, err)
+
+	err = WriteArtifact(updateTestDir, 2, "")
+	assert.NoError(t, err)
+
+	err = MakeFakeUpdateDir(updateTestDir,
+		[]TestDirEntry{
+			{
+				Path:    "private.key",
+				Content: priv,
+				IsDir:   false,
+			},
+			{
+				Path:    "public.key",
+				Content: pub,
+				IsDir:   false,
+			},
+		})
+	assert.NoError(t, err)
+
+	original, err := os.ReadFile(filepath.Join(updateTestDir, "artifact.mender"))
+	assert.NoError(t, err)
+
+	symlink := filepath.Join(updateTestDir, "symlink")
+	err = os.Symlink("artifact.mender", symlink)
+	assert.NoError(t, err)
+
+	// --output-path must be honored even when the input is a symlink
+	err = Run([]string{"mender-artifact", "sign",
+		"-k", filepath.Join(updateTestDir, "private.key"),
+		"-o", filepath.Join(updateTestDir, "artifact.mender.sig"),
+		symlink})
+	assert.NoError(t, err)
+
+	err = Run([]string{"mender-artifact", "validate",
+		"-k", filepath.Join(updateTestDir, "public.key"),
+		filepath.Join(updateTestDir, "artifact.mender.sig")})
+	assert.NoError(t, err)
+
+	// the original artifact is left untouched
+	afterSign, err := os.ReadFile(filepath.Join(updateTestDir, "artifact.mender"))
+	assert.NoError(t, err)
+	assert.Equal(t, original, afterSign)
+}
