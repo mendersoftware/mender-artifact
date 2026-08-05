@@ -24,6 +24,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestSignNoArgs(t *testing.T) {
+	err := Run([]string{"mender-artifact", "sign"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Nothing specified, nothing signed.")
+	assert.Contains(t, err.Error(), "mender-artifact sign <pathspec>")
+}
+
 func TestSignExistingV2(t *testing.T) {
 	// first create archive, that we will be able to read
 	updateTestDir, _ := os.MkdirTemp("", "update")
