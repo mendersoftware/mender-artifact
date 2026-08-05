@@ -60,7 +60,7 @@ func validate(art io.Reader, key artifact.Verifier) error {
 func validateArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return cli.NewExitError("Nothing specified, nothing validated. \nMaybe you wanted"+
-			" to say 'artifacts validate <pathspec>'?", errArtifactInvalidParameters)
+			" to say 'mender-artifact validate <pathspec>'?", errArtifactInvalidParameters)
 	}
 
 	key, err := getKey(c)

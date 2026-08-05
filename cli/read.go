@@ -244,7 +244,7 @@ func printUpdates(updatePayloads map[int]handlers.Installer, indentationLevel in
 func readArtifact(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return cli.NewExitError("Nothing specified, nothing read. \nMaybe you wanted"+
-			" to say 'artifacts read <pathspec>'?", errArtifactInvalidParameters)
+			" to say 'mender-artifact read <pathspec>'?", errArtifactInvalidParameters)
 	}
 
 	f, err := os.Open(c.Args().First())
