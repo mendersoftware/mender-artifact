@@ -18,9 +18,33 @@ import (
 	"archive/tar"
 	"io"
 	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 )
+
+// sourceDateEpochVar is the reproducible-builds convention for pinning
+// timestamps embedded in build output.
+// See https://reproducible-builds.org/docs/source-date-epoch/.
+const sourceDateEpochVar = "SOURCE_DATE_EPOCH"
+
+// sourceDateEpoch reports the timestamp requested by SOURCE_DATE_EPOCH, and
+// whether the variable was set at all. A malformed value is an error rather
+// than a silent fallback: a build that believes it is reproducible and is not
+// is worse than one that stops.
+func sourceDateEpoch() (time.Time, bool, error) {
+	v, ok := os.LookupEnv(sourceDateEpochVar)
+	if !ok {
+		return time.Time{}, false, nil
+	}
+	secs, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+	if err != nil {
+		return time.Time{}, false, errors.Wrapf(err, "arch: invalid %s value %q", sourceDateEpochVar, v)
+	}
+	return time.Unix(secs, 0).UTC(), true, nil
+}
 
 type FileArchiver struct {
 	*tar.Writer
@@ -43,6 +67,25 @@ func (fa *FileArchiver) Write(f *os.File, archivePath string) error {
 		return errors.Wrapf(err, "arch: invalid file info header")
 	}
 	hdr.Name = archivePath
+
+	// The files reaching this writer are temporaries created during the
+	// current run, so tar.FileInfoHeader copies in an mtime that changes on
+	// every invocation and, on Linux, the building user's uid/gid. Both make
+	// otherwise identical artifacts differ byte for byte. When
+	// SOURCE_DATE_EPOCH is set, pin them -- the zero ownership this writes
+	// matches what StreamArchiver and the manifest signer already produce.
+	epoch, ok, err := sourceDateEpoch()
+	if err != nil {
+		return err
+	}
+	if ok {
+		hdr.ModTime = epoch
+		hdr.AccessTime = time.Time{}
+		hdr.ChangeTime = time.Time{}
+		hdr.Uid, hdr.Gid = 0, 0
+		hdr.Uname, hdr.Gname = "", ""
+	}
+
 	if err = fa.Writer.WriteHeader(hdr); err != nil {
 		return errors.Wrapf(err, "arch: error writing header")
 	}
