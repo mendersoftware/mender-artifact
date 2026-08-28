@@ -17,6 +17,7 @@ import (
 
 	/* #nosec */
 	"crypto/sha1"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -68,7 +69,7 @@ type DeviceCodeResponse struct {
 
 	UserCode        string `json:"user_code"`
 	DeviceCode      string `json:"device_code"`
-	VerificationURL string `json:"verification_url"`
+	VerificationURL string `json:"verification_uri"`
 	ExpiresIn       int    `json:"expires_in"`
 	Interval        int    `json:"interval"`
 	Message         string `json:"message"`
@@ -109,22 +110,35 @@ func (c *Credential) JWT(ctx context.Context, authParams authority.AuthParams) (
 		options := exported.AssertionRequestOptions{
 			ClientID:      authParams.ClientID,
 			TokenEndpoint: authParams.Endpoints.TokenEndpoint,
+			FMIPath:       authParams.ExtraBodyParameters["fmi_path"],
 		}
 		return c.AssertionCallback(ctx, options)
 	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+	claims := jwt.MapClaims{
 		"aud": authParams.Endpoints.TokenEndpoint,
 		"exp": json.Number(strconv.FormatInt(time.Now().Add(10*time.Minute).Unix(), 10)),
 		"iss": authParams.ClientID,
 		"jti": uuid.New().String(),
 		"nbf": json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
 		"sub": authParams.ClientID,
-	})
+	}
+
+	isADFSorDSTS := authParams.AuthorityInfo.AuthorityType == authority.ADFS ||
+		authParams.AuthorityInfo.AuthorityType == authority.DSTS
+
+	var signingMethod jwt.SigningMethod = jwt.SigningMethodPS256
+	thumbprintKey := "x5t#S256"
+
+	if isADFSorDSTS {
+		signingMethod = jwt.SigningMethodRS256
+		thumbprintKey = "x5t"
+	}
+
+	token := jwt.NewWithClaims(signingMethod, claims)
 	token.Header = map[string]interface{}{
-		"alg": "RS256",
-		"typ": "JWT",
-		"x5t": base64.StdEncoding.EncodeToString(thumbprint(c.Cert)),
+		"alg":         signingMethod.Alg(),
+		"typ":         "JWT",
+		thumbprintKey: base64.StdEncoding.EncodeToString(thumbprint(c.Cert, signingMethod.Alg())),
 	}
 
 	if authParams.SendX5C {
@@ -133,17 +147,23 @@ func (c *Credential) JWT(ctx context.Context, authParams authority.AuthParams) (
 
 	assertion, err := token.SignedString(c.Key)
 	if err != nil {
-		return "", fmt.Errorf("unable to sign a JWT token using private key: %w", err)
+		return "", fmt.Errorf("unable to sign JWT token: %w", err)
 	}
+
 	return assertion, nil
 }
 
 // thumbprint runs the asn1.Der bytes through sha1 for use in the x5t parameter of JWT.
 // https://tools.ietf.org/html/rfc7517#section-4.8
-func thumbprint(cert *x509.Certificate) []byte {
-	/* #nosec */
-	a := sha1.Sum(cert.Raw)
-	return a[:]
+func thumbprint(cert *x509.Certificate, alg string) []byte {
+	switch alg {
+	case jwt.SigningMethodRS256.Name: // identity providers like ADFS don't support SHA256 assertions, so need to support this
+		hash := sha1.Sum(cert.Raw) /* #nosec */
+		return hash[:]
+	default:
+		hash := sha256.Sum256(cert.Raw)
+		return hash[:]
+	}
 }
 
 // Client represents the REST calls to get tokens from token generator backends.
@@ -262,11 +282,10 @@ func (c Client) FromClientSecret(ctx context.Context, authParameters authority.A
 	qv.Set(clientID, authParameters.ClientID)
 	addScopeQueryParam(qv, authParameters)
 
-	token, err := c.doTokenResp(ctx, authParameters, qv)
-	if err != nil {
-		return token, fmt.Errorf("FromClientSecret(): %w", err)
-	}
-	return token, nil
+	// Add extra body parameters if provided
+	addExtraBodyParameters(ctx, qv, authParameters)
+
+	return c.doTokenResp(ctx, authParameters, qv)
 }
 
 func (c Client) FromAssertion(ctx context.Context, authParameters authority.AuthParams, assertion string) (TokenResponse, error) {
@@ -281,11 +300,10 @@ func (c Client) FromAssertion(ctx context.Context, authParameters authority.Auth
 	qv.Set(clientInfo, clientInfoVal)
 	addScopeQueryParam(qv, authParameters)
 
-	token, err := c.doTokenResp(ctx, authParameters, qv)
-	if err != nil {
-		return token, fmt.Errorf("FromAssertion(): %w", err)
-	}
-	return token, nil
+	// Add extra body parameters if provided
+	addExtraBodyParameters(ctx, qv, authParameters)
+
+	return c.doTokenResp(ctx, authParameters, qv)
 }
 
 func (c Client) FromUserAssertionClientSecret(ctx context.Context, authParameters authority.AuthParams, userAssertion string, clientSecret string) (TokenResponse, error) {
@@ -317,6 +335,46 @@ func (c Client) FromUserAssertionClientCertificate(ctx context.Context, authPara
 	qv.Set(clientInfo, clientInfoVal)
 	qv.Set("requested_token_use", "on_behalf_of")
 	addScopeQueryParam(qv, authParameters)
+
+	// Add extra body parameters if provided
+	addExtraBodyParameters(ctx, qv, authParameters)
+	return c.doTokenResp(ctx, authParameters, qv)
+}
+
+// FromUserFederatedIdentityCredential acquires a user-scoped token using the user_fic grant type.
+// This exchanges a federated identity credential for a user token.
+func (c Client) FromUserFederatedIdentityCredential(ctx context.Context, authParameters authority.AuthParams, cred *Credential) (TokenResponse, error) {
+	if cred.Secret == "" && cred.Cert == nil && cred.AssertionCallback == nil {
+		return TokenResponse{}, fmt.Errorf("user_fic requires a client secret or assertion credential; token provider credentials are not supported")
+	}
+	qv := url.Values{}
+	if err := addClaims(qv, authParameters); err != nil {
+		return TokenResponse{}, err
+	}
+	qv.Set(grantType, grant.UserFIC)
+	qv.Set(clientID, authParameters.ClientID)
+	qv.Set("user_federated_identity_credential", authParameters.UserFederatedIdentityCredential)
+	qv.Set(clientInfo, clientInfoVal)
+
+	// Set user identifier: either user_id (OID) or username (UPN)
+	if authParameters.UserObjectID != "" {
+		qv.Set("user_id", authParameters.UserObjectID)
+	} else if authParameters.Username != "" {
+		qv.Set("username", authParameters.Username)
+	}
+
+	addScopeQueryParam(qv, authParameters)
+	addExtraBodyParameters(ctx, qv, authParameters)
+
+	credParams, err := prepURLVals(ctx, cred, authParameters)
+	if err != nil {
+		return TokenResponse{}, err
+	}
+	for k, vs := range credParams {
+		for _, v := range vs {
+			qv.Set(k, v)
+		}
+	}
 
 	return c.doTokenResp(ctx, authParameters, qv)
 }
@@ -454,4 +512,13 @@ func addClaims(v url.Values, ap authority.AuthParams) error {
 func addScopeQueryParam(queryParams url.Values, authParameters authority.AuthParams) {
 	scopes := AppendDefaultScopes(authParameters)
 	queryParams.Set("scope", strings.Join(scopes, " "))
+}
+
+// addExtraBodyParameters evaluates and adds extra body parameters to the request
+func addExtraBodyParameters(ctx context.Context, v url.Values, ap authority.AuthParams) {
+	for key, value := range ap.ExtraBodyParameters {
+		if value != "" {
+			v.Set(key, value)
+		}
+	}
 }
