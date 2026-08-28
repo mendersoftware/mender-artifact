@@ -87,7 +87,7 @@ test:check-license-source:
     LICENSE_HEADERS_IGNORE_FILES_REGEXP: './artifact/keyfactor/\(signer\|signer_test\)\.go'
 
 build:make:
-  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/golang:1.26-trixie
+  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/golang:1.27-trixie
   extends: .build:base
   needs: []
   stage: build
@@ -101,7 +101,7 @@ build:make:
 build:coverage:
   stage: build
   extends: .build:base
-  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/golang:1.26-trixie
+  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/golang:1.27-trixie
   needs: []
   before_script:
     - make get-build-deps
@@ -166,7 +166,7 @@ test:smoketests:linux:
 
 test:coverage:linux:
   stage: test
-  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/golang:1.26-trixie
+  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/golang:1.27-trixie
   needs:
     - job: build:coverage
       artifacts: true
@@ -188,7 +188,7 @@ test:coverage:linux:
 
 .test:unit:
   stage: test
-  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/golang:1.26-trixie
+  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/golang:1.27-trixie
   needs: []
   script:
     - make coverage
@@ -250,7 +250,7 @@ test:install:brew:
 publish:tests:
   stage: publish
   allow_failure: true
-  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/golang:1.26
+  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/golang:1.27
   needs:
     - job: test:unit:linux
       artifacts: true
