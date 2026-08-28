@@ -39,6 +39,7 @@ type AccessTokens interface {
 	FromUserAssertionClientCertificate(ctx context.Context, authParameters authority.AuthParams, userAssertion string, assertion string) (accesstokens.TokenResponse, error)
 	FromDeviceCodeResult(ctx context.Context, authParameters authority.AuthParams, deviceCodeResult accesstokens.DeviceCodeResult) (accesstokens.TokenResponse, error)
 	FromSamlGrant(ctx context.Context, authParameters authority.AuthParams, samlGrant wstrust.SamlTokenInfo) (accesstokens.TokenResponse, error)
+	FromUserFederatedIdentityCredential(ctx context.Context, authParameters authority.AuthParams, cred *accesstokens.Credential) (accesstokens.TokenResponse, error)
 }
 
 // FetchAuthority will be implemented by authority.Authority.
@@ -111,7 +112,7 @@ func (t *Client) Credential(ctx context.Context, authParams authority.AuthParams
 			Scopes:        scopes,
 			TenantID:      authParams.AuthorityInfo.Tenant,
 		}
-		tr, err := cred.TokenProvider(ctx, params)
+		pr, err := cred.TokenProvider(ctx, params)
 		if err != nil {
 			if len(scopes) == 0 {
 				err = fmt.Errorf("token request had an empty authority.AuthParams.Scopes, which may cause the following error: %w", err)
@@ -119,14 +120,18 @@ func (t *Client) Credential(ctx context.Context, authParams authority.AuthParams
 			}
 			return accesstokens.TokenResponse{}, err
 		}
-		return accesstokens.TokenResponse{
-			TokenType:   authParams.AuthnScheme.AccessTokenType(),
-			AccessToken: tr.AccessToken,
-			ExpiresOn: internalTime.DurationTime{
-				T: now.Add(time.Duration(tr.ExpiresInSeconds) * time.Second),
-			},
+		tr := accesstokens.TokenResponse{
+			TokenType:     authParams.AuthnScheme.AccessTokenType(),
+			AccessToken:   pr.AccessToken,
+			ExpiresOn:     now.Add(time.Duration(pr.ExpiresInSeconds) * time.Second),
 			GrantedScopes: accesstokens.Scopes{Slice: authParams.Scopes},
-		}, nil
+		}
+		if pr.RefreshInSeconds > 0 {
+			tr.RefreshOn = internalTime.DurationTime{
+				T: now.Add(time.Duration(pr.RefreshInSeconds) * time.Second),
+			}
+		}
+		return tr, nil
 	}
 
 	if err := t.resolveEndpoint(ctx, &authParams, ""); err != nil {
@@ -164,6 +169,17 @@ func (t *Client) OnBehalfOf(ctx context.Context, authParams authority.AuthParams
 		return accesstokens.TokenResponse{}, err
 	}
 	return tr, nil
+}
+
+// UserFederatedIdentityCredential acquires a user-scoped token using the user_fic grant type.
+func (t *Client) UserFederatedIdentityCredential(ctx context.Context, authParams authority.AuthParams, cred *accesstokens.Credential) (accesstokens.TokenResponse, error) {
+	if err := scopeError(authParams); err != nil {
+		return accesstokens.TokenResponse{}, err
+	}
+	if err := t.resolveEndpoint(ctx, &authParams, ""); err != nil {
+		return accesstokens.TokenResponse{}, err
+	}
+	return t.AccessTokens.FromUserFederatedIdentityCredential(ctx, authParams, cred)
 }
 
 func (t *Client) Refresh(ctx context.Context, reqType accesstokens.AppType, authParams authority.AuthParams, cc *accesstokens.Credential, refreshToken accesstokens.RefreshToken) (accesstokens.TokenResponse, error) {
