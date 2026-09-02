@@ -1,5 +1,4 @@
 stages:
-  - renovate
   - build
   - test
   - publish
@@ -22,9 +21,6 @@ include:
   - component: gitlab.com/Northern.tech/Mender/mendertesting/brew-build@master
     inputs:
       formula: "m/mender-artifact.rb"
-  - component: gitlab.com/Northern.tech/Mender/mendertesting/renovate@master
-    inputs:
-      stage: "renovate"
 
   # Release CI/CD components
   - component: gitlab.com/Northern.tech/Mender/mendertesting/release-candidate@master
