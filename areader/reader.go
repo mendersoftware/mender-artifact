@@ -48,6 +48,7 @@ type Reader struct {
 	ForbidUnknownHandlers     bool
 
 	warnOnValidationErrors bool
+	warnOnEmptyTypeInfo    bool
 	logger                 utils.Logger
 
 	shouldBeSigned  bool
@@ -85,8 +86,26 @@ func NewReaderSigned(r io.Reader) *Reader {
 	}
 }
 
+// WarnOnValidationErrors makes the reader tolerate and merely warn about
+// otherwise-fatal header-info validation errors (missing Artifact name, no
+// Payloads, etc), in addition to the empty type-info bug handled by
+// WarnOnEmptyTypeInfo. Intended for informational/best-effort reads, like
+// `read` and `dump`, not for anything that is supposed to assert that an
+// Artifact is well-formed.
 func (r *Reader) WarnOnValidationErrors(logger utils.Logger) *Reader {
 	r.warnOnValidationErrors = true
+	r.logger = logger
+	return r
+}
+
+// WarnOnEmptyTypeInfo makes the reader tolerate and merely warn about
+// Payloads with an empty type-info "type" field, a known bug in versions of
+// mender-artifact prior to 4.3.1 that does not otherwise indicate a corrupt
+// Artifact. Unlike WarnOnValidationErrors, this does not relax any other
+// validation, so it is safe to use in commands, like `validate`, that are
+// supposed to reject genuinely broken Artifacts.
+func (r *Reader) WarnOnEmptyTypeInfo(logger utils.Logger) *Reader {
+	r.warnOnEmptyTypeInfo = true
 	r.logger = logger
 	return r
 }
@@ -917,7 +936,12 @@ func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header, augmented bo
 				return errors.Errorf("reader: can not find parser for Payload: %v", hdr.Name)
 			}
 			if hErr := inst.ReadHeader(tr, hdr.Name, ar.info.Version, augmented); hErr != nil {
-				return errors.Wrap(hErr, "reader: can not read header")
+				if errors.Cause(hErr) == handlers.ErrTypeInfoEmpty &&
+					(ar.warnOnValidationErrors || ar.warnOnEmptyTypeInfo) {
+					ar.logger.Warn(fmt.Sprintf("reader: %s", hErr.Error()))
+				} else {
+					return errors.Wrap(hErr, "reader: can not read header")
+				}
 			}
 		}
 

@@ -40,6 +40,22 @@ type DataFile struct {
 	Checksum []byte
 }
 
+// ErrTypeInfoEmpty is returned (and, depending on the reader configuration,
+// only warned about) when the "type" field in a Payload's type-info header
+// is empty. This is known to be produced by versions of mender-artifact
+// prior to 4.3.1, and is not by itself indicative of a corrupt Artifact.
+var ErrTypeInfoEmpty = errors.New("Type in type-info header is empty: " +
+	"This is a known bug in some versions of mender-artifact prior to 4.3.1. " +
+	"Please recreate the artifact with version 4.3.1 or newer.")
+
+// ErrTypeInfoMismatch is returned when the "type" field in a Payload's
+// type-info header is set, but does not match the type declared in
+// header-info. Unlike ErrTypeInfoEmpty, this is always treated as an error,
+// since no released version of mender-artifact is known to produce such an
+// Artifact.
+var ErrTypeInfoMismatch = errors.New("Type in type-info header does not match header-info: " +
+	"Corrupt Artifact.")
+
 type ComposeHeaderArgs struct {
 	TarWriter  *tar.Writer
 	No         int

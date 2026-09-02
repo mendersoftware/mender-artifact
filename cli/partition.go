@@ -121,6 +121,7 @@ func (v vImage) Open(
 	defer art.Close()
 
 	aReader := areader.NewReader(art)
+	aReader.WarnOnEmptyTypeInfo(Log)
 	err = aReader.ReadArtifact()
 	if err == nil {
 		// we have VALID artifact,
