@@ -1391,7 +1391,7 @@ func TestReadBrokenArtifact(t *testing.T) {
 				fd.Close()
 			},
 			successful: false,
-			errorStr:   "readHeaderV3: handleHeaderReads: reader: can not read header: Type in type-info header is empty: This is a known bug in some versions of mender-artifact prior to 4.3.1. Please recreate the artifact with version 4.3.1 or newer.",
+			errorStr:   "readHeaderV3: handleHeaderReads: reader: can not read header: Type in type-info header is empty: This is a known bug in some versions of mender-artifact prior to 4.4.0. Please recreate the artifact with version 4.4.0 or newer.",
 		},
 		"Empty type in type-info, rootfs-image": {
 			manipulateArtifact: func(tmpdir string) {
@@ -1437,7 +1437,7 @@ func TestReadBrokenArtifact(t *testing.T) {
 			},
 			rootfsImage: true,
 			successful:  false,
-			errorStr:    "readHeaderV3: handleHeaderReads: reader: can not read header: Type in type-info header is empty: This is a known bug in some versions of mender-artifact prior to 4.3.1. Please recreate the artifact with version 4.3.1 or newer.",
+			errorStr:    "readHeaderV3: handleHeaderReads: reader: can not read header: Type in type-info header is empty: This is a known bug in some versions of mender-artifact prior to 4.4.0. Please recreate the artifact with version 4.4.0 or newer.",
 		},
 		"Non-matching type in type-info, module-image": {
 			manipulateArtifact: func(tmpdir string) {

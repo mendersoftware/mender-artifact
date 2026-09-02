@@ -43,10 +43,10 @@ type DataFile struct {
 // ErrTypeInfoEmpty is returned (and, depending on the reader configuration,
 // only warned about) when the "type" field in a Payload's type-info header
 // is empty. This is known to be produced by versions of mender-artifact
-// prior to 4.3.1, and is not by itself indicative of a corrupt Artifact.
+// prior to 4.4.0, and is not by itself indicative of a corrupt Artifact.
 var ErrTypeInfoEmpty = errors.New("Type in type-info header is empty: " +
-	"This is a known bug in some versions of mender-artifact prior to 4.3.1. " +
-	"Please recreate the artifact with version 4.3.1 or newer.")
+	"This is a known bug in some versions of mender-artifact prior to 4.4.0. " +
+	"Please recreate the artifact with version 4.4.0 or newer.")
 
 // ErrTypeInfoMismatch is returned when the "type" field in a Payload's
 // type-info header is set, but does not match the type declared in

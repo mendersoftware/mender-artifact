@@ -100,7 +100,7 @@ func (r *Reader) WarnOnValidationErrors(logger utils.Logger) *Reader {
 
 // WarnOnEmptyTypeInfo makes the reader tolerate and merely warn about
 // Payloads with an empty type-info "type" field, a known bug in versions of
-// mender-artifact prior to 4.3.1 that does not otherwise indicate a corrupt
+// mender-artifact prior to 4.4.0 that does not otherwise indicate a corrupt
 // Artifact. Unlike WarnOnValidationErrors, this does not relax any other
 // validation, so it is safe to use in commands, like `validate`, that are
 // supposed to reject genuinely broken Artifacts.
