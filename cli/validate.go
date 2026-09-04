@@ -33,6 +33,7 @@ func validate(art io.Reader, key artifact.Verifier) error {
 	var validationError error
 
 	ar := areader.NewReader(art)
+	ar.WarnOnEmptyTypeInfo(Log)
 	ar.VerifySignatureCallback = func(message, sig []byte) error {
 		if key != nil {
 			if err := key.Verify(message, sig); err != nil {

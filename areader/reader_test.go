@@ -1348,7 +1348,7 @@ func TestReadBrokenArtifact(t *testing.T) {
 			successful: false,
 			errorStr:   "Top level object in meta-data must be a JSON object",
 		},
-		"Non-matching type in type-info, module-image": {
+		"Empty type in type-info, module-image": {
 			manipulateArtifact: func(tmpdir string) {
 				headertmp := filepath.Join(tmpdir, "headertmp")
 				require.NoError(t, os.Mkdir(headertmp, 0755))
@@ -1391,9 +1391,9 @@ func TestReadBrokenArtifact(t *testing.T) {
 				fd.Close()
 			},
 			successful: false,
-			errorStr:   "readHeaderV3: handleHeaderReads: reader: can not read header: Type in type-info header does not match header-info: Corrupt Artifact. This is a known bug in some versions of mender-artifact prior to 4.3.1. Please recreate the artifact with version 4.3.1 or newer.",
+			errorStr:   "readHeaderV3: handleHeaderReads: reader: can not read header: Type in type-info header is empty: This is a known bug in some versions of mender-artifact prior to 4.4.0. Please recreate the artifact with version 4.4.0 or newer.",
 		},
-		"Non-matching type in type-info, rootfs-image": {
+		"Empty type in type-info, rootfs-image": {
 			manipulateArtifact: func(tmpdir string) {
 				headertmp := filepath.Join(tmpdir, "headertmp")
 				require.NoError(t, os.Mkdir(headertmp, 0755))
@@ -1437,7 +1437,98 @@ func TestReadBrokenArtifact(t *testing.T) {
 			},
 			rootfsImage: true,
 			successful:  false,
-			errorStr:    "readHeaderV3: handleHeaderReads: reader: can not read header: Type in type-info header does not match header-info: Corrupt Artifact. This is a known bug in some versions of mender-artifact prior to 4.3.1. Please recreate the artifact with version 4.3.1 or newer.",
+			errorStr:    "readHeaderV3: handleHeaderReads: reader: can not read header: Type in type-info header is empty: This is a known bug in some versions of mender-artifact prior to 4.4.0. Please recreate the artifact with version 4.4.0 or newer.",
+		},
+		"Non-matching type in type-info, module-image": {
+			manipulateArtifact: func(tmpdir string) {
+				headertmp := filepath.Join(tmpdir, "headertmp")
+				require.NoError(t, os.Mkdir(headertmp, 0755))
+				cmd := exec.Command("tar", "xzf", "../header.tar.gz")
+				cmd.Dir = headertmp
+				require.NoError(t, cmd.Run())
+
+				fd, err := os.OpenFile(filepath.Join(headertmp, "headers/0000/type-info"),
+					os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+				require.NoError(t, err)
+				fd.Write([]byte(`{"type":"other-type"}`))
+				fd.Close()
+
+				cmd = exec.Command("tar", "czf", "../header.tar.gz", "header-info", "headers")
+				cmd.Dir = headertmp
+				require.NoError(t, cmd.Run())
+
+				fd, err = os.Open(filepath.Join(tmpdir, "header.tar.gz"))
+				require.NoError(t, err)
+				content, err := io.ReadAll(fd)
+				require.NoError(t, err)
+				fd.Close()
+				checksumBytes := sha256.Sum256(content)
+				checksum := hex.EncodeToString(checksumBytes[:])
+
+				fd, err = os.OpenFile(filepath.Join(tmpdir, "manifest"),
+					os.O_RDWR, 0)
+				require.NoError(t, err)
+				manifestLines, err := io.ReadAll(fd)
+				require.NoError(t, err)
+				fd.Seek(0, 0)
+				fd.Truncate(0)
+				for _, line := range bytes.Split(manifestLines, []byte("\n")) {
+					if strings.Contains(string(line), "header.tar.gz") {
+						copy(line[0:len(checksum)], checksum)
+					}
+					fd.Write(line)
+					fd.Write([]byte("\n"))
+				}
+				fd.Close()
+			},
+			successful: false,
+			errorStr:   "readHeaderV3: handleHeaderReads: reader: can not read header: Type in type-info header does not match header-info: Corrupt Artifact.",
+		},
+		"Non-matching type in type-info, rootfs-image": {
+			manipulateArtifact: func(tmpdir string) {
+				headertmp := filepath.Join(tmpdir, "headertmp")
+				require.NoError(t, os.Mkdir(headertmp, 0755))
+				cmd := exec.Command("tar", "xzf", "../header.tar.gz")
+				cmd.Dir = headertmp
+				require.NoError(t, cmd.Run())
+
+				fd, err := os.OpenFile(filepath.Join(headertmp, "headers/0000/type-info"),
+					os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+				require.NoError(t, err)
+				fd.Write([]byte(`{"type":"other-type"}`))
+				fd.Close()
+
+				cmd = exec.Command("tar", "czf", "../header.tar.gz", "header-info", "headers")
+				cmd.Dir = headertmp
+				require.NoError(t, cmd.Run())
+
+				fd, err = os.Open(filepath.Join(tmpdir, "header.tar.gz"))
+				require.NoError(t, err)
+				content, err := io.ReadAll(fd)
+				require.NoError(t, err)
+				fd.Close()
+				checksumBytes := sha256.Sum256(content)
+				checksum := hex.EncodeToString(checksumBytes[:])
+
+				fd, err = os.OpenFile(filepath.Join(tmpdir, "manifest"),
+					os.O_RDWR, 0)
+				require.NoError(t, err)
+				manifestLines, err := io.ReadAll(fd)
+				require.NoError(t, err)
+				fd.Seek(0, 0)
+				fd.Truncate(0)
+				for _, line := range bytes.Split(manifestLines, []byte("\n")) {
+					if strings.Contains(string(line), "header.tar.gz") {
+						copy(line[0:len(checksum)], checksum)
+					}
+					fd.Write(line)
+					fd.Write([]byte("\n"))
+				}
+				fd.Close()
+			},
+			rootfsImage: true,
+			successful:  false,
+			errorStr:    "readHeaderV3: handleHeaderReads: reader: can not read header: Type in type-info header does not match header-info: Corrupt Artifact.",
 		},
 	}
 
@@ -1492,6 +1583,106 @@ func TestReadBrokenArtifact(t *testing.T) {
 			assert.Equal(t, c.numAugmentFiles, len(handler.GetUpdateAugmentFiles()))
 		})
 	}
+}
+
+type spyLogger struct {
+	warnings []string
+}
+
+func (l *spyLogger) Error(args ...any) {}
+func (l *spyLogger) Warn(args ...any) {
+	l.warnings = append(l.warnings, fmt.Sprint(args...))
+}
+func (l *spyLogger) Info(args ...any)  {}
+func (l *spyLogger) Debug(args ...any) {}
+
+func setTypeInfoAndFixManifest(t *testing.T, tmpdir string, typeInfo string) {
+	headertmp := filepath.Join(tmpdir, "headertmp")
+	require.NoError(t, os.Mkdir(headertmp, 0755))
+	cmd := exec.Command("tar", "xzf", "../header.tar.gz")
+	cmd.Dir = headertmp
+	require.NoError(t, cmd.Run())
+
+	fd, err := os.OpenFile(filepath.Join(headertmp, "headers/0000/type-info"),
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	require.NoError(t, err)
+	fd.Write([]byte(typeInfo))
+	fd.Close()
+
+	cmd = exec.Command("tar", "czf", "../header.tar.gz", "header-info", "headers")
+	cmd.Dir = headertmp
+	require.NoError(t, cmd.Run())
+
+	fd, err = os.Open(filepath.Join(tmpdir, "header.tar.gz"))
+	require.NoError(t, err)
+	content, err := io.ReadAll(fd)
+	require.NoError(t, err)
+	fd.Close()
+	checksumBytes := sha256.Sum256(content)
+	checksum := hex.EncodeToString(checksumBytes[:])
+
+	fd, err = os.OpenFile(filepath.Join(tmpdir, "manifest"), os.O_RDWR, 0)
+	require.NoError(t, err)
+	manifestLines, err := io.ReadAll(fd)
+	require.NoError(t, err)
+	fd.Seek(0, 0)
+	fd.Truncate(0)
+	for _, line := range bytes.Split(manifestLines, []byte("\n")) {
+		if strings.Contains(string(line), "header.tar.gz") {
+			copy(line[0:len(checksum)], checksum)
+		}
+		fd.Write(line)
+		fd.Write([]byte("\n"))
+	}
+	fd.Close()
+}
+
+func makeArtifactWithTypeInfo(t *testing.T, typeInfo string) io.Reader {
+	art, err := MakeModuleImageArtifact(false, false, "test-type", 1, 0)
+	require.NoError(t, err)
+
+	tmpdir, err := os.MkdirTemp("", "mender-TestReadArtifactTypeInfoWarning")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(tmpdir) })
+
+	cmd := exec.Command("tar", "x")
+	cmd.Stdin = art
+	cmd.Dir = tmpdir
+	require.NoError(t, cmd.Run())
+
+	setTypeInfoAndFixManifest(t, tmpdir, typeInfo)
+
+	pipeR, pipeW := io.Pipe()
+	cmd = exec.Command("tar", assembleSubset([]string{"c"}, tmpdir)...)
+	cmd.Stdout = pipeW
+	cmd.Dir = tmpdir
+	require.NoError(t, cmd.Start())
+	return pipeR
+}
+
+func TestReadArtifactEmptyTypeInfoIsOnlyAWarning(t *testing.T) {
+	art := makeArtifactWithTypeInfo(t, `{"type":""}`)
+
+	logger := &spyLogger{}
+	r := NewReader(art)
+	r.WarnOnValidationErrors(logger)
+	err := r.ReadArtifact()
+	require.NoError(t, err)
+	require.Len(t, logger.warnings, 1)
+	assert.Contains(t, logger.warnings[0], "Type in type-info header is empty")
+}
+
+func TestReadArtifactMismatchingTypeInfoIsAlwaysAnError(t *testing.T) {
+	art := makeArtifactWithTypeInfo(t, `{"type":"other-type"}`)
+
+	logger := &spyLogger{}
+	r := NewReader(art)
+	r.WarnOnValidationErrors(logger)
+	err := r.ReadArtifact()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(),
+		"Type in type-info header does not match header-info: Corrupt Artifact.")
+	assert.Empty(t, logger.warnings)
 }
 
 func TestMergeDependsSuccess(t *testing.T) {

@@ -52,6 +52,7 @@ func DumpCommand(c *cli.Context) error {
 	defer art.Close()
 
 	ar := areader.NewReader(art)
+	ar.WarnOnValidationErrors(Log)
 
 	scriptsReadCallback := func(r io.Reader, i os.FileInfo) error {
 		fullPath := path.Join(c.String("scripts"), i.Name())

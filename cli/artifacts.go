@@ -203,6 +203,7 @@ func unpackArtifact(name string) (ua *unpackedArtifact, err error) {
 	defer f.Close()
 
 	aReader := areader.NewReader(f)
+	aReader.WarnOnEmptyTypeInfo(Log)
 	ua.ar = aReader
 
 	tmpdir, err := os.MkdirTemp("", "mender-artifact")
