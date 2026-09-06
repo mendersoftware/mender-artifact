@@ -142,7 +142,7 @@ func (key *pKey) SignPKCS1v15(method Method, data []byte) ([]byte, error) {
 		}
 
 		// evp signatures are 64 bytes
-		sig := make([]byte, 64, 64)
+		sig := make([]byte, 64)
 		var sigblen C.size_t = 64
 		if 1 != C.X_EVP_DigestSign(ctx,
 			((*C.uchar)(unsafe.Pointer(&sig[0]))),
