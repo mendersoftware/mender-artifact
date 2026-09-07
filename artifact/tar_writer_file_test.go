@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -63,4 +64,91 @@ func TestTarFile(t *testing.T) {
 		assert.Len(t, "some data", int(n))
 		assert.Equal(t, "some data", data.String())
 	}
+}
+
+// tarFileWithMtime archives a temporary file stamped with mtime and returns
+// the resulting tar stream.
+func tarFileWithMtime(t *testing.T, mtime time.Time) []byte {
+	t.Helper()
+
+	f, err := os.CreateTemp("", "test")
+	assert.NoError(t, err)
+	defer os.Remove(f.Name())
+
+	_, err = f.WriteString("some data")
+	assert.NoError(t, err)
+	assert.NoError(t, f.Close())
+	assert.NoError(t, os.Chtimes(f.Name(), mtime, mtime))
+
+	f, err = os.Open(f.Name())
+	assert.NoError(t, err)
+	defer f.Close()
+
+	buf := bytes.NewBuffer(nil)
+	tw := tar.NewWriter(buf)
+	assert.NoError(t, NewTarWriterFile(tw).Write(f, "my_file"))
+	assert.NoError(t, tw.Close())
+
+	return buf.Bytes()
+}
+
+func firstHeader(t *testing.T, archive []byte) *tar.Header {
+	t.Helper()
+
+	hdr, err := tar.NewReader(bytes.NewReader(archive)).Next()
+	assert.NoError(t, err)
+	return hdr
+}
+
+// unsetSourceDateEpoch clears the variable for the duration of the test,
+// restoring whatever the ambient environment had.
+func unsetSourceDateEpoch(t *testing.T) {
+	t.Helper()
+
+	if v, ok := os.LookupEnv(sourceDateEpochVar); ok {
+		t.Setenv(sourceDateEpochVar, v)
+		assert.NoError(t, os.Unsetenv(sourceDateEpochVar))
+	}
+}
+
+func TestTarFileSourceDateEpoch(t *testing.T) {
+	t.Setenv(sourceDateEpochVar, "1000000000")
+
+	// Same content, different mtimes: the archives must still match byte for
+	// byte, which is the property the whole change exists to provide.
+	first := tarFileWithMtime(t, time.Unix(1500000000, 0))
+	second := tarFileWithMtime(t, time.Unix(1600000000, 0))
+	assert.Equal(t, first, second)
+
+	hdr := firstHeader(t, first)
+	assert.Equal(t, time.Unix(1000000000, 0).UTC(), hdr.ModTime.UTC())
+	assert.Zero(t, hdr.Uid)
+	assert.Zero(t, hdr.Gid)
+	assert.Empty(t, hdr.Uname)
+	assert.Empty(t, hdr.Gname)
+}
+
+func TestTarFileWithoutSourceDateEpoch(t *testing.T) {
+	unsetSourceDateEpoch(t)
+
+	mtime := time.Unix(1500000000, 0)
+	hdr := firstHeader(t, tarFileWithMtime(t, mtime))
+
+	// Unset means unchanged: the file's own mtime is still what lands in the
+	// header.
+	assert.Equal(t, mtime.UTC(), hdr.ModTime.UTC())
+}
+
+func TestTarFileInvalidSourceDateEpoch(t *testing.T) {
+	t.Setenv(sourceDateEpochVar, "not-a-timestamp")
+
+	f, err := os.CreateTemp("", "test")
+	assert.NoError(t, err)
+	defer os.Remove(f.Name())
+	defer f.Close()
+
+	tw := tar.NewWriter(bytes.NewBuffer(nil))
+	err = NewTarWriterFile(tw).Write(f, "my_file")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), sourceDateEpochVar)
 }
