@@ -1,4 +1,23 @@
 ---
+## 4.4.2 - 2026-09-04
+
+
+### Bug fixes
+
+- *(cli)* Improve --script flag help text and error messages ([d5773cb](https://github.com/mendersoftware/mender-artifact/commit/d5773cbf2ca574a53f6af9e0ba972dc58c3c1f2c)) by @lluiscampos
+- *(cli)* Resolve symlinks against their own directory when signing ([49bede0](https://github.com/mendersoftware/mender-artifact/commit/49bede04d80744143a919296ca4d12f2101c156d)) by @lgrosz
+- Artifacts produced by past versions of mender-artifact
+missing type-info in headers are no longer rejected as
+invalid/corrupt ([MEN-9561](https://northerntech.atlassian.net/browse/MEN-9561)) ([c257642](https://github.com/mendersoftware/mender-artifact/commit/c25764218c6e48677ab0b5b1736ccaf531c62e42)) by @vpodzime
+
+---
+### All tickets resolved in this release
+
+| Ticket |
+|---|
+| [MEN-9561](https://northerntech.atlassian.net/browse/MEN-9561) |
+
+
 ## 4.4.1 - 2026-07-08
 
 
