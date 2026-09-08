@@ -39,6 +39,8 @@ func TestArtifactsRead(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(),
 		"Nothing specified, nothing read.")
+	assert.Contains(t, errors.Cause(err).Error(),
+		"mender-artifact read <pathspec>")
 
 	err = Run([]string{"mender-artifact", "read",
 		filepath.Join(updateTestDir, "artifact.mender")})

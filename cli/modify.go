@@ -42,7 +42,7 @@ func modifyArtifact(c *cli.Context) (err error) {
 
 	if c.NArg() == 0 {
 		return cli.NewExitError("Nothing specified, nothing will be modified. \n"+
-			"Maybe you wanted to say 'artifacts read <pathspec>'?", 1)
+			"Maybe you wanted to say 'mender-artifact modify <pathspec>'?", 1)
 	}
 
 	if _, err := os.Stat(c.Args().First()); err != nil && os.IsNotExist(err) {

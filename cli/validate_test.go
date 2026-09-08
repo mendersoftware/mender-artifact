@@ -147,6 +147,8 @@ func TestArtifactsValidateError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, errors.Cause(err).Error(),
 		"Nothing specified, nothing validated.")
+	assert.Contains(t, errors.Cause(err).Error(),
+		"mender-artifact validate <pathspec>")
 
 	fakeErrWriter.Reset()
 	err = Run([]string{"mender-artifact", "validate", "non-existing"})
