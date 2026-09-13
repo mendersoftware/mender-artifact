@@ -11,6 +11,10 @@ type AssertionRequestOptions struct {
 
 	// TokenEndpoint is the intended token endpoint. Used as the assertion's "aud" claim.
 	TokenEndpoint string
+
+	// FMIPath is the federated managed identity path for the current request, if any.
+	// Assertion providers can use this to scope the credential they return.
+	FMIPath string
 }
 
 // TokenProviderParameters is the authentication parameters passed to token providers
@@ -31,4 +35,6 @@ type TokenProviderResult struct {
 	AccessToken string
 	// ExpiresInSeconds is the lifetime of the token in seconds
 	ExpiresInSeconds int
+	// RefreshInSeconds indicates the suggested	time to refresh the token, if any
+	RefreshInSeconds int
 }

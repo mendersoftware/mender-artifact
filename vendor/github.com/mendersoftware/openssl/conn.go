@@ -51,6 +51,7 @@ type Conn struct {
 
 type VerifyResult int
 
+//nolint:lll
 const (
 	Ok                                          VerifyResult = C.X509_V_OK
 	UnableToGetIssuerCert                       VerifyResult = C.X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT
@@ -266,7 +267,9 @@ func (c *Conn) getErrorHandler(rv C.int, errno error) func() error {
 			return io.ErrUnexpectedEOF
 		}
 	case C.SSL_ERROR_WANT_READ:
-		go c.flushOutputBuffer()
+		go func() {
+			_ = c.flushOutputBuffer()
+		}()
 		if c.want_read_future != nil {
 			want_read_future := c.want_read_future
 			return func() error {
@@ -348,7 +351,9 @@ func (c *Conn) Handshake() error {
 	for err == tryAgain {
 		err = c.handleError(c.handshake())
 	}
-	go c.flushOutputBuffer()
+	go func() {
+		_ = c.flushOutputBuffer()
+	}()
 	return err
 }
 
@@ -514,7 +519,9 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 		n, errcb := c.read(b)
 		err = c.handleError(errcb)
 		if err == nil {
-			go c.flushOutputBuffer()
+			go func() {
+				_ = c.flushOutputBuffer()
+			}()
 			return n, nil
 		}
 		if err == io.ErrUnexpectedEOF {

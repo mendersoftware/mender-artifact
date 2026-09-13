@@ -1,4 +1,4 @@
-// Copyright (c) HashiCorp, Inc.
+// Copyright IBM Corp. 2016, 2025
 // SPDX-License-Identifier: MPL-2.0
 
 package api
@@ -28,6 +28,7 @@ var sudoPaths = map[string]*regexp.Regexp{
 	"/sys/config/ui/headers":                        regexp.MustCompile(`^/sys/config/ui/headers/?$`),
 	"/sys/config/ui/headers/{header}":               regexp.MustCompile(`^/sys/config/ui/headers/.+$`),
 	"/sys/internal/inspect/router/{tag}":            regexp.MustCompile(`^/sys/internal/inspect/router/.+$`),
+	"/sys/internal/counters/activity/export":        regexp.MustCompile(`^/sys/internal/counters/activity/export$`),
 	"/sys/leases":                                   regexp.MustCompile(`^/sys/leases$`),
 	// This entry is a bit wrong... sys/leases/lookup does NOT require sudo. But sys/leases/lookup/ with a trailing
 	// slash DOES require sudo. But the part of the Vault CLI that uses this logic doesn't pass operation-appropriate
@@ -55,6 +56,7 @@ var sudoPaths = map[string]*regexp.Regexp{
 	"/sys/replication/reindex":                             regexp.MustCompile(`^/sys/replication/reindex$`),
 	"/sys/storage/raft/snapshot-auto/config":               regexp.MustCompile(`^/sys/storage/raft/snapshot-auto/config/?$`),
 	"/sys/storage/raft/snapshot-auto/config/{name}":        regexp.MustCompile(`^/sys/storage/raft/snapshot-auto/config/[^/]+$`),
+	"/sys/reporting/scan":                                  regexp.MustCompile(`^/sys/reporting/scan$`),
 }
 
 func SudoPaths() map[string]*regexp.Regexp {
