@@ -1,4 +1,11 @@
 ---
+## 4.4.3 - 2026-09-16
+
+
+### Bug fixes
+
+- *(cli)* Correct binary name in no-argument error messages ([edfdcac](https://github.com/mendersoftware/mender-artifact/commit/edfdcac6c926b3be34d15bcc40b572602a4f9d8e)) by @lluiscampos
+
 ## 4.4.2 - 2026-09-04
 
 
