@@ -27,7 +27,7 @@ import (
 func signExisting(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return cli.NewExitError("Nothing specified, nothing signed. \nMaybe you wanted"+
-			" to say 'artifacts sign <pathspec>'?", 1)
+			" to say 'mender-artifact sign <pathspec>'?", 1)
 	}
 
 	privateKey, err := getKey(c)

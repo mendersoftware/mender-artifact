@@ -52,6 +52,13 @@ func copyFile(src, dst string) error {
 	return out.Close()
 }
 
+func TestModifyNoArgs(t *testing.T) {
+	err := Run([]string{"mender-artifact", "modify"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Nothing specified, nothing will be modified.")
+	assert.Contains(t, err.Error(), "mender-artifact modify <pathspec>")
+}
+
 func TestDebugfs(t *testing.T) {
 	tmp, err := os.MkdirTemp("", "mender-modify")
 	assert.NoError(t, err)
