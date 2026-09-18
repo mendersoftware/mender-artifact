@@ -7,20 +7,23 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.2
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.3.1
 	github.com/Keyfactor/signserver-go-client-sdk v0.3.0
-	github.com/go-jose/go-jose/v3 v3.0.5
+	github.com/go-jose/go-jose/v3 v3.0.0
+	github.com/go-jose/go-jose/v4 v4.0.5
 	github.com/googleapis/gax-go/v2 v2.14.1
 	github.com/hashicorp/vault/api v1.10.0
 	github.com/klauspost/compress v1.18.0
 	github.com/klauspost/pgzip v1.2.6
 	github.com/lestrrat-go/jwx v1.2.31
+	github.com/lestrrat-go/jwx/v2 v2.1.4
 	github.com/mendersoftware/openssl v1.1.1-0.20221101135106-cb94d0a179f8
 	github.com/mendersoftware/progressbar v0.0.4
 	github.com/minio/sha256-simd v1.0.1
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.4
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.1
 	github.com/ulikunitz/xz v0.5.15
 	github.com/urfave/cli v1.22.17
+	github.com/urfave/cli/v3 v3.12.0
 	golang.org/x/sys v0.30.0
 	google.golang.org/protobuf v1.36.7
 )
@@ -76,6 +79,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.34.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.33.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/oauth2 v0.24.0 // indirect
