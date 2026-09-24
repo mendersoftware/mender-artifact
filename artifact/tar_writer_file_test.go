@@ -122,10 +122,15 @@ func TestTarFileSourceDateEpoch(t *testing.T) {
 
 	hdr := firstHeader(t, first)
 	assert.Equal(t, time.Unix(1000000000, 0).UTC(), hdr.ModTime.UTC())
-	assert.Zero(t, hdr.Uid)
-	assert.Zero(t, hdr.Gid)
-	assert.Empty(t, hdr.Uname)
-	assert.Empty(t, hdr.Gname)
+
+	// Ownership is outside SOURCE_DATE_EPOCH's scope, so it must come out
+	// exactly as it does with the variable unset.
+	unsetSourceDateEpoch(t)
+	unpinned := firstHeader(t, tarFileWithMtime(t, time.Unix(1500000000, 0)))
+	assert.Equal(t, unpinned.Uid, hdr.Uid)
+	assert.Equal(t, unpinned.Gid, hdr.Gid)
+	assert.Equal(t, unpinned.Uname, hdr.Uname)
+	assert.Equal(t, unpinned.Gname, hdr.Gname)
 }
 
 func TestTarFileWithoutSourceDateEpoch(t *testing.T) {

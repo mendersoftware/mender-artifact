@@ -41,7 +41,8 @@ func sourceDateEpoch() (time.Time, bool, error) {
 	}
 	secs, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
 	if err != nil {
-		return time.Time{}, false, errors.Wrapf(err, "arch: invalid %s value %q", sourceDateEpochVar, v)
+		return time.Time{}, false, errors.Wrapf(err,
+			"arch: invalid %s value %q", sourceDateEpochVar, v)
 	}
 	return time.Unix(secs, 0).UTC(), true, nil
 }
@@ -68,12 +69,12 @@ func (fa *FileArchiver) Write(f *os.File, archivePath string) error {
 	}
 	hdr.Name = archivePath
 
-	// The files reaching this writer are temporaries created during the
-	// current run, so tar.FileInfoHeader copies in an mtime that changes on
-	// every invocation and, on Linux, the building user's uid/gid. Both make
-	// otherwise identical artifacts differ byte for byte. When
-	// SOURCE_DATE_EPOCH is set, pin them -- the zero ownership this writes
-	// matches what StreamArchiver and the manifest signer already produce.
+	// This writer archives both the temporaries created during the run
+	// (header.tar.gz, data/NNNN.tar.gz) and the caller's own payload files
+	// and state scripts. tar.FileInfoHeader copies each file's mtime, which
+	// for the temporaries changes on every invocation, so when
+	// SOURCE_DATE_EPOCH is set the timestamps are pinned to it. Ownership is
+	// left as the file has it: SOURCE_DATE_EPOCH only covers timestamps.
 	epoch, ok, err := sourceDateEpoch()
 	if err != nil {
 		return err
@@ -82,8 +83,6 @@ func (fa *FileArchiver) Write(f *os.File, archivePath string) error {
 		hdr.ModTime = epoch
 		hdr.AccessTime = time.Time{}
 		hdr.ChangeTime = time.Time{}
-		hdr.Uid, hdr.Gid = 0, 0
-		hdr.Uname, hdr.Gname = "", ""
 	}
 
 	if err = fa.Writer.WriteHeader(hdr); err != nil {
