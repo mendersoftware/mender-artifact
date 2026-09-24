@@ -18,9 +18,34 @@ import (
 	"archive/tar"
 	"io"
 	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 )
+
+// sourceDateEpochVar is the reproducible-builds convention for pinning
+// timestamps embedded in build output.
+// See https://reproducible-builds.org/docs/source-date-epoch/.
+const sourceDateEpochVar = "SOURCE_DATE_EPOCH"
+
+// sourceDateEpoch reports the timestamp requested by SOURCE_DATE_EPOCH, and
+// whether the variable was set at all. A malformed value is an error rather
+// than a silent fallback: a build that believes it is reproducible and is not
+// is worse than one that stops.
+func sourceDateEpoch() (time.Time, bool, error) {
+	v, ok := os.LookupEnv(sourceDateEpochVar)
+	if !ok {
+		return time.Time{}, false, nil
+	}
+	secs, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+	if err != nil {
+		return time.Time{}, false, errors.Wrapf(err,
+			"arch: invalid %s value %q", sourceDateEpochVar, v)
+	}
+	return time.Unix(secs, 0).UTC(), true, nil
+}
 
 type FileArchiver struct {
 	*tar.Writer
@@ -43,6 +68,23 @@ func (fa *FileArchiver) Write(f *os.File, archivePath string) error {
 		return errors.Wrapf(err, "arch: invalid file info header")
 	}
 	hdr.Name = archivePath
+
+	// This writer archives both the temporaries created during the run
+	// (header.tar.gz, data/NNNN.tar.gz) and the caller's own payload files
+	// and state scripts. tar.FileInfoHeader copies each file's mtime, which
+	// for the temporaries changes on every invocation, so when
+	// SOURCE_DATE_EPOCH is set the timestamps are pinned to it. Ownership is
+	// left as the file has it: SOURCE_DATE_EPOCH only covers timestamps.
+	epoch, ok, err := sourceDateEpoch()
+	if err != nil {
+		return err
+	}
+	if ok {
+		hdr.ModTime = epoch
+		hdr.AccessTime = time.Time{}
+		hdr.ChangeTime = time.Time{}
+	}
+
 	if err = fa.Writer.WriteHeader(hdr); err != nil {
 		return errors.Wrapf(err, "arch: error writing header")
 	}
