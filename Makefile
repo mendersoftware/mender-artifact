@@ -76,6 +76,7 @@ $(PKGNAME)-%:
 build-native-linux: $(PKGNAME)-linux
 
 build-native-mac: GOOS = darwin
+build-native-mac: GOARCH = arm64
 build-native-mac: TAGS = nopkcs11
 build-native-mac: CGO_ENABLED = 0
 build-native-mac: .nopkcs11 $(PKGNAME)-darwin
