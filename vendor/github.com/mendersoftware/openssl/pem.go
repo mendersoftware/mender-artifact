@@ -25,8 +25,6 @@ var pemSplit *regexp.Regexp = regexp.MustCompile(`(?sm)` +
 
 func SplitPEM(data []byte) [][]byte {
 	var results [][]byte
-	for _, block := range pemSplit.FindAll(data, -1) {
-		results = append(results, block)
-	}
+	results = append(results, pemSplit.FindAll(data, -1)...)
 	return results
 }
