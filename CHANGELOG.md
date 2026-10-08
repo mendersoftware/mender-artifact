@@ -1,4 +1,12 @@
 ---
+## 4.4.3 - 2026-10-08
+
+
+### Bug fixes
+
+- *(cli)* Correct binary name in no-argument error messages ([edfdcac](https://github.com/mendersoftware/mender-artifact/commit/edfdcac6c926b3be34d15bcc40b572602a4f9d8e)) by @lluiscampos
+- Align tested mac architecture w/ current models to ease running on current macos ([9bd08ab](https://github.com/mendersoftware/mender-artifact/commit/9bd08ab3b35df7b73203589096c5d3d11e828357)) by @mzedel
+
 ## 4.4.2 - 2026-09-04
 
 
