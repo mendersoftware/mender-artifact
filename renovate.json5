@@ -2,61 +2,19 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
 
   "extends": [
-    "config:recommended",
-    ":gitSignOff",
-    ":rebaseStalePrs"
+    "github>mendersoftware/mendertesting//renovate/common.json5",
+    "github>mendersoftware/mendertesting//renovate/go.json5",
+    "github>mendersoftware/mendertesting//renovate/go-yocto-lts.json5"
   ],
-
-  // CODEOWNERS drives reviewer assignment. Keep CODEOWNERS complete.
-  "reviewersFromCodeOwners": true,
-
-  // chore(deps): <desc>, matching the old Dependabot prefix. CI files get ci: below.
-  "semanticCommits": "enabled",
-  "semanticCommitType": "chore",
-  "semanticCommitScope": "deps",
-
-  // Drain backlogs gradually. 10 concurrent because there are three base branches.
-  "prHourlyLimit": 2,
-  "prConcurrentLimit": 10,
 
   "baseBranchPatterns": ["master"],
 
-  // Only propose Go modules with go directive <= 1.22 (Go in our oldest
-  // supported Yocto LTS). Explicit because the ~1.22.x Renovate derives from
-  // go.mod is same-minor and would also filter out older go directives.
-  "constraints": {
-    "%goMod": "<=1.22"
-  },
-  "constraintsFiltering": "strict",
-
-  // Security PRs bypass the schedule
-  "vulnerabilityAlerts": {
-    "enabled": true,
-    "schedule": ["at any time"],
-    "labels": ["security"],
-    "constraintsFiltering": "none"
-  },
-
   "packageRules": [
-    // GitLab CI image bumps -> ci: (keeps them out of the deps changelog section).
-    {
-      "matchManagers": ["gitlabci", "gitlabci-include"],
-      "semanticCommitType": "ci",
-      "semanticCommitScope": ""
-    },
-
-    // Go: one PR for all modules.
-    {
-      "matchManagers": ["gomod"],
-      "groupName": "golang-dependencies",
-      "groupSlug": "golang-dependencies"
-    },
-
     // Docker base images: one grouped PR.
     {
       "matchManagers": ["dockerfile"],
       "groupName": "docker-base-images",
       "groupSlug": "docker-base-images"
-    },
+    }
   ]
 }
