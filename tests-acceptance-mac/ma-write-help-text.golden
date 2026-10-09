@@ -6,6 +6,7 @@ USAGE:
 
 COMMANDS:
    bootstrap-artifact  Writes Mender bootstrap artifact containing empty payload
+   delta-image         Writes Mender artifact containing a binary delta between two rootfs images
    module-image        Writes Mender artifact for an update module
    rootfs-image        Writes Mender artifact containing rootfs image
 
