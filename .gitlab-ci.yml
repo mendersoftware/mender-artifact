@@ -243,6 +243,50 @@ test:install:brew:
     - brew update
     - brew test mender-artifact
 
+# Local override of the `test:build:brew` job from the brew-build component
+# (gitlab.com/Northern.tech/Mender/mendertesting/brew-build). That job runs with
+# HOMEBREW_NO_INSTALL_FROM_API=1, which makes brew full-clone the homebrew/core tap.
+# Since ~2026-10-08 that clone fails on the multi-GB pack with
+# "curl 56 Recv failure: Connection reset by peer" / "early EOF" /
+# "fetch-pack: invalid index-pack output". We fix it two ways at once:
+#   1. Force git onto HTTP/1.1 (+ a larger buffer). The error signature is the
+#      classic symptom of HTTP/2 choking on a large git transfer; HTTP/1.1 streams
+#      a big pack far more reliably.
+#   2. Pre-tap homebrew/core ourselves as a blobless partial clone, so the transfer
+#      is a fraction of the size (file contents are fetched lazily) and completes
+#      quickly instead of taking many minutes. brew then finds the tap present and
+#      skips its own slow full clone.
+# The job runs in a fresh Tart VM every time, so the tap is never pre-existing: if a
+# valid tap is somehow already there we skip, and if the path exists but is NOT a git
+# repo we treat it as a corrupt/unexpected state and fail loudly rather than wiping
+# it. Retries absorb the occasional reset seen mid-clone. Only before_script is
+# overridden; the component's
+# script/rules/tags/retry/after_script are inherited. If this holds up, fold it into
+# the shared brew-build component.
+test:build:brew:
+  before_script:
+    - git config --global http.version HTTP/1.1
+    - git config --global http.postBuffer 524288000
+    - |
+        CORE_TAP="$(brew --repository)/Library/Taps/homebrew/homebrew-core"
+        if [ -d "${CORE_TAP}/.git" ]; then
+          echo "homebrew/core tap already present; skipping clone."
+        elif [ -e "${CORE_TAP}" ]; then
+          echo "ERROR: ${CORE_TAP} exists but is not a git repository; aborting." >&2
+          exit 1
+        else
+          for attempt in 1 2 3; do
+            echo "Cloning homebrew/core (blobless partial), attempt ${attempt}..."
+            if git clone --filter=blob:none https://github.com/Homebrew/homebrew-core "${CORE_TAP}"; then
+              break
+            fi
+            echo "homebrew/core clone attempt ${attempt} failed; retrying..."
+            rm -rf "${CORE_TAP}"
+            sleep 5
+          done
+        fi
+    - brew install gnu-sed wget
+
 publish:tests:
   stage: publish
   allow_failure: true
