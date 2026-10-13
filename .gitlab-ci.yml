@@ -243,6 +243,24 @@ test:install:brew:
     - brew update
     - brew test mender-artifact
 
+# Local override of the `test:build:brew` job from the brew-build component
+# (gitlab.com/Northern.tech/Mender/mendertesting/brew-build). That job runs with
+# HOMEBREW_NO_INSTALL_FROM_API=1, which forces brew to full-clone the homebrew/core
+# tap. Since ~2026-10-08 that clone fails on the multi-GB pack with
+# "curl 56 Recv failure: Connection reset by peer" / "early EOF" /
+# "fetch-pack: invalid index-pack output", so the job dies at
+# "==> Tapping homebrew/core" before building anything. That error signature is the
+# classic symptom of HTTP/2 choking on a large git transfer, so force git onto
+# HTTP/1.1 (and enlarge the transfer buffer) and let brew clone the tap as usual.
+# Only before_script is overridden; the component's script/rules/tags/retry/
+# after_script are inherited. If this proves the fix, fold it into the shared
+# brew-build component.
+test:build:brew:
+  before_script:
+    - git config --global http.version HTTP/1.1
+    - git config --global http.postBuffer 524288000
+    - brew install gnu-sed wget
+
 publish:tests:
   stage: publish
   allow_failure: true
