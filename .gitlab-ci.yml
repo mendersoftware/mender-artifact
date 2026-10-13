@@ -243,6 +243,34 @@ test:install:brew:
     - brew update
     - brew test mender-artifact
 
+# Local override of the `test:build:brew` job from the brew-build component
+# (gitlab.com/Northern.tech/Mender/mendertesting/brew-build). That job runs with
+# HOMEBREW_NO_INSTALL_FROM_API=1, which forces brew to full-clone the homebrew/core
+# tap. Since ~2026-10-08 that clone fails cloning the multi-GB history
+# (curl 56 "Connection reset by peer" / early EOF / invalid index-pack output), so
+# the job dies at "==> Tapping homebrew/core" before building anything. Pre-tap it
+# here as a blobless partial clone so the transfer is small enough to succeed; brew
+# then reuses the existing tap instead of cloning. Only before_script is overridden;
+# the component's script/rules/tags/retry/after_script are inherited. If this proves
+# the fix, fold it into the shared brew-build component.
+test:build:brew:
+  before_script:
+    - |
+        CORE_TAP="$(brew --repository)/Library/Taps/homebrew/homebrew-core"
+        if [ ! -d "${CORE_TAP}/.git" ]; then
+          rm -rf "${CORE_TAP}"
+          for attempt in 1 2 3; do
+            echo "Cloning homebrew/core (blobless partial), attempt ${attempt}..."
+            if git clone --filter=blob:none https://github.com/Homebrew/homebrew-core "${CORE_TAP}"; then
+              break
+            fi
+            echo "homebrew/core clone attempt ${attempt} failed; retrying..."
+            rm -rf "${CORE_TAP}"
+            sleep 5
+          done
+        fi
+    - brew install gnu-sed wget
+
 publish:tests:
   stage: publish
   allow_failure: true
