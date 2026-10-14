@@ -246,25 +246,30 @@ test:install:brew:
 # Local override of the `test:build:brew` job from the brew-build component
 # (gitlab.com/Northern.tech/Mender/mendertesting/brew-build). That job runs with
 # HOMEBREW_NO_INSTALL_FROM_API=1, which makes brew full-clone the homebrew/core tap.
-# Since ~2026-10-08 that clone fails on the multi-GB pack with
+# Since ~2026-10-08 that clone fails on the ~1.2 GB pack with
 # "curl 56 Recv failure: Connection reset by peer" / "early EOF" /
-# "fetch-pack: invalid index-pack output". We fix it two ways at once:
-#   1. Force git onto HTTP/1.1 (+ a larger buffer). The error signature is the
-#      classic symptom of HTTP/2 choking on a large git transfer; HTTP/1.1 streams
-#      a big pack far more reliably.
-#   2. Pre-tap homebrew/core ourselves as a blobless partial clone, so the transfer
-#      is a fraction of the size (file contents are fetched lazily) and completes
-#      quickly instead of taking many minutes. brew then finds the tap present and
-#      skips its own slow full clone.
-# The job runs in a fresh Tart VM every time, so the tap is never pre-existing: if a
-# valid tap is somehow already there we skip, and if the path exists but is NOT a git
-# repo we treat it as a corrupt/unexpected state and fail loudly rather than wiping
-# it. Retries absorb the occasional reset seen mid-clone. Only before_script is
-# overridden; the component's
+# "fetch-pack: invalid index-pack output" — the runner's link to GitHub gets reset
+# partway through the long transfer. Neither HTTP/1.1 nor a blobless partial clone
+# fixed it: blobless still pulls the entire commit/tree history (~1.2 GB, ~16 min)
+# because that history is the bulk of the repo. The fix is to pre-tap homebrew/core
+# ourselves as a SHALLOW clone (--depth=1): a single commit's snapshot is ~13 MB and
+# clones in ~10 s, far inside the reset window, and brings all current formula files
+# locally so there are no lazy fetches to get reset mid-build. brew then finds the
+# tap present and skips its own full clone.
+# We run `brew install gnu-sed wget` FIRST so brew's one-time auto-update happens
+# while no git tap exists yet (as it always has) and can't try to "unshallow" ours;
+# the later `brew reinstall` in the component's script won't re-trigger auto-update
+# (it's throttled to once per invocation).
+# The job runs in a fresh VM every time, so the tap is never pre-existing: if a valid
+# tap is somehow already there we skip, and if the path exists but is NOT a git repo
+# we fail loudly rather than wiping it. Retries absorb an occasional reset, and we
+# abort if all attempts fail (instead of letting brew fall through to its own doomed
+# full clone). Only before_script is overridden; the component's
 # script/rules/tags/retry/after_script are inherited. If this holds up, fold it into
 # the shared brew-build component.
 test:build:brew:
   before_script:
+    - brew install gnu-sed wget
     - |
         CORE_TAP="$(brew --repository)/Library/Taps/homebrew/homebrew-core"
         if [ -d "${CORE_TAP}/.git" ]; then
@@ -273,17 +278,22 @@ test:build:brew:
           echo "ERROR: ${CORE_TAP} exists but is not a git repository; aborting." >&2
           exit 1
         else
+          cloned=false
           for attempt in 1 2 3; do
-            echo "Cloning homebrew/core (blobless partial), attempt ${attempt}..."
-            if git clone --filter=blob:none https://github.com/Homebrew/homebrew-core "${CORE_TAP}"; then
+            echo "Cloning homebrew/core (shallow, depth=1), attempt ${attempt}..."
+            if git clone --depth=1 https://github.com/Homebrew/homebrew-core "${CORE_TAP}"; then
+              cloned=true
               break
             fi
             echo "homebrew/core clone attempt ${attempt} failed; retrying..."
             rm -rf "${CORE_TAP}"
             sleep 5
           done
+          if [ "${cloned}" != true ]; then
+            echo "ERROR: failed to clone homebrew/core after 3 attempts; aborting." >&2
+            exit 1
+          fi
         fi
-    - brew install gnu-sed wget
 
 publish:tests:
   stage: publish
