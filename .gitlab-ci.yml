@@ -265,8 +265,6 @@ test:install:brew:
 # the shared brew-build component.
 test:build:brew:
   before_script:
-    - git config --global http.version HTTP/1.1
-    - git config --global http.postBuffer 524288000
     - |
         CORE_TAP="$(brew --repository)/Library/Taps/homebrew/homebrew-core"
         if [ -d "${CORE_TAP}/.git" ]; then
