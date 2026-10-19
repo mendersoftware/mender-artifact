@@ -8,11 +8,13 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.3.1
 	github.com/Keyfactor/signserver-go-client-sdk v0.3.0
 	github.com/go-jose/go-jose/v3 v3.0.5
+	github.com/go-jose/go-jose/v4 v4.0.5
 	github.com/googleapis/gax-go/v2 v2.14.1
 	github.com/hashicorp/vault/api v1.16.0
 	github.com/klauspost/compress v1.18.0
 	github.com/klauspost/pgzip v1.2.6
 	github.com/lestrrat-go/jwx v1.2.31
+	github.com/lestrrat-go/jwx/v2 v2.1.4
 	github.com/mendersoftware/openssl v1.1.1-0.20260805091553-4b9336aa0818
 	github.com/mendersoftware/progressbar v0.0.4
 	github.com/minio/sha256-simd v1.0.1
@@ -21,6 +23,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/ulikunitz/xz v0.5.17
 	github.com/urfave/cli v1.22.17
+	github.com/urfave/cli/v3 v3.14.0
 	golang.org/x/sys v0.30.0
 	google.golang.org/protobuf v1.36.7
 )
@@ -40,7 +43,6 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/go-jose/go-jose/v4 v4.0.1 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect
