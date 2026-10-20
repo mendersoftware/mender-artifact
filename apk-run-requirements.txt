@@ -1,3 +1,4 @@
 libc6-compat
 xz
 libssl1.1
+xdelta3

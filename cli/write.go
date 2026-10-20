@@ -85,7 +85,7 @@ func getCompatibleDevices(c *cli.Context) []string {
 func validateInput(c *cli.Context) error {
 	// Version 2 and 3 validation.
 	fileMissing := false
-	if c.Command.Name != "bootstrap-artifact" {
+	if c.Command.Name != "bootstrap-artifact" && c.Command.Name != "delta-image" {
 		if len(c.String("file")) == 0 {
 			fileMissing = true
 		}
@@ -105,12 +105,16 @@ func validateInput(c *cli.Context) error {
 		)
 	}
 
-	if !hasDeviceType && !hasCompatibleTypes ||
-		len(c.String("artifact-name")) == 0 || fileMissing {
-		return cli.NewExitError(
-			"must provide `compatible-types`, `artifact-name` and `file`",
-			errArtifactInvalidParameters,
-		)
+	// `delta-image` inherits the artifact name, the compatible devices and
+	// the payload from its input Artifacts, so none of them are required.
+	if c.Command.Name != "delta-image" {
+		if !hasDeviceType && !hasCompatibleTypes ||
+			len(c.String("artifact-name")) == 0 || fileMissing {
+			return cli.NewExitError(
+				"must provide `compatible-types`, `artifact-name` and `file`",
+				errArtifactInvalidParameters,
+			)
+		}
 	}
 	if len(strings.Fields(c.String("artifact-name"))) > 1 {
 		// check for whitespace in artifact-name
@@ -637,6 +641,11 @@ func applySoftwareVersionToTypeInfoProvides(
 	}
 	softwareVersion := ctx.String(softwareVersionFlag)
 	noDefaultSoftwareVersion := ctx.Bool(noDefaultSoftwareVersionFlag)
+	if ctx.Command.Name == "delta-image" {
+		// The version provides are inherited from the target Artifact, so no
+		// defaults are derived; explicit --software-* flags still apply.
+		noDefaultSoftwareVersion = true
+	}
 	if softwareVersionMapping := getSoftwareVersion(
 		artifactName,
 		softwareFilesystem,
@@ -695,7 +704,10 @@ func makeClearsArtifactProvides(ctx *cli.Context) ([]string, error) {
 	var softwareName string
 	if len(ctx.String("software-name")) > 0 {
 		softwareName = ctx.String("software-name") + "."
-	} else if ctx.Command.Name == "rootfs-image" {
+	} else if ctx.Command.Name == "rootfs-image" ||
+		ctx.Command.Name == "delta-image" {
+		// A delta payload replaces the whole rootfs, so it clears the same
+		// provides a full rootfs-image update clears.
 		softwareName = ""
 		// "rootfs_image_checksum" is included for legacy
 		// reasons. Previously, "rootfs_image_checksum" was the name
