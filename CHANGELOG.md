@@ -1,4 +1,22 @@
 ---
+## 4.4.3 - 2026-10-21
+
+
+### Bug fixes
+
+- *(cli)* Correct binary name in no-argument error messages ([edfdcac](https://github.com/mendersoftware/mender-artifact/commit/edfdcac6c926b3be34d15bcc40b572602a4f9d8e)) by @lluiscampos
+- Align tested mac architecture w/ current models to ease running on current macos ([9bd08ab](https://github.com/mendersoftware/mender-artifact/commit/9bd08ab3b35df7b73203589096c5d3d11e828357)) by @mzedel
+
+### Dependency updates
+
+- *(deps)* Update golang-dependencies ([bbc0a89](https://github.com/mendersoftware/mender-artifact/commit/bbc0a89ce2e8962e19129efd4a3989ef9292e4dd)) by @danielskinstad
+  - cloud.google.com/go/kms v1.10.1 -> v1.20.5
+  - github.com/hashicorp/vault/api v1.10.0 -> v1.16.0
+  - github.com/mendersoftware/openssl v1.1.1-0.20221101135106-cb94d0a179f8 ->
+  - github.com/stretchr/testify v1.11.1 -> v1.12.1
+  - github.com/ulikunitz/xz v0.5.15 -> v0.5.17
+
+
 ## 4.4.2 - 2026-09-04
 
 
