@@ -11,7 +11,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.0.5
 	github.com/googleapis/gax-go/v2 v2.14.1
 	github.com/hashicorp/vault/api v1.16.0
-	github.com/klauspost/compress v1.18.0
+	github.com/klauspost/compress v1.18.7
 	github.com/klauspost/pgzip v1.2.6
 	github.com/lestrrat-go/jwx v1.2.31
 	github.com/lestrrat-go/jwx/v2 v2.1.4
