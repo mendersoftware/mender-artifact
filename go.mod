@@ -1,6 +1,6 @@
 module github.com/mendersoftware/mender-artifact
 
-go 1.22.0
+go 1.24.0
 
 require (
 	cloud.google.com/go/kms v1.20.5
@@ -8,7 +8,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.3.1
 	github.com/Keyfactor/signserver-go-client-sdk v0.3.0
 	github.com/go-jose/go-jose/v3 v3.0.5
-	github.com/go-jose/go-jose/v4 v4.0.5
+	github.com/go-jose/go-jose/v4 v4.1.6
 	github.com/googleapis/gax-go/v2 v2.14.1
 	github.com/hashicorp/vault/api v1.16.0
 	github.com/klauspost/compress v1.18.0
