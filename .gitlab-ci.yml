@@ -243,6 +243,73 @@ test:install:brew:
     - brew update
     - brew test mender-artifact
 
+# Local override of the `test:build:brew` job from the brew-build component
+# (gitlab.com/Northern.tech/Mender/mendertesting/brew-build).
+test:build:brew:
+  # The component's script installs/tests the generated formula by file path
+  # (`brew reinstall --formula ./mender-artifact.rb`). Homebrew 7.0 removed
+  # path-based package loading entirely (always disabled, even with
+  # HOMEBREW_DEVELOPER=1; HOMEBREW_FORBID_PACKAGES_FROM_PATHS is now a no-op),
+  # so brew strips the path to the bare name "mender-artifact", fails to find it
+  # in any tap, and errors with "No available formula with the name
+  # mender-artifact". We override script/after_script to build the same formula
+  # but install it from a local, ephemeral tap by its tap-qualified name, which
+  # is still a valid lookup. Only script/after_script are overridden; the
+  # component's rules/tags/retry/variables are inherited. If this holds up, fold
+  # it into the shared brew-build component.
+  # Mirrors the component's script 1:1 so it can be folded back into the component
+  # with minimal edits; only step 4 and the extra untap in after_script differ.
+  # When porting to the component, un-resolve the three inlined inputs back to
+  # interpolation: `m/mender-artifact.rb` -> `$[[ inputs.formula ]]` (used in the
+  # basename below and the step-2 URL) and `""` -> `$[[ inputs.repo ]]` (the REPO
+  # line below). The empty string here is inputs.repo's default (no repo input is
+  # passed for mender-artifact), so the `|| REPO=...` branch is a no-op.
+  script:
+    - FORMULA_FILE="$(basename m/mender-artifact.rb)"
+    - FORMULA_NAME="${FORMULA_FILE%%.*}"
+    - REPO="$FORMULA_NAME"
+    - test -z "" || REPO=""
+    - TEMP_BUILD_DIR="/tmp/brew_build_${CI_PIPELINE_ID}"
+    - mkdir "$TEMP_BUILD_DIR"
+    - cd "$TEMP_BUILD_DIR"
+    # 1. get the custom download strategy for brew so that we can fetch a PR revision from GH
+    - wget -O $FORMULA_FILE https://raw.githubusercontent.com/mendersoftware/mendertesting/master/gh_pr_brew_dl_strategy.rb
+    - echo >> $FORMULA_FILE # Make sure there's a newline after download strategy class
+    # 2. fetch the upstream brew formula
+    - wget -O ${FORMULA_NAME}_upstream.rb "https://github.com/Homebrew/homebrew-core/raw/refs/heads/main/Formula/m/mender-artifact.rb"
+    # 3. adapt the formula to use the PR revision instead of a release tarball
+    - |
+        gsed -e /sha256/d -e "/url /s|\".*\"|\"https://github.com/mendersoftware/${REPO}.git\",|" -e "/url \"https/a\ \ \ \ revision: \"${CI_COMMIT_SHA}\",\n    using: GitHubPRDownloadStrategy\n  version \"1234\"" < ${FORMULA_NAME}_upstream.rb >> $FORMULA_FILE
+    # 3b. provenance: show the revision we are about to build and the generated
+    #     formula, so the log proves which commit brew is told to fetch. Compare this
+    #     SHA against the "==> Fetching PR revision <sha>" line the download strategy
+    #     prints during the install below.
+    - echo "=== building ${FORMULA_NAME} from revision ${CI_COMMIT_SHA} (pipeline ${CI_PIPELINE_ID}) ==="
+    - echo "=== generated formula ${FORMULA_FILE} ===" && cat $FORMULA_FILE
+    # 4. run brew build and test from a local, ephemeral tap. The component installs
+    #    by file path (`--formula ./${FORMULA_FILE}`), which brew 7.0 rejects.
+    - TAP="mender/local"
+    - TAP_DIR="$(brew --repository)/Library/Taps/mender/homebrew-local"
+    - brew tap-new --no-git "$TAP"
+    - mkdir -p "$TAP_DIR/Formula"
+    - cp "$FORMULA_FILE" "$TAP_DIR/Formula/$FORMULA_FILE"
+    - HOMEBREW_NO_INSTALL_FROM_API=1 brew reinstall --build-from-source --verbose --formula "${TAP}/${FORMULA_NAME}" < /dev/null
+    # 4b. provenance: confirm the binary that was just built and installed from source
+    #     (not poured from a bottle) and that it runs.
+    - echo "=== installed formula info (expect a source build at version 1234) ==="
+    # Note: no `| head` here — brew gets SIGPIPE/broken-pipe when head closes the
+    # pipe early and exits non-zero, which fails the job under pipefail.
+    - brew info "${TAP}/${FORMULA_NAME}"
+    - BIN="$(brew --prefix)/bin/${FORMULA_NAME}"
+    - echo "=== ${BIN} --version ===" && "$BIN" --version
+    - brew test "${TAP}/${FORMULA_NAME}"
+  after_script:
+    - FORMULA_FILE="$(basename m/mender-artifact.rb)"
+    - FORMULA_NAME="${FORMULA_FILE%%.*}"
+    - brew remove $FORMULA_NAME || true
+    - brew untap mender/local || true
+    - rm -rf "/tmp/brew_build_${CI_PIPELINE_ID}"
+
 publish:tests:
   stage: publish
   allow_failure: true
