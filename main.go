@@ -22,6 +22,7 @@ import (
 )
 
 func run() error {
+
 	err := cli.Run(os.Args)
 	if err != nil {
 		fmt.Println(err)
