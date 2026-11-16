@@ -26,6 +26,9 @@ include:
   - component: gitlab.com/Northern.tech/Mender/mendertesting/release-candidate@master
     inputs:
       github_repo: mendersoftware/mender-artifact
+  - component: gitlab.com/Northern.tech/Mender/mendertesting/release-candidate-v-tag@master
+    inputs:
+      github_repo: mendersoftware/mender-artifact
   - component: gitlab.com/Northern.tech/Mender/mendertesting/release-mender-docs@master
     inputs:
       component: mender-artifact
