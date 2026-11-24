@@ -7,6 +7,9 @@
     "github>mendersoftware/mendertesting//renovate/go-yocto-lts.json5"
   ],
 
+  "reviewers": ["team:client-dependabot-reviewers"],
+  "reviewersFromCodeOwners": false,
+
   "baseBranchPatterns": ["master"],
 
   "packageRules": [
