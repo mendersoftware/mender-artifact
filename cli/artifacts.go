@@ -164,6 +164,7 @@ func getKey(c *cli.Context) (SigningKey, error) {
 			"rootfs-image":       true,
 			"module-image":       true,
 			"bootstrap-artifact": true,
+			"delta-image":        true,
 			"sign":               true,
 			"modify":             true,
 			"copy":               true,

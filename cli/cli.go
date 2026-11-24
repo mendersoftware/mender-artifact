@@ -512,6 +512,109 @@ func getCliContext() *cli.App {
 
 	writeBootstrapArtifactCommand.Before = applyCompressionInCommand
 
+	//
+	// Delta between two rootfs-image Artifacts: delta-image
+	//
+	writeDeltaImageCommand := cli.Command{
+		Name:   "delta-image",
+		Action: writeDeltaImage,
+		Usage:  "Writes Mender artifact containing a binary delta between two rootfs images",
+		UsageText: "mender-artifact write delta-image --from <base.mender> --to <target.mender> " +
+			"[--output-path delta.mender]",
+		Description: "Generates a delta payload for the `" + deltaPayloadType + "` update " +
+			"module by running xdelta3 over the rootfs images of two `rootfs-image` " +
+			"Artifacts. Requires the `xdelta3` binary to be installed. The resulting " +
+			"Artifact only applies to a device which is currently running the base image.",
+	}
+
+	writeDeltaImageCommand.CustomHelpTemplate = CustomSubcommandHelpTemplate
+
+	writeDeltaImageCommand.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:     "from",
+			Usage:    "`FILE` path to the base (currently installed) rootfs-image Artifact.",
+			Required: true,
+		},
+		cli.StringFlag{
+			Name:     "to",
+			Usage:    "`FILE` path to the target (to be installed) rootfs-image Artifact.",
+			Required: true,
+		},
+		cli.StringFlag{
+			Name:  "output-path, o",
+			Usage: "Full path to output artifact file, '-' for stdout.",
+			Value: "delta.mender",
+		},
+		cli.StringFlag{
+			Name: "artifact-name, n",
+			Usage: "Name of the artifact. Defaults to the name of the target " +
+				"Artifact.",
+		},
+		cli.StringSliceFlag{
+			Name:  "device-type, t",
+			Usage: "DEPRECATED. Use --compatible-types instead.",
+		},
+		cli.StringSliceFlag{
+			Name: "compatible-types, c",
+			Usage: "Type of device(s) supported by the Artifact. Defaults to the " +
+				"compatible types of the target Artifact.",
+		},
+		cli.StringSliceFlag{
+			Name: decoderArgumentsFlag + ", D",
+			Usage: "Extra `ARGUMENTS` passed to xdelta3, both when generating the " +
+				"delta and, through the payload meta-data, when applying it on the " +
+				"device. Typically used to bound the memory the device needs, e.g. " +
+				"'-B524288000 -W150000 -P262144 -I62768'.",
+		},
+		cli.StringSliceFlag{
+			Name: "script, s",
+			Usage: "Full path to the state script(s), added to the ones " +
+				"inherited from the target Artifact. You can specify multiple " +
+				"scripts providing this parameter multiple times.",
+		},
+		cli.StringFlag{
+			Name:  "tmp",
+			Value: os.TempDir(),
+			Usage: "Provide custom file path for tmp directory.",
+		},
+		cli.BoolFlag{
+			Name:  "no-progress",
+			Usage: "Suppress the progressbar output",
+		},
+		compressionFlag,
+		privateKeyFlag,
+		gcpKMSKeyFlag,
+		vaultTransitKeyFlag,
+		signserverWorkerName,
+		azureKeyFlag,
+		/////////////////////////
+		// Version 3 specifics.//
+		/////////////////////////
+		artifactNameDepends,
+		artifactProvidesGroup,
+		artifactDependsGroups,
+		payloadDepends,
+		payloadProvides,
+		payloadMetaData,
+		clearsArtifactProvides,
+		noDefaultClearsArtifactProvides,
+		///////////////////////
+		// Software versions //
+		///////////////////////
+		softwareVersionNoDefault,
+		cli.StringFlag{
+			Name: softwareNameFlag,
+			Usage: "Name of the key to store the software version: rootfs-image.NAME.version," +
+				" instead of rootfs-image.version",
+		},
+		softwareVersionValue,
+		softwareFilesystem,
+		artifactSizeLimit,
+		artifactSizeWarnLimit,
+	}
+
+	writeDeltaImageCommand.Before = applyCompressionInCommand
+
 	writeCommand := cli.Command{
 		Name:     "write",
 		Usage:    "Writes artifact file.",
@@ -520,6 +623,7 @@ func getCliContext() *cli.App {
 			writeRootfsCommand,
 			writeModuleCommand,
 			writeBootstrapArtifactCommand,
+			writeDeltaImageCommand,
 		},
 	}
 
